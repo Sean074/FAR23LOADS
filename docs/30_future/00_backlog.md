@@ -39,7 +39,12 @@ closure gate in CI, benchmark-first); a page in `workflow.py`; the `Project`
 schema round-trips with `SCHEMA_VERSION` bumped and older files loading; docs
 synced per the closure tier.
 
-**Where things stand (2026-08-23):** **0.7.0 cut 2026-08-23** (`v0.7.0`,
+**Where things stand (2026-08-23):** **0.7.1 cut 2026-08-23** (`v0.7.1`, schema
+v55 unchanged) — the 0.7.0 beta tested by building a Cessna 210 from blank in the
+oracle GUI ([build review](../50_reviews/2026-08-23_c210_oracle_gui_build_review.md)):
+51 findings, the two `a`'s fixed in-cycle (**none surviving**, so 0.8.0 keeps its
+planned content), the whole-project results zip shipped, and seven `b`'s
+(#76/#81/#82/#83/#84/#85/#86) carried to **0.7.2**. Before it: **0.7.0 cut 2026-08-23** (`v0.7.0`,
 schema v55; release-cut block and delta baseline in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md) /
 [`../40_history/36_verification_baseline_0.7.0.md`](../40_history/36_verification_baseline_0.7.0.md))

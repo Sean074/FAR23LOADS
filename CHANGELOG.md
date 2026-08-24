@@ -10,6 +10,77 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-08-23
+
+### Added
+
+- **A whole-project results zip in the shared sidebar (C210-45, backlog 19c,
+  tier M, 2026-08-23).** "Build results zip" runs every registered module
+  against the current project and serves one archive through the browser save
+  dialog: `reports/<module>.txt` and `load_cases/<module>.csv` per module that
+  ran — rendered by the same owners the CLI uses (`module_text_report`,
+  `io.load_cases_csv` + the G8.3 basis statement) so the ULT marker and per-case
+  SF are identical by construction — plus the serialized `.project.json` and a
+  `MANIFEST.txt` stating every module's outcome (a page that refuses is skipped
+  and listed, never silently absent). Both GUIs carry the button (shared
+  `app_shell` sidebar); the built zip is keyed to the project's serialized
+  identity, so an edit after Build invalidates the stale archive instead of
+  serving it. Pure builder `sloads/report/results_zip.py`; payload guard
+  `tests/test_results_zip.py` reads the artifact bytes (the G7 pattern).
+
+### Changed
+
+- **Every oracle page with a grid says that a part-filled row is not saved (C210 build review, tier S, 2026-08-23).**
+  A grid row with an empty cell is deliberately held out of the project, which is
+  invisible until the row vanishes on a rerun. Asked for by the owner mid-build:
+  pages that render a `st.data_editor` now carry one caption ("fill every column to
+  keep the row"), derived from the page's field set, absent on grid-less pages. The
+  hint briefly also warned that Enter could drop an entry — that symptom was the
+  C210-4 remount race (see the stable-frame fix in this release) and the warning
+  came back out once the fix removed it. Guard:
+  `tests/test_oracle_gui.py::test_grid_pages_carry_the_commit_hint`.
+
+- **SELECT's search scope stated explicitly in the theory sources (review 2026-08-23
+  C210-26, tier S, 2026-08-23).** The `select` row of
+  `docs/20_theory/00_theory_sources.md` now opens with the scope the criteria always
+  implied but no doc stated in one place: the candidate pool for every selection —
+  wing, h-tail, v-tail and fuselage alike — is the entire balanced V-n matrix (every
+  loading/CG × altitude combination FLTLOADS balanced), filtered only by condition
+  label, with one governing case per category proceeding to the distributed-loads
+  pass; 23.333(b)'s "each combination" requirement is discharged by FLTLOADS' full
+  matrix, and the airload-side-criteria method limit (wing inertia relief not in the
+  selection criterion) is recorded beside it. Docs only; the GUI-caption half stays
+  with #73.
+
+### Fixed
+
+- **A polyline typed from blank in the oracle GUI no longer crashes WINGGEOM (C210-7, Cessna 210 build review 2026-08-23, tier S, 2026-08-23).**
+  The leading-/trailing-edge grid of a blank surface is an empty frame, and an empty
+  frame's columns are object-typed, which the grid renders as *text* — so every corner
+  typed from blank came back as strings, was stored as string tuples and the Geometry
+  page died on `ytip - yroot` (`TypeError: unsupported operand type(s) for -: 'str' and
+  'str'`). The curve frame is now built numeric (`dtype=float`) even with no rows, and a
+  cell that still arrives as text is parsed on the way in, never stored
+  (`oracle_app/form.py` `render_curve` / `_numeric`). Found by the owner typing the 210
+  wing; the beta review never saw it because its replays handed the renderer floats.
+  Guard: `tests/test_dirty_flag.py::test_a_curve_typed_from_blank_is_numeric`.
+
+- **Grid edits no longer vanish at typing pace in the oracle GUI (C210-4, build review 2026-08-23, tier S, 2026-08-23).**
+  Every committed cell rebuilt the grid's input frame from the model, which changed
+  `st.data_editor`'s widget identity (it includes the data bytes), which remounted the
+  grid on the frontend — and any keystroke in flight when the remount landed was
+  silently discarded (the write-back anti-pattern). At a normal typing rhythm roughly
+  every other cell was lost, which made the 21-row Cessna 210 items table "impossible
+  to enter" (owner); the same race turned a typed `-25` into `25` (the minus opened
+  the cell editor, the remount reset it, the digits landed in a fresh overlay) and
+  made Enter appear to drop entries. The base frame each grid renders from is now
+  **stable for the page visit** (`_stable_frame` / `_FRAME_CACHE_KEY`): edits live in
+  the widget's own state and are persisted to the model each run (equality-guarded,
+  so idempotent); the frame rebuilds on page change, row-count change, unit toggle
+  and project load. Numeric columns also carry an explicit `NumberColumn` config.
+  All three symptoms confirmed gone by the owner on the fixed build (first-attempt
+  commits, Enter commits, typed negatives land).
+
 ## [0.7.0] — 2026-08-23
 
 ### Added

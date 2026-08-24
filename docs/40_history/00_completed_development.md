@@ -22,6 +22,108 @@ written directly, by the release manager.
 
 ---
 
+- **Whole-project results zip in the shared sidebar (C210-45 / backlog 19c,
+  tier M, 2026-08-23)** — The C210 oracle-GUI build review left the owner
+  collecting thirteen pages of results one hand-clicked download at a time;
+  no control delivered a complete results set. The shared sidebar now builds
+  one zip per project: every registered module run in registration order,
+  each contributing the CLI's own text report and load-case CSV (same owners:
+  `module_text_report`, `io.load_cases_csv` + `csv_comment_block`, results
+  stamped from the governing safety-factor table exactly as
+  `registry.run_all_modules` does), plus the serialized project and a
+  `MANIFEST.txt` naming every module's outcome — skip-and-manifest per the
+  error contract (`MissingInputError` = skipped, `ValueError` = failed and
+  said so; anything else propagates, M2R-8). The builder
+  (`sloads/report/results_zip.py`) is pure and clock-free, so two builds of
+  one project are byte-identical; `tests/test_results_zip.py` asserts on the
+  zip bytes (manifest completeness, member pairing, ULT header, basis
+  statement, project round-trip, determinism), and the oracle GUI's G7
+  call-site gate was extended to admit the zip by its naming owner with the
+  payload gate stated in place.
+
+## Release cut: **sloads 0.7.1** (the beta tested by building an airplane in it), tag `v0.7.1`, 2026-08-23
+
+**Objective.** Test the 0.7.0 oracle-GUI beta the way a first-time user would —
+by **building a Cessna 210 from a blank project, by hand, in the oracle GUI**,
+every value typed by the owner from public data — and ship what that exercise
+found. The milestone's content is therefore not a feature list chosen in
+advance: it is whatever a real build surfaced, classified as it was found
+(**a** interface broken → pulls the release back; **b** bug → 0.7.2; **c**
+development → backlog), with each finding's body written in the session that
+raised it.
+
+**Deliverables** (the `[0.7.1]` changelog section is the release note):
+- **The build review** —
+  [`../50_reviews/2026-08-23_c210_oracle_gui_build_review.md`](../50_reviews/2026-08-23_c210_oracle_gui_build_review.md):
+  all **fourteen** oracle pages built and reviewed, then the G6 hand-off into
+  the main GUI through Balanced Cases and Tail Span Loads. **51 findings**,
+  every one with a body and a disposition — **a = 2** (both fixed in-session,
+  **none surviving**, so 0.8.0 keeps its planned content), **b = 7**
+  (#76/#81/#82/#83/#84/#85/#86, the 0.7.2 list), **c = 42** (backlog rows
+  #73/#77/#78/#79 and band C row 7a).
+- **The two `a`'s, fixed in the cycle:** the oracle grid's **write-back
+  remount race** (C210-4/C210-11 — every committed cell rebuilt the frame,
+  changing `st.data_editor`'s widget identity, so a keystroke in flight was
+  discarded; a typed `-25` became `25`; the 21-row items table was
+  "impossible to enter"), fixed with a per-visit **stable frame**; and a
+  polyline grid **typed from blank** crashing the Geometry page on string
+  corners, fixed with a float-typed frame and a parsing boundary.
+- **The results zip** (C210-45, tier M, above): the one control that delivers
+  a project's complete results set, in both GUIs.
+- **Two doc/UX closures:** every grid page states that a part-filled row is
+  not saved; SELECT's search scope stated in `00_theory_sources.md` (the
+  candidate pool is the entire balanced V-n matrix).
+- **Standing owner rulings produced by the exercise:** the **C210-15 fidelity
+  ruling** — the oracle GUI's fidelity target is the *analysis contract*, not
+  the original prompt sequence, so UX may improve freely while consumed values
+  stay correct; the OG-1 scope bound with its display-only-utility refinement;
+  and the C210-31 **collapsed-override** pattern as the template for every
+  derivable duplicate.
+- **Version** `0.7.0` → **`0.7.1`** in `pyproject.toml` (PATCH: defect fixes
+  plus one additive GUI capability, **no calc-math change and no schema
+  change** — `SCHEMA_VERSION` stays at v55).
+- **Changelog cut** — `scripts/build_changelog.py 0.7.1 --date 2026-08-23`:
+  **5 fragments** consumed into `## [0.7.1]` (Added / Changed / Fixed), **1
+  history entry** rolled to the top of this file, a fresh empty `[Unreleased]`
+  opened; released sections byte-untouched.
+- **History roll** (`RELEASE_PROCESS.md` §4.3): nothing to move — no
+  `30_future/` note carries a *shipped* status header this cycle — and the
+  live file is **1,245 lines**, under the 1,500-line threshold, so no archive
+  was frozen.
+- **Verification baseline:** unchanged from
+  [`36_verification_baseline_0.7.0.md`](36_verification_baseline_0.7.0.md).
+  This release changed no calc math: the oracle tests are the same tests
+  passing on the same figures, and the one new output path (the results zip)
+  renders through the existing report/CSV owners rather than computing
+  anything. A new baseline document would restate 0.7.0's numbers verbatim,
+  which the §4.5 rule exists to avoid.
+- **Gates at cut:** `pytest` **2725 passed / 30 skipped / 1 xfailed / 0
+  failed**, `ruff check sloads/ cli.py oracle.py app/ app_shell/ oracle_app/
+  scripts/` clean, `mypy` clean (`sloads/`), `scripts/smoke_test.sh` **PASS**,
+  `scripts/backlog_issues.py check` clean, no open CRITICAL/MAJOR review
+  findings.
+
+**Key decisions.** *An interface is tested by building something in it, not by
+reading it.* Thirteen of the 51 findings were reachable only because a real
+airplane's data disagreed with the form's assumptions — the slipstream
+amplification that no prior fixture could trigger (no project carried both a
+flap slice and an engine), the point-mass wing fuel, the tail moment column
+mislabeled by a factor of twelve. The classification rule was set **before**
+the build and honoured: the `a` class was defined to pull the release back,
+two `a`'s were found, both were fixed in the session that found them, and the
+0.8.0 plan therefore stands unchanged — a rule that costs nothing when it is
+never triggered would not have been a rule. Three closings were the owner's
+call rather than the checklist's: the comparison against the bundled
+`examples/cessna_210.project.json` is **deferred** past the cut (the
+no-consult rule stays in force until it runs), the review was closed
+**without** a final save of the G6 session edits — so the project on disk
+predates them and the edit list in closing check 2 is the record — and no
+Export & Report artifact was pasted, leaving the balanced-case equilibrium
+gate (worst force residual **0.068 %** of n·W against a 2.5 % limit, pitch
+**0.001 %** against 1 %) as the physics close of record. Each is written into
+the review's status block as a limit on what the milestone demonstrated,
+rather than left for a reader to infer from a missing artifact.
+
 ## Release cut: **sloads 0.7.0** (the oracle GUI beta, the lateral body aero and the reviews that made it shippable), tag `v0.7.0`, 2026-08-23
 
 **Objective.** Cut the release the 2026-08-22 backlog review re-scoped as a
