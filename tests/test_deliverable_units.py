@@ -1092,6 +1092,78 @@ def test_cli_exports_an_si_sbeam_deck():
         assert "X (mm)" in header and "Nmm-ULT" in header, header
 
 
+# --------------------------------------------------------------------------- #
+# The display channel a view states a moment in (C210-51 / #86)
+# --------------------------------------------------------------------------- #
+#: The one view whose ``torque`` channel reads are correct: engine torque is
+#: genuinely ft-lb (``EngineInput.cruise_torque`` and friends are entered so).
+_TORQUE_VIEW = "engine_mount.py"
+
+#: Repo root, for the two source-scanning guards below.
+_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def test_only_the_engine_view_uses_the_ft_lb_torque_channel():
+    """A structural moment is **lb-in**; ``torque`` is ft-lb — a 12x gap.
+
+    Rule 3's drift guard for C210-51 (#86): ``app/views/tail_span_loads.py``
+    stated six lb-in quantities — root Mxx/Myy, the station table, the
+    control-point torsion, the hinge moment (whose field is literally
+    ``hinge_moment_lbin``), the T-tail transfer and the CSV — through the ft-lb
+    ``torque`` channel. Imperial figures read 12x their label; SI applied the
+    ft-lb->N·m factor to an lb-in number, so both systems were wrong by the same
+    12. The module was never wrong: ``tail_span``'s own ``LoadValue``s say
+    ``lb-in``, which is why the oracle GUI's report was correct and only this
+    view's table disagreed.
+
+    Wing, fuselage, landing and plots all reach for ``si_scalar_label("lb-in",
+    …)`` / ``to_si_scalar(…, "lb-in", …)``. This asserts no view outside the
+    engine page reads the ``torque`` channel at all, so the outlier cannot come
+    back under a different call site.
+    """
+    offenders = []
+    for path in sorted(glob.glob(os.path.join(_REPO, "app", "views", "*.py"))):
+        if os.path.basename(path) == _TORQUE_VIEW:
+            continue
+        with open(path, encoding="utf-8") as fh:
+            for lineno, line in enumerate(fh, 1):
+                if line.lstrip().startswith("#") or line.lstrip().startswith("#:"):
+                    continue  # the C210-51 rationale names the channel it retired
+                if '"torque"' in line or "'torque'" in line or "U['torque']" in line:
+                    offenders.append(f"{os.path.relpath(path, _REPO)}:{lineno}")
+    assert not offenders, (
+        "a view states a quantity in the ft-lb 'torque' channel; structural "
+        "moments are lb-in (use si_scalar_label/to_si_scalar with 'lb-in') and "
+        "only the engine page's torque is genuinely ft-lb:\n" + "\n".join(offenders))
+
+
+def test_the_tail_span_view_states_the_unit_its_module_produces():
+    """The view's moment label is the module's own ``LoadValue`` unit.
+
+    The value-level half of the guard: whatever channel the page uses, the
+    label a reader sees must be the unit the number is in. ``tail_span``
+    publishes its root bending and torsion as ``lb-in``; the page's moment
+    label is derived from that same string, in both systems.
+    """
+    from sloads.units import si_scalar_label
+
+    project = _ga_project()
+    result = registry.get("tail_span")(project)
+    units = {v.units for c in result.conditions for v in c.values
+             if v.key in ("tail_span_root_mxx", "tail_span_root_myy",
+                          "ttail_transfer_myy")}
+    assert units == {"lb-in"}, units
+
+    source = open(os.path.join(_REPO, "app", "views", "tail_span_loads.py"),
+                  encoding="utf-8").read()
+    assert '_MOM = si_scalar_label("lb-in", system)' in source, (
+        "the tail-span view must derive its moment label from the lb-in "
+        "channel its module produces")
+    for system in (UnitSystem.IMPERIAL, UnitSystem.SI):
+        assert si_scalar_label("lb-in", system) != si_scalar_label("ft-lb", system) \
+            or system is UnitSystem.SI, "the two channels must not share a label"
+
+
 if __name__ == "__main__":  # zero-dependency self-runner
     import sys
 

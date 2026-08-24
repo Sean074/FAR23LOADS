@@ -28,7 +28,9 @@ from sloads import (
     UnitSystem,
     labels_for,
     mass_distribution,
+    si_scalar_label,
     to_display,
+    to_si_scalar,
 )
 from sloads.models import MissingInputError
 from sloads.modules.tail_span import (
@@ -52,6 +54,21 @@ st.caption(
 project: Project = st.session_state.get("project", Project(name=""))
 system: UnitSystem = active_system()
 U = labels_for(system)
+#: Moments here are **lb-in**, the unit `tail_span`'s own ``LoadValue``s carry
+#: (``tail_span.py:1266``) -- mxx/myy accumulate ``sz * dy`` with y in inches,
+#: the hinge moment's field is literally ``hinge_moment_lbin``, and
+#: ``m_torsion`` is a force times a lever arm in inches. They were rendered
+#: through the ft-lb ``torque`` channel until C210-51 (#86): imperial figures
+#: read 12x their label, and SI applied the ft-lb->N·m factor to an lb-in
+#: number. Wing, fuselage, landing and plots all state moments this way; this
+#: page is now the fifth. ``torque`` is the *engine* channel (engine_mount.py),
+#: which is genuinely ft-lb.
+_MOM = si_scalar_label("lb-in", system)
+
+
+def _mom(value: float) -> float:
+    """One lb-in moment in the display system (the sibling views' call)."""
+    return to_si_scalar(value, "lb-in", system)
 
 if project.flight_loads is None or project.tail_loads is None:
     gate("Define the flight-loads inputs on the **Flight Envelope (V-n)** page and "
@@ -167,8 +184,8 @@ for r in results:
             f"{to_display(axial_total(r), 'weight', system):.1f}"
             if r.component == VTAIL else "—"),
         f"Root Sz ({U['weight']})": f"{to_display(root.sz, 'weight', system):.1f}" if root else "—",
-        f"Root Mxx ({U['torque']})": f"{to_display(root.mxx, 'torque', system):.0f}" if root else "—",
-        f"Root Myy ({U['torque']})": f"{to_display(root.myy, 'torque', system):.0f}" if root else "—",
+        f"Root Mxx ({_MOM})": f"{_mom(root.mxx):.0f}" if root else "—",
+        f"Root Myy ({_MOM})": f"{_mom(root.myy):.0f}" if root else "—",
         "RH×": f"{r.rh_scale:.3f}",
         "LH×": f"{r.lh_scale:.3f}",
         "Basis": "LIMIT",
@@ -193,14 +210,14 @@ planform = resolve_tail_planform(project, case.component)
 _span_label = "Butt line Y" if case.component == HTAIL else "Fin station"
 _fields = [f"{_span_label} ({U['length']})", f"X on LRA ({U['length']})",
            f"Fz ({U['weight']})", f"Sz ({U['weight']})",
-           f"Mxx ({U['torque']})", f"Myy ({U['torque']})"]
+           f"Mxx ({_MOM})", f"Myy ({_MOM})"]
 _table = [{
     _fields[0]: to_display(st_.y, "length", system),
     _fields[1]: to_display(st_.x, "length", system),
     _fields[2]: to_display(st_.fz, "weight", system),
     _fields[3]: to_display(st_.sz, "weight", system),
-    _fields[4]: to_display(st_.mxx, "torque", system),
-    _fields[5]: to_display(st_.myy, "torque", system),
+    _fields[4]: _mom(st_.mxx),
+    _fields[5]: _mom(st_.myy),
 } for st_ in case.stations]
 st.dataframe(pd.DataFrame(_table).round(3), hide_index=True, use_container_width=True)
 
@@ -215,15 +232,15 @@ if case.control_loads:
         f"{_span_label} ({U['length']})": to_display(cp.y, "length", system),
         f"X on LRA ({U['length']})": to_display(cp.x, "length", system),
         f"Normal load ({U['weight']})": to_display(cp.f_normal, "weight", system),
-        f"Torsion ({U['torque']})": to_display(cp.m_torsion, "torque", system),
+        f"Torsion ({_MOM})": _mom(cp.m_torsion),
     } for cp in case.control_loads]
     st.dataframe(pd.DataFrame(_attach).round(3), hide_index=True,
                  use_container_width=True)
     _hm_cols = st.columns(3)
     _hm_cols[0].metric(f"Control-surface load ({U['weight']})",
                        f"{to_display(case.control_surface_load_lb, 'weight', system):,.1f}")
-    _hm_cols[1].metric(f"Hinge moment ({U['torque']})",
-                       f"{to_display(case.hinge_moment_lbin, 'torque', system):,.0f}")
+    _hm_cols[1].metric(f"Hinge moment ({_MOM})",
+                       f"{_mom(case.hinge_moment_lbin):,.0f}")
     _hm_cols[2].metric(f"On an arm of ({U['length']})",
                        f"{to_display(case.hinge_moment_arm_in, 'length', system):,.2f}")
     st.caption(
@@ -240,8 +257,8 @@ if case.tip_transfer is not None:
     _tt = st.columns(3)
     _tt[0].metric(f"Transferred Fz ({U['weight']})",
                   f"{to_display(_t.fz, 'weight', system):,.1f}")
-    _tt[1].metric(f"Transferred Myy ({U['torque']})",
-                  f"{to_display(_t.myy, 'torque', system):,.0f}")
+    _tt[1].metric(f"Transferred Myy ({_MOM})",
+                  f"{_mom(_t.myy):,.0f}")
     _tt[2].metric(f"of which inertia ({U['weight']})",
                   f"{to_display(_t.inertia_lb, 'weight', system):,.1f}")
     st.caption(
@@ -294,8 +311,8 @@ for r in results:
             _fields[1]: f"{to_display(st_.x, 'length', system):.4f}",
             _fields[2]: f"{to_display(st_.fz, 'weight', system):.4f}",
             _fields[3]: f"{to_display(st_.sz, 'weight', system):.4f}",
-            _fields[4]: f"{to_display(st_.mxx, 'torque', system):.3f}",
-            _fields[5]: f"{to_display(st_.myy, 'torque', system):.3f}",
+            _fields[4]: f"{_mom(st_.mxx):.3f}",
+            _fields[5]: f"{_mom(st_.myy):.3f}",
         })
 st.download_button("Download spanwise tail loads (CSV)", _buf.getvalue(),
                    file_name="tail_span_loads_LIMIT.csv", mime="text/csv",
