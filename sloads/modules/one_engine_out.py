@@ -43,6 +43,7 @@ import math
 from dataclasses import dataclass
 from typing import List, NamedTuple, Optional, Tuple
 
+from ..applicability import engine_failure_not_applicable
 from ..case_ids import VTAIL_BAND_ONENGOUT, CaseIdAllocator
 from ..constants import (
     DEG_PER_RAD,
@@ -394,6 +395,15 @@ def _case_inputs(project: Project, v_kt: float) -> CaseInputs:
         raise MissingInputError("one_engine_out needs Project.vtail_loads (vertical-tail geometry)")
     if not project.engines:
         raise MissingInputError("one_engine_out needs Project.engines (the failed engine)")
+    # The condition has to exist before it can be simulated. Without this the
+    # march ran with ``thrust * bleng == 0`` -- no forcing at all -- and reported
+    # zero tail load, zero yaw rate and "NOT recovered ... uncontrollable" for an
+    # airplane that cannot have an engine-out case (#84, C210-43). The predicate
+    # is ``applicability``'s, shared with the coverage table and the GUI, so the
+    # three cannot answer differently.
+    na = engine_failure_not_applicable(project)
+    if na:
+        raise MissingInputError(f"one_engine_out: {na}")
     if not (0 <= oeo.failed_engine_index < len(project.engines)):
         raise ValueError(f"failed_engine_index {oeo.failed_engine_index} out of range")
     eng = project.engines[oeo.failed_engine_index]

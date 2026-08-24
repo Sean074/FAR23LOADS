@@ -11,7 +11,7 @@ the ``Project`` and compares. No Streamlit, no file access.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Callable, Dict, List, Optional
 
 from . import cg_cases
 from . import constants as C
@@ -79,6 +79,90 @@ def design_weight_lb(project: Project) -> float:
     from here.
     """
     return cg_cases.max_takeoff_weight(project, required=False)
+
+
+#: What the One Engine Out page and module say when 14 CFR 23.367 does not apply.
+#: The lead phrase is fixed so both GUIs and the module refusal read identically.
+ENGINE_FAILURE_NA_LEAD = "FAR 23.367 does not apply"
+
+
+def engine_failure_not_applicable(project: Project) -> Optional[str]:
+    """Why 14 CFR 23.367 does not apply to ``project``, or ``None`` if it does.
+
+    The unsymmetrical-load condition is driven by the yaw moment a failed engine
+    leaves behind: ``thrust * bleng`` with ``bleng = abs(engine_cg[1])``. On an
+    airplane with one engine, or with the failed engine on the centreline, that
+    arm is **identically zero** -- so ONENGOUT integrated a transient with no
+    forcing in it and reported zero tail load, zero yaw rate and, because nothing
+    ever moved back, "NOT recovered within 60 s -- the airplane is uncontrollable
+    at this speed (likely below VMC)". A false uncontrollability verdict on a
+    condition the airplane cannot have (C210-43, #84).
+
+    Returned as a reason string (``None`` when the condition *does* apply) to
+    match :mod:`sloads.report.coverage`'s ``na_when`` convention, so the coverage
+    table, the module's refusal and the GUI's withheld form are three readers of
+    **one** predicate rather than three copies of a rule (practice 3, the
+    ``Project.engine_layout_problem`` shape).
+
+    Deliberately **not** the whole of ``coverage._engine_failure_na``: that one
+    also declares 23.367 inapplicable without a turbopropeller (Ref 1 Ch 11),
+    which is a theory question about 23.367(b)'s reciprocating branch and is
+    tracked separately. This predicate is the yaw-forcing one alone, and it is
+    the one that produced the false verdict.
+
+    With no engines entered at all the answer is ``None`` unless the layout
+    settles it: an empty list is a project that is not finished, and the module's
+    existing "needs Project.engines" refusal says that better than an
+    applicability ruling would.
+    """
+    engines = project.engines
+    layout = project.engine_layout
+    if not engines:
+        if layout is not None and layout.expected_count < 2:
+            return (f"{ENGINE_FAILURE_NA_LEAD} — single/centreline engine: the "
+                    f"{layout.name.replace('_', ' ').lower()} layout carries one "
+                    "engine, so an engine failure leaves no asymmetric thrust and "
+                    "no yaw moment to react.")
+        return None
+    if len(engines) < 2:
+        return (f"{ENGINE_FAILURE_NA_LEAD} — single/centreline engine: a "
+                "single-engine airplane has no one-engine-inoperative condition. "
+                "Losing the only engine leaves no asymmetric thrust and no yaw "
+                "moment to react.")
+    oeo = project.one_engine_out
+    index = oeo.failed_engine_index if oeo is not None else 0
+    if 0 <= index < len(engines) and engines[index].engine_cg[1] == 0.0:
+        eng = engines[index]
+        return (f"{ENGINE_FAILURE_NA_LEAD} — single/centreline engine: the failed "
+                f"engine ({eng.engine_designation or f'index {index}'}) sits on the "
+                "centreline at BL 0, so its thrust has no moment arm about the CG "
+                "and its failure produces no yawing moment. Set its butt line, or "
+                "fail an off-centreline engine.")
+    return None
+
+
+#: Workflow steps whose FAR condition an airplane may simply not have, and the
+#: predicate that says so. Keyed by ``sloads.workflow.STEPS`` key -- a key naming
+#: anything else names a page no GUI has, the #82 defect -- and guarded as such by
+#: ``tests/test_applicability.py``. It lives here rather than in a front-end for
+#: two reasons: the oracle GUI's page set is derived from ``workflow`` and may not
+#: write a step key as a literal (OG-2/G2), and the predicates must be the same
+#: ones the modules refuse on, so a page can never offer a condition the calc
+#: would decline (#84).
+_STEP_NOT_APPLICABLE: Dict[str, Callable[[Project], Optional[str]]] = {
+    "one_engine_out": engine_failure_not_applicable,
+}
+
+
+def step_not_applicable(step_key: str, project: Project) -> Optional[str]:
+    """Why the workflow step ``step_key`` does not apply to ``project``, or ``None``.
+
+    ``None`` for every step with no applicability predicate, which is most of
+    them -- the question only arises where the airplane's configuration can
+    remove a FAR condition outright.
+    """
+    predicate = _STEP_NOT_APPLICABLE.get(step_key)
+    return predicate(project) if predicate is not None else None
 
 
 def far23_applicability(project: Project) -> List[Exceedance]:

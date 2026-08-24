@@ -111,6 +111,24 @@ def test_design_weight_is_the_mtow_ssot_and_never_the_database_total():
     assert far23_applicability(project) == []
 
 
+def test_every_step_predicate_names_a_real_workflow_step():
+    """Rule-3 drift guard, the #82 lesson generalised (#84).
+
+    ``_STEP_NOT_APPLICABLE`` is keyed by workflow step key. A key naming anything
+    else names a page no GUI has, so the predicate would never run and the page it
+    was written for would go on offering a condition the calc declines -- exactly
+    how two stale ``page`` tags left 19 consistency checks dark until #82.
+    """
+    from sloads import workflow as wf
+    from sloads.applicability import _STEP_NOT_APPLICABLE, step_not_applicable
+
+    keys = {s.key for s in wf.STEPS}
+    bad = {k for k in _STEP_NOT_APPLICABLE if k not in keys}
+    assert not bad, f"step keys that are not workflow steps: {bad}"
+    # A step with no predicate is not an error; it is the normal case.
+    assert step_not_applicable("wing_loads", io.load_project(GA6)) is None
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

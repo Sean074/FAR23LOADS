@@ -31,6 +31,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List, NamedTuple, Optional, Sequence
 
+from ..applicability import engine_failure_not_applicable
 from ..models import Project
 
 COVERED = "covered"
@@ -79,15 +80,22 @@ def _no_flaps(project: Project) -> Optional[str]:
     return "no flap definition on this airplane (no flap loads, flaps-down aero set or VF)"
 
 
-def _single_engine(project: Project) -> Optional[str]:
-    if len(project.engines) > 1:
-        return None
-    return "single-engine airplane — no one-engine-inoperative condition"
-
-
 def _engine_failure_na(project: Project) -> Optional[str]:
-    """23.367 needs both a second engine to fail and (per Ref 1 Ch 11) a turboprop."""
-    return _single_engine(project) or _not_turboprop(project)
+    """23.367 needs both a second engine to fail and (per Ref 1 Ch 11) a turboprop.
+
+    The first half is :func:`sloads.applicability.engine_failure_not_applicable`,
+    which the module and the One Engine Out page also read, so this table cannot
+    call a condition inapplicable that they still simulate (#84). It covers the
+    centreline case too -- a twin whose *failed* engine sits at BL 0 has no yaw
+    moment either, which the old ``len(engines) > 1`` test called applicable.
+
+    The second half is this table's alone, and deliberately: 23.367(a)'s
+    regulatory turbopropeller scope is a statement about which airplanes must
+    show the condition, while the module models any propeller installation
+    (``one_engine_out.PROPELLER_ONLY_NOTE``). Coverage carries the regulation's
+    scope; the module carries the model's.
+    """
+    return engine_failure_not_applicable(project) or _not_turboprop(project)
 
 
 def _not_turboprop(project: Project) -> Optional[str]:
