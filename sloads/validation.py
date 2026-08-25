@@ -45,7 +45,7 @@ Checks (14 CFR / Reference-1 context in each predicate):
                              regulation derives -- say so as a certification risk.
                              See ``_check_safety_factor_overrides``.
 - ``aero_clmax_unreachable`` / ``aero_lift_slope_sign`` / ``aero_drag_negative`` /
-  ``aero_drag_polar_shape`` / ``aero_clmax_neg_sign``
+  ``aero_drag_polar_shape`` / ``aero_clmax_neg_sign`` / ``aero_flap_neg_stall_unset``
                           -- coefficient-entry checks on the airplane-less-tail
                              polynomials (M4-5; Ref 1 Ch 7/Ch 8). See
                              ``_check_aero_coefficients``.
@@ -784,6 +784,25 @@ def _check_aero_coefficients(project: Project) -> List[ConsistencyWarning]:
                     "so the stall-limited corners will not converge. Check the lift "
                     "coefficients against the CLmax entered above.",
                     PAGE_AERO_COEFFS))
+
+        # The negative half of the clamp band has to exist for the flaps-down
+        # set too (#81). ``AeroCoefficientsInput.normalize`` fills the positive
+        # stall CL from ``clmax_flap``, but the negative one has no source in the
+        # schema -- there is no ``clmax_flap_neg``, and the clean value is not it
+        # (Appendix A's landing set prints -0.41 against a clean -0.59). Left at
+        # 0 it does not crash: ``_balanced_point`` simply clamps the band to
+        # [0, +CLmax], so the 0-g point and the negative gust at VF come back
+        # quietly small. Warned rather than guessed at.
+        if cfg.flaps_down and cfg.stall_cl > 0.0 and not cfg.neg_stall_cl:
+            out.append(ConsistencyWarning(
+                "aero_flap_neg_stall_unset",
+                f"{name}: no negative stall CL. The balance clamps CL to "
+                f"[{cfg.neg_stall_cl:+.4g}, {cfg.stall_cl:.4g}], so the negative "
+                "side of the flaps-extended envelope — the 0-g point and the "
+                "down gust at VF — is limited at CL = 0 and reports less load "
+                "than the airplane sees. Enter this set's negative stall CL; it "
+                "is not filled from the clean value, which is a different number.",
+                PAGE_AERO_COEFFS))
 
         # Drag over the operating CL band the balance can visit.
         lo_cl = min(cfg.neg_stall_cl, 0.0)

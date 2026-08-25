@@ -59,6 +59,72 @@ def test_a_blank_project_derives_nothing_and_is_not_dirtied():
     assert project == Project(name="blank")
 
 
+# --------------------------------------------------------------------------- #
+# Normalized input slices (#81, C210-23): fields that fill each other in, which
+# ``__post_init__`` alone could only do for a slice built in one go.
+# --------------------------------------------------------------------------- #
+def _blank_set(name="CRUISE", **kw):
+    from sloads.models import AeroCoeffSet
+    zero = (0.0,) * 5
+    return AeroCoeffSet(name=name, lift=zero, drag=zero, moment=zero, **kw)
+
+
+def _live_slice():
+    """The aero slice as the oracle GUI builds it: blank sets first, CLmax after.
+
+    Not a contrived state -- it is the only order that GUI can produce, because
+    it writes one field per widget and never re-runs the constructor.
+    """
+    from sloads.models import AeroCoefficientsInput
+
+    aero = AeroCoefficientsInput(cruise=_blank_set())
+    aero.clmax_clean, aero.clmax_clean_neg, aero.clmax_flap = 1.4068, -0.59, 1.5857
+    return aero
+
+
+def test_the_stall_fill_is_bypassed_by_field_by_field_assignment():
+    """The defect itself, pinned: assignment order decides whether the fill ran."""
+    from sloads.models import AeroCoefficientsInput
+
+    assert _live_slice().cruise.stall_cl == 0.0
+    built = AeroCoefficientsInput(cruise=_blank_set(), clmax_clean=1.4068,
+                                  clmax_clean_neg=-0.59, clmax_flap=1.5857)
+    assert built.cruise.stall_cl == 1.4068
+
+
+def test_refresh_derived_normalizes_the_live_slice_and_is_idempotent():
+    """The one call the oracle form already makes after every persist closes it."""
+    project = Project(name="live", aero_coeffs=_live_slice())
+    assert refresh_derived(project) == ["aero_coeffs"]
+    assert project.aero_coeffs.cruise.stall_cl == 1.4068
+    assert project.aero_coeffs.cruise.neg_stall_cl == -0.59
+    # Idempotent by value -- a render pass may call it without dirtying a project.
+    assert refresh_derived(project) == []
+
+
+def test_normalizing_never_overwrites_an_authored_value():
+    """Fill-if-missing, both directions. ga6 authors clmax_clean 1.4068 *and* a
+    per-config stall_cl of 1.41 (the 0.9 stall-margin factor) -- they legitimately
+    differ, and a normalizer that reconciled them would move VS on every render."""
+    from sloads.models import AeroCoefficientsInput
+
+    aero = AeroCoefficientsInput(cruise=_blank_set(stall_cl=1.41, neg_stall_cl=-0.6),
+                                 clmax_clean=1.4068, clmax_clean_neg=-0.59)
+    project = Project(name="authored", aero_coeffs=aero)
+    assert refresh_derived(project) == []
+    assert aero.cruise.stall_cl == 1.41 and aero.clmax_clean == 1.4068
+
+
+def test_normalized_slices_are_input_slices_not_result_slices():
+    """The distinction the two tables draw: ``mass`` is a result the project can
+    rebuild, ``aero_coeffs`` is authored input made self-consistent. Mixing them
+    would put an input slice under the G5 reduction's "drop and re-derive"."""
+    from sloads.derived import NORMALIZED_SLICES
+
+    assert set(NORMALIZED_SLICES) & set(RESULT_SLICES) == set()
+    assert "aero_coeffs" in NORMALIZED_SLICES
+
+
 if __name__ == "__main__":  # zero-dependency self-runner
     import sys
 

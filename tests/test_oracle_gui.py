@@ -401,6 +401,38 @@ def test_the_one_engine_out_page_withholds_its_form_on_a_single(monkeypatch):
     assert not at.subheader, [s.value for s in at.subheader]
 
 
+def test_the_aero_page_fills_the_stall_cl_it_was_given_field_by_field():
+    """#81 (C210-23), on the real path rather than a stand-in for it.
+
+    This GUI creates the coefficient sets blank and writes the CLmax trio
+    afterwards, one widget at a time, so ``__post_init__`` -- which had the only
+    copy of the M1-1b fill -- never ran again. The live sets kept
+    ``stall_cl = 0.0`` and Flight Envelope and SELECT died on "float division by
+    zero" until the project was saved and reloaded. Rendering the page must now
+    leave a runnable slice behind, which is what ``refresh_derived`` (already
+    called after every persist) does.
+    """
+    from sloads.models import AeroCoefficientsInput, AeroCoeffSet
+    from sloads.modules.flight_envelope import build_envelope
+
+    project = _seeded()
+    authored = project.aero_coeffs.cruise
+    project.aero_coeffs = AeroCoefficientsInput(cruise=AeroCoeffSet(
+        name="CRUISE", lift=authored.lift, drag=authored.drag, moment=authored.moment))
+    project.aero_coeffs.clmax_clean = 1.4068
+    project.aero_coeffs.clmax_clean_neg = -0.59
+    project.aero_coeffs.clmax_flap = 1.5857
+    assert project.aero_coeffs.cruise.stall_cl == 0.0, "the state this is about"
+
+    at = _render("aero_coefficients", project)
+    assert not at.exception, [e.message for e in at.exception]
+    live = at.session_state["project"]
+    assert live.aero_coeffs.cruise.stall_cl == 1.4068
+    assert live.aero_coeffs.cruise.neg_stall_cl == -0.59
+    # The reported symptom, gone: the envelope runs without a save-and-reload.
+    assert build_envelope(live).vn
+
+
 def test_no_oracle_page_can_reach_the_concept_switch():
     """The drift guard behind the assertion above (``CLAUDE.md`` rule 3).
 

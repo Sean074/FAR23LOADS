@@ -9,6 +9,11 @@ oracle GUI showed what that costs: nothing in it wrote the slice, so a fresh
 twin could never reach One Engine Out and Configuration fell back to a
 25 %-MAC estimate (review 2026-08-22 PB-1).
 
+It also holds the sibling table for *normalized* slices -- authored input whose
+fields fill each other in (the M1-1b stall CLs, #81) -- for the same reason: the
+fill lived in ``__post_init__`` alone, so a GUI that assembles a slice field by
+field never ran it, and the envelope divided by a stall CL of zero.
+
 This module is the table of those slices and the one call that keeps them
 current. Every writer of the inputs a derived slice reads calls
 :func:`refresh_derived` afterwards -- the ``app/`` Weight page on Apply, the
@@ -35,10 +40,28 @@ DERIVED_SLICES: Dict[str, Callable[[Project], bool]] = {
     "mass": refresh_mass,
 }
 
+#: ``Project`` attribute -> the normalizer that makes an **input** slice
+#: internally consistent. Distinct from :data:`DERIVED_SLICES` in what it owns:
+#: a derived slice is a *result* the project could rebuild from scratch and which
+#: the field registry excludes from the input set, while a normalized slice is
+#: authored input whose fields fill each other in (fill-if-missing, never
+#: overwriting what the user typed). Both are idempotent by value, run from the
+#: same call, and exist for the same reason -- an invariant that only one writer
+#: enforces is an invariant the other writer breaks (#62/PB-1 for the first,
+#: #81/C210-23 for the second).
+NORMALIZED_SLICES: Dict[str, Callable[[Project], bool]] = {
+    # The M1-1b stall fill. ``__post_init__`` covers every slice built in one go;
+    # this covers the oracle GUI, which assembles one field at a time and so
+    # never re-runs the constructor.
+    "aero_coeffs": lambda p: p.aero_coeffs is not None and p.aero_coeffs.normalize(),
+}
+
 
 def refresh_derived(project: Project) -> List[str]:
-    """Bring every derived slice up to date; the names of those that changed."""
-    return [name for name, refresh in DERIVED_SLICES.items() if refresh(project)]
+    """Bring every derived and normalized slice up to date; the names that changed."""
+    changed = [name for name, refresh in DERIVED_SLICES.items() if refresh(project)]
+    changed += [name for name, fix in NORMALIZED_SLICES.items() if fix(project)]
+    return changed
 
 
-__all__ = ["DERIVED_SLICES", "refresh_derived"]
+__all__ = ["DERIVED_SLICES", "NORMALIZED_SLICES", "refresh_derived"]

@@ -207,6 +207,27 @@ distribution it drives, cross-linked from both pages) writes it (`flight_envelop
 - **Convergence (#33, 2026-08-22):** each balance states how it ended. The angle-of-attack iteration has one acceptable end and **refuses** otherwise (`SolverFailure`, `sloads/convergence.py`) — before this it returned the angle it gave up at, so a CG the airplane cannot trim at produced a point labelled 1 g that was not (measured: NZ 0.658, on into SELECT and the decks). The dynamic-pressure iteration has a second acceptable end, **clamped**: the Mach cap pins the true airspeed, `q` reaches a fixed point off the stall line and no further trip can move it. That is stall-limited flight, which **23.333(b)** excludes from the manoeuvring envelope (decision **D-30**), so the point is reported with its state rather than refused; `EnvelopeResult.clamped_cases`/`is_clamped` carry it, derived and never persisted. On the shipped fixtures the clamped set is exactly `atr42_100`'s nine Mach-capped corners at 25,000 ft, the same rows the Aerodynamic Data page's stall-clamp margin flags — pinned to agree, so #32's marker reads one owner. Bit-identical to the pre-#33 spin-out (all pins and the frozen digest unmoved) and 4.3× faster on that fixture.
 - **Notes:** Graphics: the V-n diagram, plus (Step G5) a **Trim & Stability** tab — `flight_envelope.trim_sweep()` re-runs the balance at ~15 interpolated CG stations for the BAL A/C/D 1-g trim loads (balancing tail load vs CG), and a static-margin sweep (`SM = NP − CG`, %MAC) from the Configuration tail-volume neutral point. It adds no load equations (a swept station coinciding with a CG case reproduces `build_envelope`'s BAL load exactly), and its tail loads are shown **LIMIT** (marked; the ULTIMATE deliverables are the SELECT/Results-Review/export loads). Faithful port of FLTLOADS.BAS subroutine **3900** (iterate AoA to the required load factor, then dynamic pressure to the Mach-adjusted stall line; Glauert compressibility `G/Gmn`; CLmax-vs-Mach curve) and **4864** (gust load factor, FAR 23.341). Balancing tail load `LT = [M(W+F) + LZ·(Xcg−Xw) − DX·(Zcg−Zw)]/(XT−Xcg)` with *approximate* tail CP (`XTC`≈5% tail MAC flaps-up, `XTF`≈25% flaps-down; Ch 8 "Assumption"). Covers the **cruise** maneuver+gust corner set (20 conditions, lines 1000-1594) plus the flapped LANDING/ENROUTE corner set (subr 3000; added with SELECT, C6); both share the balance engine. In the flapped set the `BAL 1.4VSF` point balances at **1.4× the 1-g flaps-down stall (`STALL 1GL`) speed** — FLTLOADS.BAS p300–302 saves the STALL 1GL speed — reproducing Appendix A p181 LANDING CG5 case 89 (V 83.6 kt / LT −430 lb; M1-2). Earlier code balanced at 1.4× `STALL 2G`, ~2.2× too large a tail load (review T2). SELECT refines the CP rationally; `BALLOADS.BAS` independently verifies it. Produces the candidate conditions SELECT then prunes; feeds SELECT and WINGINER (UG Table 2.2). FLTLOADS.BAS carried its own speed-of-sound constants (518.688 °R / 575 kt vs the shared `standard_atmosphere`'s 518.4 / 574.94); measured 2026-08-17 to pin no printed oracle, so `_speed_of_sound` now reads the shared atmosphere (issue #26 C-7, `CONVENTIONS.md` §7).
 
+- **Stall CL: one fill, two writers, and a refusal (#81, C210-23, 2026-08-24).**
+  The M1-1b fill that keeps `clmax_clean`/`clmax_clean_neg`/`clmax_flap` and the
+  per-config `stall_cl`/`neg_stall_cl` consistent (fill-if-missing, both
+  directions, never overwriting an authored value) has one owner,
+  `AeroCoefficientsInput.normalize`. It is called by `__post_init__` — which
+  covers every slice built in one go: a file load, the main GUI's Apply, which
+  rebuilds the whole slice — **and** through `sloads.derived.NORMALIZED_SLICES`
+  by `refresh_derived`, which the oracle form already calls after every persist.
+  That second caller is the fix: that GUI creates the coefficient sets blank and
+  assigns the CLmax trio afterwards, one widget at a time, so the constructor
+  never ran again and the live sets kept `stall_cl = 0.0` until the project was
+  saved and reloaded. Independently, `balance_configs` — the choke point
+  `build_envelope` and `trim_sweep` share — **refuses** a set whose stall CL is
+  zero, naming the set and the page, because every stall speed is
+  `√(n·W/(CL·S))` and a zero there is a division by zero, not a small number.
+  **`flaps_down.neg_stall_cl` is authored-only**: there is no `clmax_flap_neg`
+  for it to fill from and the clean value is not it (Appendix A's landing set
+  prints −0.41 against a clean −0.59), so a flaps-down set that leaves it 0
+  clamps the negative side of the flap envelope at CL = 0 — the
+  `aero_flap_neg_stall_unset` validation warning, not a guess.
+
 ### SELECT — Critical load selection
 `modules/select.py` (registers `"select"`). Oracle-locked against the Appendix A
 loads report (±0.1% + FLTLOADS' ~0.5% V-n noise): (1) the **wing** search
