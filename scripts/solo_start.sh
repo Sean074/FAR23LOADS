@@ -8,7 +8,8 @@
 #                  Every item of that milestone is then worked and committed
 #                  directly on it — there is no per-item branch and no per-item
 #                  `solo_start`. The milestone lands on `main` as one pull
-#                  request with a merge commit (§0), and the release is cut on
+#                  request, rebase-merged (§0 — main enforces linear history),
+#                  and the release is cut on
 #                  this branch, so there is no separate `release/x.y.z` either.
 #
 # Preflight (nothing mutates until every check passes):
@@ -113,6 +114,8 @@ milestone is done; every item commits straight onto it.
             waits on it.
   finish    when the milestone is empty, cut the release ON this branch
             (RELEASE_PROCESS.md §4), then open ONE pull request into main and
-            merge it with a merge commit. That push to main runs the full
-            matrix; tag from main.
+            rebase-merge it (gh pr merge --rebase; main enforces linear
+            history, so a merge commit is refused and a squash would lose
+            the per-item record). That push to main runs the full matrix;
+            tag from main, then delete this branch (rebase rewrote its SHAs).
 EOF

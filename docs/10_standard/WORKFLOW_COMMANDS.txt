@@ -29,8 +29,10 @@ scripts/solo_start.sh dev/v<X.Y.Z>
 
 # One-time owner settings this model assumes on main (see DEVELOPMENT_PROCESS
 # §0, "Branch protection"): PR required, required checks = the fast gate,
-# "Require linear history" OFF, merge commits ALLOWED. No admin bypass is
-# needed any more — nothing pushes to main directly.
+# "Require linear history" ON — so the milestone PR is REBASE-merged, which
+# keeps one commit per item AND stays linear. Never squash: that collapses the
+# whole milestone into one commit. No admin bypass is needed — nothing pushes
+# to main directly.
 
 
 ---------------------------------------------------------------------------
@@ -85,11 +87,14 @@ C — ONCE PER RELEASE: cut it and land the milestone on main
 #    already closed, one per commit — so NO "Closes #N" in the body.
 gh pr create --base main --head dev/v<X.Y.Z> --title "Release <X.Y.Z>" --body "…"
 
-# 3. Wait for the fast gate, then merge WITH A MERGE COMMIT (never squash —
-#    squashing would collapse the whole release into one commit and lose the
-#    step-per-commit record).
+# 3. Wait for the fast gate, then REBASE-merge (never squash — squashing
+#    would collapse the whole release into one commit and lose the
+#    step-per-commit record; and never a merge commit — main enforces
+#    linear history and refuses one). Rebase replays each item's commit
+#    onto main individually, so the record survives and history stays
+#    linear. It rewrites the SHAs, so delete the branch after.
 gh pr checks --watch
-gh pr merge --merge
+gh pr merge --rebase
 
 # 4. The merge push to main runs the full matrix (3.9/3.11 + coverage-
 #    instrumented 3.12). This is the gate of record for the milestone; it is
@@ -117,8 +122,11 @@ git pull --rebase --autostash
 
 # A critical defect in an ALREADY-RELEASED version, mid-milestone: that is the
 # only thing that lands on main out of band (RELEASE_PROCESS.md §6). Afterwards
-# the milestone branch must take main back, before the next item:
-git checkout dev/v<X.Y.Z> && git merge main
+# the milestone branch must take main back, before the next item — by REBASE,
+# never `git merge main`: a merge commit on the branch is what makes the
+# milestone PR unmergeable at the end ("This branch must not contain merge
+# commits"), and it is not visible until the cut. Corrected 2026-08-25.
+git checkout dev/v<X.Y.Z> && git rebase main
 # then re-check the three shared counters (SCHEMA_VERSION, Imperial digest,
 # case-ID bands) — that merge is where they collide.
 # A defect in UNRELEASED work is not a hotfix: it is the next item on the

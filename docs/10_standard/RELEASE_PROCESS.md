@@ -81,9 +81,18 @@ role rotates.
 branch — it has carried every item of the release, so cutting on a second
 branch would only move the same commits again. Steps 1–3 below are commits on
 `dev/vX.Y.Z` (they are docs, `pyproject.toml` and generated history, so the
-gate scales accordingly); then open **one** pull request into `main` and merge
-it **with a merge commit**, so every per-item commit survives on `main` and
-`git log` stays the step-per-commit record. That push to `main` runs the full
+gate scales accordingly); then open **one** pull request into `main` and
+**rebase-merge** it (`gh pr merge <N> --rebase`), so every per-item commit
+survives on `main` and `git log` stays the step-per-commit record. **Never
+squash:** that collapses the whole milestone into one commit, which is the
+record this model exists to keep. Rebase — not a merge commit — because `main`
+enforces **linear history**: a merge commit is refused outright ("This branch
+must not contain merge commits", found at the 0.7.2 cut, 2026-08-25, where this
+paragraph had said *merge commit* since 2026-08-22 and the setting had said
+otherwise all along). Rebase satisfies both: linear history for the protection
+rule, one commit per item for the record. It rewrites the branch's SHAs onto
+`main`'s tip, so delete `dev/vX.Y.Z` after the merge rather than reusing it, and
+it drops any merge commit the branch itself picked up. That push to `main` runs the full
 3.9/3.11 + coverage matrix — the gate of record for the whole milestone. Step 4
 tags `main` after the merge, unchanged. The issues of this milestone are
 already closed, each in its own commit, so the PR body carries **no**
@@ -120,8 +129,11 @@ A hotfix is a `PATCH` release correcting a critical defect in a released version
 **With a milestone branch open (`DEVELOPMENT_PROCESS.md` §0):** this is the only
 path that puts a commit on `main` mid-milestone, so it is also the only time
 `dev/vX.Y.Z` has to take `main` back — do it immediately after step 5
-(`git checkout dev/vX.Y.Z && git merge main`), before the next item, and
+(`git checkout dev/vX.Y.Z && git rebase main`), before the next item, and
 re-check the three shared counters of §6 (`SCHEMA_VERSION`, the Imperial
-digest, case-ID bands) since that merge is exactly where they can collide.
+digest, case-ID bands) since that replay is exactly where they can collide.
+**Rebase, not `git merge main`** (corrected 2026-08-25): a merge commit on the
+milestone branch is what makes the milestone PR unmergeable at the cut under
+`main`'s linear-history rule, and nothing surfaces it until then.
 A defect found mid-milestone in *unreleased* work is **not** a hotfix — it is
 the next item on the milestone branch.
