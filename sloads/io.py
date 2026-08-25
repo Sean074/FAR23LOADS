@@ -20,7 +20,18 @@ import os
 import re
 import warnings
 from dataclasses import asdict
-from typing import Any, Dict, List, Optional, Tuple
+from functools import lru_cache
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
 from .constants import ULTIMATE_FACTOR
 from .migrations import is_project_dict, migrate
@@ -108,7 +119,6 @@ from .report import has_load_case_data, load_cases_to_rows, results_to_rows
 from .units import UnitSystem, convert_results, unit_system_from
 from .validation import safety_factor_valid
 
-
 # --------------------------------------------------------------------------- #
 # Tolerant reader (M2R-7): the one place every ``*_from_dict`` filters a raw dict
 # down to its dataclass's fields before the ``cls(**d)`` splat. A file carrying an
@@ -119,10 +129,121 @@ from .validation import safety_factor_valid
 # overhaul (per-version hops + one frozen fixture per schema) is M4-10; this is the
 # minimal tolerant-read guard that unblocks cross-version file sharing.
 # --------------------------------------------------------------------------- #
-def _filtered(cls: Any, d: Dict[str, Any]) -> Dict[str, Any]:
-    """Keep only the keys of ``d`` that are fields of dataclass ``cls``."""
+# --------------------------------------------------------------------------- #
+# Numbers in, numbers stored (#76, C210-7 residual). A grid cell rendered from an
+# object-typed column comes back as text, so a project saved mid-entry can hold
+# ``["45", "0"]`` where a wing corner belongs. Nothing on the read side looked:
+# ``_points`` coerced the *shape* (list -> tuple) and passed the members through,
+# and every ``_filtered`` splat passed its list straight to the dataclass. The
+# file then loaded cleanly and died later, twice over -- ``TypeError: unsupported
+# operand type(s) for -: 'str' and 'str'`` in WINGGEOM, and the same in
+# ``to_display`` on the main GUI's layout page, which is the page that would
+# otherwise repair the corners.
+#
+# The rule is stated once, for the whole class rather than for the corner that
+# found it: a field annotated as a container **of numbers** is loaded as numbers.
+# The shapes are read off the dataclass annotations (never a hand-kept list, so a
+# new numeric field is covered the day it is added), text that parses is repaired
+# with a ``warnings.warn`` the GUI shows as a toast (``project_state.safe_load``,
+# the #66/PB-7 channel), and text that does not parse raises ``ValueError`` naming
+# the field and the member -- one of the types the load path already catches and
+# shows as ``st.error``. Scalars are deliberately NOT in scope here: this is the
+# grid-writable container class, and a blanket coercion of every numeric field
+# would have to reason about ``Optional``, enums and bools as well.
+# --------------------------------------------------------------------------- #
+_NUMBER_TYPES = (float, int)
+
+#: Container shapes this module coerces, as returned by :func:`_numeric_shape`.
+_NUMERIC_SHAPES = ("tuple", "list", "points")
+
+
+def _numeric_shape(hint: Any) -> Optional[str]:
+    """The numeric-container shape ``hint`` describes, or ``None``.
+
+    ``"tuple"`` = a fixed numeric tuple (``Vec3``, ``XYPoint``, the 5-coefficient
+    sets); ``"list"`` = a list of numbers (``hinges_span_in``); ``"points"`` = a
+    list of numeric tuples (the WINGGEOM polylines, the aero curves). A list of
+    dataclasses, of strings, or of anything else is not this module's business.
+    """
+    origin, args = get_origin(hint), get_args(hint)
+    if origin is Union:  # Optional[X] -- the container is still a container
+        inner = [a for a in args if a is not type(None)]
+        return _numeric_shape(inner[0]) if len(inner) == 1 else None
+    if origin is tuple:
+        members = [a for a in args if a is not Ellipsis]
+        return "tuple" if members and all(a in _NUMBER_TYPES for a in members) else None
+    if origin is list and args:
+        if _numeric_shape(args[0]) == "tuple":
+            return "points"
+        return "list" if args[0] in _NUMBER_TYPES else None
+    return None
+
+
+@lru_cache(maxsize=None)
+def _numeric_containers(cls: Any) -> Dict[str, str]:
+    """``{field name: shape}`` for every numeric container ``cls`` declares."""
+    try:
+        hints = get_type_hints(cls)
+    except Exception:  # pragma: no cover - unresolvable forward ref
+        return {}
     fields = cls.__dataclass_fields__
-    return {k: v for k, v in d.items() if k in fields}
+    shapes = ((name, _numeric_shape(hint)) for name, hint in hints.items())
+    return {name: shape for name, shape in shapes
+            if name in fields and shape in _NUMERIC_SHAPES}
+
+
+def _coerced(value: Any, shape: str, where: str) -> Any:
+    """``value`` with every member a number -- parsing text, refusing nonsense.
+
+    ``where`` is the field's name in the message, so the user is told which value
+    to fix rather than being handed a bare ``TypeError`` from three modules away.
+    One warning per field, not per member: a 20-point polyline read from text is
+    one thing that happened, not forty.
+    """
+    if value is None:
+        return None
+    repaired: List[str] = []
+
+    def number(raw: Any, at: str) -> float:
+        if isinstance(raw, _NUMBER_TYPES) and not isinstance(raw, bool):
+            return raw
+        try:
+            out = float(raw)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"{at} is {raw!r}, which is not a number. Fix the value in the "
+                "project file, or delete the field and re-enter it in the app."
+            ) from None
+        repaired.append(at)
+        return out
+
+    if shape == "tuple":
+        out: Any = tuple(number(v, f"{where}[{i}]") for i, v in enumerate(value))
+    elif shape == "list":
+        out = [number(v, f"{where}[{i}]") for i, v in enumerate(value)]
+    else:
+        out = [tuple(number(v, f"{where}[{i}][{j}]") for j, v in enumerate(point))
+               for i, point in enumerate(value)]
+    if repaired:
+        warnings.warn(
+            f"{where}: {len(repaired)} value(s) were stored as text and were read "
+            "as numbers -- check the page they came from and save the project "
+            "again (#76)", stacklevel=3)
+    return out
+
+
+def _filtered(cls: Any, d: Dict[str, Any]) -> Dict[str, Any]:
+    """Keep only the keys of ``d`` that are fields of dataclass ``cls``, with
+    every numeric container coerced to numbers (see the block comment above)."""
+    fields = cls.__dataclass_fields__
+    shapes = _numeric_containers(cls)
+    out: Dict[str, Any] = {}
+    for k, v in d.items():
+        if k not in fields:
+            continue
+        shape = shapes.get(k)
+        out[k] = _coerced(v, shape, f"{cls.__name__}.{k}") if shape else v
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -156,7 +277,9 @@ def engine_from_dict(d: Dict[str, Any]) -> EngineInput:
 
     def vec(key):
         v = d.pop(key, (0.0, 0.0, 0.0))
-        return tuple(v) if v is not None else (0.0, 0.0, 0.0)
+        # Popped before ``_filtered`` sees them, so they take the same coercion
+        # by hand (#76): an engine CG is as numeric as a wing corner.
+        return _coerced(v, "tuple", f"EngineInput.{key}") if v is not None else (0.0, 0.0, 0.0)
 
     engine_cg = vec("engine_cg")
     prop_cg = vec("prop_cg")
@@ -317,9 +440,14 @@ def weight_to_dict(inp: WeightInput) -> Dict[str, Any]:
 
 
 
-def _points(raw) -> List:
-    """Coerce a list of JSON [x, y] arrays to (x, y) tuples."""
-    return [tuple(p) for p in raw or []]
+def _points(raw, where: str = "points") -> List:
+    """Coerce a list of JSON [x, y] arrays to (x, y) tuples **of numbers**.
+
+    The polyline path does not go through :func:`_filtered` (the surfaces name
+    their fields explicitly), so it calls the same coercer directly rather than
+    growing a second, driftable copy of the rule (#76).
+    """
+    return _coerced(list(raw or []), "points", where)
 
 
 def _opt_float(raw) -> Optional[float]:
@@ -330,8 +458,8 @@ def _opt_float(raw) -> Optional[float]:
 def _surface_from_dict(d: Dict[str, Any]) -> SurfaceInput:
     return SurfaceInput(
         name=d["name"],
-        leading_edge=_points(d.get("leading_edge")),
-        trailing_edge=_points(d.get("trailing_edge")),
+        leading_edge=_points(d.get("leading_edge"), "SurfaceInput.leading_edge"),
+        trailing_edge=_points(d.get("trailing_edge"), "SurfaceInput.trailing_edge"),
         symmetric=d.get("symmetric", True),
         elements=d.get("elements", 20),
         # v52: None = "not entered" (R-7c). The pre-v52 writer emitted the field
@@ -488,10 +616,10 @@ def _aero_surface_from_dict(d: Dict[str, Any]) -> AeroSurfaceInput:
         taper_ratio=d.get("taper_ratio", 0.0),
         tip_ratio=d.get("tip_ratio", 0.0),
         tau=d.get("tau"),
-        twist=_points(d.get("twist")),
+        twist=_points(d.get("twist"), "AeroSurfaceInput.twist"),
         target_cl=d.get("target_cl", 1.0),
-        profile_drag=_points(d.get("profile_drag")),
-        section_cm=_points(d.get("section_cm")),
+        profile_drag=_points(d.get("profile_drag"), "AeroSurfaceInput.profile_drag"),
+        section_cm=_points(d.get("section_cm"), "AeroSurfaceInput.section_cm"),
         sweep_deg=d.get("sweep_deg", 0.0),
         design_mach=d.get("design_mach", 0.0),
     )
@@ -552,11 +680,13 @@ def speeds_to_dict(inp: StructuralSpeedsInput) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 # Flight-loads slice <-> dict (FLTLOADS input)
 # --------------------------------------------------------------------------- #
-def _coeff5(raw) -> tuple:
-    """Coerce a 5-element coefficient list to a tuple, padding short lists with 0."""
+def _coeff5(raw, where: str = "AeroCoeffSet") -> tuple:
+    """Coerce a 5-element coefficient list to a numeric tuple, padding short
+    lists with 0. The members go through the shared coercer (#76) so a
+    text coefficient is named, not reported as a bare ``float()`` failure."""
     vals = list(raw or [])
     vals = (vals + [0.0] * 5)[:5]
-    return tuple(float(v) for v in vals)
+    return _coerced(vals, "tuple", where)
 
 
 def _aero_coeff_set_from_dict(d: Dict[str, Any]) -> AeroCoeffSet:
@@ -566,9 +696,9 @@ def _aero_coeff_set_from_dict(d: Dict[str, Any]) -> AeroCoeffSet:
         name=d.get("name", "CRUISE"),
         stall_cl=d.get("stall_cl", 0.0),
         neg_stall_cl=d.get("neg_stall_cl", 0.0),
-        lift=_coeff5(d.get("lift")),
-        drag=_coeff5(d.get("drag")),
-        moment=_coeff5(d.get("moment")),
+        lift=_coeff5(d.get("lift"), "AeroCoeffSet.lift"),
+        drag=_coeff5(d.get("drag"), "AeroCoeffSet.drag"),
+        moment=_coeff5(d.get("moment"), "AeroCoeffSet.moment"),
         flaps_down=d.get("flaps_down", False),
     )
 
@@ -595,7 +725,11 @@ def flight_loads_from_dict(d: Dict[str, Any]) -> FlightLoadsInput:
         xtc=d.get("xtc", 0.0),
         xtf=d.get("xtf", 0.0),
         mn=d.get("mn", 0.1),
-        altitudes_ft=[float(a) for a in d.get("altitudes_ft", [0.0]) or [0.0]],
+        # The one field that already coerced, before #76 made it the rule for
+        # every numeric container; it reads through the shared coercer now, so a
+        # bad altitude is named rather than raising a bare ``ValueError``.
+        altitudes_ft=_coerced(list(d.get("altitudes_ft", [0.0]) or [0.0]),
+                              "list", "FlightLoadsInput.altitudes_ft"),
     )
 
 
@@ -862,12 +996,10 @@ def one_engine_out_to_dict(inp: OneEngineOutInput) -> Dict[str, Any]:
 # Landing / ground-load input slice <-> dict (LGFACTOR + LANDLOAD)
 # --------------------------------------------------------------------------- #
 def _gear_from_dict(d: Dict[str, Any]) -> LandingGearInput:
+    # The three axle points and ``attach`` are ``Vec3``/``XYPoint`` fields, so
+    # ``_filtered`` now tuples *and* numbers them (#76); the hand-written
+    # ``tuple(...)`` passes that used to live here said less and are gone.
     kw = _filtered(LandingGearInput, d)
-    for axle in ("axle_compressed", "axle_static", "axle_extended"):
-        if axle in kw and kw[axle] is not None:
-            kw[axle] = tuple(kw[axle])
-    if kw.get("attach") is not None:
-        kw["attach"] = tuple(kw["attach"])
     # G-2: absent stays ``None`` -- "carrier not stated" is a distinct state that
     # the ground export refuses on, not a value to default.
     carrier = d.get("carrier")

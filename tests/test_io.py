@@ -803,6 +803,153 @@ def test_a_pre_v50_file_loads_with_no_loading():
     assert [ld.entered for ld in md.derive_case_loadings(project)] == [False] * 4
 
 
+# --------------------------------------------------------------------------- #
+# Numbers in, numbers stored (#76, the C210-7 residual). A grid rendered from an
+# object-typed column hands back text, so a project can be *saved* with its wing
+# corners as strings; until now the loader took them, and the crash landed three
+# modules away as a bare ``TypeError``.
+# --------------------------------------------------------------------------- #
+def _as_text(node):
+    """Every number that sits inside a **list** becomes text; dict scalars are
+    left alone. That is exactly the damage the grid does -- a curve/point widget
+    writes a list of cells -- and exactly the class the loader coerces (scalars
+    are deliberately out of scope, so stringifying them would test a promise
+    that was not made)."""
+    if isinstance(node, dict):
+        return {k: _as_text(v) for k, v in node.items()}
+    if isinstance(node, list):
+        return [str(x) if isinstance(x, (int, float)) and not isinstance(x, bool)
+                else _as_text(x) for x in node]
+    return node
+
+
+def _module_values(project, name):
+    result = registry.get(name)(project)
+    return [(v.key, v.value) for c in result.conditions for v in c.values]
+
+
+def test_a_text_polyline_loads_as_numbers_and_runs():
+    """C210-7's residual, end to end: the file that crashed WINGGEOM now runs.
+
+    ``TypeError: unsupported operand type(s) for -: 'str' and 'str'`` at
+    ``ytip - yroot`` was the reported symptom; the same strings also killed
+    ``to_display`` on the main GUI's layout page -- the page that would otherwise
+    repair the corners -- so the loader is the only boundary that reaches both.
+    """
+    import json
+    import warnings
+
+    with open(GA6, encoding="utf-8") as fh:
+        clean = json.load(fh)
+    damaged = json.loads(json.dumps(clean))
+    wing = damaged["geometry"]["surfaces"][0]
+    for edge in ("leading_edge", "trailing_edge"):
+        wing[edge] = [[str(x), str(y)] for x, y in wing[edge]]
+
+    with warnings.catch_warnings(record=True):
+        warnings.simplefilter("always")
+        project = io.project_from_dict(damaged)
+    surface = project.geometry.surfaces[0]
+    assert all(isinstance(v, float) for p in surface.leading_edge for v in p), \
+        surface.leading_edge
+    assert _module_values(project, "wing_geometry") == \
+        _module_values(io.project_from_dict(clean), "wing_geometry")
+
+
+def test_every_numeric_container_survives_a_file_written_as_text():
+    """Rule-4 sweep, asserted over the whole fixture rather than the one field.
+
+    ``leading_edge`` was where it was found, but 12 more numeric containers --
+    the aero curves, three ``hinges_span_in`` (an sbeam export input), the gear
+    axle points, the engine CGs -- read the same way. Only ``altitudes_ft``
+    coerced. Every module must give bit-identical answers from the text file.
+    """
+    import json
+    import warnings
+
+    with open(GA6, encoding="utf-8") as fh:
+        clean = json.load(fh)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        project = io.project_from_dict(_as_text(json.loads(json.dumps(clean))))
+    assert caught, "a repaired file must say so -- the GUI shows these as toasts"
+
+    reference = io.project_from_dict(clean)
+    for name in ("structural_speeds", "wing_geometry", "airloads", "flight_envelope",
+                 "balloads", "tail_span", "body_loads", "wing_inertia", "net_loads",
+                 "landing", "balance", "engine", "flap", "tab", "taildist",
+                 "weight_envelope", "weight_estimate"):
+        assert _module_values(project, name) == _module_values(reference, name), name
+
+
+def test_the_coerced_field_set_is_read_off_the_model_not_a_hand_list():
+    """Rule-3 drift guard: a numeric container added tomorrow is covered today.
+
+    The shapes come from the dataclass annotations, so this asserts the *rule*
+    (every numeric container ``_filtered`` is handed arrives numeric) rather
+    than a list of field names that would go stale the next time the schema
+    grows one. The three paths that bypass ``_filtered`` -- the polylines, the
+    engine vectors, the gear axles -- are covered end-to-end above.
+    """
+    import dataclasses
+    import warnings
+
+    from sloads.models import inputs as model_inputs
+
+    sample = {"tuple": ["1", "2"], "list": ["3", "4"], "points": [["5", "6"]]}
+    seen = 0
+    for cls in vars(model_inputs).values():
+        if not dataclasses.is_dataclass(cls):
+            continue
+        for field, shape in io._numeric_containers(cls).items():
+            with warnings.catch_warnings():  # every sample is a repair, by design
+                warnings.simplefilter("ignore")
+                loaded = io._filtered(cls, {field: sample[shape]})[field]
+            flat = [v for m in loaded for v in (m if isinstance(m, tuple) else [m])] \
+                if shape == "points" else list(loaded)
+            assert all(isinstance(v, float) for v in flat), f"{cls.__name__}.{field}"
+            seen += 1
+    # The resolver finding nothing would make every assertion above vacuous.
+    assert seen >= 13, seen
+    assert io._numeric_containers(model_inputs.SurfaceInput)["leading_edge"] == "points"
+
+
+def test_an_unparseable_value_is_refused_by_name():
+    """Text that is not a number is not guessed at. The message names the field
+    and the member, and ``ValueError`` is one of the types the GUI load path
+    already catches and shows as ``st.error`` (``project_state.safe_load``)."""
+    import json
+
+    with open(GA6, encoding="utf-8") as fh:
+        damaged = json.load(fh)
+    damaged["geometry"]["surfaces"][0]["leading_edge"][0][0] = "abc"
+    try:
+        io.project_from_dict(damaged)
+    except ValueError as exc:
+        assert "SurfaceInput.leading_edge[0][0]" in str(exc), str(exc)
+        assert "'abc'" in str(exc), str(exc)
+    else:
+        raise AssertionError("a non-numeric corner must be refused, not stored")
+
+
+def test_a_repair_warns_once_per_field_not_once_per_number():
+    """Twenty text corners are one thing that happened, not forty. The warning
+    is the #66/PB-7 load-path channel, which the GUI renders as a toast."""
+    import json
+    import warnings
+
+    with open(GA6, encoding="utf-8") as fh:
+        damaged = json.load(fh)
+    wing = damaged["geometry"]["surfaces"][0]
+    wing["leading_edge"] = [[str(x), str(y)] for x, y in wing["leading_edge"]]
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        io.project_from_dict(damaged)
+    said = [str(w.message) for w in caught if "leading_edge" in str(w.message)]
+    assert len(said) == 1, said
+    assert "stored as text" in said[0]
+
+
 if __name__ == "__main__":
     import traceback
 
