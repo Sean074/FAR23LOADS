@@ -254,6 +254,25 @@ consistent:
   says which `str` fields carry a code), the owners upper-case at construction,
   and every consumer goes through `normalise_code`, which refuses an unknown
   code by name rather than reading it as Normal (`"Utility"` used to give 3.8).
+- **A widget never deletes entered data, and a row it creates is the project's**
+  (code review 2026-08-24). The oracle form's row counter sizes a list record
+  against the project's own attached list, so it wrote to the project in both
+  directions during a render pass: counting down popped entered rows (21 of 24
+  weight items on one keystroke, no confirmation, no undo, blanks on the way back
+  up, and the truncated project saved), and it did the same with no interaction at
+  all whenever the model had grown underneath a retained count — the `02_parked.md`
+  L-8d mutation case, which no generation bump covers. The rule now: **the model
+  wins**, growth is the only thing a counter does, and a deletion is a separate
+  named button stating which rows go. Counting up is the other half — the seeded
+  row joins the project immediately (`commit_pending`'s blank-record rule, OG-F,
+  governs records a pass *creates*, not rows appended to an attached list), so a
+  blank row is real, saved, and reaches the calc: a zero-weight `FLIGHT` CG case
+  is one every balance divides by. A page that creates rows says so in its caption
+  — the grid rule (an empty cell is held out) and the counter rule (the row is
+  yours the moment it appears) are different and are both stated — and the calc
+  refuses the degenerate row **by name** at the point that divides
+  (`flight_envelope.build_envelope`), with `validation.cg_case_without_weight`
+  warning before anything runs.
 - **A cross-field rule is asked, never enforced at construction** (#66,
   review 2026-08-22 PB-7). `Project.__post_init__` used to raise when
   `engine_layout` disagreed with `len(engines)` — two widgets on one page,

@@ -433,6 +433,89 @@ def test_the_aero_page_fills_the_stall_cl_it_was_given_field_by_field():
     assert build_envelope(live).vn
 
 
+# --------------------------------------------------------------------------- #
+# The row counter is not a delete key (code review 2026-08-24). ``rows`` is the
+# project's own attached list, so the ``rows.pop()`` that used to size it down
+# destroyed entered data during a render pass.
+# --------------------------------------------------------------------------- #
+def _count_key(at, path):
+    return next(w.key for w in at.number_input
+                if (w.key or "").endswith(f"{path}[].count"))
+
+
+def test_counting_down_does_not_delete_entered_rows():
+    """Typing 3 dropped 21 of 24 weight items, with no confirmation and no undo:
+    counting back up returned blanks, and the truncated project saved. The mass
+    item database is the D-25b mass SSOT, so this reaches every balanced case and
+    every exported deck -- the user-triggered half of the #51 data-loss class."""
+    project = _seeded()
+    before = [i.name for i in project.weight.items]
+    assert len(before) > 3, "the fixture must have rows to lose"
+
+    at = _render("weight_mass", project)
+    at.number_input(key=_count_key(at, "weight.items")).set_value(3).run()
+
+    kept = at.session_state["project"].weight.items
+    assert [i.name for i in kept] == before, "counting down must not delete rows"
+    said = " ".join(w.value for w in at.warning)
+    assert "does not delete entered rows" in said, said
+
+
+def test_the_model_wins_when_a_retained_count_is_stale():
+    """The same pop fired with **no user interaction**: a project mutated (not
+    replaced) underneath a retained count was truncated to it on the next render.
+    No generation bump covers that -- it is exactly what ``02_parked.md`` L-8d
+    parks -- and #78's planned seed button is such a writer."""
+    from dataclasses import replace as _replace
+
+    project = _seeded()
+    at = _render("weight_mass", project)
+    live = at.session_state["project"]
+    grown = len(live.weight.items) + 6
+    live.weight.items.extend(
+        _replace(live.weight.items[0], name=f"added {i}") for i in range(6))
+
+    at.run()  # a plain revisit: nothing touched
+    assert len(at.session_state["project"].weight.items) == grown
+
+
+def test_deleting_surplus_rows_takes_a_deliberate_click():
+    """Deletion is still possible -- it is a named button, not a side effect of
+    a stray click on the counter's minus stepper."""
+    project = _seeded()
+    at = _render("weight_mass", project)
+    before = len(project.weight.items)
+    at.number_input(key=_count_key(at, "weight.items")).set_value(before - 2).run()
+
+    button = next(b for b in at.button if "Delete the last" in b.label)
+    assert "2" in button.label, button.label
+    button.click().run()
+    assert len(at.session_state["project"].weight.items) == before - 2
+
+
+def test_a_blank_cg_case_does_not_read_as_not_ready():
+    """A row the counter adds is in the project at once -- and a weight/CG case
+    with no weight is one every balance divides by. It took out the whole Flight
+    Envelope, reported as "cannot run yet", the sentence that means *keep
+    typing*: a page that had been working a second earlier said only that it was
+    unfinished. Refused by name now, and warned about before it is run."""
+    from sloads.validation import consistency_warnings
+
+    project = _seeded()
+    at = _render("weight_mass", project)
+    live = at.session_state["project"]
+    key = _count_key(at, "weight.cg_cases")
+    at.number_input(key=key).set_value(len(live.weight.cg_cases) + 1).run()
+
+    live = at.session_state["project"]
+    assert live.weight.cg_cases[-1].weight_lb == 0.0, "the state this is about"
+    codes = [w.code for w in consistency_warnings(live)]
+    assert "cg_case_without_weight" in codes, codes
+    said = " ".join(w.message for w in consistency_warnings(live)
+                    if w.code == "cg_case_without_weight")
+    assert "divides by the case weight" in said, said
+
+
 def test_no_oracle_page_can_reach_the_concept_switch():
     """The drift guard behind the assertion above (``CLAUDE.md`` rule 3).
 
