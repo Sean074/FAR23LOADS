@@ -368,6 +368,33 @@ def test_a_positive_negative_clmax_fires_the_sign_check():
     assert "aero_clmax_neg_sign" in _aero_codes(project)
 
 
+def test_a_flaps_down_set_with_no_negative_stall_cl_is_warned_about():
+    """#81 sweep: the fill cannot reach this one, so the user is told.
+
+    ``normalize`` fills the flaps-down *positive* stall CL from ``clmax_flap``;
+    the negative one has no schema source (no ``clmax_flap_neg``) and the clean
+    value is a different number, so it stays 0 -- which does not crash, it
+    clamps the negative side of the flap envelope to CL = 0 and reports less
+    load than the airplane sees.
+    """
+    from sloads.models import AeroCoeffSet
+
+    project = io.load_project(_GA6)
+    project.aero_coeffs.flaps_down = AeroCoeffSet(
+        name="LANDING", flaps_down=True, stall_cl=1.5857, neg_stall_cl=0.0,
+        lift=(1.089965, 0.080358, 0.0, 0.0, 0.0),
+        drag=(0.072334, 0.001716, 0.053644, 0.0, 0.0),
+        moment=(-0.280453, 0.004128, 0.0, 0.0, 0.0))
+    assert "aero_flap_neg_stall_unset" in _aero_codes(project)
+    # Authored: silent. The check asks for a value, it does not invent one.
+    project.aero_coeffs.flaps_down.neg_stall_cl = -0.41
+    assert "aero_flap_neg_stall_unset" not in _aero_codes(project)
+    # ...and it is about the flaps-down set only: a cruise set that has not been
+    # filled yet is the #81 crash, refused by the module, not warned about here.
+    project.aero_coeffs.cruise.neg_stall_cl = 0.0
+    assert "aero_flap_neg_stall_unset" not in _aero_codes(project)
+
+
 def test_the_aero_warnings_are_tagged_for_the_aero_page():
     project = io.load_project(_GA6)
     project.aero_coeffs.clmax_clean_neg = 0.59

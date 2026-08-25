@@ -768,6 +768,32 @@ class AeroCoefficientsInput:
     clmax_flap: float = 0.0
 
     def __post_init__(self) -> None:
+        self.normalize()
+
+    def normalize(self) -> bool:
+        """Fill whichever stall representation is missing; ``True`` if it wrote.
+
+        The single owner of the M1-1b fill, called from **both** paths that can
+        produce a live slice (#81, C210-23): ``__post_init__`` for a slice built
+        in one go (every file load, the main GUI's Apply, which rebuilds the
+        whole slice), and :mod:`sloads.derived` for a slice assembled field by
+        field -- which is how the oracle GUI builds one. That GUI creates the
+        coefficient sets blank and assigns the CLmax trio afterwards, so the
+        fill never ran, the live sets kept ``stall_cl = 0.0``, and Flight
+        Envelope and SELECT died on ``float division by zero`` in the stall
+        speed until the project was saved and reloaded. Same shape as the
+        C210-4 lesson: an invariant enforced in one code path and bypassed by
+        another.
+
+        Idempotent by value and fill-if-missing in both directions, so a render
+        pass may call it without dirtying the project and an authored value is
+        never overwritten.
+        """
+        before = (self.clmax_clean, self.clmax_clean_neg, self.clmax_flap,
+                  None if self.cruise is None else (self.cruise.stall_cl,
+                                                    self.cruise.neg_stall_cl),
+                  None if self.flaps_down is None else (self.flaps_down.stall_cl,
+                                                        self.flaps_down.neg_stall_cl))
         # Keep the two stall representations consistent without ever overwriting an
         # explicitly-authored value (fill-if-missing, both directions). The top-level
         # clmax_* feed the *stall speed* VS/VSF (STRSPEED); the per-config stall_cl is
@@ -786,6 +812,18 @@ class AeroCoefficientsInput:
             self.cruise.neg_stall_cl = self.clmax_clean_neg
         if self.flaps_down is not None and not self.flaps_down.stall_cl and self.clmax_flap:
             self.flaps_down.stall_cl = self.clmax_flap
+        # NOTE (#81): ``flaps_down.neg_stall_cl`` is filled in *neither* direction,
+        # because there is no ``clmax_flap_neg`` for it to fill from and the clean
+        # negative CLmax is not it (Appendix A's landing set prints -0.41 against a
+        # clean -0.59). It is authored-only until that field exists; a flaps-down
+        # set that leaves it 0 silently clamps the negative side of the flap
+        # envelope at CL=0, which ``validation`` warns about rather than guessing.
+        after = (self.clmax_clean, self.clmax_clean_neg, self.clmax_flap,
+                 None if self.cruise is None else (self.cruise.stall_cl,
+                                                   self.cruise.neg_stall_cl),
+                 None if self.flaps_down is None else (self.flaps_down.stall_cl,
+                                                       self.flaps_down.neg_stall_cl))
+        return before != after
 
 
 @dataclass

@@ -466,6 +466,49 @@ def test_aero_coefficients_input_preserves_flaps_down_on_cruise_edit():
     assert updated.flaps_down is landing
 
 
+def test_a_set_with_no_stall_cl_is_refused_by_name_not_divided_by():
+    """#81: every stall speed is ``sqrt(n·W / (CL·S))``, so a zero stall CL is a
+    division by zero, not a small number. The GUI reported it as "cannot run yet
+    -- float division by zero", which names neither the quantity nor the page.
+
+    The fill (``AeroCoefficientsInput.normalize``) is what keeps this from
+    happening; this is the guard for any writer that gets past it, on the choke
+    point ``build_envelope`` and ``trim_sweep`` share.
+    """
+    from sloads.models import MissingInputError
+
+    project = io.load_project(_GA)
+    project.aero_coeffs.cruise.stall_cl = 0.0
+    try:
+        build_envelope(project)
+    except MissingInputError as exc:
+        assert "CRUISE" in str(exc) and "stall CL" in str(exc), str(exc)
+        assert "clmax_clean" in str(exc), str(exc)
+    else:
+        raise AssertionError("a zero stall CL must be refused, not divided by")
+
+
+def test_the_flaps_down_negative_stall_cl_is_authored_never_filled():
+    """The sweep item (#81), stated as what it is rather than closed wrongly.
+
+    ``normalize`` fills the flaps-down *positive* stall CL from ``clmax_flap``,
+    but the negative one has no source: there is no ``clmax_flap_neg``, and the
+    clean value is a different number (Appendix A prints -0.41 for the landing
+    set against a clean -0.59). Filling it from the clean value would inject a
+    44 % error, so the gap is warned about in ``validation`` instead.
+    """
+    import copy
+
+    project = io.load_project(_GA)
+    landing = copy.deepcopy(_LANDING)
+    landing.stall_cl, landing.neg_stall_cl = 0.0, 0.0
+    project.aero_coeffs.flaps_down = landing
+    project.aero_coeffs.normalize()
+    assert landing.stall_cl == project.aero_coeffs.clmax_flap   # filled
+    assert landing.neg_stall_cl == 0.0                          # no source to fill from
+    assert not hasattr(project.aero_coeffs, "clmax_flap_neg")
+
+
 if __name__ == "__main__":
     import traceback
 

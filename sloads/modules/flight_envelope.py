@@ -457,7 +457,14 @@ def balance_configs(aero) -> List[AeroCoeffSet]:
     *local copy* -- the stored raw coefficients are left untouched, and a disabled
     (or zero) increment is a no-op so the Appendix A/B oracles stay bit-for-bit.
     Shared by :func:`build_envelope` and :func:`trim_sweep` so both see the same
-    (fuselage-augmented) coefficients.
+    (fuselage-augmented) coefficients -- which makes it the one place to refuse a
+    set whose stall CL is zero (#81). Every stall speed here is
+    ``sqrt(n·W / (CL·S))``, so a zero stall CL is not a small number but a
+    division by zero, and the message it used to raise -- "cannot run yet --
+    float division by zero" -- named neither the quantity nor the page. The fill
+    that produces the value is ``AeroCoefficientsInput.normalize``; this is the
+    guard for any writer that gets past it, stated the way STRSPEED already
+    states the same missing input.
     """
     configs: List[AeroCoeffSet] = []
     if aero is not None:
@@ -465,6 +472,14 @@ def balance_configs(aero) -> List[AeroCoeffSet]:
             configs.append(aero.cruise)
         if aero.flaps_down is not None:
             configs.append(aero.flaps_down)
+        for config in configs:
+            if not config.stall_cl:
+                raise MissingInputError(
+                    f"flight_envelope: the '{config.name}' coefficient set has no "
+                    "stall CL, and every stall speed divides by it. Set the maximum "
+                    "lift coefficients (clmax_clean / clmax_flap) on the Aerodynamic "
+                    "Data page, or enter this set's own stall CL."
+                )
         fm = aero.fuselage_moment
         if fm is not None and fm.enabled and fm.d_cm_dalpha:
             configs = [
