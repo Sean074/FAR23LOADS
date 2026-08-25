@@ -376,6 +376,22 @@ So that every module is copy-of-the-pattern, these are fixed once:
   **Supported floor:** v0 (a bare `EngineInput` file from the Phase-0 `engloads`
   era) and v18 upward. v1–v17 were additive-only, so a file claiming one is read
   as v18 shape — indistinguishable from a v18 file with those fields unset.
+- **Numbers in, numbers stored (the load boundary's typing contract, #76).** A
+  field annotated as a container of numbers — `Vec3`/`XYPoint`, a list of
+  numbers, a list of numeric tuples — is loaded as numbers. The shapes are
+  derived from the dataclass annotations (`io._numeric_shape` /
+  `_numeric_containers`), so a numeric container added to the model is covered
+  without touching a list; `_filtered` coerces every splat, and the readers that
+  name their fields explicitly (the WINGGEOM polylines, the engine vectors, the
+  gear axle points) call the same coercer rather than repeating the rule. Text
+  that parses is repaired with a `warnings.warn` naming the field — the load
+  path's warning channel, shown as a toast by `app_shell.project_state.safe_load`
+  — and text that does not parse raises `ValueError` naming the field and the
+  member. This exists because a grid rendered from an object-typed column writes
+  its cells back as text, so a project can be *saved* with string wing corners;
+  the loader is the one boundary both GUIs and the CLI share. **Scalars are not
+  in scope** — the class is grid-writable containers, and a blanket coercion
+  would have to reason about `Optional`, enums and bools.
 - **Deliverables state their own basis.** Anything that leaves the tool as a file
   (CSV, BDF, zip, workbook, report) carries the methods & limitations statement
   in band — `report.csv_comment_block` (`#`) or `report.bdf_comment_block` (`$`),
