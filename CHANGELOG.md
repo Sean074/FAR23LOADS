@@ -10,6 +10,341 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.2] — 2026-08-25
+
+### Fixed
+
+- **The stall-CL fill runs for the GUI that builds a slice field by field, and a
+  zero stall CL is refused instead of divided by (C210-23, issue #81, tier M,
+  2026-08-24).** The M1-1b fill lived in `AeroCoefficientsInput.__post_init__`,
+  which runs when a slice is *constructed*. The oracle GUI never constructs one:
+  it creates the coefficient sets blank and writes the CLmax trio afterwards, one
+  widget per rerun. So the live sets kept `stall_cl = 0.0`, and Flight Envelope
+  and SELECT — where every stall speed is `√(n·W/(CL·S))` — died with "cannot run
+  yet — float division by zero" on a from-blank build, which is precisely the
+  session the exercise exists to test. Saving and reloading fixed it, because the
+  loader constructs. Same shape as C210-4: an invariant enforced in one code path
+  and bypassed by another.
+- **One owner, called from both paths.** `AeroCoefficientsInput.normalize()`
+  holds the fill (fill-if-missing, both directions, never overwriting an authored
+  value — ga6's `clmax_clean` 1.4068 and per-config `stall_cl` 1.41 legitimately
+  differ and must both survive). `__post_init__` calls it for every slice built
+  in one go, including the main GUI's Apply, which rebuilds the whole slice and
+  was never affected. `sloads.derived.NORMALIZED_SLICES` calls it for a slice
+  assembled field by field, through the `refresh_derived` the oracle form already
+  runs after every persist — so the fix needed no new call site in the GUI, and
+  none of the OG-2/G2 page-key problem that comes with adding one. `normalize`
+  returns whether it wrote and is idempotent by value, which is what lets a
+  render pass call it without dirtying a project it only visited (M2-3).
+- **A derived slice and a normalized slice are different things, and the tables
+  say so.** `DERIVED_SLICES` holds *results* the project could rebuild from
+  scratch and which the field registry excludes from the input set (`mass`);
+  `NORMALIZED_SLICES` holds authored *input* made self-consistent
+  (`aero_coeffs`). Guarded both ways in `tests/test_derived.py`, so an input slice
+  cannot drift into the G5 reduction's drop-and-re-derive path.
+- **The consumer refuses rather than dividing (the #84 lesson).**
+  `balance_configs` — the choke point `build_envelope` and `trim_sweep` share —
+  now raises `MissingInputError` naming the set, the quantity and the page it is
+  entered on, in the shape STRSPEED already uses for the same missing input. The
+  fill is what keeps this from firing; the refusal is what makes every future
+  writer safe, including one that bypasses `refresh_derived`.
+- **Rule-4 sweep, and where it stops.** The other two `__post_init__`
+  normalizations in `inputs.py` (`speeds.category`, `gear.strut`) are
+  constrained-choice fields rendered as selectors, so no GUI edit can defeat
+  them. The mirror-image case — CLmax entered per-config but not at the top level
+  — was already refused by name in STRSPEED (`_stall_speeds`). **The sweep item in
+  the issue cannot be closed as written**: `flaps_down.neg_stall_cl` is not a
+  forgotten fill but a field with **no source** — there is no `clmax_flap_neg`,
+  and the clean value is a different number (Appendix A's landing set prints
+  −0.41 against a clean −0.59, so filling from clean would inject a 44 % error).
+  Left at 0 it does not crash; `_balanced_point` clamps the band to
+  `[0, +CLmax]`, so the 0-g point and the down gust at VF come back quietly
+  small. Now warned (`aero_flap_neg_stall_unset`, page `aero_coefficients`)
+  rather than guessed at; the schema field that would let it fill symmetrically
+  is filed separately, being a schema/contract change.
+- **Guarded on the real path**, not a stand-in for it:
+  `tests/test_oracle_gui.py::test_the_aero_page_fills_the_stall_cl_it_was_given_field_by_field`
+  renders the actual page with the actual broken live slice and then requires
+  `build_envelope` to run — the reported symptom, gone without a save-and-reload.
+  Note that no shipped fixture carries a `flaps_down` set at all, so nothing in
+  CI exercises the flap envelope today.
+
+- **The oracle GUI shows the entry-error warnings it was already computing, and
+  two page tags stopped naming pages that do not exist (C210-35, issue #82,
+  tier M, 2026-08-24).** `sloads.validation.consistency_warnings` is part of the
+  analysis contract, and `oracle_app`/`app_shell` had **no consumer of
+  `ConsistencyWarning` at all** — so a page-targeted entry-error channel was dark
+  exactly where entries are made. On the C210 build that meant six detected
+  contradictions were never shown, including both `wing_fraction`-on-a-wing-row
+  entries; the 85-lb wing-tie gap they caused took three GUI round-trips to close
+  and was found only by reading the saved file off-GUI.
+  `app_shell.components.render_consistency_warnings(project, key)` is now the
+  **only** consumer in either front-end, called by `page_header` from the step key
+  it already holds — so every page opening with the shared header shows its own
+  warnings, in `app/` and in `oracle_app/` alike, with nothing to remember per
+  page. The six open-coded loops in `app/views` are gone;
+  `aero_coefficients.py` and `export_report.py` moved onto `page_header`
+  (`banner=False`, so nothing but the warnings changed on them); the Design
+  Speeds page keeps its deliberate re-statement of the one warning whose subject
+  *is* its operational-limitations tab, now through an `only_codes=` filter.
+- **Two `page` tags named pages that no longer existed.** `weight_cg_inertia`
+  (the weights page has been `weight_mass` since Step G3) and `wing_geometry`
+  (merged into `configuration_layout` at Step G1) covered **19 checks — 14 of
+  them the weights group, the largest in the module** — and were reachable only
+  because two views in `app/` compared against the old strings by hand. Every tag
+  is now a `sloads.workflow.STEPS` key: `workflow.py` is the nav SSOT, so a tag
+  naming anything else names a page no GUI has. Rule-3 drift guard
+  (`tests/test_validation.py`) asserts it over both the `PAGE_*` constants and
+  the tags the live checks actually emit across four fixtures, so a new check
+  with a typo'd page fails there rather than rendering nowhere. Two oracle-GUI
+  guards read the **rendered** warnings (`tests/test_oracle_gui.py`): the
+  contradictory wing row shows on the page that owns it, and does *not* show on
+  one that does not — targeting honoured, not ignored. Warnings tagged
+  `export_report` stay main-GUI-only: the oracle GUI has no export page and no
+  way to set a safety-factor override, so the guard permits a tag that is a
+  workflow key without being an oracle step (OG-2 scope).
+
+- **The flap slipstream amplification is delivered, not just printed — the
+  exported flap case was understated by the whole factor (C210-47, issue #85,
+  tier M, 2026-08-24).** FAR 23.457(b)'s slipstream factor was computed,
+  published as a `LoadValue` and then dropped: `build_flap` shipped
+  `max(critical, gust-combined)` uniformly as the one exported flap case, so the
+  C210 deck carried 972.8 lbs-ULT where the 23.345(d)/23.457(b) design load
+  inside the band is 1,156.6 — **19 % low on shipped content**. FLAPLOAD.BAS
+  printing the factor and leaving the application to the designer is defensible
+  for a printed report; a solver deck has no such excuse. `build_flap` now emits
+  the slipstream as a **second case** (`W-61`) beside the gust-combined one
+  (`W-60`), with its own `ConditionResult` so the report prints the governing
+  number, and the two are **enveloped, never multiplied** — a 25 fps head-on
+  gust and full takeoff power at VF are independent worst cases (owner ruling).
+  The delivered load is `factor × the VF-governed condition`: the factor is
+  `(Vss/VF)²`, a ratio of dynamic pressures *at VF*, so scaling a load computed
+  at VSF by it would multiply a `q` it has no relation to (on the manual's own
+  airplane the critical condition *is* 2G at VF, so this is `factor × critical`
+  there). The factor applies over the **whole** flap — `ControlSurfaceLoadResult`
+  carries chord fractions and no span, which is why the deck emits no `GRID` —
+  so the whole-surface application is conservative and is stated on the case
+  rather than implied; a per-strip banded envelope needs a spanwise axis on the
+  result type and is left as the L-tier schema change it is. No printed oracle
+  exists for the applied load, so the gate is a stated closure (rule 2):
+  `factor × max(LF 2G-at-VF, LF gust-at-VF)` = 1.407 × 629 = 885 lb on the
+  Appendix A airplane, not the two factors stacked, and an engine-less project
+  exports byte-identically to before. The frozen Imperial digests were
+  regenerated for the intended flap-channel change on the propeller examples.
+- **The main GUI's whole slipstream block had never rendered (found closing
+  #85, folded in per rule 4).** `app/views/flap_loads.py` tested
+  `if "Slipstream factor" in vals:` against a dict keyed by `LoadValue.key`, so
+  the condition was always False and the 23.457(b) block was dead from the day
+  it was written — the smoke tests passed over it in silence because a block
+  that never renders raises nothing. The page now reads the key, flattens `vals`
+  across every reported condition (the slipstream is its own condition since
+  #85), and shows the flap load in the slipstream beside the factor and band.
+  Guards: the page's rendered elements are asserted to carry the slipstream
+  block on a propeller project (read the artifact, not the source — the G7
+  lesson), and, since this was the only such line in `app/views`, a rule-3 drift
+  guard states as an absolute that no view may test a display label against a
+  key-dict (`tests/test_views_smoke.py`).
+
+- **The flap page says when it skips the 23.457(b) slipstream case, instead of
+  printing a quietly understated load (C210-40, issue #83, tier S, 2026-08-24).**
+  `flap.py` computes the propeller-slipstream term only when the engine record
+  supplies both a power and a propeller diameter. With no such record the Flap
+  Loads page still collects the slipstream band's geometry (AF, BLPROP), reads it
+  for nothing, and prints a critical flap load with a first-order amplification
+  absent and no trace — the manual's own example prints ×1.407 (Ref 1 Appendix A
+  p201). Since #85 that is not a factor left unprinted but a **delivered case
+  that does not exist**, so the flap and its attachments are sized on the
+  gust-combined load alone. A `consistency_warnings` entry
+  (`flap_slipstream_skipped`, tagged `flap_loads`) now names the skip, what is
+  missing from the engine record, and the page that fixes it; AF and BLPROP
+  caption their engine-record dependency in both GUIs (the main GUI through
+  `help=`, the oracle GUI through the field registry's basis string).
+- **The predicate is the module's own skip condition, not a copy of it.**
+  `flap.slipstream_is_available(project)` states `maxhp > 0 and pdia_in > 0`
+  once; `validation` reads it, and a test walks the partial records — power with
+  no propeller, a propeller with no power — asserting the warning fires *exactly*
+  when `_compute` skips the term, so the two cannot drift.
+- **It fires on the entered band, not on the absent engine.** `EngineType` has
+  no jet member, so `concept_regional_jet`'s turbofans are stored as TURBOPROP
+  with a zero propeller diameter and are indistinguishable from an unentered
+  piston record by type alone. Keying on AF/BLPROP — the evidence a slipstream
+  was intended — keeps the check silent on jets and gliders and true to the
+  module's "no warnings on well-formed input" contract; the schema gap is filed
+  separately. The residual is stated rather than hidden: an airplane that enters
+  neither AF nor BLPROP and has no engine still gets the understated load
+  unwarned.
+- **The main GUI's flap page joined the shared header, so this is not an
+  oracle-GUI-only warning.** `app/views/flap_loads.py` opened with a bare
+  `st.title`, which #82's renderer (hung off `page_header`) never reaches — the
+  warning would have appeared in one GUI and not the other, the exact divergence
+  #82 was written to end. It now calls `page_header("flap_loads", banner=False)`,
+  so nothing but the warnings changed on it. Guards read the **rendered**
+  warning in both front-ends (`tests/test_views_smoke.py`,
+  `tests/test_oracle_gui.py`), and the GA fixture asserts silence where the
+  slipstream *is* computed.
+- **Rule-4 sweep (defect class: an upstream record's absence silently degrading a
+  delivered number).** Every other conditional skip in `sloads/modules` was
+  checked and none is this defect: `configuration._stability_condition` /
+  `_gear_geometry` / `wing_geometry._engine_stations` return `None` and the whole
+  block is visibly absent; `configuration`'s prop-clearance omits its one
+  `LoadValue`; `weight_estimate.resolve_max_continuous_hp` falls back to the
+  stored figure with the fallback named in its docstring; `balance`'s hub thrust
+  applies nothing from `None` and says so. The flap slipstream was the only site
+  where the number kept printing while quietly losing a term.
+
+- **The loader stores numbers, not the text a grid happened to write (C210-7
+  residual, issue #76, tier S, 2026-08-24).** `io._points` coerced a polyline's
+  *shape* (JSON array → tuple) and passed its members through, so a project saved
+  mid-entry — the C210-7 state, where an object-typed grid column hands every
+  typed cell back as text — reloaded with `("45", "0")` where a wing corner
+  belongs. The file loaded cleanly and died later: `TypeError: unsupported
+  operand type(s) for -: 'str' and 'str'` at `wing_geometry.py:112`. The
+  mitigation recorded at review time ("the fixed grid repairs them on the next
+  Geometry render") turns out to be oracle-GUI-only — in the main GUI the same
+  strings kill `to_display` at `configuration_layout.py:818`, which is the page
+  that would have done the repairing. The loader is the only boundary that
+  reaches both.
+- **Stated for the class, not for the corner that found it (rule 4).** Reading
+  the numeric containers off the model's own annotations turns up 18, of which
+  exactly one — `FlightLoadsInput.altitudes_ft` — coerced. The rest arrived raw:
+  both WINGGEOM polylines, the three aero curves (`twist`, `profile_drag`,
+  `section_cm`), three `hinges_span_in` lists (an sbeam control-surface export
+  input), `OneEngineOutInput.speeds_kt`, the three gear axle points, `attach`,
+  and both engine vectors. All are grid-writable, which is how the strings are
+  produced in the first place.
+- **One rule, read off the annotations (rule 3).** `io._numeric_shape` /
+  `_numeric_containers` derive `{field: shape}` from the dataclass type hints, so
+  a numeric container added tomorrow is covered the day it is added rather than
+  the day someone remembers a list. `_filtered` — the single splat gate every
+  `*_from_dict` passes through — coerces on the way in; the three paths that
+  bypass it (the polylines via `_points`, the engine vectors, the gear axles)
+  call the same coercer instead of growing a second copy of the rule, and the
+  hand-written `tuple(...)` passes in `_gear_from_dict` are gone. Guard:
+  `tests/test_io.py::test_the_coerced_field_set_is_read_off_the_model_not_a_hand_list`
+  asserts the rule over every dataclass in the model, and
+  `test_every_numeric_container_survives_a_file_written_as_text` reloads the
+  whole GA-6 fixture with every list member written as text and requires 17
+  modules to return bit-identical values.
+- **Repaired out loud, refused when unreadable.** `"45"` becomes `45.0` with a
+  `warnings.warn` naming the field — the #66/PB-7 load-path channel, which
+  `project_state.safe_load` renders as a toast — one warning per field, not per
+  member, so a 20-point polyline is one message rather than forty. `"abc"` raises
+  `ValueError: SurfaceInput.leading_edge[0][0] is 'abc', which is not a number`,
+  one of the types the load path already catches and shows as `st.error`. A file
+  saved during the crash still opens, which is what lets the grid finish the
+  repair; a file that cannot be read as numbers is not guessed at.
+- **Scope, deliberately.** Numeric *containers* only. Scalars are the same class
+  one step wider, but blanket-coercing every numeric field has to reason about
+  `Optional`, enums and bools, and no observed defect points at it. Residual: the
+  JSON editor (`app/views/project_editor.py`) works on the raw dict rather than a
+  loaded `Project`, so a string typed directly into it still reaches
+  `to_display`; the units converter deliberately leaves non-numeric lists alone
+  (`test_an_empty_or_mixed_list_is_left_alone`), which is also why no coerced
+  value can be a millimetre read as an inch — a string corner was never scaled.
+
+- **One Engine Out refuses the condition an airplane cannot have, instead of
+  simulating nothing and calling it uncontrollable (C210-43, issue #84, tier M,
+  2026-08-24).** FAR 23.367's yaw forcing is `thrust · BLENG` with
+  `BLENG = |engine_cg[1]|`, identically zero for a single engine or for a multi
+  whose *failed* engine sits on the centreline. Nothing gated it: the Euler march
+  ran with no forcing in it and reported zero tail load, zero yaw rate and — since
+  nothing ever moved back — `"NOT recovered within 60 s — the airplane is
+  uncontrollable at this speed (likely below VMC)"`. A false uncontrollability
+  verdict, on a condition the airplane does not have, with every thrust and
+  windmill intermediate verifying to the digit beside it.
+- **One predicate, three readers.**
+  `applicability.engine_failure_not_applicable` states it once.
+  `one_engine_out._case_inputs` refuses on it at the same choke point as the
+  propeller-disc gate, so `run`, `time_history`, the CLI and the main GUI decline
+  identically; the oracle GUI's `render_step` states the reason and **withholds
+  the input form** — the #66/PB-7 shape one step earlier, since there is no input
+  to take rather than merely nothing to show; and `report/coverage.py`'s 23.367
+  row now reads it instead of its own `len(engines) > 1`, which called the
+  centreline twin applicable. The report can no longer mark the condition
+  analysable while the module declines it.
+- **The main GUI's own gate was replaced, not duplicated.** `app/views/one_engine_out.py`
+  carried a hand-written `len(project.engines) < 2` warning — right about the
+  single, silent about the centreline twin, and worded differently from what the
+  module said. It reads the shared predicate now. Its genuinely different case,
+  an empty engine list, stays a `gate()` to the Engine Mount page: that is an
+  unfinished project, not an airplane without the condition, and the form below
+  indexes into the list.
+- **Steps are keyed the way #82 taught.** `applicability._STEP_NOT_APPLICABLE`
+  maps workflow step key → predicate, guarded by
+  `tests/test_applicability.py::test_every_step_predicate_names_a_real_workflow_step`
+  so a key naming a page no GUI has fails there rather than silently never
+  running. The table lives in `sloads` rather than the front-end for a second
+  reason the GUI's own guard enforced: the oracle GUI's page set is derived from
+  `workflow` and may not write a step key as a literal (OG-2/G2).
+
+- **The oracle GUI's row counter was a delete key, and the row it added broke the
+  page it was added on (code review 2026-08-24, tier M).** `render_table` sized a
+  list record by reconciling the model to a `st.number_input`, and `rows` is the
+  project's **own attached list** — so both directions wrote to the project during
+  a render pass. Counting down ran `rows.pop()`: typing `3` on the Weight & Mass
+  page dropped 21 of 24 weight items with no confirmation and no undo, counting
+  back up returned blanks, and a project truncated that way saved to disk. That is
+  the scenario `app_shell/widget_keys.py` records as the reason the generation
+  stamp exists (#51, which blocked the 0.7.0 cut) — the stamp closed the
+  state-triggered path and left the user-triggered one open. The mass item
+  database is the D-25b mass SSOT, so the loss reaches `Project.mass`, the CG
+  cases, SELECT's inertias, the fuselage beam and every exported deck.
+- **The same pop fired with no user interaction at all.** A retained count beats
+  the model whenever the project is *mutated* rather than *replaced* — no
+  generation bump covers that, which is exactly the remainder `02_parked.md` L-8d
+  parks. Six items added by another writer vanished on the next render of the
+  page. Latent today (nothing in the oracle GUI grows a registry list) and not
+  latent for long: #78's item-table seeding is such a writer.
+- **The model wins now, and deleting is a named click.** The counter still grows
+  the list; counting down deletes nothing and instead says so, naming the rows at
+  risk, with a `🗑 Delete the last N row(s)` button beside it. The counter was
+  kept rather than replaced with an Add button on purpose: `tests/test_oracle_journey.py`
+  types whole projects by setting widget values, and a button would have cost that
+  harness for no gain in the defect.
+- **A blank row is in the project at once, and one of them stops the calc.** The
+  counter attaches a seeded row immediately — `commit_pending`'s blank-record rule
+  (OG-F) governs records the pass *created*, not rows appended to an already
+  attached list. For `weight.cg_cases` the seeded row is a `FLIGHT`-tagged case of
+  zero weight at station 0, which `flight_cases` picks up and every balance
+  divides by: the whole Flight Envelope and SELECT died on `ZeroDivisionError`
+  one click after being asked for one more row. `build_envelope` now refuses a
+  weightless case **by name** (the #81/#84 shape — the point that divides is the
+  point that refuses), and `validation` warns before anything is run
+  (`cg_case_without_weight`, page `weight_mass`).
+- **The page said the opposite of what it did.** Its caption read *"Table rows with
+  an empty cell are not saved — fill every column to keep the row."* True of grid
+  cells (`_cell_in`'s NaN guard) and false of counter rows, which are saved blank.
+  The caption now states both rules, so a user reading it is not told the tool
+  protects them from the state it just created.
+- **The catch that hid all of it (#71/PB-18, narrow half).** `_NOT_READY` included
+  `ZeroDivisionError`, which is not a `ValueError`, is raised deliberately by no
+  module, and never means "keep typing" — so a page that had been working reported
+  *cannot run yet*, the sentence for an unfinished form. It is gone; the contract's
+  own two halves (`MissingInputError`, `ValueError` for present-but-unusable)
+  stay, because narrowing further breaks the documented contract — `torque_factor`
+  raises a bare `ValueError` for a missing cylinder count, which the journey test
+  caught immediately. The rest of #71 (exception type + expandable traceback,
+  C210-24) stays with #73.
+
+- **Tail Span Loads stated its moments in the engine's ft-lb channel — every
+  figure 12x its label (C210-51, issue #86, tier S, 2026-08-24).** The module was
+  never wrong: `tail_span` accumulates `sz * dy` with the span in inches and
+  publishes `lb-in` on its own `LoadValue`s, which is why the oracle GUI's report
+  read correctly and only the main GUI's page disagreed. But
+  `app/views/tail_span_loads.py` rendered six lb-in quantities — root Mxx/Myy,
+  the station table, the control-point torsion, the hinge moment (whose field is
+  literally `hinge_moment_lbin`), the T-tail transfer and the station CSV —
+  through the `torque` channel, whose Imperial label is **ft-lb**: Imperial
+  figures read 12x their label, and SI applied the ft-lb→N·m factor to an lb-in
+  number, so both systems were wrong by the same 12. Found by reading the C210
+  station CSV: an htail `Mxx` of 42.857 "ft-lb" is 5.4945 lb x the 7.8 **in**
+  station pitch. The page now derives one moment label and one converter from
+  the `lb-in` channel its module produces — the call the wing, fuselage, landing
+  and plots views already share, making this the fifth rather than the outlier.
+  Guards (rule 3): no view outside the engine page may read the `torque` channel
+  at all, and the page's moment label must be the unit its module publishes
+  (`tests/test_deliverable_units.py`).
+
 ## [0.7.1] — 2026-08-23
 
 ### Added
