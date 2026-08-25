@@ -81,7 +81,17 @@ LIMIT = "LIMIT"
 #: *this GUI is broken*. Caught here and shown as the block's note, exactly as
 #: ``app/views/one_engine_out.py`` does. Anything else still raises: a renderer
 #: bug must not be indistinguishable from a blank project.
-_NOT_READY = (ValueError, ZeroDivisionError)
+#:
+#: ``ZeroDivisionError`` was in this tuple until 2026-08-24 (#71/PB-18, narrow
+#: half) and is **not** part of that contract: it is not a ``ValueError``, no
+#: module raises it deliberately, and it never means "keep typing" — it is
+#: arithmetic that went wrong. A blank weight/CG case produced exactly that, so a
+#: page that had been working stopped dead and said only that it was not ready.
+#: That case now refuses by name upstream (``build_envelope``); any other
+#: division by zero is a defect and surfaces as one. The remaining half of #71 —
+#: showing the exception type and an expandable traceback rather than ``str(e)``
+#: alone (C210-24) — stays with #73.
+_NOT_READY = (ValueError,)
 
 _ULT_NOTE = ("ULTIMATE loads (= limit x the case safety factor); the factor is "
              "in the SF column and the `-ULT` marker is part of the units.")

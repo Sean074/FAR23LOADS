@@ -508,6 +508,22 @@ def build_envelope(project: Project) -> EnvelopeResult:
     cg_cases = flight_cases(project)
     if not cg_cases:
         raise MissingInputError("flight_envelope needs at least one CG case")
+    # A case with no weight is not a light case -- every stall speed here is
+    # sqrt(n*W/(CL*S)) and every balance divides by W, so it is a division by
+    # zero that takes the whole envelope (and SELECT with it) down. It arrives
+    # from any writer that creates a case before it is filled in: the oracle
+    # GUI's row counter attaches a blank `FLIGHT`-tagged CG case the moment it
+    # is added, which read as "cannot run yet" on a page that had been working
+    # a second earlier. Named here, at the point that divides, for every writer.
+    weightless = [c.name or f"case {i + 1}" for i, c in enumerate(cg_cases)
+                  if c.weight_lb <= 0.0]
+    if weightless:
+        raise MissingInputError(
+            "flight_envelope: weight/CG case(s) "
+            + ", ".join(f"'{n}'" for n in weightless)
+            + " carry no weight, and every balance divides by it. Enter the "
+            "weight and CG on the Weight & Mass page, or delete the case."
+        )
 
     di = design_inputs(project)
     vn: List[VnPoint] = []

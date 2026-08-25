@@ -488,6 +488,32 @@ def test_a_set_with_no_stall_cl_is_refused_by_name_not_divided_by():
         raise AssertionError("a zero stall CL must be refused, not divided by")
 
 
+def test_a_weightless_cg_case_is_refused_by_name_not_divided_by():
+    """A case with no weight is not a light airplane (code review 2026-08-24).
+
+    Every balance divides by the case weight, so one blank case took out the
+    whole envelope with ``ZeroDivisionError``. Refused here rather than in the
+    GUI that happened to create it, because any writer can: the oracle row
+    counter attaches a blank ``FLIGHT``-tagged case the moment it is added, and
+    the project saves in that state.
+    """
+    from dataclasses import replace as _replace
+
+    from sloads.models import AnalysisKind, MissingInputError
+
+    project = io.load_project(_GA)
+    cases = project.weight.cg_cases
+    blank = next(c for c in cases if AnalysisKind.FLIGHT in c.analyses)
+    cases.append(_replace(blank, name="CG_BLANK", weight_lb=0.0, xcg=0.0))
+    try:
+        build_envelope(project)
+    except MissingInputError as exc:
+        assert "CG_BLANK" in str(exc), str(exc)
+        assert "carry no weight" in str(exc), str(exc)
+    else:
+        raise AssertionError("a weightless CG case must be refused, not divided by")
+
+
 def test_the_flaps_down_negative_stall_cl_is_authored_never_filled():
     """The sweep item (#81), stated as what it is rather than closed wrongly.
 

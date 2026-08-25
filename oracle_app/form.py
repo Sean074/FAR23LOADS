@@ -794,14 +794,38 @@ def render_table(project: Project, prefix: str, paths: Sequence[str]) -> None:
         st.warning(f"`{prefix}` cannot be created on this project.")
         return
 
+    label = pretty(prefix.rstrip(fr.LIST_MARKER).rsplit(".", 1)[-1])
     count = st.number_input(
-        f"{pretty(prefix.rstrip(fr.LIST_MARKER).rsplit('.', 1)[-1])} — rows",
-        min_value=0, value=len(rows), step=1, key=widget_key(f"{prefix}.count"))
+        f"{label} — rows", min_value=0, value=len(rows), step=1,
+        key=widget_key(f"{prefix}.count"))
     while len(rows) < count:
         rows.append(seeded(cls, prefix, len(rows),
                            taken=[getattr(r, "name", "") for r in rows]))
-    while len(rows) > count:
-        rows.pop()
+    # Counting **down** deletes nothing. ``rows`` is the project's own attached
+    # list, so the ``rows.pop()`` that used to close this gap destroyed entered
+    # data during a render pass: typing 3 here dropped 21 of 24 weight items with
+    # no confirmation and no undo, and counting back up returned blanks -- the
+    # user-triggered half of the #51 data-loss class the generation stamp closed
+    # only for the state-triggered one. The same pop also fired with no user
+    # interaction at all when the model grew underneath a retained count
+    # (``02_parked.md`` L-8d's mutation case; #78's seed button is such a
+    # writer). The model wins both ways now, and a deletion is a deliberate,
+    # named click.
+    if count < len(rows):
+        surplus = len(rows) - count
+        going = [getattr(r, "name", "") or f"row {i + 1}"
+                 for i, r in enumerate(rows[count:], start=count)]
+        shown = ", ".join(f"**{n}**" for n in going[:6]) + (" …" if len(going) > 6 else "")
+        st.warning(
+            f"The row count says {count:,d}, but {label} still holds "
+            f"{len(rows):,d}. Counting down does not delete entered rows. To "
+            f"remove the last {surplus:,d} ({shown}), use the button below — "
+            "otherwise set the count back."
+        )
+        if st.button(f"🗑 Delete the last {surplus:,d} row(s) of {label}",
+                     key=widget_key(f"{prefix}.delete_surplus")):
+            del rows[count:]
+            st.rerun()
     if not rows:
         return
 
@@ -993,9 +1017,16 @@ def render_step(key: str) -> None:
             # first grid. (The original wording also warned that Enter could
             # drop an entry — that was the C210-4 remount race, fixed by
             # _stable_frame, so the warning came back out.)
+            # Both halves, because the first one alone was read as a promise the
+            # page does not keep: a *grid* row with an empty cell is held out,
+            # but a row created with the row counter is part of the project the
+            # moment it appears -- blank, saved, and (a zero-weight CG case) able
+            # to stop a downstream page from running at all.
             st.caption(
-                "Table rows with an empty cell are not saved — fill every "
-                "column to keep the row."
+                "Grid rows with an empty cell are not saved — fill every column "
+                "to keep the row. A row added with a **row counter** is part of "
+                "the project as soon as it appears, blank or not: fill it in, or "
+                "count back down and delete it."
             )
         for prefix, paths in groups:
             st.subheader(pretty(prefix.rstrip(fr.LIST_MARKER).rsplit(".", 1)[-1] or "Project"))

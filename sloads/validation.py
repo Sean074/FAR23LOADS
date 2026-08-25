@@ -20,6 +20,10 @@ Checks (14 CFR / Reference-1 context in each predicate):
                              WINGGEOM planform area by more than a tolerance.
 - ``cg_outside_envelope`` -- the WTONECG centre of gravity outside the WTENV
                              structural CG envelope (14 CFR 23.23; Reference 1 Ch 3).
+- ``cg_case_without_weight`` -- a weight/CG case stating no weight, which every
+                             balance divides by (the flight envelope refuses to
+                             run while one is present). See
+                             ``_check_cg_cases_have_weight``.
 - ``mass_item_outside_body`` -- a fuselage-carried weight item whose station lies
                              ahead of the fuselage outline's nose or behind its
                              tail (decision D-27, 2026-08-17): the three-view's
@@ -359,6 +363,32 @@ def _check_cg_envelope(project: Project) -> List[ConsistencyWarning]:
             "envelope limits (14 CFR 23.23).",
             PAGE_WEIGHT_CG)]
     return []
+
+
+def _check_cg_cases_have_weight(project: Project) -> List[ConsistencyWarning]:
+    """A weight/CG case that states no weight is not a case yet.
+
+    Every balance divides by the case weight, so a zero-weight case does not
+    produce a light airplane -- it stops the flight envelope (and SELECT with it)
+    with a division by zero, which the GUI reported as "cannot run yet" on a page
+    that had been working a moment earlier. A row counter creates such a case the
+    instant it is added, so the state is reachable in one click and is *saved*.
+    Warned here, before anything runs; ``flight_envelope.build_envelope`` refuses
+    it by name when it does.
+    """
+    if project.weight is None or not project.weight.cg_cases:
+        return []
+    blank = [c.name or f"case {i + 1}"
+             for i, c in enumerate(project.weight.cg_cases) if c.weight_lb <= 0.0]
+    if not blank:
+        return []
+    named = ", ".join(f"`{n}`" for n in blank)
+    return [ConsistencyWarning(
+        "cg_case_without_weight",
+        f"Weight/CG case(s) {named} carry no weight. Every balance divides by the "
+        "case weight, so the Flight Envelope and SELECT refuse to run at all while "
+        "one is present — enter the weight and CG, or remove the case.",
+        PAGE_WEIGHT_CG)]
 
 
 def _check_mass_items_in_body(project: Project) -> List[ConsistencyWarning]:
@@ -1214,6 +1244,7 @@ def consistency_warnings(project: Project) -> List[ConsistencyWarning]:
     out += _check_le_te_ordering(project)
     out += _check_area_mismatch(project)
     out += _check_cg_envelope(project)
+    out += _check_cg_cases_have_weight(project)
     out += _check_mass_items_in_body(project)
     out += _check_operational_targets(project)
     out += _check_dive_speed_basis(project)
