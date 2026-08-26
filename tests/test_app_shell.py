@@ -683,6 +683,19 @@ def test_save_writes_a_fresh_name_and_then_its_own_file_unasked(tmp_path):
     assert _dirty_caption(at) == "⚪ No unsaved changes"
 
 
+def test_the_save_confirmation_survives_the_rerun_that_follows_it(tmp_path):
+    """``st.success`` then ``st.rerun()`` discarded the frame that carried it, so
+    the confirmation of the one action with a side effect outside the session --
+    a file written to disk -- was never once seen (#72, PB-23). A toast survives
+    the rerun; the loader's repair warnings already use that channel."""
+    at = _named_app(tmp_path)
+    _name_widget(at).set_value("Study A").run()
+    _save(at)
+    said = [t.value for t in at.toast]
+    assert any(str(tmp_path / "Study_A.project.json") in t for t in said), said
+    assert not [m.value for m in at.success], "a success box does not survive st.rerun()"
+
+
 def test_save_over_another_project_asks_first(tmp_path):
     """PB-6's loss: a second project named like the first replaced it on disk.
     Now the existing file is untouched until the overwrite is confirmed."""

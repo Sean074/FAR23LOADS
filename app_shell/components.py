@@ -226,6 +226,47 @@ def active_project() -> Project:
     return st.session_state.get("project", Project(name=""))
 
 
+def number_input_name(key: Optional[str], kind: Optional[str] = None) -> Optional[str]:
+    """The widget name :func:`unit_number_input` registers for ``key``, unstamped.
+
+    One owner for the naming, because a second reader appeared: clearing a filled
+    field writes ``None`` to the widget's own state (:func:`clear_number_input`,
+    #72), and a key computed a second time somewhere else would clear a widget
+    that does not exist. The **generation stamp is deliberately not applied here**
+    -- ``widget_key`` wraps this at each call site, where the freshness guard
+    (``tests/test_widget_freshness.py``) can see it -- so this owns the naming and
+    that owns the staleness. The converted mode suffixes the active system so a unit
+    switch re-seeds the field instead of reusing the stale number; the fixed-unit
+    and dimensionless modes do not, because the number is the same in both
+    systems and must survive the switch untouched.
+    """
+    if key is None:
+        return None
+    return f"{key}_{active_system().value}" if kind is not None else key
+
+
+def clear_number_input(key: str, kind: Optional[str] = None) -> None:
+    """Empty a filled :func:`unit_number_input` -- the way back to unfilled (#72).
+
+    A ``st.number_input`` **seeded with a number is not clearable**: the frontend
+    restores the last value on blur, and ``NumberInputSerde.deserialize`` reads an
+    empty submission as the seed, so no amount of handling ``None`` on the return
+    path can un-fill a field the user has filled (PB-20 proposed exactly that; it
+    cannot work). Streamlit's one door is the widget's own state -- ``None`` there
+    makes the next render seed ``value=None``, which renders empty and returns
+    ``None`` -- and it may only be written **before** the widget is instantiated,
+    so this belongs in an ``on_click`` callback and nowhere else.
+
+    The record is deliberately *not* written here. The render pass that follows
+    sees the empty widget and clears the field through its normal persist path,
+    so there is one writer, holding the record of the pass it is in, rather than a
+    callback holding a record from the pass before.
+    """
+    name = number_input_name(key, kind)
+    if name is not None:
+        st.session_state[widget_key(name)] = None
+
+
 def unit_number_input(
     label: str,
     value: Optional[float],
@@ -291,7 +332,6 @@ def unit_number_input(
         seed = None if value is None else float(to_display(float(value), kind, system))
         # The unit-system suffix and the generation stamp below say the same
         # thing in two directions: this is a different widget now.
-        system_key = f"{key}_{system.value}" if key else None
         # Bounds are given in Imperial like the value, so they convert with it --
         # otherwise a non-zero limit (a 12-in minimum chord, say) would silently
         # become a 12-*mm* minimum in SI and stop constraining anything.
@@ -299,7 +339,7 @@ def unit_number_input(
             if kwargs.get(bound) is not None:
                 kwargs[bound] = float(to_display(float(kwargs[bound]), kind, system))
         entered = where.number_input(
-            shown, value=seed, key=widget_key(system_key), **kwargs)
+            shown, value=seed, key=widget_key(number_input_name(key, kind)), **kwargs)
         if entered is None:
             return None
         if seed is not None and float(entered) == seed:
@@ -314,7 +354,7 @@ def unit_number_input(
     shown = f"{label} ({fixed_unit})" if fixed_unit else label
     entered = where.number_input(
         shown, value=None if value is None else float(value),
-        key=widget_key(key), **kwargs)
+        key=widget_key(number_input_name(key)), **kwargs)
     return None if entered is None else float(entered)
 
 

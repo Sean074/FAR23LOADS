@@ -195,7 +195,12 @@ def _render_project_file(project: Project, examples_dir: str) -> None:
     if st.button("💾 Save to disk", use_container_width=True, key="_save_btn"):
         save_path = os.path.join(projects_dir, sloads_io.project_filename(project.name))
         if save_with_guard(project, save_path):
-            st.success(f"Saved: {save_path}")
+            # A toast, not ``st.success``: the ``st.rerun()`` on the next line
+            # discards the frame that carried it, so the confirmation of the one
+            # action with a side effect outside the session was never once seen
+            # (#72, PB-23). Toasts survive the rerun -- the same channel the
+            # loader's repair warnings use (``project_state`` OG-D).
+            st.toast(f"Saved: {save_path}", icon="💾")
             st.rerun()
 
     # The same ``.project.json`` name Save-to-disk writes, so a downloaded file
