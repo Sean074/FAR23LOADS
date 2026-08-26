@@ -14,8 +14,8 @@ settles those if it cannot quietly fall out of step with the schema, so:
   the second GUI. This is what caught ``aero_coeffs`` having no oracle page and
   produced OG-2's amendment (:func:`sloads.workflow.oracle_steps`). G5 itself
   lives in ``tests/test_oracle_inputs.py``; what stays here is the shape of the
-  ``supplied`` column it needed — a field the oracle GUI *writes* without asking
-  — because a mark that can be handed out freely would let any G5 failure be
+  ``supplied`` column it needed — a `SLOADS` field the oracle input set cannot
+  do without — because a mark that can be handed out freely would let any G5 failure be
   silenced by marking the offending field.
 * **The duplicate-owner class** (the 2026-08-16 GUI review's N1, five instances;
   a sixth — the two ``shoulder_altitude_ft`` fields — fell out of writing the
@@ -170,7 +170,7 @@ def test_the_original_set_is_a_real_reduction():
     )
 
 
-# --- the `supplied` column: what the oracle GUI writes without asking -------- #
+# --- the `supplied` column: what the oracle input set cannot do without ------ #
 
 
 def test_a_supplied_field_is_never_original():
