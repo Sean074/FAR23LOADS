@@ -120,17 +120,9 @@ if apply_col.button("Apply", type="primary"):
     except (TypeError, ValueError, KeyError, AttributeError) as exc:
         st.error(f"Could not build a project from this JSON: {exc}")
         stop_page()
-    # The version *as typed*, read off the raw dict: project_from_dict has
-    # already migrated and stamped, so asking the built project is always "ok"
-    # and an edit that pastes an older file would be upgraded silently -- the
-    # same defect as the sidebar's (review PB-14, swept here in the same
-    # change). The stamp needs no bumping for the same reason.
-    status, message = sloads_io.schema_status(
-        sloads_io.source_schema_version(imperial_dict))
-    if status == "newer":
-        st.warning(message)
-    elif status == "older":
-        st.info(message)
+    # No schema classification here: pasting a project of any other version is
+    # refused by the gate inside project_from_dict (#93), so it has already been
+    # reported by the except above. The editor asks about content, not vintage.
     # Surface an invalid per-case safety_factor at the hand-edit entry point
     # (M4-14). Checked on the *raw* dict: project_from_dict has already reset
     # any invalid value to the conservative 1.5 default, so the built project

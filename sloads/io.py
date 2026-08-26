@@ -25,7 +25,6 @@ from typing import (
     Any,
     Dict,
     List,
-    Mapping,
     Optional,
     Tuple,
     Union,
@@ -35,7 +34,7 @@ from typing import (
 )
 
 from .constants import ULTIMATE_FACTOR
-from .migrations import SUPPORTED_FLOOR, is_project_dict, migrate
+from .migrations import migrate
 from .models import (
     SCHEMA_VERSION,
     AeroCoefficientsInput,
@@ -123,12 +122,11 @@ from .validation import safety_factor_valid
 # --------------------------------------------------------------------------- #
 # Tolerant reader (M2R-7): the one place every ``*_from_dict`` filters a raw dict
 # down to its dataclass's fields before the ``cls(**d)`` splat. A file carrying an
-# unknown key -- saved by a newer app version, an older one, or hand-edited -- must
-# LOAD, dropping the unrecognized field, not crash with ``TypeError: __init__() got
-# an unexpected keyword argument``. This makes good on the forward-compat promise in
-# :func:`schema_status` ("unrecognized fields are ignored"). The full migration-chain
-# overhaul (per-version hops + one frozen fixture per schema) is M4-10; this is the
-# minimal tolerant-read guard that unblocks cross-version file sharing.
+# unknown key -- hand-edited, or written by a build whose schema had a field this
+# one does not -- must LOAD, dropping the unrecognized field, not crash with
+# ``TypeError: __init__() got an unexpected keyword argument``. Since #93 a file
+# of another *version* never gets this far (``migrations.migrate`` refuses it), so
+# what this guard covers is an unknown key inside an otherwise current file.
 # --------------------------------------------------------------------------- #
 # --------------------------------------------------------------------------- #
 # Numbers in, numbers stored (#76, C210-7 residual). A grid cell rendered from an
@@ -1279,25 +1277,22 @@ def configuration_to_dict(inp: LayoutInput) -> Dict[str, Any]:
 # Project <-> JSON
 # --------------------------------------------------------------------------- #
 def project_from_dict(d: Dict[str, Any]) -> Project:
-    """Build a :class:`Project` from a dict of any historical schema version.
+    """Build a :class:`Project` from a **current-schema** dict.
 
-    The dict is first normalised to the current shape by
-    :func:`sloads.migrations.migrate` -- a chain of small ``dict -> dict`` hops,
-    one per version that changed the file's *shape* (M4-10). Everything below
-    therefore reads the **current** schema only; there are no ``legacy_*``
-    parameters and no key-presence sniffing left in the readers.
+    The dict passes :func:`sloads.migrations.migrate` first, which pre-production
+    is a gate rather than a chain (#93): it admits the current
+    :data:`SCHEMA_VERSION` and refuses everything else. Everything below
+    therefore reads exactly one schema; there are no ``legacy_*`` parameters and
+    no key-presence sniffing left in the readers.
 
-    A bare :class:`EngineInput` file (the Phase-0 ``engloads`` era, before
-    ``Project`` existed) is still accepted, discriminated by
-    :func:`sloads.migrations.is_project_dict` rather than by enumerating every
-    slice name -- so adding a slice to ``Project`` can no longer silently
-    downgrade a real project to an engine-only read.
+    A dict that is not a current-version project -- an older file, a newer one,
+    or any JSON that never was a project -- raises
+    :class:`sloads.migrations.SchemaVersionError` there. The bare
+    :class:`EngineInput` file of the Phase-0 ``engloads`` era went out with the
+    hops (#93): it carries no ``schema_version``, so the gate refuses it, which
+    is the same discrimination the key-sniffing ``is_project_dict`` did and one
+    the reader no longer has to make.
     """
-    if not is_project_dict(d):
-        # The whole file is just the engine slice.
-        return Project(name="", engines=[engine_from_dict(d)],
-                       engine_layout=EngineLayout.SINGLE_NOSE)
-
     d = migrate(d)
     if True:
         weight = d.get("weight")
@@ -1466,47 +1461,13 @@ def project_to_dict(project: Project) -> Dict[str, Any]:
     return out
 
 
-def schema_status(version: int) -> Tuple[str, str]:
-    """Classify an on-disk ``schema_version`` against the current one.
-
-    Returns ``(status, message)`` where ``status`` is ``"ok"`` (same version,
-    empty message), ``"newer"`` (file was written by a newer app version -- it
-    still loads, but unrecognized fields are ignored) or ``"older"`` (the file's
-    field-presence migration in :func:`project_from_dict` has already run; the
-    caller should bump the loaded project's ``schema_version`` to
-    :data:`SCHEMA_VERSION`). Pure -- the UI decides how to surface the message so
-    calc stays free of Streamlit.
-    """
-    if version > SCHEMA_VERSION:
-        return "newer", (
-            f"This file was saved by a newer version (schema {version}; this app "
-            f"supports {SCHEMA_VERSION}). Loading anyway -- unrecognized fields "
-            "are ignored."
-        )
-    if version < SCHEMA_VERSION:
-        return "older", f"Migrated from schema {version} to {SCHEMA_VERSION}."
-    return "ok", ""
-
-
-def source_schema_version(d: Mapping[str, Any]) -> int:
-    """The ``schema_version`` a project dict carried **before** migration.
-
-    :func:`project_from_dict` runs :func:`migrations.migrate`, which stamps the
-    dict at :data:`SCHEMA_VERSION` -- so the built ``Project`` cannot say what
-    version the file on disk was, and a caller asking it (the GUIs did) always
-    reads "current" and never reports a migration (review PB-14). The fact lives
-    in the raw dict and nowhere else; this is the one reader of it.
-
-    An unversioned dict answers :data:`migrations.SUPPORTED_FLOOR`, the same
-    assumption ``migrate`` makes when it decides which hops to run.
-    """
-    version = d.get("schema_version")
-    return SUPPORTED_FLOOR if not isinstance(version, int) else version
-
-
 def read_project_dict(path: str) -> Dict[str, Any]:
-    """The raw project dict as written on disk -- unmigrated, so
-    :func:`source_schema_version` can still be asked of it."""
+    """The raw project dict as written on disk, unmigrated.
+
+    Split out of :func:`load_project` so a caller can hold the file's own dict --
+    what :func:`sloads.migrations.source_schema_version` reads, and what the JSON
+    editor hands back for editing -- rather than only the built ``Project``.
+    """
     with open(path, "r", encoding="utf-8") as fh:
         return json.load(fh)
 

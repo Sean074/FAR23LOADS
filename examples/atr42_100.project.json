@@ -1,5 +1,5 @@
 {
-  "schema_version": 41,
+  "schema_version": 55,
   "name": "ATR 42-300 (\"ATR 42-100\" prototype designation never entered production; -300 is the closest PW120-powered production analog) \u2014 2x PW120 (concept, category C)",
   "engines": [
     {
@@ -378,33 +378,80 @@
         "name": "aft gross",
         "weight_lb": 36817,
         "xcg": 402.06,
-        "zcg": 137.04
+        "zcg": 137.04,
+        "analyses": [
+          "flight"
+        ]
       },
       {
         "name": "fwd gross",
         "weight_lb": 36817,
         "xcg": 387.24,
-        "zcg": 137.04
+        "zcg": 137.04,
+        "analyses": [
+          "flight"
+        ]
       },
       {
         "name": "fwd regardless",
         "weight_lb": 30000,
         "xcg": 383.54,
-        "zcg": 140.12
+        "zcg": 140.12,
+        "analyses": [
+          "flight"
+        ]
       },
       {
         "name": "min weight",
         "weight_lb": 19247.0,
         "xcg": 388.73,
-        "zcg": 130.65
+        "zcg": 130.65,
+        "analyses": [
+          "flight"
+        ]
       },
       {
         "name": "mid gross",
         "weight_lb": 36817,
         "xcg": 394.65,
-        "zcg": 137.04
+        "zcg": 137.04,
+        "analyses": [
+          "flight"
+        ]
+      },
+      {
+        "name": "aft max landing",
+        "weight_lb": 35000.0,
+        "xcg": 402.06,
+        "zcg": 135.74,
+        "analyses": [
+          "ground"
+        ],
+        "role": "aft_max_landing"
+      },
+      {
+        "name": "fwd max landing",
+        "weight_lb": 35000.0,
+        "xcg": 386.26,
+        "zcg": 135.74,
+        "analyses": [
+          "ground"
+        ],
+        "role": "fwd_max_landing"
+      },
+      {
+        "name": "fwd light",
+        "weight_lb": 30000,
+        "xcg": 383.54,
+        "zcg": 135.74,
+        "analyses": [
+          "ground"
+        ],
+        "role": "fwd_light"
       }
-    ]
+    ],
+    "max_landing_weight_lb": 35000.0,
+    "max_takeoff_weight_lb": 36817
   },
   "mass": {
     "cases": [
@@ -551,7 +598,6 @@
         "elevator_area_sqft": 26.0,
         "elevator_fwd_hinge_sqft": 3.0,
         "elevator_aft_hinge_sqft": 23.0,
-        "airplane_length_in": 892.8000000000001,
         "wing_lift_slope_per_rad": 5.3,
         "htail_semispan_in": 110.0
       },
@@ -565,13 +611,13 @@
         "vtail_mac_in": 92.4,
         "xv25": 820.0,
         "xv50": 835.0,
-        "airplane_length_in": 892.8000000000001,
         "wing_span_in": 967.1999999999999,
         "gross_weight_lb": 36817.0,
         "rudder_large_deflection_factor": 1.0,
         "izz_slugft2": 0.0,
         "vtail_span_in": 125.0
-      }
+      },
+      "airplane_length_in": 892.8000000000001
     },
     "landing_gear": {
       "main_gear": {
@@ -638,7 +684,6 @@
     "chosen_n": 2.5,
     "chosen_nneg": -1.0,
     "mach_limit": {
-      "shoulder_altitude_ft": 12000,
       "max_operating_altitude_ft": 25000,
       "increment_ft": 1000
     }
@@ -727,38 +772,6 @@
       0.0,
       12000.0,
       25000.0
-    ],
-    "cg_cases": [
-      {
-        "name": "aft gross",
-        "weight_lb": 36817,
-        "xcg": 402.06,
-        "zcg": 137.04
-      },
-      {
-        "name": "fwd gross",
-        "weight_lb": 36817,
-        "xcg": 387.24,
-        "zcg": 137.04
-      },
-      {
-        "name": "fwd regardless",
-        "weight_lb": 30000,
-        "xcg": 383.54,
-        "zcg": 140.12
-      },
-      {
-        "name": "min weight",
-        "weight_lb": 19247.0,
-        "xcg": 388.73,
-        "zcg": 130.65
-      },
-      {
-        "name": "mid gross",
-        "weight_lb": 36817,
-        "xcg": 394.65,
-        "zcg": 137.04
-      }
     ]
   },
   "wing_mass": {
@@ -850,33 +863,11 @@
     "xcg_in": 0.0
   },
   "landing": {
-    "max_landing_weight_lb": 35000.0,
-    "gross_weight_lb": 36817.0,
     "strut_stroke_in": 12,
     "tire_od_in": 34,
     "hub_diameter_in": 14,
     "lift_factor": 0.667,
     "tail_down_angle_deg": 12.0,
-    "gear_load_factor": 2.0,
-    "cg_cases": [
-      {
-        "name": "aft max landing",
-        "weight_lb": 35000.0,
-        "xcg": 402.06,
-        "zcg": 135.74
-      },
-      {
-        "name": "fwd max landing",
-        "weight_lb": 35000.0,
-        "xcg": 386.26,
-        "zcg": 135.74
-      },
-      {
-        "name": "fwd light",
-        "weight_lb": 30000,
-        "xcg": 383.54,
-        "zcg": 135.74
-      }
-    ]
+    "gear_load_factor": 2.0
   }
 }

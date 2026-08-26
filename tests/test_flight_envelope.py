@@ -327,29 +327,6 @@ def test_aero_coeffs_slice_round_trips_through_io():
     assert aero.flaps_down is None
 
 
-def test_legacy_flight_loads_configurations_migrate_to_aero_coeffs():
-    """Pre-schema-18 files carried the coefficient sets as
-    ``flight_loads.configurations``; loading one must still populate
-    ``Project.aero_coeffs`` (Step D4.1 migration).
-
-    M4-10: the fixture now declares ``schema_version = 17``, i.e. it really is a
-    pre-v18 file. Before the migration chain this shim ran on every file
-    regardless of version, so the test passed while mutating a current-schema
-    dict -- and a modern project that deliberately had no ``aero_coeffs`` would
-    have had a set resurrected from a stale ``flight_loads.configurations``."""
-    legacy = io.project_to_dict(io.load_project(_GA))
-    cruise = legacy["aero_coeffs"].pop("cruise")
-    legacy["flight_loads"]["configurations"] = [dict(cruise, name="CRUISE", flaps_down=False)]
-    del legacy["aero_coeffs"]
-    legacy["schema_version"] = 17
-
-    rebuilt = io.project_from_dict(legacy)
-    assert rebuilt.aero_coeffs is not None
-    assert rebuilt.aero_coeffs.cruise is not None
-    assert rebuilt.aero_coeffs.cruise.lift[1] == 0.080358
-    assert rebuilt.aero_coeffs.flaps_down is None
-
-
 # The GA6 flaps-extended (LANDING) aero coefficients, transcribed from the
 # Appendix A "V-n Data" input listing (Ref 1 Code.pdf p179): the flaps-down
 # lift/drag/pitching-moment polynomials and the flaps-down stall CL. These ARE in

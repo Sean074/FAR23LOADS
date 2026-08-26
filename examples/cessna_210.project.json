@@ -1,5 +1,5 @@
 {
-  "schema_version": 41,
+  "schema_version": 55,
   "name": "Cessna 210 Centurion \u2014 Continental IO-520-A",
   "engines": [
     {
@@ -384,33 +384,80 @@
         "name": "aft gross",
         "weight_lb": 3800,
         "xcg": 69.55,
-        "zcg": 91.36
+        "zcg": 91.36,
+        "analyses": [
+          "flight"
+        ]
       },
       {
         "name": "fwd gross",
         "weight_lb": 3800,
         "xcg": 61.49,
-        "zcg": 91.36
+        "zcg": 91.36,
+        "analyses": [
+          "flight"
+        ]
       },
       {
         "name": "fwd regardless",
         "weight_lb": 3000,
         "xcg": 58.03,
-        "zcg": 91.15
+        "zcg": 91.15,
+        "analyses": [
+          "flight"
+        ]
       },
       {
         "name": "min weight",
         "weight_lb": 2474.0,
         "xcg": 60.76,
-        "zcg": 89.94
+        "zcg": 89.94,
+        "analyses": [
+          "flight"
+        ]
       },
       {
         "name": "mid gross",
         "weight_lb": 3800,
         "xcg": 65.52,
-        "zcg": 91.36
+        "zcg": 91.36,
+        "analyses": [
+          "flight"
+        ]
+      },
+      {
+        "name": "aft max landing",
+        "weight_lb": 3800.0,
+        "xcg": 69.55,
+        "zcg": 92.03,
+        "analyses": [
+          "ground"
+        ],
+        "role": "aft_max_landing"
+      },
+      {
+        "name": "fwd max landing",
+        "weight_lb": 3800.0,
+        "xcg": 61.49,
+        "zcg": 92.03,
+        "analyses": [
+          "ground"
+        ],
+        "role": "fwd_max_landing"
+      },
+      {
+        "name": "fwd light",
+        "weight_lb": 3000,
+        "xcg": 58.03,
+        "zcg": 92.03,
+        "analyses": [
+          "ground"
+        ],
+        "role": "fwd_light"
       }
-    ]
+    ],
+    "max_landing_weight_lb": 3800,
+    "max_takeoff_weight_lb": 3800
   },
   "mass": {
     "cases": [
@@ -582,7 +629,6 @@
         "elevator_area_sqft": 15.5,
         "elevator_fwd_hinge_sqft": 1.6,
         "elevator_aft_hinge_sqft": 13.9,
-        "airplane_length_in": 338.4,
         "wing_lift_slope_per_rad": 4.75,
         "htail_semispan_in": 72.0
       },
@@ -596,13 +642,13 @@
         "vtail_mac_in": 39.599999999999994,
         "xv25": 251.0,
         "xv50": 258.0,
-        "airplane_length_in": 338.4,
         "wing_span_in": 441.96,
         "gross_weight_lb": 3800.0,
         "rudder_large_deflection_factor": 1.0,
         "izz_slugft2": 0.0,
         "vtail_span_in": 54.0
-      }
+      },
+      "airplane_length_in": 338.4
     },
     "landing_gear": {
       "main_gear": {
@@ -669,7 +715,6 @@
     "chosen_n": null,
     "chosen_nneg": null,
     "mach_limit": {
-      "shoulder_altitude_ft": 12000,
       "max_operating_altitude_ft": 18000,
       "increment_ft": 1000
     }
@@ -758,38 +803,6 @@
       0.0,
       12000.0,
       18000.0
-    ],
-    "cg_cases": [
-      {
-        "name": "aft gross",
-        "weight_lb": 3800,
-        "xcg": 69.55,
-        "zcg": 91.36
-      },
-      {
-        "name": "fwd gross",
-        "weight_lb": 3800,
-        "xcg": 61.49,
-        "zcg": 91.36
-      },
-      {
-        "name": "fwd regardless",
-        "weight_lb": 3000,
-        "xcg": 58.03,
-        "zcg": 91.15
-      },
-      {
-        "name": "min weight",
-        "weight_lb": 2474.0,
-        "xcg": 60.76,
-        "zcg": 89.94
-      },
-      {
-        "name": "mid gross",
-        "weight_lb": 3800,
-        "xcg": 65.52,
-        "zcg": 91.36
-      }
     ]
   },
   "wing_mass": {
@@ -883,33 +896,11 @@
     ]
   },
   "landing": {
-    "max_landing_weight_lb": 3800,
-    "gross_weight_lb": 3800,
     "strut_stroke_in": 7,
     "tire_od_in": 19,
     "hub_diameter_in": 7,
     "lift_factor": 0.667,
     "tail_down_angle_deg": 13.0,
-    "gear_load_factor": 2.5,
-    "cg_cases": [
-      {
-        "name": "aft max landing",
-        "weight_lb": 3800.0,
-        "xcg": 69.55,
-        "zcg": 92.03
-      },
-      {
-        "name": "fwd max landing",
-        "weight_lb": 3800.0,
-        "xcg": 61.49,
-        "zcg": 92.03
-      },
-      {
-        "name": "fwd light",
-        "weight_lb": 3000,
-        "xcg": 58.03,
-        "zcg": 92.03
-      }
-    ]
+    "gear_load_factor": 2.5
   }
 }

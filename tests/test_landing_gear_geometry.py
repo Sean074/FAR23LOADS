@@ -35,26 +35,6 @@ def test_gear_geometry_serializes_under_geometry_not_landing():
     assert p2.geometry.landing_gear.tread_in == p.geometry.landing_gear.tread_in
 
 
-def test_pre_v28_top_level_landing_gear_migrates():
-    d = {
-        "name": "legacy",
-        "landing": {
-            "max_landing_weight_lb": 3000.0,
-            "main_gear": {"axle_static": [96.0, 12.0], "rolling_radius_in": 8.0, "strut": "O"},
-            "nose_gear": {"axle_static": [3.0, 12.0], "rolling_radius_in": 5.7, "strut": "O"},
-            "tread_in": 112.0,
-        },
-    }
-    p = io.project_from_dict(d)
-    assert p.geometry is not None and p.geometry.landing_gear is not None
-    assert p.geometry.landing_gear.main_gear.axle_static == (96.0, 12.0)
-    assert p.geometry.landing_gear.tread_in == 112.0
-    # The max landing weight rides the v46 hop across to its single owner on
-    # WeightInput (decision G-4); the gear-only slice keeps its LGFACTOR scalars.
-    assert p.weight.max_landing_weight_lb == 3000.0
-    assert p.landing is not None
-
-
 def test_gear_stations_derives_coarse_values_from_axles():
     p = io.load_project(_JET)   # a fixture with a parametric layout + gear geometry
     gc = gear_stations(p.geometry.parametric, p.geometry.landing_gear)

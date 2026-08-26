@@ -1,5 +1,5 @@
 {
-  "schema_version": 41,
+  "schema_version": 55,
   "name": "Concept commuter twin (>12,500 lb, category C)",
   "weight": {
     "estimation": {
@@ -185,9 +185,13 @@
             "Baggage",
             "Fuel to gross"
           ]
-        }
+        },
+        "analyses": [
+          "flight"
+        ]
       }
-    ]
+    ],
+    "max_takeoff_weight_lb": 18000
   },
   "mass": {
     "cases": [
@@ -336,14 +340,6 @@
     "mn": 0.1,
     "altitudes_ft": [
       0.0
-    ],
-    "cg_cases": [
-      {
-        "name": "CGmax",
-        "weight_lb": 18000.0,
-        "xcg": 264.78,
-        "zcg": 69.06
-      }
     ]
   },
   "wing_mass": {

@@ -4,11 +4,14 @@ CLAUDE.md practice 3: a cross-cutting convention gets a single-source code owner
 **plus a drift-guard test**. :mod:`sloads.cg_cases` is the owner; this is the
 guard, and it pins the four claims the piece is made of:
 
-1. **The migration is output-neutral.** The ``FLIGHT``-tagged set after migration
-   equals the pre-hop ``flight_loads.cg_cases`` exactly, per fixture -- decision
-   G-3b's stated guard, and the reason the piece can be claimed as "nothing
-   moves". If it moved, the migration would be re-deciding the analysis, not
-   re-homing its inputs.
+1. **Every case says what it is for.** A case tagged for no analysis is an entry
+   error, not a state (G-3c). Decision G-3b's neutrality guard -- the
+   ``FLIGHT``-tagged set equals the pre-hop ``flight_loads.cg_cases``, per
+   fixture -- lived here until #93 retired the v46 hop with the rest of the
+   chain. It was re-proven at the cut against the pre-regeneration files (all six
+   fixtures, flight and ground sets identical) and then removed with the hop it
+   guarded; the examples are now post-hop, so the pre-hop list it read no longer
+   exists to compare against.
 2. **The role is the ordering contract, not the name.** LANDLOAD indexes its three
    loadings positionally and is oracle-locked to Appendix A p230; before G-3a the
    order was recovered by *matching names*, falling back to entry order with only
@@ -22,7 +25,6 @@ guard, and it pins the four claims the piece is made of:
 """
 
 import glob
-import json
 import os
 import sys
 
@@ -31,7 +33,6 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sloads import io  # noqa: E402
-from sloads import migrations  # noqa: E402
 from sloads.cg_cases import (  # noqa: E402
     FLIGHT_CASE_NAMES,
     cases_for,
@@ -60,55 +61,14 @@ _EXAMPLES = sorted(glob.glob(os.path.join(_ROOT, "examples", "*.project.json")))
 _GA = os.path.join(_ROOT, "examples", "ga6_normal.project.json")
 
 
-def _raw(path):
-    with open(path, encoding="utf-8") as fh:
-        return json.load(fh)
-
-
 # --------------------------------------------------------------------------- #
-# 1. The migration is output-neutral
+# 1. Every case says what it is for
 # --------------------------------------------------------------------------- #
-@pytest.mark.parametrize("path", _EXAMPLES, ids=lambda p: os.path.basename(p))
-def test_the_flight_set_after_migration_is_the_pre_hop_list(path):
-    """Decision G-3b's stated guard, per fixture.
-
-    The shipped fixtures are still on disk at their original version, so the
-    pre-hop list is readable straight from the file -- this compares the migrated
-    result against the actual source rather than against a re-derivation of it.
-    """
-    raw = _raw(path)
-    before = (raw.get("flight_loads") or {}).get("cg_cases") or []
-    after = flight_cases(io.load_project(path))
-    assert [(c["name"], c["weight_lb"], c["xcg"], c["zcg"]) for c in before] == \
-        [(c.name, c.weight_lb, c.xcg, c.zcg) for c in after]
-
-
-@pytest.mark.parametrize("path", _EXAMPLES, ids=lambda p: os.path.basename(p))
-def test_the_ground_set_after_migration_is_the_pre_hop_landing_list(path):
-    raw = _raw(path)
-    before = (raw.get("landing") or {}).get("cg_cases") or []
-    after = ground_cases(io.load_project(path))
-    assert [(c["name"], c["weight_lb"], c["xcg"], c["zcg"]) for c in before] == \
-        [(c.name, c.weight_lb, c.xcg, c.zcg) for c in after]
-
-
 @pytest.mark.parametrize("path", _EXAMPLES, ids=lambda p: os.path.basename(p))
 def test_every_case_states_at_least_one_analysis(path):
     """G-3c: a case run for nothing is an entry error, not a state."""
     for case in io.load_project(path).weight.cg_cases:
         assert case.analyses, case.name
-
-
-def test_a_pre_v19_file_whose_cases_live_only_on_flight_loads_still_arrives():
-    """The v19 hop needs a ``weight`` dict to write into and used to give up
-    without one; the v46 hop recovers the list rather than dropping it."""
-    out = migrations.migrate({
-        "schema_version": 18,
-        "flight_loads": {"cg_cases": [{"name": "CG1", "weight_lb": 1000.0,
-                                       "xcg": 10.0, "zcg": 5.0}]},
-    })
-    assert out["weight"]["cg_cases"][0]["analyses"] == ["flight"]
-    assert "cg_cases" not in out["flight_loads"]
 
 
 # --------------------------------------------------------------------------- #

@@ -639,24 +639,29 @@ unit-system field records the user's *display/export preference* only and never
 changes how a stored value is interpreted. The load path carries no unit
 assumption, so loading an Imperial file under an SI toggle converts exactly once,
 at each page's render boundary. `Project` carries a `schema_version`
-(`models.py`, `SCHEMA_VERSION`); older on-disk shapes are migrated leniently by
-field-presence heuristics so old files still load.
+(`models.py`, `SCHEMA_VERSION`), and pre-production that version is the only one
+this build reads (#93).
 
 Every load path is hardened (Phase E5): the three sidebar actions (Open saved,
 Load example, Upload) and the Project JSON Editor's **Apply**
 (`app/views/project_editor.py`, which round-trips the whole project as JSON in the
 selected units via `project_dict_to_display` / `project_dict_to_imperial`) all show
-a graceful `st.error` on a malformed / wrong-shape file instead of a traceback, and
-run a soft `SCHEMA_VERSION` check via the pure `io.schema_status(version)`: a newer
-file warns and still loads (unrecognized fields ignored); an older file is migrated
-and reported as such. The version asked about is **`io.source_schema_version(raw)`
-— the version the dict carried before migration**, read off the file rather than
-off the built project: `project_from_dict` runs `migrate`, which stamps the dict at
-`SCHEMA_VERSION`, so a check that asks the loaded `Project` always reads "ok" and
-the notice can never fire (this is what both call sites did until #68 / review
-PB-14; guard `tests/test_app_shell.py::test_no_gui_decides_the_schema_status_from_the_built_project`).
-The sidebar surfaces the schema notice as a toast (its adopt path reruns); the
-editor surfaces it inline.
+a graceful `st.error` on a malformed / wrong-shape file instead of a traceback.
+
+**A file at any version but the current one is one of those errors** (#93). The
+decision is not the GUI's: `migrations.migrate`, reached through
+`io.project_from_dict`, raises `SchemaVersionError` — a `ValueError`, so the load
+paths' existing except clauses report it and no project is adopted. The shell
+classifies nothing itself, which is the structural half of the fix: until #68 it
+compared the *built* project's stamp, already normalised by the loader, so the
+check always read "ok" (review PB-14). Guards:
+`tests/test_app_shell.py::test_no_gui_decides_whether_a_file_is_readable` and
+`::test_opening_an_older_file_is_refused_and_adopts_nothing`.
+
+A reader that flags something about an otherwise-readable file (an engine
+layout/count disagreement, #66) still warns rather than refusing;
+`project_state.safe_load` captures those warnings and shows them as toasts,
+because the adopt path ends in `st.rerun()`.
 
 ---
 

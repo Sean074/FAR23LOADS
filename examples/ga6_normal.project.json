@@ -1,5 +1,5 @@
 {
-  "schema_version": 41,
+  "schema_version": 55,
   "name": "GA 6-place single (Appendix A) \u2014 Continental IO-520-BB",
   "engines": [
     {
@@ -360,27 +360,71 @@
         "name": "CG1",
         "weight_lb": 3400,
         "xcg": 85.1,
-        "zcg": 93
+        "zcg": 93,
+        "analyses": [
+          "flight"
+        ]
       },
       {
         "name": "CG2",
         "weight_lb": 3400,
         "xcg": 77.49,
-        "zcg": 93
+        "zcg": 93,
+        "analyses": [
+          "flight"
+        ]
       },
       {
         "name": "CG3",
         "weight_lb": 2800,
         "xcg": 72.64,
-        "zcg": 92
+        "zcg": 92,
+        "analyses": [
+          "flight"
+        ]
       },
       {
         "name": "CG4",
         "weight_lb": 2063,
         "xcg": 73.09,
-        "zcg": 90.73001
+        "zcg": 90.73001,
+        "analyses": [
+          "flight"
+        ]
+      },
+      {
+        "name": "aft max landing",
+        "weight_lb": 3230,
+        "xcg": 85.1,
+        "zcg": 93,
+        "analyses": [
+          "ground"
+        ],
+        "role": "aft_max_landing"
+      },
+      {
+        "name": "fwd max landing",
+        "weight_lb": 3230,
+        "xcg": 76.12,
+        "zcg": 93,
+        "analyses": [
+          "ground"
+        ],
+        "role": "fwd_max_landing"
+      },
+      {
+        "name": "fwd light",
+        "weight_lb": 2803,
+        "xcg": 72.64,
+        "zcg": 92,
+        "analyses": [
+          "ground"
+        ],
+        "role": "fwd_light"
       }
-    ]
+    ],
+    "max_landing_weight_lb": 3230,
+    "max_takeoff_weight_lb": 3400
   },
   "mass": {
     "cases": [
@@ -508,7 +552,6 @@
         "elevator_area_sqft": 16.403,
         "elevator_fwd_hinge_sqft": 1.639,
         "elevator_aft_hinge_sqft": 14.792,
-        "airplane_length_in": 318.264,
         "wing_lift_slope_per_rad": 4.605,
         "htail_semispan_in": 73.1
       },
@@ -522,14 +565,14 @@
         "vtail_mac_in": 40.403999999999996,
         "xv25": 266.83,
         "xv50": 0.0,
-        "airplane_length_in": 318.264,
         "wing_span_in": 402.0,
         "gross_weight_lb": 3400.0,
         "rudder_large_deflection_factor": 1.0,
         "izz_slugft2": 0.0,
         "vtail_span_in": 57.0,
         "vtail_root_waterline_z": 78.5
-      }
+      },
+      "airplane_length_in": 318.264
     },
     "landing_gear": {
       "main_gear": {
@@ -596,7 +639,6 @@
     "chosen_n": null,
     "chosen_nneg": null,
     "mach_limit": {
-      "shoulder_altitude_ft": 12000,
       "max_operating_altitude_ft": 18000,
       "increment_ft": 1000
     }
@@ -691,32 +733,6 @@
     "mn": 0.1,
     "altitudes_ft": [
       0.0
-    ],
-    "cg_cases": [
-      {
-        "name": "CG1",
-        "weight_lb": 3400,
-        "xcg": 85.1,
-        "zcg": 93
-      },
-      {
-        "name": "CG2",
-        "weight_lb": 3400,
-        "xcg": 77.49,
-        "zcg": 93
-      },
-      {
-        "name": "CG3",
-        "weight_lb": 2800,
-        "xcg": 72.64,
-        "zcg": 92
-      },
-      {
-        "name": "CG4",
-        "weight_lb": 2063,
-        "xcg": 73.09,
-        "zcg": 90.73001
-      }
     ]
   },
   "wing_mass": {
@@ -815,33 +831,11 @@
     ]
   },
   "landing": {
-    "max_landing_weight_lb": 3230,
-    "gross_weight_lb": 3400,
     "strut_stroke_in": 7,
     "tire_od_in": 19,
     "hub_diameter_in": 7,
     "lift_factor": 0.667,
     "tail_down_angle_deg": 15.0,
-    "gear_load_factor": 2.5,
-    "cg_cases": [
-      {
-        "name": "aft max landing",
-        "weight_lb": 3230,
-        "xcg": 85.1,
-        "zcg": 93
-      },
-      {
-        "name": "fwd max landing",
-        "weight_lb": 3230,
-        "xcg": 76.12,
-        "zcg": 93
-      },
-      {
-        "name": "fwd light",
-        "weight_lb": 2803,
-        "xcg": 72.64,
-        "zcg": 92
-      }
-    ]
+    "gear_load_factor": 2.5
   }
 }

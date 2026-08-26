@@ -1,14 +1,17 @@
-"""The schema migration chain (M4-10).
+"""The schema gate (#93), and the migration machinery kept behind it.
 
-`io.project_from_dict` used to decide what it was reading by sniffing keys — a
-19-clause ``or`` gate — and handled each legacy file shape with an inline shim
-threaded through the readers. This file pins the replacement: a chain of pure
-``dict -> dict`` hops that normalises any historical file to the current shape
-before a single tolerant reader sees it.
+Pre-production a project file is read at the current ``SCHEMA_VERSION`` or not at
+all: `sloads.migrations.migrate` admits the current version and raises
+`SchemaVersionError` for anything else — older, newer, or unversioned. This file
+pins that gate, and pins that the hop chain it replaced still *works*, empty:
+the machinery is kept so the first post-production shape change registers a hop
+and lowers the floor with no rebuild (`migrations.py` module docstring).
 
-The failure mode that matters is **silent data loss on a user's saved project**,
-so the tests are built around frozen fixtures (`tests/fixtures_schema/`), one per
-historical shape actually reachable, rather than around dicts mutated in-test.
+Until #93 this file tested twelve hops against eleven frozen legacy fixtures
+(M4-10). Those hops and fixtures went out together; what remains of that
+discipline is `tests/fixtures_schema/v55_current.json`, one frozen file at the
+version this build reads, and the examples-are-current guard in
+`test_schema_guards.py`.
 """
 
 import copy
@@ -21,418 +24,155 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sloads import io  # noqa: E402
-from sloads.cg_cases import flight_cases, ground_cases  # noqa: E402
-from sloads.models import GROUND_CASE_ROLE_ORDER  # noqa: E402
-from sloads.validation import LANDING_CG_NAMES  # noqa: E402
 from sloads.migrations import (  # noqa: E402
     MIGRATIONS,
     SUPPORTED_FLOOR,
+    SchemaVersionError,
     applied_hops,
-    is_project_dict,
     migrate,
+    source_schema_version,
 )
 from sloads.models import SCHEMA_VERSION  # noqa: E402
-from sloads.modules import select  # noqa: E402
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _FIXTURES = os.path.join(_HERE, "fixtures_schema")
 _EXAMPLES = os.path.join(os.path.dirname(_HERE), "examples")
-_GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
-
-_FROZEN = sorted(f for f in os.listdir(_FIXTURES) if f.endswith(".json"))
+_CURRENT = "v55_current.json"
 
 
-def _load(name):
+def _load(name=_CURRENT):
     with open(os.path.join(_FIXTURES, name), encoding="utf-8") as fh:
         return json.load(fh)
 
 
 # --------------------------------------------------------------------------- #
-# Every frozen historical shape still loads
+# 1. The gate
 # --------------------------------------------------------------------------- #
-@pytest.mark.parametrize("name", _FROZEN)
-def test_every_frozen_fixture_loads(name):
-    project = io.load_project(os.path.join(_FIXTURES, name))
-    assert project is not None
-    assert project.schema_version == SCHEMA_VERSION, "a loaded project is at the current schema"
+def test_the_floor_is_the_current_version():
+    """The whole of #93 in one assertion: nothing below current is supported."""
+    assert SUPPORTED_FLOOR == SCHEMA_VERSION
+    assert MIGRATIONS == {}
 
 
-def test_the_frozen_set_covers_every_shape_changing_hop():
-    """A hop with no fixture is an untested migration path."""
-    covered = {int(n.split("_")[0].lstrip("v")) for n in _FROZEN}
-    for hop in MIGRATIONS:
-        assert any(v <= hop for v in covered), f"no fixture old enough to exercise the v{hop} hop"
+def test_a_current_file_passes_through_untouched():
+    current = _load()
+    assert current["schema_version"] == SCHEMA_VERSION, "the frozen fixture went stale"
+    assert migrate(current) == current
 
 
-@pytest.mark.parametrize("name", [n for n in _FROZEN if n != "v0_bare_engine.json"])
-def test_a_migrated_legacy_file_carries_its_geometry_across(name):
-    """The hops move data, they do not merely tolerate its absence."""
-    project = io.load_project(os.path.join(_FIXTURES, name))
-    assert project.geometry is not None, f"{name} lost its geometry slice"
-    assert project.geometry.parametric is not None, f"{name} lost geometry.parametric"
+@pytest.mark.parametrize("version", [SCHEMA_VERSION - 1, SCHEMA_VERSION - 14, 18, 0])
+def test_an_older_file_is_refused_and_says_both_versions(version):
+    d = {**_load(), "schema_version": version}
+    with pytest.raises(SchemaVersionError) as exc:
+        migrate(d)
+    assert f"schema {version}" in str(exc.value)
+    assert f"schema {SCHEMA_VERSION}" in str(exc.value)
 
 
-def test_pre_g6_file_lands_its_tail_slices_on_the_empennage():
-    project = io.load_project(os.path.join(_FIXTURES, "v26_top_level_tail_loads.json"))
-    assert project.geometry.empennage is not None
-    assert project.geometry.empennage.htail is not None
-    assert project.tail_loads is not None, "the Step-G6 proxy must see the migrated slice"
+def test_a_newer_file_is_refused_too():
+    """Symmetry is the point: a file this build cannot fully read is refused
+    whichever side it comes from. The old chain let a newer file through on
+    'read what you understand', which pre-production means presenting a partial
+    read of someone else's schema as this build's answer."""
+    d = {**_load(), "schema_version": SCHEMA_VERSION + 5}
+    with pytest.raises(SchemaVersionError):
+        migrate(d)
 
 
-def test_pre_g6b_file_lands_its_gear_on_the_geometry():
-    project = io.load_project(os.path.join(_FIXTURES, "v28_gear_on_landing.json"))
-    assert project.geometry.landing_gear is not None
-    assert project.geometry.landing_gear.main_gear is not None
+def test_an_unversioned_dict_is_refused_by_name():
+    """Including the bare ``EngineInput`` file that used to be discriminated by
+    key-sniffing: no stamp, no read."""
+    with pytest.raises(SchemaVersionError) as exc:
+        migrate({"engine_designation": "CONTINENTAL IO-520-BB", "engine_type": "R"})
+    assert "no schema_version" in str(exc.value)
 
 
-def test_pre_m4_9_file_gets_its_load_value_keys_backfilled():
-    """A v36 file's persisted SELECT loads carry labels and no keys. Every consumer
-    now matches on the key, so without the backfill the reloaded governing-loads
-    table would silently lose its columns -- the exact M4-9 failure mode, re-entering
-    through the file path."""
-    project = io.load_project(os.path.join(_FIXTURES, "v36_select_loads_without_keys.json"))
-    by_label = {
-        lv.label: lv
-        for c in project.envelope.critical.conditions
-        for lv in c.loads
-    }
-    assert by_label["Balancing tail load"].key == "balancing_tail_load"
-    assert by_label["Tail angle of attack AT"].key == "tail_angle_of_attack_at"
-    assert by_label["Load factor NZ"].key == "load_factor_nz"
-    assert by_label["V (EAS)"].key == "v_eas"
-    # A label this build has never emitted keeps an empty key rather than an
-    # invented one -- the row still renders, it just cannot be matched by key.
-    assert by_label["A label no build ever emitted"].key == ""
+def test_a_string_version_is_not_mistaken_for_the_number():
+    with pytest.raises(SchemaVersionError):
+        migrate({"schema_version": str(SCHEMA_VERSION), "geometry": {}})
 
 
-def test_the_backfill_table_is_frozen_against_todays_producer():
-    """Every label the table claims maps to a key SELECT still emits under that key.
-
-    The table describes what *old files say*, so it is never regenerated -- but a key
-    renamed in ``select.py`` without a new hop would leave migrated files pointing at
-    a key nothing produces, which this catches.
-    """
-    from sloads.migrations import _V36_LOAD_VALUE_KEYS
-
-    project = io.load_project(_GA)
-    emitted = {
-        lv.label: lv.key
-        for c in select.build_critical(project).conditions
-        for lv in c.loads
-    }
-    drifted = {
-        label: (key, emitted[label])
-        for label, key in _V36_LOAD_VALUE_KEYS.items()
-        if label in emitted and emitted[label] != key
-    }
-    assert not drifted, f"backfill table maps labels to keys select.py no longer emits: {drifted}"
+def test_the_refusal_reaches_every_front_end_through_one_funnel():
+    """``project_from_dict`` is what CLI, both GUIs and the tests all call."""
+    with pytest.raises(SchemaVersionError):
+        io.project_from_dict({**_load(), "schema_version": 41})
 
 
-def test_pre_d5_file_recovers_its_cg_cases():
-    """The v19 hop recovers the shared list; the v46 hop then tags it FLIGHT.
-
-    The **migration guard** decision G-3b owes: the FLIGHT-tagged set after
-    migration must equal the file's own ``flight_loads.cg_cases`` exactly. The
-    landing cases join the same list tagged GROUND, so the total is seven.
-    """
-    project = io.load_project(os.path.join(_FIXTURES, "v18_cg_cases_on_flight_loads.json"))
-    assert project.weight is not None
-    assert [c.name for c in flight_cases(project)] == ["CG1", "CG2", "CG3", "CG4"]
-    assert [c.name for c in ground_cases(project)] == list(LANDING_CG_NAMES)
-    assert [c.role for c in ground_cases(project)] == list(GROUND_CASE_ROLE_ORDER)
+def test_the_refusal_is_a_value_error():
+    """So it lands in the documented error contract and every existing load
+    handler reports it without a new except branch."""
+    assert issubclass(SchemaVersionError, ValueError)
 
 
-def test_the_v46_hop_moves_both_design_weights_off_the_landing_slice():
-    """G-4 / G-14, and the latent defect that leaves with ``gross_weight_lb``.
-
-    The removed field fell back to ``max(landing cg_cases)`` -- which is MLW, not
-    MTOW -- so ``WR = 1.0`` and cases 13-24 came out ~5 % light. The hop seeds MTOW
-    from ``speeds.weight_lb`` instead, which measurement showed equals the stored
-    ``gross_weight_lb`` on every shipped fixture, so nothing moves.
-    """
-    raw = _load("v18_cg_cases_on_flight_loads.json")
-    assert raw["landing"]["gross_weight_lb"] == 3400   # fixture still exercises the hop
-    out = migrate(raw)
-    assert out["weight"]["max_landing_weight_lb"] == 3230
-    assert out["weight"]["max_takeoff_weight_lb"] == 3400
-    for key in ("gross_weight_lb", "max_landing_weight_lb", "cg_cases"):
-        assert key not in out["landing"], key
-    assert "cg_cases" not in out["flight_loads"]
+def test_source_schema_version_reads_the_file_not_the_default():
+    assert source_schema_version({"schema_version": 41}) == 41
+    assert source_schema_version({}) == -1
+    assert source_schema_version({"schema_version": "41"}) == -1
 
 
 # --------------------------------------------------------------------------- #
-# v54 -> v55: the two class-C duplicate pairs fold to one field each (#52, DG-7)
+# 2. The machinery, kept
 # --------------------------------------------------------------------------- #
-def test_the_v54_hop_folds_agreeing_copies_silently():
-    """The shipped case: both copies equal, so the hop moves the value and says
-    nothing. ``v47_current`` still carries both pairs, which is what makes it
-    the fixture for this hop."""
-    import warnings
+def test_a_registered_hop_still_runs():
+    """The chain is empty, not decorative. This is what a post-production
+    migration will look like: register the hop, lower the floor."""
+    def _hop(d):
+        d["migrated"] = True
+        return d
 
-    raw = _load("v47_current.json")
-    assert raw["speeds"]["mach_limit"]["shoulder_altitude_ft"] == raw["speeds"]["shoulder_altitude_ft"]
-    emp = raw["geometry"]["empennage"]
-    assert emp["htail"]["airplane_length_in"] == emp["vtail"]["airplane_length_in"]
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        out = migrate(raw)
-    assert "shoulder_altitude_ft" not in out["speeds"]["mach_limit"]
-    assert out["speeds"]["shoulder_altitude_ft"] == raw["speeds"]["shoulder_altitude_ft"]
-    for surface in ("htail", "vtail"):
-        assert "airplane_length_in" not in out["geometry"]["empennage"][surface]
-    assert out["geometry"]["empennage"]["airplane_length_in"] == emp["htail"]["airplane_length_in"]
-
-
-def test_the_v54_hop_keeps_the_governing_value_and_warns_on_disagreement():
-    """DS-7.2: the MACHLIM copy governed every Mach-limit table ever produced,
-    so it wins and the legacy file's lines are unchanged; the two LF copies each
-    fed their own inertia, so the htail value is kept. Either way the warning
-    names both numbers, once per pair."""
-    raw = _load("v47_current.json")
-    raw["speeds"]["shoulder_altitude_ft"] = 10000
-    raw["speeds"]["mach_limit"]["shoulder_altitude_ft"] = 12000
-    raw["geometry"]["empennage"]["htail"]["airplane_length_in"] = 300.0
-    raw["geometry"]["empennage"]["vtail"]["airplane_length_in"] = 330.0
-    with pytest.warns(UserWarning) as record:
-        out = migrate(raw)
-    messages = [str(w.message) for w in record]
-    assert len(messages) == 2, messages
-    alt, lf = messages
-    assert "shoulder altitude" in alt and "10000" in alt and "12000" in alt and "keeping 12000" in alt
-    assert "airplane length" in lf and "300" in lf and "330" in lf and "keeping 300" in lf
-    assert out["speeds"]["shoulder_altitude_ft"] == 12000
-    assert out["geometry"]["empennage"]["airplane_length_in"] == 300.0
-    # And the warning reaches the Project reader too (the GUI captures it there).
-    with pytest.warns(UserWarning):
-        project = io.project_from_dict(raw)
-    assert project.speeds.shoulder_altitude_ft == 12000
-    assert project.geometry.empennage.airplane_length_in == 300.0
+    original = dict(MIGRATIONS)
+    try:
+        MIGRATIONS[SCHEMA_VERSION] = _hop
+        out = migrate(_load())
+        assert out["migrated"] is True
+        assert out["schema_version"] == SCHEMA_VERSION
+        assert applied_hops(SCHEMA_VERSION) == [SCHEMA_VERSION]
+    finally:
+        MIGRATIONS.clear()
+        MIGRATIONS.update(original)
+    assert applied_hops(SCHEMA_VERSION) == [], "the chain did not reset"
 
 
-def test_the_v54_hop_lets_an_unentered_copy_lose_silently():
-    """A zero or absent member was never entered: no disagreement, no warning."""
-    import warnings
-
-    raw = _load("v47_current.json")
-    raw["speeds"]["shoulder_altitude_ft"] = 0
-    del raw["geometry"]["empennage"]["vtail"]["airplane_length_in"]
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        out = migrate(raw)
-    assert out["speeds"]["shoulder_altitude_ft"] == 12000
-    assert out["geometry"]["empennage"]["airplane_length_in"] == \
-        _load("v47_current.json")["geometry"]["empennage"]["htail"]["airplane_length_in"]
-
-
-def test_a_pre_v27_file_reaches_the_v54_hop_after_its_tails_are_folded_in():
-    """The top-level ``tail_loads``/``vtail_loads`` of a v26 file are folded into
-    ``geometry.empennage`` by v27 first, so one hop covers every supported
-    version -- there is no second code path for the old shape."""
-    project = io.load_project(os.path.join(_FIXTURES, "v26_top_level_tail_loads.json"))
-    assert project.geometry.empennage.airplane_length_in > 0
-    assert not hasattr(project.tail_loads, "airplane_length_in")
-
-
-def test_a_landing_case_that_is_already_a_shared_case_merges_rather_than_duplicating():
-    """G-3b: matched on name **and** ``(weight_lb, xcg, zcg)``, the tags merge.
-
-    No shipped fixture hits this today, but the two lists are siblings -- ga6's
-    ``fwd light`` sits on ``CG3``'s station to the hundredth -- so it will happen,
-    and duplicating would put the same loading into the deck twice.
-    """
-    raw = _load("v18_cg_cases_on_flight_loads.json")
-    # v18 carries the shared list on flight_loads; the v19 hop moves it across
-    # first, so appending here is appending to what becomes the shared list.
-    raw["flight_loads"]["cg_cases"].append(
-        {"name": "fwd light", "weight_lb": 2803, "xcg": 72.64, "zcg": 92})
-    out = migrate(raw)
-    hit = [c for c in out["weight"]["cg_cases"] if c["name"] == "fwd light"]
-    assert len(hit) == 1
-    assert hit[0]["analyses"] == ["flight", "ground"]
-    assert hit[0]["role"] == "fwd_light"
-
-
-def test_pre_f25_2_file_loses_its_stale_mach_limit_mc_md():
-    """A v39 file stores ``speeds.mach_limit.mc``/``.md``; F25-2 removed them.
-
-    They were a duplicate the GUI already ignored (it recomputed MC/MD from the
-    design speeds) while the CLI honoured them, so one project gave two different
-    MNE/MFC answers. The hop drops the dead keys; the loaded project's MACHLIM
-    slice keeps everything that is still an input.
-    """
-    from dataclasses import fields as dc_fields
-
-    from sloads import MachLimitInput
-
-    raw = _load("v39_mach_limit_mc_md.json")
-    assert "mc" in raw["speeds"]["mach_limit"], "fixture no longer exercises the hop"
-
-    project = io.load_project(os.path.join(_FIXTURES, "v39_mach_limit_mc_md.json"))
-    ml = project.speeds.mach_limit
-    assert ml is not None, "the MACHLIM slice itself must survive"
-    assert project.speeds.shoulder_altitude_ft == 12000   # v54 folded the copy in
-    assert ml.max_operating_altitude_ft == 18000
-    assert ml.increment_ft == 1000
-    names = {f.name for f in dc_fields(MachLimitInput)}
-    assert not (names & {"mc", "md"}), "MC/MD are derived now, not stored"
-
-
-def test_a_pre_b1_file_keeps_its_hand_entered_fuselage_beam():
-    """Step B1 makes the fuselage station table *derived* from ``weight.items``,
-    but a file that already carries one carries somebody's modelling decision.
-
-    The hop marks it an explicit override, so migrating a project cannot silently
-    move its fuselage loads — on ga6 the derived beam is 3070 lb against the 2578
-    lb entered, a 19 % change to every body shear and bending moment. The gap is
-    reported instead (``mass_distribution.fuselage_reconciliation``), and adopting
-    the SSOT stays the user's call.
-    """
-    from sloads import mass_distribution as md
-
-    raw = _load("v40_fuselage_stations.json")
-    assert raw["fuselage_mass"]["stations"], "fixture no longer exercises the hop"
-    assert "stations_are_override" not in raw["fuselage_mass"]
-
-    project = io.load_project(
-        os.path.join(_FIXTURES, "v40_fuselage_stations.json"))
-    assert project.fuselage_mass.stations_are_override is True
-    beam = md.fuselage_beam_stations(project)
-    assert [s.x for s in beam] == [s.x for s in project.fuselage_mass.stations]
-    # ...and the difference from the SSOT is surfaced rather than swallowed.
-    check = md.fuselage_reconciliation(project)
-    assert check is not None and not check.ok
-
-
-def test_a_file_with_no_fuselage_mass_takes_the_derived_beam():
-    """Nothing to preserve means nothing to override: the hop leaves such a file
-    alone and it picks up the item-derived beam."""
-    raw = _load("v39_mach_limit_mc_md.json")
-    raw.pop("fuselage_mass", None)
-    out = migrate(raw)
-    assert "fuselage_mass" not in out
-
-
-def test_untagged_mass_items_are_not_migrated_to_a_component():
-    """``MassItem.component`` is optional and absent means *untagged* — a state
-    ``mass_distribution.infer_component`` handles by design. Writing a guessed tag
-    into the user's file would turn an inference into data."""
-    raw = _load("v40_fuselage_stations.json")
-    out = migrate(raw)
-    for item in out.get("weight", {}).get("items", []) or []:
-        assert item.get("component") is None
-
-
-def test_pre_f25_2_file_defaults_to_the_speed_ratio_dive_speed():
-    """The Mach-margin route is opt-in: a pre-v40 file keeps the numbers it had.
-
-    This is the reduction invariant at the file boundary -- F25-2 must not change
-    one load in a project whose author never asked for the new route.
-    """
-    from sloads import VdBasis
-
-    project = io.load_project(os.path.join(_FIXTURES, "v39_mach_limit_mc_md.json"))
-    assert project.speeds.vd_basis is VdBasis.SPEED_RATIO
-    assert project.speeds.mach_margin_min is None
-    assert project.speeds.mach_margin_basis is None
-    assert project.speeds.vb_kt is None
-
-
-def test_an_unknown_dive_speed_basis_is_refused():
-    """Reading an unrecognised basis as 'speed_ratio' would silently reapply the
-    1.25*VC floor to a project that asked for the margin route -- the F25-2 defect
-    re-entering through the file path."""
-    raw = _load("v47_current.json")
-    raw["speeds"]["vd_basis"] = "whatever_the_user_typed"
-    with pytest.raises(ValueError):
-        io.project_from_dict(raw)
-
-
-def test_bare_engine_file_is_still_accepted():
-    """The Phase-0 ``engloads`` era file: the whole document is one EngineInput."""
-    project = io.load_project(os.path.join(_FIXTURES, "v0_bare_engine.json"))
-    assert len(project.engines) == 1
-    assert project.engine.engine_designation
-
-
-# --------------------------------------------------------------------------- #
-# The discriminator that replaced the 19-clause or-gate
-# --------------------------------------------------------------------------- #
-def test_project_and_engine_dicts_are_told_apart():
-    assert is_project_dict(_load("v47_current.json"))
-    assert not is_project_dict(_load("v0_bare_engine.json"))
-
-
-def test_discriminator_tracks_project_fields_automatically():
-    """The old gate enumerated slice names by hand, so a new slice had to be added
-    to it or a real project would be misread as a bare engine file. The
-    replacement derives its key set from ``Project``'s own fields."""
-    from dataclasses import fields as dc_fields
-
-    from sloads import Project
-
-    for f in dc_fields(Project):
-        if f.name == "schema_version":
-            continue
-        assert is_project_dict({f.name: None}), f"{f.name} not recognised as a project key"
-
-
-# --------------------------------------------------------------------------- #
-# Chain mechanics
-# --------------------------------------------------------------------------- #
 def test_migrate_does_not_mutate_the_callers_dict():
     """The GUI hands the same dict to the JSON editor after loading it."""
-    original = _load("v24_top_level_configuration.json")
+    original = _load()
     snapshot = copy.deepcopy(original)
     migrate(original)
     assert original == snapshot
 
 
 def test_migrate_is_idempotent():
-    once = migrate(_load("v24_top_level_configuration.json"))
+    once = migrate(_load())
     assert migrate(once) == once
 
 
-def test_current_file_is_untouched_by_the_chain():
-    """No hop may fire for a current-schema file — that is what version-gating buys."""
-    current = _load("v55_current.json")
-    assert migrate(current) == {**current, "schema_version": SCHEMA_VERSION}
-
-
-def test_a_newer_file_is_not_mangled_by_hops_that_do_not_apply():
-    """Forward compatibility degrades to 'read what you understand'."""
-    future = _load("v55_current.json")
-    future["schema_version"] = SCHEMA_VERSION + 5
-    out = migrate(future)
-    assert out["schema_version"] == SCHEMA_VERSION + 5
-    assert "geometry" in out
-
-
-def test_applied_hops_reports_the_chain_for_a_version():
+def test_applied_hops_is_empty_while_the_chain_is():
     assert applied_hops(SCHEMA_VERSION) == []
-    assert applied_hops(SUPPORTED_FLOOR) == sorted(MIGRATIONS)
-    assert 27 in applied_hops(26) and 18 not in applied_hops(26)
-
-
-def test_unversioned_dict_runs_the_whole_chain():
-    d = _load("v24_top_level_configuration.json")
-    del d["schema_version"]
-    out = migrate(d)
-    assert "configuration" not in out, "the v25 hop should have folded it into geometry"
+    assert applied_hops(SUPPORTED_FLOOR) == sorted(MIGRATIONS) == []
 
 
 # --------------------------------------------------------------------------- #
-# The acceptance criterion: no example changes on the way through
+# 3. The acceptance criterion: no project changes on the way through
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize(
     "name", sorted(f for f in os.listdir(_EXAMPLES) if f.endswith(".project.json"))
 )
 def test_every_example_round_trips_unchanged(name):
-    """Assert on the round-tripped dict, not the file: the chain must be a no-op
+    """Assert on the round-tripped dict, not the file: the load must be a no-op
     for a current project, or a user's saved work drifts every time they open it."""
     path = os.path.join(_EXAMPLES, name)
     once = io.project_to_dict(io.load_project(path))
     twice = io.project_to_dict(io.project_from_dict(once))
     assert twice == once
+
+
+def test_the_frozen_fixture_and_the_examples_agree_on_the_version():
+    """Two independent copies of 'current' -- if they can disagree, one of them
+    is stale and the gate's own tests would be testing the wrong number."""
+    fixture = _load()["schema_version"]
+    for name in sorted(f for f in os.listdir(_EXAMPLES) if f.endswith(".project.json")):
+        with open(os.path.join(_EXAMPLES, name), encoding="utf-8") as fh:
+            assert json.load(fh)["schema_version"] == fixture, name
 
 
 if __name__ == "__main__":

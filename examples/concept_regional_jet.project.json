@@ -1,5 +1,5 @@
 {
-  "schema_version": 41,
+  "schema_version": 55,
   "name": "RJ-50 concept \u2014 50-seat regional jet (concept mode, Part 25)",
   "engines": [
     {
@@ -305,33 +305,80 @@
         "name": "aft gross",
         "weight_lb": 33000.0,
         "xcg": 593.83,
-        "zcg": 64.59
+        "zcg": 64.59,
+        "analyses": [
+          "flight"
+        ]
       },
       {
         "name": "fwd gross",
         "weight_lb": 33000.0,
         "xcg": 573.55,
-        "zcg": 64.59
+        "zcg": 64.59,
+        "analyses": [
+          "flight"
+        ]
       },
       {
         "name": "fwd regardless",
         "weight_lb": 24000,
         "xcg": 569.49,
-        "zcg": 63.08
+        "zcg": 63.08,
+        "analyses": [
+          "flight"
+        ]
       },
       {
         "name": "min weight",
         "weight_lb": 21200.0,
         "xcg": 586.61,
-        "zcg": 64.36
+        "zcg": 64.36,
+        "analyses": [
+          "flight"
+        ]
       },
       {
         "name": "mid gross",
         "weight_lb": 33000.0,
         "xcg": 583.69,
-        "zcg": 64.59
+        "zcg": 64.59,
+        "analyses": [
+          "flight"
+        ]
+      },
+      {
+        "name": "aft max landing",
+        "weight_lb": 31000.0,
+        "xcg": 593.83,
+        "zcg": 62.66,
+        "analyses": [
+          "ground"
+        ],
+        "role": "aft_max_landing"
+      },
+      {
+        "name": "fwd max landing",
+        "weight_lb": 31000.0,
+        "xcg": 572.64,
+        "zcg": 62.66,
+        "analyses": [
+          "ground"
+        ],
+        "role": "fwd_max_landing"
+      },
+      {
+        "name": "fwd light",
+        "weight_lb": 24000,
+        "xcg": 569.49,
+        "zcg": 62.66,
+        "analyses": [
+          "ground"
+        ],
+        "role": "fwd_light"
       }
-    ]
+    ],
+    "max_landing_weight_lb": 31000.0,
+    "max_takeoff_weight_lb": 33000.0
   },
   "mass": {
     "cases": [
@@ -503,7 +550,6 @@
         "elevator_area_sqft": 34.0,
         "elevator_fwd_hinge_sqft": 4.0,
         "elevator_aft_hinge_sqft": 30.0,
-        "airplane_length_in": 1056.0,
         "wing_lift_slope_per_rad": 5.2,
         "htail_semispan_in": 139.0
       },
@@ -517,13 +563,13 @@
         "vtail_mac_in": 115.19999999999999,
         "xv25": 1010.0,
         "xv50": 0.0,
-        "airplane_length_in": 1056.0,
         "wing_span_in": 792.0,
         "gross_weight_lb": 33000.0,
         "rudder_large_deflection_factor": 1.0,
         "izz_slugft2": 0.0,
         "vtail_span_in": 138.0
-      }
+      },
+      "airplane_length_in": 1056.0
     },
     "landing_gear": {
       "main_gear": {
@@ -590,7 +636,6 @@
     "chosen_n": 2.5,
     "chosen_nneg": -1.0,
     "mach_limit": {
-      "shoulder_altitude_ft": 24000,
       "max_operating_altitude_ft": 37000,
       "increment_ft": 1000
     },
@@ -679,38 +724,6 @@
     "altitudes_ft": [
       0.0,
       20000.0
-    ],
-    "cg_cases": [
-      {
-        "name": "aft gross",
-        "weight_lb": 33000.0,
-        "xcg": 593.83,
-        "zcg": 64.59
-      },
-      {
-        "name": "fwd gross",
-        "weight_lb": 33000.0,
-        "xcg": 573.55,
-        "zcg": 64.59
-      },
-      {
-        "name": "fwd regardless",
-        "weight_lb": 24000,
-        "xcg": 569.49,
-        "zcg": 63.08
-      },
-      {
-        "name": "min weight",
-        "weight_lb": 21200.0,
-        "xcg": 586.61,
-        "zcg": 64.36
-      },
-      {
-        "name": "mid gross",
-        "weight_lb": 33000.0,
-        "xcg": 583.69,
-        "zcg": 64.59
-      }
     ]
   },
   "wing_mass": {
@@ -825,34 +838,12 @@
     ]
   },
   "landing": {
-    "max_landing_weight_lb": 31000.0,
-    "gross_weight_lb": 33000.0,
     "strut_stroke_in": 12,
     "tire_od_in": 32,
     "hub_diameter_in": 12,
     "lift_factor": 0.667,
     "tail_down_angle_deg": 12.0,
-    "gear_load_factor": 2.0,
-    "cg_cases": [
-      {
-        "name": "aft max landing",
-        "weight_lb": 31000.0,
-        "xcg": 593.83,
-        "zcg": 62.66
-      },
-      {
-        "name": "fwd max landing",
-        "weight_lb": 31000.0,
-        "xcg": 572.64,
-        "zcg": 62.66
-      },
-      {
-        "name": "fwd light",
-        "weight_lb": 24000,
-        "xcg": 569.49,
-        "zcg": 62.66
-      }
-    ]
+    "gear_load_factor": 2.0
   },
   "include_far25": true
 }
