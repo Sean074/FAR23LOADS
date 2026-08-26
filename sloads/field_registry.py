@@ -336,13 +336,21 @@ class FieldEntry:
     #: the override switch beside it is set, and neither plain sentence says
     #: that (#69). Empty everywhere else, where ``governs`` says it all.
     resolves: str = ""
-    #: ``origin`` is ``SLOADS``, but the oracle GUI **sets** it anyway, without
-    #: asking — see :data:`SUPPLIED_RULE`. ``origin`` says who *asked* for a
-    #: field; this says who *writes* it, and the two differ exactly where this
-    #: model carries as data something the original carried by position (which
-    #: surface a planform describes, which of LANDLOAD's three loadings a CG case
-    #: is). The oracle GUI's input set is therefore ``ORIGINAL | supplied``
-    #: (:func:`oracle_input_paths`), which is what gate G5 runs against.
+    #: ``origin`` is ``SLOADS``, but the oracle input set needs the field anyway
+    #: -- see :data:`SUPPLIED_RULE`. ``origin`` says who *asked* for a field;
+    #: this says the oracle GUI cannot do without it, and the two differ exactly
+    #: where this model carries as data something the original carried by
+    #: position (which surface a planform describes, which of LANDLOAD's three
+    #: loadings a CG case is). The oracle GUI's input set is therefore
+    #: ``ORIGINAL | supplied`` (:func:`oracle_input_paths`), which is what gate
+    #: G5 runs against.
+    #:
+    #: **Not "written without asking"**, which is what this said until #74: every
+    #: supplied path is a rendered widget the user can see and change. Some are
+    #: *seeded* with a meaningful default rather than left empty (``seed_name``
+    #: on a surface, a CG case's role), which is where that reading came from --
+    #: but seeding a field the user then edits is not writing it behind their
+    #: back, and a mark that claimed otherwise invited a GUI that hid them.
     supplied: bool = False
 
     @property
@@ -1009,7 +1017,7 @@ def original_paths() -> Set[str]:
 
 
 def supplied_paths() -> Set[str]:
-    """`SLOADS` field paths the oracle GUI writes without asking (:data:`SUPPLIED_RULE`)."""
+    """`SLOADS` field paths the oracle input set needs (:data:`SUPPLIED_RULE`)."""
     return {e.path for e in REGISTRY if e.supplied}
 
 

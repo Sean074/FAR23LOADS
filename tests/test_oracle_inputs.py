@@ -34,7 +34,7 @@ edge polylines, the CG-case corners, WTESTIMA's engine-weight code and ENGLOADS'
 engine type were all marked ``SLOADS`` and are all inputs of a named ``.BAS``
 program (``models/inputs.py`` says so in its own docstrings; Appendix A p136's
 IXX 1201.527 comes out 66.7 without the item inertias). Twelve rows moved to
-``ORIGINAL``, and the fields the second front-end must *write* without asking —
+``ORIGINAL``, and the fields the second front-end's input set cannot do without —
 selectors, LANDLOAD's three loading roles — gained
 :attr:`~sloads.field_registry.FieldEntry.supplied` rather than being quietly
 folded into ``origin``, which answers a different question (who asked, not who
