@@ -141,8 +141,10 @@ def _wing_geometry_area_sqft(project: Project) -> Optional[float]:
     from .derived_geometry import planform_area_sqft
     try:
         return planform_area_sqft(project, "wing")
-    except (ValueError, ZeroDivisionError, StopIteration):
-        return None  # half-entered planform: nothing to compare, not a warning
+    except ValueError:
+        # Half-entered planform: nothing to compare, not a warning. Narrowed
+        # with #71 -- the refusal is a named `ValueError` at every sweep now.
+        return None
 
 
 def _check_taper(project: Project) -> List[ConsistencyWarning]:
@@ -1130,7 +1132,18 @@ def _check_gear_carrier(project: Project) -> List[ConsistencyWarning]:
                     "but not the weight. Re-tag the gear items "
                     "MassComponent.WING, or correct the carrier (decision G-2).",
                     PAGE_WEIGHT_CG))
+    from .derived_geometry import require_integrable_planform
     wing = project.geometry.by_name("wing") if project.geometry is not None else None
+    if wing is not None:
+        # The chord test below interpolates both edges, which divides by the
+        # butt-line difference of the segment it lands on. A warnings producer
+        # renders on every page and must never be the thing that takes one down,
+        # so a planform still being typed simply has no gear placement to check
+        # yet (#71) -- the same posture `_wing_geometry_area_sqft` takes.
+        try:
+            require_integrable_planform(wing)
+        except ValueError:
+            wing = None
     for name, g in legs:
         if g.carrier != GearCarrier.WING or wing is None or not wing.leading_edge:
             continue

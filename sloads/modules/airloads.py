@@ -50,6 +50,7 @@ from dataclasses import dataclass, field
 from typing import List
 
 from ..constants import DEG_PER_RAD, IN2_PER_FT2, dynamic_pressure_psf
+from ..derived_geometry import require_integrable_planform, require_positive_planform_area
 from ..models import (
     AeroSurfaceInput,
     ConditionResult,
@@ -174,10 +175,7 @@ def _twist_angle(twist, ye: float) -> float:
 
 def schrenk_distribution(geom: SurfaceInput, aero: AeroSurfaceInput) -> SpanwiseTable:
     """Spanwise Schrenk additive + basic + combined distribution for one surface."""
-    if geom.elements < 2:
-        raise ValueError(f"surface '{geom.name}' needs >= 2 integration elements")
-    if len(geom.leading_edge) < 2 or len(geom.trailing_edge) < 2:
-        raise ValueError(f"surface '{geom.name}' needs >= 2 LE and TE points")
+    require_integrable_planform(geom)   # the shared precondition (#71)
 
     yroot = geom.leading_edge[0][1]
     ytip = geom.leading_edge[-1][1]
@@ -205,6 +203,7 @@ def schrenk_distribution(geom: SurfaceInput, aero: AeroSurfaceInput) -> Spanwise
         sum_mocdy += mo * c * dy
         sum_mocac += mo * c * ac * dy
 
+    require_positive_planform_area(geom.name, area_side)   # #71: the next line divides
     area_total = 2 * area_side                       # S, both sides (symmetric wing)
     span = 2 * ytip if geom.symmetric else (ytip - yroot)
     mo_wing = sum_mocdy / area_side                  # Mo = SUM(mo*c*dy)/(S/2)

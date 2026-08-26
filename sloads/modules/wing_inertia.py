@@ -40,7 +40,7 @@ from ..case_ids import COMPONENT_PREFIX, WING_BAND_EXTRA, WING_SLOTS, wing_case_
 from ..cg_cases import flight_cases
 from ..constants import DEG_PER_RAD, IN2_PER_FT2
 from ..convergence import solver_failure
-from ..derived_geometry import sync_geometry_derived, wing_plane
+from ..derived_geometry import require_integrable_planform, sync_geometry_derived, wing_plane
 from ..models import (
     CaseRef,
     ConditionResult,
@@ -153,7 +153,13 @@ def inertia_units(geom: SurfaceInput, wm: WingMassInput,
     (note 33, DS-4): they belong to the *parametric* wing, which ``geom`` — a
     single ``SurfaceInput`` — does not carry. Resolve them once per run with
     :func:`sloads.derived_geometry.wing_plane`.
+
+    This is the second entry into the WINGGEOM strip sweep, and it had none of
+    the precondition ``surface_properties`` enforces: a mid-entry planform
+    reached ``leading_edge[-1]`` and ``interp_x``'s ``pts[-2]`` and came back as
+    a raw ``IndexError`` (#71, PB-21). Both entries now ask the one owner.
     """
+    require_integrable_planform(geom)
     yroot = geom.leading_edge[0][1]
     ytip = geom.leading_edge[-1][1]
     h = geom.elements

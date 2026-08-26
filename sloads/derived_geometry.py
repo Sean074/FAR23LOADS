@@ -26,7 +26,7 @@ from typing import NamedTuple, Optional, Tuple
 
 from . import workflow as wf
 from .constants import DEFAULT_FRONT_SPAR_PCT, DEFAULT_REAR_SPAR_PCT, IN2_PER_FT2
-from .models import MissingInputError, Project
+from .models import MissingInputError, Project, SurfaceInput
 
 
 class CarryThrough(NamedTuple):
@@ -132,6 +132,66 @@ def wing_reference(project: Project, surface_name: str = "wing") -> Optional[Win
     zw = wrp_waterline + y_mac * math.tan(math.radians(dihedral_deg))
     return WingReference(surface_name, s_sqft, mac, xlemac, y_mac, xw, zw,
                          dihedral_deg, wrp_waterline)
+
+
+def require_integrable_planform(surf: SurfaceInput) -> None:
+    """Refuse a surface whose planform cannot be integrated (#71, PB-21).
+
+    The single owner of the WINGGEOM strip integral's precondition: two or more
+    points on each edge polyline (a strip needs a chord at both ends) and two or
+    more integration elements. Both checks lived inline in
+    :func:`sloads.modules.wing_geometry.surface_properties` and nowhere else,
+    so ``wing_inertia.inertia_units`` -- the other entry into the same strip
+    sweep -- indexed ``leading_edge[-1]`` and ``interp_x``'s ``pts[-2]`` with no
+    guard at all. A one-point edge is the state the oracle GUI's curve editor
+    persists after the first complete row, so Wing Loads and Net Loads answered
+    a half-entered planform with a raw ``IndexError`` traceback while every
+    other wing consumer refused by name.
+
+    A **plain** :class:`ValueError`, not :class:`~sloads.models.MissingInputError`,
+    and deliberately (#71, ruling of 2026-08-25): a half-entered planform is
+    present-but-invalid input, the second row of the error contract in
+    ``00_program_overview.md``. ``MissingInputError`` would make it "not my
+    turn", and ``run_all_modules`` catches exactly that -- so a run-all or an
+    sbeam export over a mid-entry planform would skip the wing and ship a deck
+    with no wing in it rather than refuse. The oracle GUI reads it as
+    "cannot run yet" either way, because ``_NOT_READY`` is ``(ValueError,)``.
+
+    The strictly-increasing butt lines are the same precondition seen from
+    ``interp_x``, which divides by the butt-line difference of the segment it
+    lands on: a repeated station (the curve editor's second row before its
+    butt line is typed) divided by zero. What cannot be known before the sweep
+    -- a planform that integrates to zero or negative area -- is refused by
+    name in ``surface_properties`` at the same point, for the same reason.
+    """
+    if surf.elements < 2:
+        raise ValueError(f"surface '{surf.name}' needs >= 2 integration elements")
+    if len(surf.leading_edge) < 2 or len(surf.trailing_edge) < 2:
+        raise ValueError(f"surface '{surf.name}' needs >= 2 LE and TE points")
+    for edge_name, edge in (("leading", surf.leading_edge), ("trailing", surf.trailing_edge)):
+        butt_lines = [pt[1] for pt in edge]
+        if any(b <= a for a, b in zip(butt_lines, butt_lines[1:])):
+            raise ValueError(
+                f"surface '{surf.name}' {edge_name} edge must be ordered inboard "
+                f"-> outboard with increasing butt lines, got {butt_lines}")
+
+
+def require_positive_planform_area(surface_name: str, area_per_side: float) -> None:
+    """Refuse a planform that integrated to zero or negative area (#71).
+
+    The half of :func:`require_integrable_planform`'s precondition that can only
+    be known after the strip sweep, so it is asked for at the point of use --
+    but with one message, because the three sweeps (WINGGEOM's
+    ``surface_properties``, the Schrenk distribution, the tail polylines) each
+    divide by this area on the next line and each produced the same bare
+    ``float division by zero``. Coincident edges and a trailing edge entered
+    ahead of the leading edge are ordinary states of a planform mid-entry.
+    """
+    if area_per_side <= 0.0:
+        raise ValueError(
+            f"surface '{surface_name}' has no planform area to integrate "
+            f"({area_per_side:.6g} in^2 per side): check that the trailing edge is "
+            "aft of the leading edge and that the two edges span a butt-line range")
 
 
 def planform_area_sqft(project: Project, surface_name: str = "wing") -> Optional[float]:

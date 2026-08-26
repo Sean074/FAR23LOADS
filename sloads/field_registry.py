@@ -412,10 +412,13 @@ def _speeds_wing_area(project: Project) -> Optional[float]:
     surface = getattr(getattr(project, "speeds", None), "wing_surface", None) or "wing"
     try:
         return planform_area_sqft(project, surface)
-    except (ValueError, ZeroDivisionError, StopIteration):
-        # A half-entered planform: the calc raises here and #71 owns how that is
-        # reported. A mark must not be the thing that takes the page down, so it
-        # answers "no governing value yet" and the widget stays live.
+    except ValueError:
+        # A half-entered planform. Narrowed from (ValueError, ZeroDivisionError,
+        # StopIteration) when #71 gave every planform sweep one precondition and
+        # a named refusal -- the broad catch was there because the calc could
+        # still divide by zero, and it no longer can. A mark must not be the
+        # thing that takes the page down, so it answers "no governing value yet"
+        # and the widget stays live.
         return None
 
 

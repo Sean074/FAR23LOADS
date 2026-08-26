@@ -23,7 +23,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional
 
 from ..constants import ULTIMATE_FACTOR
-from ..derived_geometry import sync_geometry_derived, wing_plane
+from ..derived_geometry import require_integrable_planform, sync_geometry_derived, wing_plane
 from ..models import (
     ConditionResult,
     LoadsResult,
@@ -117,6 +117,7 @@ def to_loads_ref_axis(results: List[WingLoadResult],
     pct = geom.ref_axis
     if pct == 0.25:
         return list(results)
+    require_integrable_planform(geom)   # this interpolates the edges (#71)
     axis = torsion_axis_label(pct)
     out: List[WingLoadResult] = []
     for r in results:

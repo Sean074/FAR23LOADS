@@ -65,7 +65,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 from .constants import IN2_PER_FT2
-from .derived_geometry import FuselageCentreline, fuselage_centreline, fuselage_height_at
+from .derived_geometry import FuselageCentreline, fuselage_centreline, fuselage_height_at, require_integrable_planform
 from .models import LayoutInput, Project, SurfaceInput, TailType
 
 #: Component names, which are also the ``geometry.surfaces`` entry names (T-1).
@@ -174,8 +174,12 @@ def _polyline_area_and_span(surf: SurfaceInput) -> Tuple[float, float]:
 
     Integrated the same way ``wing_geometry.surface_properties`` does -- strip
     midpoints over ``elements`` -- so an entered tail and an entered wing are
-    measured by one rule.
+    measured by one rule. That includes the precondition (#71): this was the
+    only strip sweep in the package with no guard of its own, so an empty tail
+    edge reached ``[0]`` and came back to SELECT and the balance as a raw
+    ``IndexError``.
     """
+    require_integrable_planform(surf)
     s_root = surf.leading_edge[0][1]
     s_tip = surf.leading_edge[-1][1]
     h = max(1, surf.elements)
@@ -195,6 +199,7 @@ def _polyline_mac_and_x25(surf: SurfaceInput) -> Tuple[float, float]:
     int c ds`` and ``x25 = int (x_le + c/4) c ds / int c ds`` over ``elements``
     strip midpoints, so a straight-tapered surface reproduces the closed forms.
     """
+    require_integrable_planform(surf)
     s_root = surf.leading_edge[0][1]
     s_tip = surf.leading_edge[-1][1]
     h = max(1, surf.elements)
