@@ -25,6 +25,7 @@ from typing import (
     Any,
     Dict,
     List,
+    Mapping,
     Optional,
     Tuple,
     Union,
@@ -34,7 +35,7 @@ from typing import (
 )
 
 from .constants import ULTIMATE_FACTOR
-from .migrations import is_project_dict, migrate
+from .migrations import SUPPORTED_FLOOR, is_project_dict, migrate
 from .models import (
     SCHEMA_VERSION,
     AeroCoefficientsInput,
@@ -1487,9 +1488,31 @@ def schema_status(version: int) -> Tuple[str, str]:
     return "ok", ""
 
 
-def load_project(path: str) -> Project:
+def source_schema_version(d: Mapping[str, Any]) -> int:
+    """The ``schema_version`` a project dict carried **before** migration.
+
+    :func:`project_from_dict` runs :func:`migrations.migrate`, which stamps the
+    dict at :data:`SCHEMA_VERSION` -- so the built ``Project`` cannot say what
+    version the file on disk was, and a caller asking it (the GUIs did) always
+    reads "current" and never reports a migration (review PB-14). The fact lives
+    in the raw dict and nowhere else; this is the one reader of it.
+
+    An unversioned dict answers :data:`migrations.SUPPORTED_FLOOR`, the same
+    assumption ``migrate`` makes when it decides which hops to run.
+    """
+    version = d.get("schema_version")
+    return SUPPORTED_FLOOR if not isinstance(version, int) else version
+
+
+def read_project_dict(path: str) -> Dict[str, Any]:
+    """The raw project dict as written on disk -- unmigrated, so
+    :func:`source_schema_version` can still be asked of it."""
     with open(path, "r", encoding="utf-8") as fh:
-        return project_from_dict(json.load(fh))
+        return json.load(fh)
+
+
+def load_project(path: str) -> Project:
+    return project_from_dict(read_project_dict(path))
 
 
 def save_project(project: Project, path: str) -> None:

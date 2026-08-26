@@ -5,7 +5,7 @@ The whole app is one reloadable ``project.json`` carried in
 the *saved snapshot* baseline the dirty flag diffs against, and the
 load-guard chain every load action goes through —
 
-    safe_load(build, source)  ->  apply_schema_check  ->  load_with_guard
+    safe_load(read_dict, source)  ->  apply_schema_check  ->  load_with_guard
                                                               |
                                         clean project ---> adopt + rerun
                                         dirty project ---> confirm_discard dialog
@@ -29,7 +29,7 @@ from __future__ import annotations
 import json
 import os
 import warnings
-from typing import Callable, Optional
+from typing import Any, Callable, Mapping, Optional
 
 import streamlit as st
 
@@ -37,7 +37,6 @@ from app_shell.components import active_project
 from app_shell.widget_keys import bump_generation
 from sloads import Project
 from sloads import io as sloads_io
-from sloads.models import SCHEMA_VERSION
 
 #: Session-state key holding the dict form of the last loaded/saved project.
 #: The dirty flag is a diff against this, not a mutation counter, so an edit
@@ -115,25 +114,42 @@ def confirm_discard(new_project: Project, source: str, path: Optional[str] = Non
         st.rerun()
 
 
-def apply_schema_check(new_project: Project) -> Project:
+def apply_schema_check(new_project: Project, source_version: int) -> Project:
     """Surface a soft ``SCHEMA_VERSION`` mismatch, then return the project ready to
-    adopt. A newer file warns (and still loads); an older file is migrated in place
-    (its field-presence migration already ran in ``io.py``; here we bump the stamp).
-    Uses ``st.toast`` because the adopt path ends in ``st.rerun()``, which would
-    discard an ordinary ``st.warning``."""
-    status, message = sloads_io.schema_status(new_project.schema_version)
+    adopt. A newer file warns (and still loads); an older file has already been
+    migrated by ``io.py`` and is reported as such. Uses ``st.toast`` because the
+    adopt path ends in ``st.rerun()``, which would discard an ordinary
+    ``st.warning``.
+
+    ``source_version`` is the version the file carried **before** migration
+    (``io.source_schema_version``), and it has to be passed in: this used to ask
+    ``new_project.schema_version``, which ``migrate`` has already stamped at
+    :data:`SCHEMA_VERSION`, so the answer was always "ok" and the migration
+    notice could never fire -- a v41 file opened, was upgraded, and would be
+    rewritten at v55 on save with nothing said (review PB-14).
+
+    The stamp itself is not touched here any more, for the same reason: it was
+    already current before this function saw the project.
+    """
+    status, message = sloads_io.schema_status(source_version)
     if status == "newer":
         st.toast(message, icon="⚠️")
     elif status == "older":
-        new_project.schema_version = SCHEMA_VERSION
         st.toast(message, icon="🔁")
     return new_project
 
 
-def safe_load(build: Callable[[], Project], source: str) -> Optional[Project]:
+def safe_load(read_dict: Callable[[], Mapping[str, Any]], source: str) -> Optional[Project]:
     """Build a project from a load action, showing ``st.error`` instead of a
     traceback on a malformed / wrong-shape file (parity with the JSON Editor).
-    Returns ``None`` on failure so the caller skips the load."""
+    Returns ``None`` on failure so the caller skips the load.
+
+    The argument is the **dict reader**, not a project builder: what version the
+    file was written at is a fact about the dict, and ``project_from_dict``
+    stamps it away (review PB-14). Building here rather than at the call site is
+    what keeps the two -- the project and the version it came from -- in one
+    place for every load action in either GUI.
+    """
     try:
         # A migration hop that had to choose between two disagreeing copies of
         # one quantity (v55, #52) says so with ``warnings.warn``; headless that
@@ -143,7 +159,9 @@ def safe_load(build: Callable[[], Project], source: str) -> Optional[Project]:
         # ``st.warning`` would not survive it.
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            project = apply_schema_check(build())
+            raw = read_dict()
+            project = apply_schema_check(sloads_io.project_from_dict(raw),
+                                         sloads_io.source_schema_version(raw))
         for w in caught:
             st.toast(f"{source}: {w.message}", icon="⚠️")
         return project

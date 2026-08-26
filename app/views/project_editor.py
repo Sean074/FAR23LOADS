@@ -30,7 +30,6 @@ from app_shell.components import active_system, stop_page
 from app_shell.widget_keys import bump_generation, widget_key
 from sloads import Project, UnitSystem
 from sloads import io as sloads_io
-from sloads.models import SCHEMA_VERSION
 from sloads.units import project_dict_to_display, project_dict_to_imperial
 from sloads.validation import safety_factor_valid
 
@@ -121,11 +120,16 @@ if apply_col.button("Apply", type="primary"):
     except (TypeError, ValueError, KeyError, AttributeError) as exc:
         st.error(f"Could not build a project from this JSON: {exc}")
         stop_page()
-    status, message = sloads_io.schema_status(new_project.schema_version)
+    # The version *as typed*, read off the raw dict: project_from_dict has
+    # already migrated and stamped, so asking the built project is always "ok"
+    # and an edit that pastes an older file would be upgraded silently -- the
+    # same defect as the sidebar's (review PB-14, swept here in the same
+    # change). The stamp needs no bumping for the same reason.
+    status, message = sloads_io.schema_status(
+        sloads_io.source_schema_version(imperial_dict))
     if status == "newer":
         st.warning(message)
     elif status == "older":
-        new_project.schema_version = SCHEMA_VERSION
         st.info(message)
     # Surface an invalid per-case safety_factor at the hand-edit entry point
     # (M4-14). Checked on the *raw* dict: project_from_dict has already reset
