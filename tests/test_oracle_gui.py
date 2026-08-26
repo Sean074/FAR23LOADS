@@ -1231,6 +1231,11 @@ def _copies():
 
 
 #: A results page whose only block carries rows and **no** download (#89).
+#:
+#: The stub is installed **on the real module**: ``AppTest.from_string`` execs
+#: this in the running process, so ``r.step_results = ...`` rebinds the module
+#: attribute for everything that imports it afterwards, not just for this page.
+#: The test below therefore restores it -- see the note there.
 _NO_ARTIFACT_SCRIPT = """
 import oracle_app.results as r
 from sloads.units import UnitSystem
@@ -1253,10 +1258,72 @@ def test_a_result_block_with_no_download_does_not_take_the_page_down():
     """
     from streamlit.testing.v1 import AppTest
 
-    at = AppTest.from_string(_NO_ARTIFACT_SCRIPT, default_timeout=60)
-    at.run()
-    assert not at.exception, [e.message for e in at.exception]
-    assert any("Flap loads" in (h.value or "") for h in at.subheader)
+    import oracle_app.results as results_module
+
+    # The script stubs ``step_results`` on the real module, in this process
+    # (see :data:`_NO_ARTIFACT_SCRIPT`), so without this restore every later
+    # test that imports it gets a one-block stub for a page called "flap"
+    # instead of the renderer. It was harmless when written because nothing
+    # after it read ``step_results``; it stopped being harmless the moment
+    # something did, and the symptom was a ``KeyError`` in an unrelated test
+    # that varied with the xdist worker split. Restored rather than rewritten
+    # because the stub is the point of the test.
+    original = results_module.step_results
+    try:
+        at = AppTest.from_string(_NO_ARTIFACT_SCRIPT, default_timeout=60)
+        at.run()
+        assert not at.exception, [e.message for e in at.exception]
+        assert any("Flap loads" in (h.value or "") for h in at.subheader)
+    finally:
+        results_module.step_results = original
+
+
+def test_no_apptest_script_leaves_a_stub_on_a_real_module():
+    """The isolation rule the test above had to learn (rule 3, structural).
+
+    ``AppTest.from_string`` runs its script in **this** process, so an assignment
+    to a module attribute inside one is a permanent monkeypatch with no undo:
+    every later test importing that name gets the stub, and the failure surfaces
+    somewhere else entirely. One script needs to do it; the guard is that a
+    second cannot appear without a restore, since the next one will be found the
+    same expensive way — by bisecting an unrelated ``KeyError``.
+
+    Reads the script constants themselves, so a new one is covered the moment it
+    is written.
+    """
+    import ast
+
+    tree = ast.parse(open(__file__, encoding="utf-8").read(), filename=__file__)
+    scripts = {
+        target.id: node.value.value
+        for node in tree.body if isinstance(node, ast.Assign)
+        for target in node.targets
+        if isinstance(target, ast.Name) and target.id.endswith("_SCRIPT")
+        and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)
+    }
+    assert scripts, "no AppTest scripts found — the scan has stopped scanning"
+    #: Scripts that install a stub on purpose, each restoring it in a ``finally``.
+    _ALLOWED = {"_NO_ARTIFACT_SCRIPT"}
+    offenders = []
+    for name, body in scripts.items():
+        if name in _ALLOWED:
+            continue
+        try:
+            nodes = list(ast.walk(ast.parse(body)))
+        except SyntaxError:
+            # A ``str.format`` template (``_PAGE_SCRIPT``) is not parseable
+            # until its placeholders are filled. Scanned textually instead, so
+            # a template cannot become the hole in this guard.
+            if re.search(r"^\s*\w+\.\w+\s*=\s*[^=]", body, re.M):
+                offenders.append(name)
+            continue
+        if any(isinstance(n, ast.Assign)
+               and any(isinstance(t, ast.Attribute) for t in n.targets)
+               for n in nodes):
+            offenders.append(name)
+    assert not offenders, (
+        "these AppTest scripts assign to a module attribute, which outlives the "
+        "test: restore it in a finally and add it to _ALLOWED — " + repr(sorted(set(offenders))))
 
 
 def _external_copies():

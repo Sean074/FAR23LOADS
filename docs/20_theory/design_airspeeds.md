@@ -51,7 +51,7 @@ derived from them (Mach-limit lines, preliminary operating-limitation placards).
 | `VB` | design speed for maximum gust intensity (KEAS) | input `speeds.vb_kt` (Part 25 concepts; ordering check only, §10) |
 | `a`, `σ` | speed of sound (kt), density ratio at altitude | standard atmosphere, §9 |
 | `MC`, `MD` | cruise / dive Mach at the shoulder altitude | §9 |
-| `MNE`, `MFC` | never-exceed / flutter-clearance Mach | §11 |
+| `MNE` | never-exceed Mach | §11 |
 | `VNE`, `VNO`, `VFE`, `VMO`, `MMO` | operating-limitation (placard) speeds | §12 |
 
 **Categories.** `N` normal (and commuter), `U` utility, `A` acrobatic — the FAR 23
@@ -68,7 +68,7 @@ CLmax (aero page) ──► VS, VSF ──► VA_min, VF_min
 W, S ──► W/S ──► n (23.337) ──► VA_min
 W/S ──► Kc, Kd schedules ──► VC_min ──► VD floors
 shoulder altitude ──► a, σ ──► MC = VC/(a·√σ), MD = VD/(a·√σ)
-MC, MD ──► MACHLIM lines (MNE, MFC, V(M) vs altitude)
+MC, MD ──► MACHLIM lines (MNE, V(M) vs altitude)
 VC, VD, VF, MC, MD ──► placards VNE/VNO/VFE (recip) · VMO/MMO (turbine)  [advisory]
 ```
 
@@ -275,13 +275,25 @@ than EAS. From MC/MD (produced by `design_speed_values`, §2):
 
 ```
 MNE = 0.9·MD             never-exceed Mach
-MFC = 1.2·MD             flutter-clearance Mach
 V(M) = M·a·√σ            [KEAS]  at each altitude
 ```
 
-`mach_limit_lines` tabulates `V(MC)`, `V(MNE)`, `V(MD)`, `V(MFC)` from the
-shoulder altitude to the maximum operating altitude in `increment_ft` steps (the
-last step lands exactly on the max altitude), for the flight-limits diagram.
+`mach_limit_lines` tabulates `V(MC)`, `V(MNE)` and `V(MD)` from the shoulder
+altitude to the maximum operating altitude in `increment_ft` steps (the last step
+lands exactly on the max altitude), for the flight-limits diagram.
+
+**Flutter clearance is deliberately not here.** MACHLIM.BAS also computes
+`MFC = 1.2·MD` and its per-altitude `V(FC)`, and this tool reproduced both until
+2026-08-26. Flutter substantiation is 14 CFR **23.629**, not a design load, and
+the symbol collides with §25.253's VFC/MFC — a different quantity under a
+different definition, which a Part 25 reader will read it as. Removed by owner
+directive (#79); the withdrawal is registered in
+[`02_approved_corrections.md`](02_approved_corrections.md) as a scope reduction,
+not as a correction: Appendix A's printed 0.4836 is the right answer to the
+original program's equation, and the tool simply no longer answers it. **VF is
+unrelated** — every `VF` in this document and in the code is the 23.345 design
+flap speed (§8), audited at the same time and found free of any flutter
+conflation.
 
 ## 12. Operating-limitation speeds vs. design speeds (Subpart G — ADVISORY ONLY)
 
@@ -360,7 +372,8 @@ Oracle figures asserted in `tests/test_structural_speeds.py` /
 | VA / VC / VD / VF (chosen-speeds run) | 121.3 / 170 / 212.5 / 105.5 kt | p156 |
 | n / n_neg | +3.8 / −1.52 | p156 |
 | MC / MD at 12,000 ft shoulder | 0.323 / 0.403 | p156 |
-| MNE / MFC | 0.3627 / 0.4836 | p160 |
+| MNE | 0.3627 | p160 |
+| ~~MFC 0.4836~~ (p160) | withdrawn from scope 2026-08-26, #79 — see §11 | — |
 | V(MC) from 12,000 to 18,000 ft | 170.16 → 150.77 kt | p160 |
 
 ## 14. Implementation gaps (Part 25) — documented, not silent

@@ -86,6 +86,44 @@ record: `CONVENTIONS.md` §7 (owners + demarcation + guards).
 
 ---
 
+## Withdrawn from scope
+
+**A third category, and not a deviation.** The entries above say *the manual's
+number is wrong and here is the right one*. These say *the manual's number is
+right and this tool does not produce it* — the replication's scope is narrowed,
+deliberately and on the owner's directive, and the printed figure stands
+uncontradicted. They are registered here because the effect on a reader is the
+same: an Appendix A output that no test reproduces, which without a record looks
+like a regression or an oversight. Each entry names the printed value it is
+declining to compute, so that number can never be mistaken for one this project
+found fault with.
+
+### MACHLIM flutter-clearance MFC / V(FC) *(withdrawn 2026-08-26, issue #79)*
+
+`MACHLIM.BAS` computes `MFC = 1.2·MD` and its per-altitude `V(FC) = MFC·a·√σ`,
+and this port reproduced both — Appendix A p160 prints **MFC 0.4836** for the
+worked example, which the oracle test asserted to ±0.1 % until this date.
+**Both are removed from the tool.**
+
+Flutter substantiation is **14 CFR 23.629**, not a design load: nothing in this
+suite sizes structure to MFC, and a flutter clearance speed presented among
+design speeds invites the reading that it is one. The symbol makes that worse
+rather than better — a Part 25 audience reads `VFC`/`MFC` as **§25.253's**
+maximum-speed-for-stability-characteristics pair, a different quantity under a
+different definition, so the same three letters name two things and the tool
+printed the one it was not about. Removed on the owner's directive (C210-19,
+escalated to full removal at the 2026-08-23 Cessna 210 build review) from the
+calc, the report series and workbook column, the Speed–Altitude chart and the
+theory document.
+
+**Unaffected and still oracle-locked:** MNE = 0.9·MD (never-exceed, printed
+0.3627) and the V(MC)/V(MNE)/V(MD) lines. **Not a VF finding:** every `VF` in
+the code and docs is the 23.345 design flap speed — audited alongside this
+removal and found free of flutter conflation, which is the other half of #79 and
+closes verified-correct.
+
+---
+
 ## Considered and declined
 
 An oracle question raised, examined and **answered "replicate as printed"** is

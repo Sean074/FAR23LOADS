@@ -191,7 +191,7 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # the rough-air speed ``vb_kt`` -- and **removes** ``speeds.mach_limit.mc``/
 # ``.md``. Those two were a stale duplicate: stored in the file, ignored by the
 # Streamlit page (which recomputed MC/MD from the design speeds) and honoured by
-# the CLI, so the same project gave different MNE/MFC on different front-ends.
+# the CLI, so the same project gave different MNE on different front-ends.
 # MC/MD are now derived by structural_speeds and passed to mach_limit explicitly.
 # The v39 hop drops the dead keys; ``vd_basis`` defaults to the speed-ratio route,
 # so every pre-v40 project keeps exactly the numbers it had.

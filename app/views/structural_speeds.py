@@ -111,8 +111,7 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
             "(25.335(b)(2) since Amdt 25-91; 23.335(b)(4)(iii) commuter). Below 0.07 M "
             "needs a rational analysis crediting automatic systems; **0.05 M is an "
             "absolute floor**.\n"
-            "- **Flutter clearance** is shown to **1.2·VD/MD** (MFC, 23.629) on the "
-            "Speed–Altitude Envelope tab.\n\n"
+            "\n"
             "The advisory panel below derives these preliminary placards from your design "
             "speeds. Set optional **operational targets** in the form to check feasibility "
             "(e.g. a target VNE requires VD ≥ VNE/0.9). Operating limitations are fixed at "
@@ -554,7 +553,7 @@ def _tab_speed_altitude(project: Project, system: UnitSystem, U: dict) -> None: 
         return
 
     summary, *lines = results
-    mne, mfc = 0.9 * md, 1.2 * md
+    mne = 0.9 * md
     with st.expander(f"FAR {summary.far_reference} — {summary.title}", expanded=True):
         rows = [{"Quantity": v.label, "Value": v.value, "Units": v.units} for v in summary.values]
         st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
@@ -601,8 +600,11 @@ def _tab_speed_altitude(project: Project, system: UnitSystem, U: dict) -> None: 
     alts = _altitude_grid(max_alt, incr)
     fig = go.Figure()
 
-    # Constant-Mach fan (thin grey reference lines), 0.10 up to just past MFC.
-    mach_top = mfc + 0.05
+    # Constant-Mach fan (thin grey reference lines), 0.10 up to just past the
+    # highest boundary drawn. That was MFC (1.2*MD) until flutter clearance left
+    # the tool (#79), so the fan now reaches 0.05 past MD -- narrower, and no
+    # longer reserving room for a line nothing draws.
+    mach_top = md + 0.05
     m = 0.10
     fan = []
     while m <= mach_top + 1e-9:
@@ -632,8 +634,9 @@ def _tab_speed_altitude(project: Project, system: UnitSystem, U: dict) -> None: 
         fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines", name=name,
                                  line={"color": color, "width": 3}))
 
-    # Mach-only lines above the shoulder: never-exceed (MNE) and flutter (MFC).
-    for name, mval, color, dash in [("V(MNE)", mne, "#ff7f0e", "dot"), ("V(MFC)", mfc, "#8c564b", "dash")]:
+    # Mach-only lines above the shoulder: never-exceed (MNE). V(MFC) was drawn
+    # here too until #79 removed flutter clearance (23.629) from the tool.
+    for name, mval, color, dash in [("V(MNE)", mne, "#ff7f0e", "dot")]:
         xs, ys = _boundary(alts, axis_unit, mach_above=mval, only_above=True)
         fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines", name=name,
                                  line={"color": color, "width": 2, "dash": dash}))

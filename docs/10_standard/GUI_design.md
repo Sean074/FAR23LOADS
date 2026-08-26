@@ -820,7 +820,7 @@ disjunctively) plus `mach_margin_min`/`mach_margin_basis` and the rough-air
 speed `vb_kt`, and the **removal** of `speeds.mach_limit.mc`/`.md`. Those two
 were a stale duplicate — stored in the file, ignored by the Speed–Altitude tab
 (which recomputed MC/MD from the design speeds) and honoured by the CLI, so one
-project reported two different MNE/MFC depending on the front-end. MC/MD are now
+project reported two different MNE depending on the front-end. MC/MD are now
 derived by `structural_speeds` and passed to `mach_limit` explicitly; hop
 `migrations._v39_mach_limit_mc_md` drops the dead keys, and `vd_basis` defaults
 to the speed-ratio route so no existing project's numbers move); v41 plan 11 B1

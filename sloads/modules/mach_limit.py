@@ -4,14 +4,23 @@ For high-performance / high-altitude airplanes the cruise and dive speed limits
 above the "shoulder" altitude are set by Mach number rather than equivalent
 airspeed. MACHLIM tabulates the Mach-limited equivalent airspeeds from the
 shoulder altitude up to the maximum operating altitude, for the cruise (MC), dive
-(MD), never-exceed (MNE) and flutter-clearance (MFC) Mach lines, to be drawn on
-the flight-limits diagram (Reference 1 Ch 6).
+(MD) and never-exceed (MNE) Mach lines, to be drawn on the flight-limits diagram
+(Reference 1 Ch 6).
 
 Equations (MACHLIM.BAS):
     MNE = 0.9 * MD            never-exceed Mach
-    MFC = 1.2 * MD            flutter-clearance Mach
     V(M, EAS) = M * a * sqrt(sigma)   at each altitude, with a and sigma from the
                                       shared standard atmosphere
+
+**Flutter clearance is not computed here (#79, C210-19).** MACHLIM.BAS also prints
+``MFC = 1.2 * MD`` and its per-altitude ``V(FC)``, and this module reproduced both
+until 2026-08-26. They are flutter-substantiation content under 14 CFR 23.629, not
+a design load, and the symbol reads to a Part 25 audience as §25.253's VFC/MFC,
+which is a different quantity with a different definition. Removed from the tool by
+owner directive: a deliberate replication-scope reduction, registered in
+``docs/20_theory/02_approved_corrections.md`` -- the printed 0.4836 is not wrong,
+it is out of scope. MNE and the V(MC)/V(MNE)/V(MD) lines are unaffected and stay
+oracle-locked.
 
 (The original used a = 29.02; the shared ``standard_atmosphere`` uses 29.02436 --
 a ~0.01% difference absorbed by the ±0.1% regression tolerance, per Decision 3.)
@@ -20,11 +29,12 @@ MC and MD are **not** MACHLIM inputs (F25-2, schema v40): they are produced by
 ``structural_speeds.design_speed_values`` from VC/VD at the shoulder altitude and
 passed to :func:`mach_limit_lines` -- as is the shoulder altitude itself since
 schema v55 (#52): ``speeds.shoulder_altitude_ft`` is its one home. Storing them here as well used to let the CLI
-and the GUI disagree about the same project's MNE/MFC -- the GUI recomputed and
+and the GUI disagree about the same project's MNE -- the GUI recomputed and
 the CLI did not.
 
 Reference: MACHLIM.BAS, Ch 6; worked example Appendix A p160 (MC 0.323, MD 0.403,
-shoulder 12000 ft, max 18000 ft: MNE 0.3627, MFC 0.4836; V(MC) 170.16 .. 150.77).
+shoulder 12000 ft, max 18000 ft: MNE 0.3627; V(MC) 170.16 .. 150.77). The same page
+prints MFC 0.4836, which this port deliberately does not produce (above).
 """
 
 from __future__ import annotations
@@ -68,7 +78,7 @@ def _altitudes(inp: MachLimitInput, shoulder_altitude_ft: float) -> List[float]:
 
 def mach_limit_lines(inp: MachLimitInput, mc: float, md: float,
                      shoulder_altitude_ft: float) -> List[ConditionResult]:
-    """The MNE/MFC Mach numbers and the per-altitude Mach-limited EAS table.
+    """The MNE Mach number and the per-altitude Mach-limited EAS table.
 
     ``mc``/``md`` are passed in rather than stored on ``inp`` (F25-2, schema v40).
     They used to be persisted on :class:`MachLimitInput` *and* recomputed from the
@@ -86,7 +96,6 @@ def mach_limit_lines(inp: MachLimitInput, mc: float, md: float,
         raise ValueError("MACHLIM needs positive MC and MD")
 
     mne = 0.9 * md
-    mfc = 1.2 * md
 
     summary = ConditionResult(
         title="Mach limitation summary",
@@ -95,11 +104,10 @@ def mach_limit_lines(inp: MachLimitInput, mc: float, md: float,
             LoadValue("Cruise Mach MC", mc, key="cruise_mach_mc"),
             LoadValue("Dive Mach MD", md, key="dive_mach_md"),
             LoadValue("Never-exceed Mach MNE", mne, key="never_exceed_mach_mne"),
-            LoadValue("Flutter-clearance Mach MFC", mfc, key="flutter_clearance_mach_mfc"),
             LoadValue("Shoulder altitude", shoulder_altitude_ft, "ft", key="shoulder_altitude"),
             LoadValue("Max operating altitude", inp.max_operating_altitude_ft, "ft", key="max_operating_altitude"),
         ],
-        note="MNE = 0.9*MD; MFC = 1.2*MD (never-exceed and flutter-clearance Mach).",
+        note="MNE = 0.9*MD (never-exceed Mach).",
     )
 
     results = [summary]
@@ -114,7 +122,6 @@ def mach_limit_lines(inp: MachLimitInput, mc: float, md: float,
                 LoadValue("V(MC)", mc * a * rs, _KT, key="v_mc"),
                 LoadValue("V(MNE)", mne * a * rs, _KT, key="v_mne"),
                 LoadValue("V(MD)", md * a * rs, _KT, key="v_md"),
-                LoadValue("V(FC)", mfc * a * rs, _KT, key="v_fc"),
             ],
         ))
     return results

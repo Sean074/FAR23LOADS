@@ -49,8 +49,9 @@ def test_fixture_uses_the_mach_margin_dive_speed_route():
 
     Before F25-2 its own chosen VD of 350 kt was silently overridden by the
     1.25*VC floor to 387.5 kt (MD 0.9423, margin +0.19 -- absurd for a transport),
-    inflating every dive-speed case and driving MACHLIM to MFC 1.13. The route is
-    opt-in, so the fixture must actually carry it.
+    inflating every dive-speed case and driving MACHLIM's then-computed flutter
+    clearance to a supersonic 1.13 (that quantity has since left the tool: #79).
+    The route is opt-in, so the fixture must actually carry it.
     """
     from sloads import VdBasis
     from sloads.modules.structural_speeds import design_speed_values
