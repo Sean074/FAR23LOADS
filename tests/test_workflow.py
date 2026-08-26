@@ -7,6 +7,8 @@ real suite module must have a step, phases/keys must stay well-formed, and the
 ``requires``/``produces`` predicates must read a Project correctly.
 """
 
+import ast
+import dataclasses
 import os
 import re
 import sys
@@ -14,6 +16,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sloads import Project, io, registry  # noqa: E402
+from sloads import field_registry as fr  # noqa: E402
 from sloads import workflow as wf  # noqa: E402
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
@@ -193,3 +196,112 @@ def test_bas_is_a_program_name_or_none():
             f"{s.key}: bas={s.bas!r} is not a '+'-joined program name; a step "
             f"with no original program must use bas=None"
         )
+
+
+# --------------------------------------------------------------------------- #
+# Page-order dependencies (#69, PB-15/PB-19)
+# --------------------------------------------------------------------------- #
+#: ``Project`` attributes that are not analysis slices -- provenance, the unit
+#: system, the SF table, the results bundle. Reading one of these says nothing
+#: about page order.
+_NOT_A_SLICE = {
+    "schema_version", "name", "description", "engineer", "checked_by",
+    "approved_by", "date", "revision", "unit_system", "include_far25",
+    "safety_factors", "loads",
+}
+
+#: ``Project.engine`` is a convenience property over ``Project.engines``; the
+#: sweep would not otherwise see the Flap page's own dependency, which is the
+#: instance #69 was filed on.
+_SLICE_ALIASES = {"engine": "engines"}
+
+
+def _slice_reads(key):
+    """Every ``Project`` slice the modules behind step ``key`` read, by AST.
+
+    Direct ``project.<slice>`` attribute access in the step's own module and in
+    the modules folded onto it. Reads reached through a helper in *another*
+    module are not seen -- ``design_speed_values`` is the live example -- so
+    this under-reports rather than over-reports, which is the safe direction
+    for a guard whose failure mode is a demand to declare something.
+    """
+    slices = {f.name for f in dataclasses.fields(Project)} - _NOT_A_SLICE
+    found = set()
+    for module in wf.step_modules(key):
+        path = os.path.join(os.path.dirname(_EXAMPLES), "sloads", "modules", module + ".py")
+        if not os.path.exists(path):
+            continue
+        with open(path, encoding="utf-8") as fh:
+            tree = ast.parse(fh.read())
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
+                    and node.value.id == "project"):
+                name = _SLICE_ALIASES.get(node.attr, node.attr)
+                if name in slices:
+                    found.add(name)
+    return found
+
+
+def test_every_page_order_dependency_is_declared():
+    """A page whose numbers read a slice entered on a *later* page declares it.
+
+    The #69 defect in one assertion. The Flap page computes its FAR 23.457(b)
+    slipstream case from an engine record entered two pages later; before the
+    engine page exists the case does not either, and the flap is sized ~19 %
+    low on the C210 with the page showing a complete-looking answer. The
+    weight estimate correlates against the engine list's power rather than the
+    horsepower typed beside it. Neither page said so.
+
+    ``requires`` is not the remedy -- it blocks, and both calcs run correctly
+    with no engine at all -- so the dependency is declared in ``reads`` and
+    *stated* by ``app_shell.components.render_page_order_reads``. This is the
+    guard that a new one cannot be added silently: a module that starts reading
+    a later page's slice fails here until the step says so.
+
+    Only *later* pages are flagged. A slice entered on this page or an earlier
+    one has no order problem to state.
+    """
+    order = {s.key: i for i, s in enumerate(wf.STEPS)}
+    undeclared = {}
+    for step in wf.STEPS:
+        if not step.module:
+            continue
+        declared = set(step.requires) | set(step.edits) | set(step.reads)
+        if step.produces:
+            declared.add(step.produces.split(".", 1)[0])
+        for name in sorted(_slice_reads(step.key) - declared):
+            entered_on = fr.entering_step(name)
+            if entered_on and order.get(entered_on, -1) > order[step.key]:
+                undeclared.setdefault(step.key, []).append(f"{name} (entered on {entered_on})")
+    assert not undeclared, (
+        "these steps read a slice entered on a later page without declaring it "
+        "-- add it to the step's `reads` so the page states the dependency "
+        f"instead of silently changing its numbers later (#69): {undeclared}")
+
+
+def test_declared_reads_are_real_slices_the_step_really_reads():
+    """The other direction: a stale ``reads`` entry states a dependency that no
+    longer exists, which is a caption telling the user to go fill a page for
+    nothing. Kept honest against the same sweep."""
+    for step in wf.STEPS:
+        for name in step.reads:
+            assert name in _slice_reads(step.key), (
+                f"{step.key} declares reads={name!r} but no module behind it "
+                "reads that slice any more -- drop it")
+            assert name not in step.requires and name not in step.edits, (
+                f"{step.key}: {name!r} is both `reads` and gated/entered here; "
+                "`reads` is for the dependencies those two do not cover")
+
+
+def test_later_page_reads_resolves_against_a_project():
+    """The predicate the GUI renders from: each declared read comes back with the
+    page that enters it and whether the project carries it yet."""
+    project = io.load_project(os.path.join(_EXAMPLES, "ga6_normal.project.json"))
+    rows = wf.later_page_reads(project, wf.BY_KEY["flap_loads"])
+    assert [r.slice_name for r in rows] == ["engines"]
+    assert rows[0].entered_on == "engine_mount"
+    assert rows[0].present is True
+
+    stripped = dataclasses.replace(project, engines=[])
+    assert wf.later_page_reads(stripped, wf.BY_KEY["flap_loads"])[0].present is False
+    assert wf.later_page_reads(project, wf.BY_KEY["aileron_loads"]) == []

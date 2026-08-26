@@ -329,6 +329,13 @@ class FieldEntry:
     #:
     #: Meaningless on an owner row, and asserted so by the registry guards.
     governs: bool = False
+    #: How this copy resolves against its owner, in the user's words — used
+    #: verbatim as the GUI's caption where the ``governs`` sentence would be
+    #: wrong. Only a *conditionally* governing copy needs it: the weight
+    #: estimate's horsepower is ignored in favour of the engine sum **unless**
+    #: the override switch beside it is set, and neither plain sentence says
+    #: that (#69). Empty everywhere else, where ``governs`` says it all.
+    resolves: str = ""
     #: ``origin`` is ``SLOADS``, but the oracle GUI **sets** it anyway, without
     #: asking — see :data:`SUPPLIED_RULE`. ``origin`` says who *asked* for a
     #: field; this says who *writes* it, and the two differ exactly where this
@@ -356,6 +363,21 @@ class FieldEntry:
     @property
     def owner_is_external(self) -> bool:
         return self.derived_from.startswith(EXTERNAL)
+
+    @property
+    def external_owner(self) -> str:
+        """Where an external owner lives, in one phrase, or "" for a field owner.
+
+        Split exactly as :attr:`owner_path` splits a field owner: the phrase up
+        to the first " (", the parenthesis being the row's provenance note
+        (which decision, which review instance) and not something to show a
+        user. It is the phrase the GUI's mark names (#69), so it has to read as
+        a place -- "the weight database", ``len(Project.engines)`` -- rather
+        than as a citation.
+        """
+        if not self.owner_is_external:
+            return ""
+        return self.derived_from[len(EXTERNAL):].split(" (", 1)[0].strip()
 
     @property
     def display_only(self) -> bool:
@@ -395,12 +417,12 @@ SUPPLIED_RULE = "structurally required (no default), or demonstrably load-bearin
 
 def _E(path: str, page: str, origin: Origin, basis: str,
        quantity: str = "", derived_from: str = "", supplied: bool = False,
-       governs: bool = False) -> FieldEntry:
+       governs: bool = False, resolves: str = "") -> FieldEntry:
     # Keywords, not position: ``governs`` sits before ``supplied`` on the
     # dataclass, and a positional call here would have bound one to the other.
     return FieldEntry(path=path, page=page, origin=origin, basis=basis,
                       quantity=quantity, derived_from=derived_from,
-                      governs=governs, supplied=supplied)
+                      governs=governs, supplied=supplied, resolves=resolves)
 
 
 _ORIG = Origin.ORIGINAL
@@ -586,9 +608,13 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("weight.max_landing_weight_lb", _WT, _ORIG, "MLW, LANDLOAD design landing weight"),
     _E("weight.estimation.airplane", _WT, _ORIG, "WTESTIMA airplane class"),
     _E("weight.estimation.engines", _WT, _ORIG, "WTESTIMA NOENGS", "engine count",
-       EXTERNAL + "len(Project.engines) (review N1 instance 3: concept_heavy 2 vs 0)"),
+       EXTERNAL + "len(Project.engines) (review N1 instance 3: concept_heavy 2 vs 0)",
+       governs=True),
     _E("weight.estimation.max_continuous_hp", _WT, _ORIG, "WTESTIMA HP", "max continuous power",
-       EXTERNAL + "sum of engines[].max_cont_hp unless overridden"),
+       EXTERNAL + "sum of engines[].max_cont_hp (unless overridden -- see resolves)",
+       resolves="The estimate correlates against the engine list's combined "
+                "max-continuous power, not this field, unless the override "
+                "switch beside it is set (or no engine states a rating)."),
     _E("weight.estimation.override_max_continuous_hp", _WT, _SLDS, "override switch for the engine-sum derivation"),
     _E("weight.estimation.seats", _WT, _ORIG, "WTESTIMA SEATS"),
     _E("weight.estimation.crew", _WT, _SLDS, "FAR 23 seat-limit check, Step E1"),
@@ -628,7 +654,8 @@ REGISTRY: Tuple[FieldEntry, ...] = (
        supplied=True),
     _E("weight.envelope.gross_weight", _WT, _ORIG, "WTENV gross weight"),
     _E("weight.envelope.mac", _WT, _ORIG, "WTENV MAC", "wing MAC",
-       EXTERNAL + "derived_geometry from the planform (Optional override here)"),
+       EXTERNAL + "derived_geometry from the planform (Optional override here)",
+       governs=True),
     _E("weight.envelope.xlemac", _WT, _ORIG, "WTENV LEMAC station"),
     _E("weight.envelope.fwd_gross_pct_mac", _WT, _ORIG, "WTENV forward gross CG limit"),
     _E("weight.envelope.aft_gross_pct_mac", _WT, _ORIG, "WTENV aft gross CG limit"),
@@ -836,9 +863,11 @@ REGISTRY: Tuple[FieldEntry, ...] = (
        "DT, CYL) is ORIGINAL here, so the switch between them is -- corrected building G5"),
     _E("engines[].mounted_on", _ENG, _SLDS, "fuselage/wing carrier, Step C5"),
     _E("engines[].engine_weight_lb", _ENG, _ORIG, "ENGLOADS ENGWT", "engine mass",
-       EXTERNAL + "the weight database (decision D-25 mass SSOT; review N1 instance 5: regional jet 300 lb apart)"),
+       EXTERNAL + "the weight database (decision D-25 mass SSOT; review N1 instance 5: regional jet 300 lb apart)",
+       governs=True),
     _E("engines[].engine_cg", _ENG, _ORIG, "ENGLOADS XENG/YENG/ZENG", "engine station",
-       EXTERNAL + "the weight database (decision D-25 mass SSOT; review N1 instance 5: regional jet 130 in apart)"),
+       EXTERNAL + "the weight database (decision D-25 mass SSOT; review N1 instance 5: regional jet 130 in apart)",
+       governs=True),
     _E("engines[].hub_weight_lb", _ENG, _ORIG, "ENGLOADS HUBWT"),
     _E("engines[].prop_weight_lb", _ENG, _ORIG, "ENGLOADS PROPWT"),
     _E("engines[].prop_cg", _ENG, _ORIG, "ENGLOADS XPROP/YPROP/ZPROP"),
@@ -855,7 +884,8 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("engines[].cruise_torque", _ENG, _ORIG, "ENGLOADS CRUZTORQ"),
     _E("engines[].stop_time_s", _ENG, _ORIG, "ENGLOADS DT (sudden stoppage)"),
     _E("engines[].limit_load_factor", _ENG, _ORIG, "ENGLOADS LIMNZ", "limit manoeuvre load factor",
-       EXTERNAL + "the FAR 23.337 limit computed from speeds (review N1 instance 4)"),
+       EXTERNAL + "the FAR 23.337 limit computed from speeds (review N1 instance 4)",
+       governs=True),
     _E("engines[].max_accel_torque", _ENG, _SLDS, "FAR 25.361(a)(3)(ii), FAR 25 opt-in"),
     _E("engines[].thrust_lb", _ENG, _SLDS, "hub thrust, note 21 carve-out"),
     _E("engines[].design_pitch_rate_rad_s", _ENG, _SLDS, "concept real rate, 25.371"),
@@ -1061,3 +1091,26 @@ def untagged() -> Set[str]:
 def stale() -> Set[str]:
     """Registry rows naming a field the schema no longer has."""
     return set(BY_PATH) - schema_paths()
+
+
+def entering_step(slice_name: str) -> Optional[str]:
+    """The workflow step whose form enters ``slice_name``, or ``None``.
+
+    The registry is what knows this: every input row names the ``page`` — a
+    workflow step key — it is entered on, so "which page fills this slice"
+    needs no second list to drift from. A slice split across pages answers with
+    the **earliest** in workflow order, which is the one a user reaches first
+    and so the one a "fill this first" pointer must name (#69).
+
+    ``None`` for a slice no form enters (a result slice, or one derived only).
+    """
+    from sloads import workflow as wf  # local: workflow must not import upward
+
+    pages = {e.page for e in REGISTRY if e.slice == slice_name}
+    # Walked in workflow order rather than picked with a keyed ``min``: the
+    # order is the answer, and a keyed built-in pick is what
+    # ``tests/test_platform_stability.py`` exists to keep out of this package.
+    for step in wf.STEPS:
+        if step.key in pages:
+            return step.key
+    return None

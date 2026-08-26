@@ -130,6 +130,37 @@ def _owner_value(project: Any, owner_path: str) -> Any:
     return obj
 
 
+def _external_note(row: Any, where: Any) -> bool:
+    """Mark a copy whose owner is not a field, and never disable it (#69).
+
+    Until now ``_copy_note`` returned early on these rows, so the registry knew
+    the engine weight and CG belong to the weight database and the engine-mount
+    limit load factor to the computed 23.337 limit -- and the page rendered all
+    three as silent peer inputs (C210-41). Half the point of the #36 mark was
+    the half it never reached.
+
+    Never disabled, unlike a display-only field copy: an external owner is an
+    expression, not a path, so there is no value to substitute into the widget,
+    and one of these rows (the weight estimate's horsepower) is the *fallback*
+    the analysis uses when the owner is empty. Disabling it would make the
+    fallback unenterable.
+
+    What it says is the row's deliberate answer, never a default: ``resolves``
+    verbatim where the rule is conditional, else ``governs`` -- pinned by
+    ``tests/test_field_registry.py::test_every_external_copy_states_how_it_resolves``.
+    """
+    owner = row.external_owner
+    if row.resolves:
+        where.caption(f"Also owned by **{owner}** — {row.resolves}")
+    elif row.governs:
+        where.caption(f"Also held by **{owner}** — the analysis reads the value "
+                      "entered here, so the two must be kept in step.")
+    else:
+        where.caption(f"Owned by **{owner}** — the analysis reads the owner, not "
+                      "a value entered here.")
+    return False
+
+
 def _copy_note(path: str, value: Any, project: Any, where: Any) -> bool:
     """Mark a non-owner copy; return ``True`` if it must render **disabled**.
 
@@ -148,8 +179,10 @@ def _copy_note(path: str, value: Any, project: Any, where: Any) -> bool:
       an override is — so this warns, it does not correct.
     """
     row = fr.entry(path)
-    if row is None or row.is_owner or row.owner_is_external:
+    if row is None or row.is_owner:
         return False
+    if row.owner_is_external:
+        return _external_note(row, where)
     owner = row.owner_path
     if not owner:
         return False
@@ -174,6 +207,26 @@ def _copy_note(path: str, value: Any, project: Any, where: Any) -> bool:
             f"This is {value:,.4g} but {owner_label} says {owner_value:,.4g}. "
             "Both reach the calc, on different pages — confirm which is intended.")
     return False
+
+
+def _mark_composite(path: str, project: Any, where: Any) -> None:
+    """The non-owner mark for a composite field (#89, code review 2026-08-24 §4.3).
+
+    ``_copy_note`` was reachable from :func:`render_scalar` alone, so the first
+    non-owner **tuple, curve or enum set** would have shipped unmarked and
+    silently editable -- the #36/CR-A-2 defect returning through a door that was
+    never closed. Marking the external owners (#69) walked straight through it:
+    ``engines[].engine_cg`` is a three-member tuple, and it is a copy of the
+    weight database.
+
+    Caption only, never disabled: a composite widget is N sub-widgets and there
+    is no single value to substitute. A *display-only* composite would therefore
+    be unmarkable, so the registry is not allowed to hold one --
+    ``tests/test_oracle_gui.py::test_every_non_owner_field_is_on_a_route_that_can_mark_it``.
+    """
+    if project is None:
+        return
+    _copy_note(path, None, project, where)
 
 
 # --------------------------------------------------------------------------- #
@@ -575,9 +628,11 @@ def _member_units(path: str, arity: int) -> Tuple[FieldUnit, ...]:
     return tuple(unit for _ in range(arity))
 
 
-def render_tuple(record: Any, path: str, *, key: str, container: Any = None) -> None:
+def render_tuple(record: Any, path: str, *, key: str, container: Any = None,
+                 project: Any = None) -> None:
     """A fixed-length numeric tuple as one labelled input per member."""
     where = container if container is not None else st
+    _mark_composite(path, project, where)
     name = _leaf(path)
     arity = _tuple_arity(fr.field_type(path))
     current = list(getattr(record, name) or [0.0] * arity)
@@ -594,9 +649,11 @@ def render_tuple(record: Any, path: str, *, key: str, container: Any = None) -> 
     _persist(record, name, tuple(entered))
 
 
-def render_curve(record: Any, path: str, *, key: str, container: Any = None) -> None:
+def render_curve(record: Any, path: str, *, key: str, container: Any = None,
+                 project: Any = None) -> None:
     """A ``List[XYPoint]`` / ``List[float]`` as an editable table of its members."""
     where = container if container is not None else st
+    _mark_composite(path, project, where)
     name = _leaf(path)
     element = _list_element(fr.field_type(path))
     arity = _tuple_arity(element) or 1
@@ -652,9 +709,11 @@ def render_curve(record: Any, path: str, *, key: str, container: Any = None) -> 
                       "column to keep the row.")
 
 
-def render_enum_set(record: Any, path: str, *, key: str, container: Any = None) -> None:
+def render_enum_set(record: Any, path: str, *, key: str, container: Any = None,
+                    project: Any = None) -> None:
     """A ``Set[Enum]`` as a multiselect."""
     where = container if container is not None else st
+    _mark_composite(path, project, where)
     name = _leaf(path)
     enum = _list_element(fr.field_type(path))
     assert isinstance(enum, type) and issubclass(enum, Enum)
@@ -746,18 +805,25 @@ def _to_imperial_kept(value: Any, unit: FieldUnit, stored: Any) -> Any:
     return _to_imperial(value, unit)
 
 
-def render_field(record: Any, path: str, *, key: str, container: Any = None) -> None:
-    """The one entry point per field: pick the widget its annotation asks for."""
+def render_field(record: Any, path: str, *, key: str, container: Any = None,
+                 project: Any = None) -> None:
+    """The one entry point per field: pick the widget its annotation asks for.
+
+    ``project`` is forwarded to every branch so the non-owner mark reaches
+    composites too, not scalars alone (#89) -- pass it wherever one is
+    available; omit it and the widget renders unmarked, which is what a detached
+    unit test wants.
+    """
     hint = fr.field_type(path)
     element = _list_element(hint)
     if isinstance(element, type) and issubclass(element, Enum):
-        render_enum_set(record, path, key=key, container=container)
+        render_enum_set(record, path, key=key, container=container, project=project)
     elif element is not None:
-        render_curve(record, path, key=key, container=container)
+        render_curve(record, path, key=key, container=container, project=project)
     elif _tuple_arity(hint):
-        render_tuple(record, path, key=key, container=container)
+        render_tuple(record, path, key=key, container=container, project=project)
     else:
-        render_scalar(record, path, key=key, container=container)
+        render_scalar(record, path, key=key, container=container, project=project)
 
 
 # --------------------------------------------------------------------------- #
@@ -782,7 +848,7 @@ def render_record(project: Project, prefix: str, paths: Sequence[str]) -> None:
         for column, path in zip(columns, scalars[start:start + _COLUMNS]):
             render_scalar(record, path, key=path, container=column, project=project)
     for path in composites:
-        render_field(record, path, key=path)
+        render_field(record, path, key=path, project=project)
 
 
 def render_table(project: Project, prefix: str, paths: Sequence[str]) -> None:
@@ -854,7 +920,7 @@ def render_record_row(row: Any, paths: Sequence[str], key_prefix: str,
             render_scalar(row, path, key=f"{key_prefix}.{_leaf(path)}", container=column,
                           project=project)
     for path in composites:
-        render_field(row, path, key=f"{key_prefix}.{_leaf(path)}")
+        render_field(row, path, key=f"{key_prefix}.{_leaf(path)}", project=project)
 
 
 def _row_title(row: Any, paths: Sequence[str], key_prefix: str) -> str:

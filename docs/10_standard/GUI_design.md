@@ -74,7 +74,10 @@ remedy, so a self-sufficient page (Weight & Mass Properties, Engine Mount Loads)
 is never reported "blocked" on a fresh project — its guidance points at its own
 form. A DAG-completeness guard (`tests/test_workflow.py`) holds every `requires`
 to *some step's `produces` or some step's `edits`*, with a field-registry rot
-companion on the `edits` declarations. A page
+companion on the `edits` declarations. A fourth list, `reads` (#69), names the
+slices a step's numbers depend on that none of the three cover — read here,
+entered on a **later** page — declared so the page can say so; see *A page says
+which later page its numbers depend on* below. A page
 is exactly `app/views/<step.key>.py`. Since Step G3 the **Develop V-n diagram**
 section — the definition pages this doc is chiefly about — is five consolidated
 pages, several using `st.tabs` to gather formerly-separate pages: **Geometry**;
@@ -207,6 +210,51 @@ consistent:
   `tests/test_oracle_gui.py` renders every copy's page and fails on one that does
   not name its owner (and on a display-only one that is still editable);
   `tests/test_field_registry.py` fails if an owner row claims `governs`.
+
+  **An owner that is not a field is still an owner** (#69, C210-41). Some
+  quantities are owned by an expression rather than a row — engine count is
+  `len(Project.engines)`, engine mass and CG are the weight database (D-25), the
+  engine-mount limit load factor is the computed 23.337 limit — and the registry
+  says so with `EXTERNAL + <where it lives>`. Those rows are marked like any
+  other copy, naming the owner in words. Two differences, both forced by the
+  owner being an expression: they are **never disabled** (there is no path to
+  read a substitute value from, and one of them — the weight estimate's
+  horsepower — is the *fallback* the calc uses when the owner is empty), and
+  where `governs` alone would state the rule wrongly the row carries the true
+  sentence in `resolves`. Every EXTERNAL row must state one or the other; a
+  silent default is what let five of them ship as peer inputs.
+
+  **The mark reaches composites too** (#89). `_copy_note` was called from
+  `render_scalar` alone, so a non-owner tuple, curve or enum set rendered bare —
+  latent until `engines[].engine_cg`, a three-member tuple copied from the weight
+  database, became the first one. Composite marks are captions and never
+  disable, so a *display-only* composite would need a mark the renderer cannot
+  give; the registry may not hold one, and
+  `tests/test_oracle_gui.py::test_no_non_owner_field_needs_a_mark_the_renderer_cannot_give`
+  fails if it does. The per-page render guard counts marks per owner phrase
+  rather than searching for it once, because two fields on the Engine Mount page
+  name the same external owner and a substring test passed while the tuple
+  beside the scalar rendered unmarked.
+- **A page says which later page its numbers depend on** (#69, PB-15/PB-19).
+  A step's numbers can read a slice that neither gates the run (`requires`) nor
+  is entered on the page (`edits`): Flap Loads computes its FAR 23.457(b)
+  slipstream case from an engine record entered two pages later, and WTESTIMA
+  correlates against the engine list's combined power rather than the horsepower
+  typed beside it. Run the page first and it shows a complete-looking answer;
+  download it, fill the later page, and the numbers move — ~19 % of the
+  governing flap load on the C210, because the slipstream is a whole delivered
+  case that did not exist yet.
+
+  `requires` is the wrong instrument: it *blocks*, and both calcs are correct
+  with no engine at all — a glider has no slipstream case to omit. So the
+  dependency is declared on the step (`WorkflowStep.reads`) and **stated**, not
+  enforced: `app_shell.components.render_page_order_reads` names the slice and
+  the page that enters it on every visit (it is provenance either way), and
+  turns from a caption into a warning while that page is still empty. The loud
+  channel stays `consistency_warnings`. Guards:
+  `tests/test_workflow.py::test_every_page_order_dependency_is_declared` walks
+  each step's modules by AST and fails on a slice read from a later page that
+  the step has not declared, with the reverse test failing on a stale one.
   The durable fix for a copy that need not exist at all is to remove it —
   [note 33](../40_history/34_derived_scalar_consolidation_note.md) did that for
   ten of them, and this marking covers the remainder.

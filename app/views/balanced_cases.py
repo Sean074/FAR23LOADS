@@ -16,7 +16,12 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from app_shell.components import active_system, gate, stop_page
+from app_shell.components import (
+    active_system,
+    gate,
+    render_page_order_reads,
+    stop_page,
+)
 from app_shell.widget_keys import widget_key
 from sloads import (
     Project,
@@ -52,6 +57,12 @@ st.caption(
 project: Project = st.session_state.get("project", Project(name=""))
 system: UnitSystem = active_system()
 U = labels_for(system)
+
+# This page opens with its own title rather than the shared ``page_header``
+# (one of fourteen main-GUI views that do; the split is #29's to settle), so the
+# later-page dependency mark is called directly. The assembled cases read the
+# engine thrust and the ground-case slice, both entered downstream (#69).
+render_page_order_reads(project, "balanced_cases")
 
 if project.flight_loads is None or project.wing_mass is None:
     gate("Define the flight-loads inputs on the **Flight Envelope (V-n)** page "
