@@ -204,22 +204,61 @@ def test_every_si_view_reads_the_one_owner():
     assert math.isclose(u.HUMAN_SI["inertia_slugft2"].factor, 1.3558179483314, rel_tol=1e-12)
 
 
+#: Packages a display factor could be re-declared in. ``app_shell/`` renders
+#: inside *both* GUIs and ``oracle_app/`` is a front-end in its own right, so a
+#: scan over ``sloads``/``app`` alone let ``0.09290304`` ship green from either
+#: (review PB-12). ``units.py`` is the owner and is exempt by name.
+_FACTOR_SCAN_PACKAGES = ("sloads", "app", "app_shell", "oracle_app")
+_FACTOR_OWNER = os.path.join("sloads", "units.py")
+
+
+def _owned_factors():
+    """Every conversion factor ``units.py`` declares, as numbers.
+
+    Derived from the owner rather than transcribed from it: a hand-kept literal
+    list is a second copy of the thing the gate exists to keep single, and it
+    silently stops covering a factor the day one is added (review PB-12).
+    """
+    import sloads.units as u
+
+    values = {v for name, v in vars(u).items()
+              if name.isupper() and isinstance(v, float)}
+    values |= {dim.factor for dim in u.HUMAN_SI.values()}
+    return {v for v in values if v not in (0.0, 1.0)}
+
+
 def test_si_factor_literals_have_one_owner():
-    """No package file outside ``units.py`` re-declares an SI display factor (CH-7)."""
+    """No package file outside ``units.py`` re-declares a conversion factor (CH-7).
+
+    The comparison is numeric, over parsed float literals, so a factor written
+    to fewer digits (``0.4535924``) or reached by a different spelling is caught
+    the same as an exact copy -- a regex over the digits as typed was not.
+    """
+    import ast
     import glob
+
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    literals = ("0.45359237", "0.09290304", "1.3558179483314", "2.926396534292e-04",
-                "6.4516e-04", "0.745699872")
+    factors = _owned_factors()
+    assert len(factors) > 10, "the owner's factor set did not derive -- gate is vacuous"
+
     offenders = []
-    for pkg in ("sloads", "app"):
+    for pkg in _FACTOR_SCAN_PACKAGES:
         for path in glob.glob(os.path.join(root, pkg, "**", "*.py"), recursive=True):
             rel = os.path.relpath(path, root)
-            if rel == os.path.join("sloads", "units.py"):
+            if rel == _FACTOR_OWNER:
                 continue
             with open(path, encoding="utf-8") as fh:
-                text = fh.read()
-            offenders += [(rel, lit) for lit in literals if lit in text]
-    assert not offenders, offenders
+                tree = ast.parse(fh.read(), filename=path)
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Constant) or type(node.value) is not float:
+                    continue
+                hit = [f for f in factors
+                       if math.isclose(node.value, f, rel_tol=1e-9)]
+                if hit:
+                    offenders.append(f"{rel}:{node.lineno}: {node.value!r}")
+    assert not offenders, (
+        "a units.py conversion factor is written out again outside its owner -- "
+        "import it from sloads.units (CONVENTIONS.md \u00a77):\n" + "\n".join(offenders))
 
 
 if __name__ == "__main__":

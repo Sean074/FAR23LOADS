@@ -274,7 +274,6 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **B — 0.8.0: oracle-GUI development** ||||||
-| 11 | **Oracle-GUI gate rot sweep** — G2 page-set proxy, G8/OG-10 discovery pinned to `app/`, G1 factor-scan halves, G7 single fixture *(PB-10 … PB-13; defect sweep)* (#67) | The entry-point test asserts the registered page set; `_gui_dirs()` pinned to `{app, oracle_app}`; one factor-literal set over all four packages; G7 over (example, system) with every page proving an artifact | V | S / S | — |
 | 12 | **The schema-migration notice can never fire** — `io` stamps the version before the shell can read it *(PB-14; defect)* (#68) | The pre-hop version reported alongside the migrated project; the 🔁 toast fires on a v41 example, under test | V | S / S | — |
 | 13 | **Page-order dependencies silently change numbers already downloaded** — Flap Loads' slipstream and WTESTIMA's hp read `engines` from a later page; the typed hp is ignored unmarked *(PB-15, PB-19)* (#69) | `requires`/`edits` name `engines` where it is read, or the results caption says so; `_copy_note` marks `EXTERNAL` owners | V | S / S–M | — |
 | 14 | **Shell unit radio beats a loaded project's unit system; the disabled `speeds.wing_area_sqft` copy shows the wrong governing value** *(PB-16, PB-17; defect)* (#70) | The radio generation-stamped; the registry names the `wing` planform area as the external owner and the widget shows it | V | S / S | — |

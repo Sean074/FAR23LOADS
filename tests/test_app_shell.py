@@ -59,18 +59,33 @@ def _is_entrypoint(tree):
     return False
 
 
-def _gui_dirs():
-    """Repo-root directories holding a Streamlit entry point -- i.e. a GUI.
+#: The GUI packages, by name. A literal, because discovery alone cannot tell a
+#: GUI that has gone missing from a GUI that was never there: the set used to be
+#: "directories holding a ``set_page_config`` call", which made discovery depend
+#: on the very property the gates below check. Wrapping ``Oracle.py``'s call in
+#: a helper would have dropped ``oracle_app/`` out of G8, OG-10, the lint gate
+#: and the back-import test at once, all four still green (review PB-11). Adding
+#: a third front-end is a one-line edit here, and until it is made the discovery
+#: test says so.
+_EXPECTED_GUIS = {"app", "oracle_app"}
 
-    Derived, not listed: adding the oracle GUI adds it here automatically, which
-    is the moment gate G8 stops being a formality.
+
+def _gui_dirs():
+    """Repo-root directories that are a GUI package.
+
+    Discovery is by directory -- a top-level package that is neither the shell,
+    the calc package, nor tooling -- so nothing a GUI *does* can remove it from
+    the gates that check what it does. ``test_the_gui_discovery_finds_every_gui``
+    pins the result against :data:`_EXPECTED_GUIS`.
     """
     found = []
     for name in sorted(os.listdir(_ROOT)):
         path = os.path.join(_ROOT, name)
-        if name in _NOT_GUI or name.startswith((".", "__")) or not os.path.isdir(path):
+        # Leading "_" is the repo's own scratch convention (``_to_delete/``),
+        # gitignored and never shipped.
+        if name in _NOT_GUI or name.startswith((".", "_")) or not os.path.isdir(path):
             continue
-        if any(_is_entrypoint(_parse(f)) for f in _py_files(path)):
+        if any(True for _ in _py_files(path)):
             found.append(path)
     return found
 
@@ -163,15 +178,24 @@ def test_every_statement_of_the_lint_gate_says_the_same_thing():
         "-- remove them from _LINT_STATEMENTS or restore the command")
 
 
-def test_the_gui_discovery_finds_a_gui():
-    """Guard the guard: a renamed GUI directory must fail here, not silently
-    empty out the two assertions below."""
-    guis = _gui_dirs()
-    assert guis, (
-        "no Streamlit entry point found outside app_shell/ -- either a GUI "
-        "directory moved or _NOT_GUI now excludes it; G8 is not being checked"
+def test_the_gui_discovery_finds_every_gui():
+    """Guard the guard: the discovered set is *exactly* the GUIs this repo has.
+
+    Not "is non-empty", and not "contains ``app``" -- both were true of a
+    discovery that had silently lost ``oracle_app/`` (review PB-11), and every
+    gate in this file is only as wide as this set.
+    """
+    found = {os.path.basename(d) for d in _gui_dirs()}
+    assert found == _EXPECTED_GUIS, (
+        f"GUI discovery returned {sorted(found)}, expected {sorted(_EXPECTED_GUIS)} "
+        "-- a front-end moved, was added, or is being excluded by _NOT_GUI; "
+        "until this set is right, G8/OG-10 and the lint gate are not checking it"
     )
-    assert os.path.join(_ROOT, "app") in guis
+    for name in _EXPECTED_GUIS:
+        assert any(_is_entrypoint(_parse(f))
+                   for f in _py_files(os.path.join(_ROOT, name))), (
+            f"{name}/ holds no module-level st.set_page_config -- it is listed "
+            "as a GUI but has no entry point")
 
 
 def _page_config_calls(tree):

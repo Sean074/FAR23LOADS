@@ -28,7 +28,6 @@ import io as _io
 import json
 import logging
 import os
-import re
 from itertools import takewhile
 
 import pytest
@@ -39,6 +38,7 @@ from helpers import widget_editing, widgets_editing  # noqa: E402
 from sloads import field_registry as fr  # noqa: E402
 from sloads import io  # noqa: E402
 from sloads import workflow as wf  # noqa: E402
+from sloads import UnitSystem  # noqa: E402
 from sloads.field_registry import reduce_to_oracle_inputs  # noqa: E402
 from app_shell.components import active_system  # noqa: E402
 from sloads.units import AVIATION_STANDARD, to_display  # noqa: E402
@@ -111,13 +111,6 @@ _ALLOWED_IMPORTS = {
     "dataclasses", "typing", "enum", "__future__",
 }
 
-#: Imperial->SI factors. A literal from this set inside a front-end means it has
-#: started converting on its own -- the defect class ``units.py`` is the single
-#: owner of (CONVENTIONS.md §7). Mirrors ``test_constants.py``'s scan.
-_SI_FACTORS = re.compile(
-    r"\b(25\.4|0\.3048|0\.45359|4\.4482|1\.35581|6\.89475|9\.80665|386\.0)")
-
-
 def test_the_oracle_gui_imports_only_owners_and_presentation():
     """Gate G1, first half: nothing to compute with, nowhere else to get a number."""
     offenders = []
@@ -139,17 +132,28 @@ def test_the_oracle_gui_imports_only_owners_and_presentation():
 
 
 def test_the_oracle_gui_holds_no_unit_factor_of_its_own():
-    """Gate G1, second half: every conversion goes through ``sloads.units``."""
-    offenders = []
-    for path in _SOURCES:
-        with open(path, encoding="utf-8") as fh:
-            for number, line in enumerate(fh, 1):
-                if _SI_FACTORS.search(line):
-                    offenders.append(f"{os.path.relpath(path, _ROOT)}:{number}: {line.strip()}")
-    assert not offenders, (
-        "a unit factor literal in a GUI package -- convert through "
-        "sloads.units (owner) or app_shell's unit_number_input:\n"
-        + "\n".join(offenders))
+    """Gate G1, second half: every conversion goes through ``sloads.units``.
+
+    The scan is not here. It lives with the factors it derives from --
+    ``test_units.test_si_factor_literals_have_one_owner`` -- and covers all four
+    packages at once, because a second regex over a second hand-typed list of
+    the same numbers is the duplication G1 is about (review PB-12: this file's
+    copy held eight literals, ``test_units``'s held five others, and neither
+    looked at ``app_shell/``, which renders inside this GUI).
+
+    What is asserted here is that the delegation still points at this GUI: an
+    owner's scan that quietly stops covering ``oracle_app/`` would leave G1
+    green over an unscanned front-end.
+    """
+    from test_units import _FACTOR_OWNER, _FACTOR_SCAN_PACKAGES
+
+    assert os.path.basename(_GUI) in _FACTOR_SCAN_PACKAGES, (
+        "the units factor scan no longer covers the oracle GUI -- G1's second "
+        "half is not being checked anywhere")
+    assert os.path.basename(_SHELL) in _FACTOR_SCAN_PACKAGES, (
+        "the shared shell renders inside this GUI; a factor literal there is a "
+        "factor literal here")
+    assert os.path.isfile(os.path.join(_ROOT, _FACTOR_OWNER))
 
 
 def test_the_oracle_gui_writes_no_deliverable_of_its_own():
@@ -242,10 +246,20 @@ def test_the_entry_point_navigates_the_derived_step_set():
 
 
 def test_the_derived_page_set_is_the_fourteen_oracle_steps():
-    """The set itself, so a change to ``oracle_steps`` is visible here too."""
+    """The set itself, so a change to ``oracle_steps`` is visible here too.
+
+    ``oracle_steps()`` *is* ``STEPS`` filtered by ``oracle_step_keys()``, so
+    asserting one against the other compares the workflow with itself (review
+    PB-10). What is worth pinning is the two facts the GUI depends on: the order
+    is the workflow's, and the selection is a strict subset of it -- fourteen of
+    the twenty-two, not a re-ordering and not the whole suite.
+    """
     keys = [s.key for s in wf.oracle_steps()]
-    assert keys == [s.key for s in wf.STEPS if s.key in wf.oracle_step_keys()]
-    assert set(keys) == wf.oracle_step_keys()
+    order = [s.key for s in wf.STEPS]
+    assert set(keys) < set(order), "the oracle GUI must carry a subset of the workflow"
+    assert keys == [k for k in order if k in set(keys)], (
+        "the oracle GUI's pages are in an order of their own -- they are the "
+        "workflow's steps and must appear in the workflow's sequence")
     assert len(keys) == 14
 
 
@@ -610,12 +624,61 @@ _STAMP = "# BASIS: All loads reported here are ULTIMATE"
 _TEXT_HEADER = "Loads are ULTIMATE (= limit x SF); load factors are limit."
 
 
-def _artifacts(key, project=None):
-    from sloads import UnitSystem
+#: G7's fixtures. One airplane in one unit system was not a gate over the GUI's
+#: output, it was a gate over one column of it (review PB-13): on ``ga6_normal``
+#: the single-engine block means ``one_engine_out`` has no conditions at all and
+#: ``body_loads`` produces none either, so two pages' artifacts were asserted
+#: over an empty list -- and IMPERIAL alone never exercised the SI conversion
+#: the download applies. The pair is a single and a twin, one system each; the
+#: completeness test below is what stops it thinning back out.
+_G7_FIXTURES = (("ga6_normal", UnitSystem.IMPERIAL), ("atr42_100", UnitSystem.SI))
+_G7_IDS = [f"{example}-{system.name.lower()}" for example, system in _G7_FIXTURES]
+
+
+def _fixture_project(example):
+    return io.load_project(os.path.join(_EXAMPLES, f"{example}.project.json"))
+
+
+def _artifacts(key, example="ga6_normal", system=UnitSystem.IMPERIAL, project=None):
     from oracle_app.results import page_artifacts
 
-    return page_artifacts(project if project is not None else _seeded(),
-                          key, UnitSystem.IMPERIAL)
+    return page_artifacts(
+        project if project is not None else _fixture_project(example), key, system)
+
+
+def test_the_output_gate_is_run_over_a_single_and_a_twin_in_both_systems():
+    """Guard the fixtures: G7 says nothing about a page whose conditions the one
+    fixture happens not to produce, and nothing about a conversion the one unit
+    system never applies."""
+    assert {system for _, system in _G7_FIXTURES} == set(UnitSystem), (
+        "G7 runs in one unit system -- the SI download is unchecked")
+    engines = {example: len(_fixture_project(example).engines)
+               for example, _ in _G7_FIXTURES}
+    assert min(engines.values()) == 1 and max(engines.values()) > 1, (
+        f"G7 needs a single *and* a twin among its fixtures: {engines}")
+
+
+def test_every_oracle_page_that_runs_a_program_offers_a_file():
+    """The completeness half of G7: a page that runs a ``.BAS`` program must put
+    a file on the page for at least one of the fixtures.
+
+    Pages that run nothing (``aero_coefficients`` is input-only) are exempt by
+    the workflow's own answer, not by name. A page that runs a program and
+    produces nothing on *either* fixture is either broken or carries a condition
+    no fixture reaches -- and both of those were what the payload assertions
+    below quietly iterated past on an empty artifact list (review PB-13).
+    """
+    running = [key for key in sorted(wf.oracle_step_keys()) if wf.step_modules(key)]
+    assert running, "no oracle page runs a program -- the gate is vacuous"
+    coverage = {
+        key: [ident for (example, system), ident in zip(_G7_FIXTURES, _G7_IDS)
+              if _artifacts(key, example, system)]
+        for key in running
+    }
+    missing = sorted(key for key, on in coverage.items() if not on)
+    assert not missing, (
+        "these pages run a program but offer no file on any G7 fixture "
+        f"({_G7_IDS}): {missing}")
 
 
 def test_the_gui_has_exactly_one_download_call_site():
@@ -656,12 +719,13 @@ def test_the_gui_has_exactly_one_download_call_site():
         "a load deliverable:\n" + "\n".join(offenders))
 
 
+@pytest.mark.parametrize("example,system", _G7_FIXTURES, ids=_G7_IDS)
 @pytest.mark.parametrize("key", sorted(wf.oracle_step_keys()))
-def test_every_csv_the_oracle_gui_offers_states_its_basis(key):
+def test_every_csv_the_oracle_gui_offers_states_its_basis(key, example, system):
     """Gate G7, the CSV half: ULTIMATE by the stamp and an ``SF`` column, or
     LIMIT in-band *and* in a ``*_LIMIT.csv`` filename. A load CSV with a neutral
     name and no basis is the M4-15 defect class."""
-    for art in _artifacts(key):
+    for art in _artifacts(key, example, system):
         if not art.file_name.endswith(".csv"):
             continue
         body = [ln for ln in art.payload.splitlines() if not ln.startswith("#")]
@@ -685,34 +749,51 @@ def test_every_csv_the_oracle_gui_offers_states_its_basis(key):
                 f"{art.file_name} states ULTIMATE but has no per-case SF column")
 
 
+@pytest.mark.parametrize("example,system", _G7_FIXTURES, ids=_G7_IDS)
 @pytest.mark.parametrize("key", sorted(wf.oracle_step_keys()))
-def test_every_text_report_says_what_the_cli_says(key):
+def test_every_text_report_says_what_the_cli_says(key, example, system):
     """Gate G7, the text half: the same ULT marker and per-case SF statement as
     ``cli.py``'s, which is guaranteed by being the same call -- so the assertion
     is byte equality with the CLI's own output, title line aside."""
-    from sloads import UnitSystem, convert_results, registry
-    from sloads.report import module_text_report
+    from sloads import convert_results, registry
+    from sloads.report import module_text_report, text_report
 
-    project = _seeded()
-    for art in _artifacts(key, project):
+    project = _fixture_project(example)
+    for art in _artifacts(key, project=project, system=system):
         if not art.file_name.endswith(".txt"):
             continue
         assert _TEXT_HEADER in art.payload, f"{art.file_name} drops the ULT statement"
         assert "[ULTIMATE, SF=" in art.payload, f"{art.file_name} states no per-case SF"
         module = art.file_name[: -len(".txt")]
         result = registry.get(module)(project)
+        converted = convert_results(result.conditions, system)
         # cli.py: module_text_report(result.module, convert_results(...)).
-        expected = module_text_report(
-            module, convert_results(result.conditions, UnitSystem.IMPERIAL))
+        expected = module_text_report(module, converted)
         assert art.payload.splitlines()[1:] == expected.splitlines()[1:], (
             f"{art.file_name} differs from the CLI's report for {module}")
+        if module == "engine" and project.engine is not None:
+            # cli.py:541 takes a different branch for this one module: it prints
+            # ``text_report``, which heads the same body with the engine and
+            # propeller identification. "Byte equality with the CLI's output"
+            # was therefore not true here (review PB-13). The artifact keeps the
+            # module report -- what is pinned is that the *body* is one text, so
+            # the two cannot drift apart under one owner's edit.
+            richer = text_report(
+                project.engine, converted,
+                unit_system="Imperial" if system == UnitSystem.IMPERIAL else "SI")
+            basis = richer.splitlines().index(_TEXT_HEADER)
+            assert richer.splitlines()[basis:] == expected.splitlines()[
+                expected.splitlines().index(_TEXT_HEADER):], (
+                "cli.py's engine report and the GUI's engine.txt no longer share "
+                "a body -- one of the two owners changed alone")
 
 
-def test_no_page_offers_two_files_with_the_same_name():
+@pytest.mark.parametrize("example,system", _G7_FIXTURES, ids=_G7_IDS)
+def test_no_page_offers_two_files_with_the_same_name(example, system):
     """The download widget's key is the filename, so a collision is both a
     duplicate-key crash and two different files under one name."""
     for key in sorted(wf.oracle_step_keys()):
-        names = [a.file_name for a in _artifacts(key)]
+        names = [a.file_name for a in _artifacts(key, example, system)]
         assert len(names) == len(set(names)), (key, names)
 
 
@@ -822,13 +903,34 @@ def test_a_project_the_oracle_gui_would_save_opens_in_the_full_app():
 
 
 def test_the_oracle_entry_point_builds():
-    """The entry point itself: one ``set_page_config``, a derived navigation."""
+    """The entry point itself: one ``set_page_config``, a derived navigation.
+
+    Gate G2's *outcome*, read off the running app rather than off its source.
+    The AST scan above is a drift hint -- it proves the expression that builds
+    the navigation mentions ``oracle_steps``, which stayed true of a page set
+    that had been filtered, re-ordered or built twice (review PB-10). This runs
+    the entry point and asks the page set it actually registered, which is the
+    same mapping ``st.navigation`` was handed (``app_shell.nav.register_pages``,
+    OG-F), what it contains.
+    """
     from streamlit.testing.v1 import AppTest
+
+    from app_shell import nav
 
     at = AppTest.from_file(_ENTRYPOINT, default_timeout=60)
     at.session_state["project"] = _seeded()
     at.run()
     assert not at.exception, [e.message for e in at.exception]
+
+    pages = at.session_state[nav.PAGES]
+    assert list(pages) == [step.key for step in wf.oracle_steps()], (
+        "the navigated page set is not workflow.oracle_steps() in order "
+        f"(gate G2): {list(pages)}")
+    assert {p.title for p in pages.values()} == {s.title for s in wf.oracle_steps()}, (
+        "a page carries a title the workflow step does not")
+    # The landing page is the first oracle step, and there is exactly one.
+    defaults = [k for k, p in pages.items() if getattr(p, "_default", False)]
+    assert defaults == [wf.oracle_steps()[0].key], defaults
 
 
 def test_the_launcher_points_at_the_entry_point():

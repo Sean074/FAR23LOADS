@@ -21,6 +21,14 @@ from sloads.constants import RHO_SL, standard_atmosphere
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+#: Every package a shared constant could be re-declared in. ``app_shell/``
+#: renders inside both GUIs and ``oracle_app/`` is a front-end in its own right,
+#: so scanning ``sloads``/``app`` alone left two of the four places a literal can
+#: live unguarded -- the same gap the SI scan had (review PB-12, swept here under
+#: rule 4).
+_SCANNED_PACKAGES = ("sloads", "app", "app_shell", "oracle_app", "scripts", "cli.py")
+
+
 def _package_sources(*pkgs):
     for pkg in pkgs:
         for path in glob.glob(os.path.join(_ROOT, pkg, "**", "*.py"), recursive=True):
@@ -33,7 +41,7 @@ def test_rho_sl_value():
 
 
 def test_sea_level_density_literal_has_one_owner():
-    offenders = [rel for rel, text in _package_sources("sloads", "app", "cli.py")
+    offenders = [rel for rel, text in _package_sources(*_SCANNED_PACKAGES)
                  if "0.002378" in text and rel != os.path.join("sloads", "constants.py")]
     assert not offenders, f"open-coded rho_0 outside constants.py: {offenders}"
 
@@ -42,7 +50,6 @@ def test_sea_level_density_literal_has_one_owner():
 # Issue #26: one owner per shared constant / factor, and the two-file demarcation
 # --------------------------------------------------------------------------- #
 _CONSTANTS_PY = os.path.join("sloads", "constants.py")
-_UNITS_PY = os.path.join("sloads", "units.py")
 
 #: The Imperial<->Imperial literals (and their historical .BAS truncations) that
 #: are owned by ``constants.py`` and may appear in **no other** source file's code.
@@ -63,19 +70,6 @@ _IMPERIAL_LITERALS = [
     (r"\b0\.002378\b", "RHO_SL"),
 ]
 
-#: The Imperial<->SI literals owned by ``units.py`` and allowed nowhere else
-#: (``constants.py`` included -- it states FT_PER_NMI's SI origin in a comment,
-#: not as a factor). Applied to code lines only, as above.
-_SI_LITERALS = [
-    (r"\b25\.4\b", "IN_TO_MM"),
-    (r"\b0\.3048\b", "FT_TO_M"),
-    (r"\b0\.4535\d*", "LB_TO_KG"),
-    (r"\b4\.448\d*", "LBF_TO_N"),
-    (r"\b9\.80665\b|\b9806\.65\b|\b386\.0\d*", "G_MM_S2 / G_IN_S2"),
-    (r"\b6\.894\d*", "PSI_TO_KPA"),
-]
-
-
 def _code_lines(text):
     """Source lines with comments stripped and docstring/triple-quoted blocks removed."""
     text = re.sub(r'("""|\'\'\')(?:.|\n)*?\1', "", text)
@@ -88,7 +82,7 @@ def _code_lines(text):
 
 def _offenders(literals, allowed_owner):
     hits = []
-    for rel, text in _package_sources("sloads", "app", "scripts", "cli.py"):
+    for rel, text in _package_sources(*_SCANNED_PACKAGES):
         if rel == allowed_owner:
             continue
         for code in _code_lines(text):
@@ -106,8 +100,17 @@ def test_imperial_factors_have_one_owner():
 
 def test_si_factors_live_only_in_units_py():
     """The Imperial<->SI boundary is ``units.py`` and nothing else (C-11); and
-    ``units.py`` imports ``constants``, never the reverse."""
-    assert not _offenders(_SI_LITERALS, _UNITS_PY), "\n".join(_offenders(_SI_LITERALS, _UNITS_PY))
+    ``units.py`` imports ``constants``, never the reverse.
+
+    The factor scan itself is
+    ``test_units.py::test_si_factor_literals_have_one_owner``: it derives the
+    numbers from ``units.py``'s own constants instead of transcribing six of
+    them into a regex list here, and covers every package. Two hand-kept lists
+    of the same factors were the CH-7 defect class applied to its own guard --
+    each was missing factors the other had, and neither looked at ``app_shell/``
+    or ``oracle_app/`` (review PB-12). What remains here is the half that scan
+    cannot see: the direction of the dependency between the two owners.
+    """
     with open(os.path.join(_ROOT, _CONSTANTS_PY), encoding="utf-8") as fh:
         constants_src = fh.read()
     assert not re.search(r"^\s*(from \.units|from sloads\.units|import sloads\.units)", constants_src, re.M)
@@ -117,7 +120,7 @@ def test_no_private_aliases_of_owned_constants():
     """The defect class itself: a module-level ``_DEG = ...``, ``_G = ...``,
     ``_SQIN_PER_SQFT = ...`` etc. is a second declaration of an owned value."""
     banned = re.compile(r"^(_DEG(_PER_RAD)?|_RAD|_G|_Q_DIVISOR|_IN2_PER_FT2|_SQIN_PER_SQFT|PI|TWO_PI) = ", re.M)
-    hits = [f"{rel}: {m.group(0).strip()}" for rel, text in _package_sources("sloads", "app", "scripts", "cli.py")
+    hits = [f"{rel}: {m.group(0).strip()}" for rel, text in _package_sources(*_SCANNED_PACKAGES)
             for m in banned.finditer(text) if not (rel.endswith("configuration.py") and "_DEG = " in m.group(0))]
     assert not hits, hits
 
