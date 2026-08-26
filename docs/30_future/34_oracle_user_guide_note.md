@@ -2,7 +2,8 @@
 
 **Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
 
-**Status: PROPOSED 2026-08-25.** Nothing below is built. This note settles the
+**Status: PROPOSED 2026-08-25; the four open questions answered by the owner
+the same day as UG-9 … UG-12 (§8).** Nothing below is built. This note settles the
 *shape* of the guide — where it lives, what a chapter looks like, where its
 numbers and images come from, and what "done" means — so that writing fourteen
 chapters is mechanical rather than fourteen separate judgement calls.
@@ -166,18 +167,110 @@ one-paragraph history fragment.
 
 ---
 
-## 8. Open questions for agreement
+## 8. Answers to the open questions (UG-9 … UG-12)
 
-1. **Twin identity.** Baron 58 class is proposed on availability of public
-   data. If a different airplane has better published geometry and weights,
-   name it now — the example is written once and cited from fourteen chapters.
-2. **Delivery order.** Proposed: front matter + tooling + twin example first
-   (one PR), then chapters in workflow order in batches of three to four, each
-   batch a PR. Alternative is one large guide PR.
-3. **Depth on chapter 3 (Aerodynamic Data).** This is the page most likely to
-   need real aerodynamic guidance (where to get $C_{m_{ac}}$, $C_{L_\alpha}$,
-   hinge-moment coefficients). Confirm whether the guide should teach that, or
-   state the requirement and point at the theory sources.
-4. **SI or Imperial in the worked examples.** Proposed: Imperial throughout,
-   matching the manual and the oracle figures, with one boxed SI demonstration
-   in `01_getting_started.md`.
+*Resolved by the owner 2026-08-25. These are decisions, on the same footing as
+UG-1 … UG-8; §6's gates apply to them.*
+
+### UG-9 — The twin is a **Beech Baron 58**, `examples/baron_58.project.json`
+
+Chosen on four grounds, in order of weight:
+
+1. **Engine-data continuity.** The Baron 58 flies Continental **IO-550-C** —
+   the same family as the IO-520 already carried by `ga6_normal` and
+   `cessna_210`. Engine weight, mounting and torque provenance is reused rather
+   than freshly sourced, and chapter 12 can point the reader at how the single's
+   engine block differs from the twin's.
+2. **Public certification data.** A Type Certificate Data Sheet gives MTOW,
+   category, speeds and CG range with a citable authority, which is what the
+   guide's numbers must have — a walkthrough whose inputs are unattributable is
+   not a worked example, it is a demonstration.
+3. **It exercises the pages that need a twin.** Wing-mounted engines either side
+   of the centreline make ENGLOADS and ONENGOUT (chapters 12–13) real rather
+   than degenerate, and retractable gear makes LGFACTOR/LANDLOAD (chapter 14)
+   more than a fixed-gear special case.
+4. **Comfortably inside the oracle scope (UG-6).** Normal category, MTOW well
+   under 12,500 lb, piston, unpressurised in the sense that matters here — no
+   field of the example needs anything the oracle GUI does not expose.
+
+Rejected: *Piper PA-34 Seneca* (counter-rotating installation adds an
+explanation the guide does not need in its first twin), *Beech Duchess 76*
+(thinner published structural data), *Cessna 310* (would pair neatly with
+`cessna_210`, but the IO-550 continuity above outweighs the naming symmetry).
+
+**Construction rule.** Every field of the example is sourced from published
+certification or handbook data and cited in the example's own header comment or
+accompanying note. Anything not published — mass distribution detail, mount
+geometry, hinge-moment coefficients — is **estimated, marked as estimated, and
+never presented in the guide as the airplane's certified value.** The example
+exists to teach the tool, and the guide says so where an estimate is load-bearing.
+
+### UG-10 — Staged delivery, gates first
+
+Six PRs, in this order:
+
+| PR | Contents | Why here |
+|---|---|---|
+| 1 | Tooling + scaffolding: the per-page emitter, `capture_guide_shots.py`, `docs/60_guide/` skeleton, **all six gates from §6** | Gates that land first check every chapter on arrival; gates that land last are a retrofit that finds fourteen problems at once. |
+| 2 | `examples/baron_58.project.json` + its smoke coverage (G-UG-4) | The twin must run before any chapter can quote it. |
+| 3 | Front matter (`00`–`03`) + appendix `C_troubleshooting.md` | Establishes the voice, the conventions and the LIMIT/ULTIMATE statement that all fourteen chapters lean on (UG-8). |
+| 4 | Chapters 1–5 | The seed chain's head: geometry → weight → aero → speeds → envelope. |
+| 5 | Chapters 6–11 | The distributed-load and control-surface pages, which consume PR 4's output. |
+| 6 | Chapters 12–14 + appendices `A`, `B`, `D`, `00_INDEX.md` cross-links, tier-M closure | The walkthrough appendices can only be finalised once every chapter's example values exist. |
+
+The batches follow the **workflow dependency order, not convenience**: a
+chapter's worked-example values are the values the pages before it produced, so
+writing chapter 6 before chapter 5 means inventing numbers that the tool will
+later contradict.
+
+### UG-11 — Chapter 3 states the requirement and teaches *sourcing*, not aerodynamics
+
+The guide does **not** teach how to estimate aerodynamic coefficients. It does
+teach, for each coefficient the page asks for, a four-part entry:
+
+1. **What it is** — one sentence, and the sign convention it must be given in
+   (citing `CONVENTIONS.md`).
+2. **Where it comes from** — a ladder: measured/test data → published handbook
+   or standard method (DATCOM, Roskam, the airfoil's own data) → a defensible
+   estimate. The guide names the method; it does not reproduce it.
+3. **What it drives** — which downstream chapters' loads move when this number
+   moves. This is the part a reader cannot get from the theory sources, and it
+   is the reason chapter 3 exists as prose rather than as a bare table.
+4. **Sanity check** — the sign, and whether the magnitude is plausible.
+
+Derivations and equation provenance stay in `20_theory/00_theory_sources.md`,
+linked. Both worked examples give their own coefficient values with their source
+named, per UG-9's construction rule.
+
+### UG-12 — One example per unit channel: the single Imperial, the twin SI
+
+*Revised by the owner 2026-08-25, replacing an Imperial-throughout proposal.*
+
+- **`ga6_normal` (single) is Imperial.** It is the Appendix A oracle case, and a
+  reader cross-checking it must see the same number on the page as in the book.
+  Converting the one example whose whole purpose is comparison against a printed
+  figure would defeat it.
+- **`baron_58` (twin) is SI.** Every chapter's twin block, and the whole of
+  `B_worked_twin.md`, is entered and read in SI. A guide that never leaves one
+  channel teaches the reader nothing about the unit boundary except that it
+  exists; running an entire airplane through in SI proves it.
+- **The twin's published data is Imperial, and the guide says so.** That is not
+  an awkwardness to hide — it is the actual situation of a metric user working
+  from US certification data, and appendix B shows the conversion happening at
+  the point of entry rather than in a spreadsheet beforehand.
+- **Appendix B closes on the channel itself.** It ends by reopening the saved
+  project in Imperial and showing the same loads — the demonstration that the
+  toggle is a display boundary and the stored project is channel-free. This is a
+  reader-visible statement of what `tests/` already guards, not a new claim.
+- **Screenshots follow the example, not a fixed channel.** A chapter's shots come
+  from the single in Imperial by default; from the twin in SI where the twin is
+  the substance of the page (chapters 12 and 13, and any page whose twin content
+  differs structurally). `capture_guide_shots.py` therefore takes an example and
+  a channel, and `01_getting_started.md` shows the toggle with one before/after
+  pair.
+
+**Consequence for UG-9.** The twin being the SI case slightly weakens the
+US-airplane choice on presentation grounds — a European CS-23 twin (DA42,
+P2006T) would come with metric source data. The Baron stays: the IO-550
+engine-data continuity with the two existing singles is the stronger argument,
+and entering Imperial-sourced data in SI is the case worth teaching.
