@@ -574,6 +574,49 @@ def test_schema_status_newer():
     assert str(SCHEMA_VERSION) in message
 
 
+def test_the_version_a_file_was_written_at_survives_the_load():
+    """PB-14 (#68): ``migrate`` stamps the dict at :data:`SCHEMA_VERSION`, so the
+    built project cannot report what the file said -- the pre-hop version has to
+    be read from the raw dict, and :func:`io.source_schema_version` is the one
+    reader of it.
+
+    Asserted together with the fact that makes it necessary, because a caller
+    reading ``project.schema_version`` instead looks correct and is silently
+    always "ok" (the GUIs' migration notice could never fire).
+    """
+    import glob
+
+    from sloads.migrations import SUPPORTED_FLOOR
+
+    examples = sorted(glob.glob(os.path.join(EXAMPLES, "*.project.json")))
+    assert examples, "no examples to read"
+    for path in examples:
+        raw = io.read_project_dict(path)
+        on_disk = raw["schema_version"]
+        assert io.source_schema_version(raw) == on_disk
+        # The stamp on the built project is not that number -- this is the trap.
+        assert io.project_from_dict(raw).schema_version == SCHEMA_VERSION
+        assert io.load_project(path).schema_version == SCHEMA_VERSION
+        if on_disk < SCHEMA_VERSION:
+            assert io.schema_status(io.source_schema_version(raw))[0] == "older"
+
+    # ``migrate`` reads an unversioned dict as the supported floor; so does this.
+    assert io.source_schema_version({}) == SUPPORTED_FLOOR
+    assert io.source_schema_version({"schema_version": "41"}) == SUPPORTED_FLOOR
+    assert io.source_schema_version({"schema_version": SCHEMA_VERSION + 3}) == \
+        SCHEMA_VERSION + 3
+
+
+def test_reading_a_project_dict_does_not_migrate_it():
+    """``read_project_dict`` is the raw file: ``load_project`` is it plus
+    ``project_from_dict``, and the split is what lets a caller ask the version
+    question before the hops run."""
+    import json
+
+    with open(GA6, encoding="utf-8") as fh:
+        assert io.read_project_dict(GA6) == json.load(fh)
+
+
 def test_project_from_dict_raises_on_malformed():
     # A wrong-shape engine slice must raise one of the load-path's caught types,
     # not silently build a broken project (Step E5 relies on this to show st.error).

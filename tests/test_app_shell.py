@@ -22,6 +22,7 @@ Three assertions, all live with one GUI and all sharper with two:
 """
 
 import ast
+import json
 import os
 import re
 
@@ -301,7 +302,12 @@ class _FakeUpload(io.BytesIO):
         return len(self.getvalue())
 
 from sloads import io as sloads_io, Project
-_doc = json.loads(sloads_io.project_to_json(Project(name="from-upload")))
+_example = {example!r}
+if _example:
+    with open(_example, encoding="utf-8") as _fh:
+        _doc = json.load(_fh)
+else:
+    _doc = json.loads(sloads_io.project_to_json(Project(name="from-upload")))
 _doc.update({extra})
 _payload = json.dumps(_doc).encode()
 
@@ -331,11 +337,13 @@ finally:
 """
 
 
-def _upload_app(*, dirty: bool, file_id: str = "upload-1", extra: "dict | None" = None):
+def _upload_app(*, dirty: bool, file_id: str = "upload-1", extra: "dict | None" = None,
+                example: str = ""):
     from streamlit.testing.v1 import AppTest
 
     return AppTest.from_string(
-        _UPLOAD_SCRIPT.format(dirty=dirty, file_id=file_id, extra=repr(extra or {})),
+        _UPLOAD_SCRIPT.format(dirty=dirty, file_id=file_id, extra=repr(extra or {}),
+                              example=example),
         default_timeout=60,
     )
 
@@ -389,6 +397,82 @@ def test_a_migration_warning_reaches_the_page_as_a_toast():
     assert at.session_state["project"].speeds.shoulder_altitude_ft == 12000
     toasts = [t.value for t in at.toast]
     assert any("shoulder altitude" in t and "10000" in t and "12000" in t for t in toasts), toasts
+
+
+def test_opening_an_older_file_says_it_was_migrated():
+    """PB-14 (#68): the version the file was *written* at is gone by the time the
+    GUI sees the project -- ``project_from_dict`` runs ``migrate``, which stamps
+    the dict at ``SCHEMA_VERSION``. The schema check asked the built project, so
+    it always read "ok": a user opening a v41 file was never told it had been
+    upgraded, and would rewrite it at the current version on save. The check now
+    reads ``io.source_schema_version`` off the raw dict.
+
+    On a real example, not a synthetic ``schema_version`` key, because the whole
+    point is the round trip through the hop chain.
+    """
+    from sloads.models import SCHEMA_VERSION
+
+    example = os.path.join(_ROOT, "examples", "dhc8_dash8.project.json")
+    with open(example, encoding="utf-8") as fh:
+        on_disk = json.load(fh)["schema_version"]
+    assert on_disk < SCHEMA_VERSION, (
+        f"the examples are at the current schema ({on_disk}) -- this test needs "
+        "an older file to migrate; point it at a fixture under tests/fixtures_schema/")
+
+    at = _upload_app(dirty=False, example=example)
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    toasts = [t.value for t in at.toast]
+    assert any(f"Migrated from schema {on_disk} to {SCHEMA_VERSION}" in t
+               for t in toasts), toasts
+    assert at.session_state["project"].schema_version == SCHEMA_VERSION
+
+
+def test_opening_a_current_file_says_nothing():
+    """The other half: the notice is about a migration, so a file already at the
+    current version must not toast one. (This is what stayed true while the
+    older-file half was dead, which is why nothing failed.)"""
+    from sloads.models import SCHEMA_VERSION
+
+    at = _upload_app(dirty=False, extra={"schema_version": SCHEMA_VERSION})
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    assert not [t.value for t in at.toast if "Migrated from schema" in t.value], (
+        [t.value for t in at.toast])
+
+
+def test_no_gui_decides_the_schema_status_from_the_built_project():
+    """Rule 3, structural: the pre-migration version has one reader
+    (``io.source_schema_version``) and ``schema_status`` is asked with it.
+
+    Passing ``project.schema_version`` is not a wrong-looking call -- it reads
+    perfectly, and was in both GUIs for months (review PB-14). So the guard is
+    on the argument: a status call whose argument is an attribute access is the
+    defect, wherever it is written.
+    """
+    offenders = []
+    for gui in list(_gui_dirs()) + [_SHELL_DIR]:
+        for path in _py_files(gui):
+            for node in ast.walk(_parse(path)):
+                if not isinstance(node, ast.Call):
+                    continue
+                if getattr(node.func, "attr", None) != "schema_status" or not node.args:
+                    continue
+                # The defect is reading the stamp off a *built* object: it is
+                # current by then, whatever the file said. A value passed in
+                # (``apply_schema_check``'s own ``source_version``) is fine --
+                # the guard is on where the number comes from, not its spelling.
+                stamp_read = [n for n in ast.walk(node.args[0])
+                              if isinstance(n, ast.Attribute)
+                              and n.attr == "schema_version"]
+                if stamp_read:
+                    offenders.append(
+                        f"{os.path.relpath(path, _ROOT)}:{node.lineno}: "
+                        "schema_status(<something>.schema_version)")
+    assert not offenders, (
+        "schema_status() is being asked about something other than the version "
+        "the file was written at -- the built project's stamp is always current, "
+        "so the migration notice can never fire (PB-14):\n" + "\n".join(offenders))
 
 
 def test_a_fresh_upload_is_processed_again():

@@ -146,7 +146,7 @@ def _render_project_file(project: Project, examples_dir: str) -> None:
             )
             if st.button("Open", key="_open_saved_btn", use_container_width=True):
                 path = os.path.join(projects_dir, choice)
-                loaded = safe_load(lambda: sloads_io.load_project(path), choice)
+                loaded = safe_load(lambda: sloads_io.read_project_dict(path), choice)
                 if loaded is not None:
                     load_with_guard(loaded, choice, path)
         else:
@@ -158,7 +158,7 @@ def _render_project_file(project: Project, examples_dir: str) -> None:
             )
             if st.button("Load example", key="_open_example_btn", use_container_width=True):
                 path = os.path.join(examples_dir, example_choice)
-                loaded = safe_load(lambda: sloads_io.load_project(path), example_choice)
+                loaded = safe_load(lambda: sloads_io.read_project_dict(path), example_choice)
                 if loaded is not None:
                     load_with_guard(loaded, example_choice)
 
@@ -176,9 +176,7 @@ def _render_project_file(project: Project, examples_dir: str) -> None:
             ident = getattr(uploaded, "file_id", None) or (uploaded.name, uploaded.size)
             if st.session_state.get(_UPLOAD_PROCESSED_KEY) != ident:
                 st.session_state[_UPLOAD_PROCESSED_KEY] = ident
-                loaded = safe_load(
-                    lambda: sloads_io.project_from_dict(json.load(uploaded)), uploaded.name
-                )
+                loaded = safe_load(lambda: json.load(uploaded), uploaded.name)
                 if loaded is not None:
                     load_with_guard(loaded, uploaded.name)
 

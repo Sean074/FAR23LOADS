@@ -649,9 +649,14 @@ selected units via `project_dict_to_display` / `project_dict_to_imperial`) all s
 a graceful `st.error` on a malformed / wrong-shape file instead of a traceback, and
 run a soft `SCHEMA_VERSION` check via the pure `io.schema_status(version)`: a newer
 file warns and still loads (unrecognized fields ignored); an older file is migrated
-in place (its field-presence migration ran in `io.py`; the stamp is bumped to the
-current version). The sidebar surfaces the schema notice as a toast (its adopt path
-reruns); the editor surfaces it inline.
+and reported as such. The version asked about is **`io.source_schema_version(raw)`
+— the version the dict carried before migration**, read off the file rather than
+off the built project: `project_from_dict` runs `migrate`, which stamps the dict at
+`SCHEMA_VERSION`, so a check that asks the loaded `Project` always reads "ok" and
+the notice can never fire (this is what both call sites did until #68 / review
+PB-14; guard `tests/test_app_shell.py::test_no_gui_decides_the_schema_status_from_the_built_project`).
+The sidebar surfaces the schema notice as a toast (its adopt path reruns); the
+editor surfaces it inline.
 
 ---
 
