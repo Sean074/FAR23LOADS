@@ -48,7 +48,12 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 import pandas as pd
 import streamlit as st
 
-from app_shell.components import active_system, page_header, unit_number_input
+from app_shell.components import (
+    active_system,
+    clear_number_input,
+    page_header,
+    unit_number_input,
+)
 from app_shell.widget_keys import widget_key
 from oracle_app.labels import pretty
 from oracle_app.results import render_results
@@ -403,6 +408,54 @@ def _set_entered(record: Any, name: str, value: Any) -> None:
         setattr(record, name, value)
 
 
+def _clear_optional(record: Any, name: str, *, optional: bool) -> None:
+    """An empty number widget means the field is unfilled -- if it may be (#72).
+
+    The one place that reads an empty widget back into the model, so "cleared
+    means unfilled" is stated once. It is reached only through
+    :func:`_offer_clear`\'s button (a filled widget cannot come back empty by
+    itself), and it is equality-guarded through :func:`_set_entered`, so a field
+    that was already unfilled writes nothing and a page merely visited stays
+    clean (M2-3, ``tests/test_dirty_flag.py``).
+
+    A **required** field is left exactly as it was: ``None`` is not one of its
+    values, and writing it would hand the loader a file to repair. The widget
+    cannot be emptied by the user, so there is nothing to explain here -- the
+    reachable half of that case is a required *table cell*, which says so
+    (:func:`_render_flat_table`).
+    """
+    if optional:
+        _set_entered(record, name, None)
+
+
+def _offer_clear(where: Any, key: str, kind: Optional[str], *, path: str,
+                 optional: bool) -> None:
+    """The way back from an entered Optional override to "computed" (#72, PB-20).
+
+    Once ``landing.gear_load_factor``, ``speeds.chosen_vc`` or
+    ``weight.envelope.mac`` held a number, this GUI could not un-set it: an
+    override was a one-way door, and the only escape was hand-editing the JSON in
+    an editor this GUI does not have. The review proposed writing ``None`` when
+    the widget comes back empty; it cannot work, because a number-seeded
+    ``st.number_input`` never comes back empty (see
+    :func:`app_shell.components.clear_number_input`). So the clear is a
+    deliberate, named click -- the same posture row deletion takes (#88) -- and
+    it goes through the ``on_click`` callback, the only moment Streamlit allows a
+    widget\'s state to be written.
+
+    Rendered only where there is something to clear: an Optional field, holding a
+    value, whose widget is live. A display-only copy of someone else\'s quantity
+    is disabled and never reaches here.
+    """
+    if not optional:
+        return
+    where.button(
+        "✕ clear", key=widget_key(f"{key}.clear"), on_click=clear_number_input,
+        args=(key, kind),
+        help=f"Clear {_field_label(path)} — the field goes back to unfilled, and "
+             "whatever the program computes for it governs again.")
+
+
 def seeded(cls: type, path: str, index: int = 0, taken: Sequence[str] = ()) -> Any:
     """A :func:`blank` record whose selector name is already meaningful.
 
@@ -620,15 +673,21 @@ def render_scalar(record: Any, path: str, *, key: str, container: Any = None,
 
     # An unfilled Optional renders *empty*, not as a fake 0 (#35, CR-A-3): the
     # widget returns None until the user enters a number, so anything it does
-    # return -- including 0 -- is a real entry and lands via _set_entered.
+    # return -- including 0 -- is a real entry and lands via _set_entered. The
+    # return leg is the clear button below (#72): once filled, the widget itself
+    # can never come back empty.
     unit = field_unit(name)
     if inner is int:
         entered = where.number_input(
             f"{label} ({_unit_label(unit, active_system())})".replace(" ()", ""),
             value=None if (optional and value is None) else int(value or 0),
             step=1, key=widget_key(key), help=help_text, disabled=disabled)
-        if entered is None or disabled:
+        if disabled:
             return
+        if entered is None:
+            _clear_optional(record, name, optional=optional)
+            return
+        _offer_clear(where, key, None, path=path, optional=optional)
         if optional and value is None:
             _set_entered(record, name, int(entered))
         else:
@@ -638,8 +697,12 @@ def render_scalar(record: Any, path: str, *, key: str, container: Any = None,
     entered = _number(
         label, None if (optional and value is None) else float(value or 0.0),
         unit, key, container=where, help=help_text, format="%.4f", disabled=disabled)
-    if entered is None or disabled:
+    if disabled:
         return
+    if entered is None:
+        _clear_optional(record, name, optional=optional)
+        return
+    _offer_clear(where, key, unit.kind, path=path, optional=optional)
     if optional and value is None:
         _set_entered(record, name, float(entered))
     else:
@@ -886,6 +949,38 @@ def render_record(project: Project, prefix: str, paths: Sequence[str]) -> None:
         render_field(record, path, key=path, project=project)
 
 
+def _delete_row(rows: List[Any], index: int, prefix: str) -> None:
+    """Remove one row of a list record, wherever it sits in the table (#72, PB-23).
+
+    Until now a row could only be removed from the **end** -- the count widget
+    plus the surplus button (#88) -- so dropping item 4 of 24 meant deleting
+    twenty rows and retyping nineteen. This is the same deletion contract seen
+    from the middle of the list: a deliberate click on a control that names the
+    row it removes (``GUI_design.md``, "a widget never deletes entered data").
+
+    It runs as an ``on_click`` callback because it must also re-size the row
+    counter. The counter\'s retained state outlives the delete, and
+    :func:`render_table` grows the list back up to it on the very next render --
+    so a deletion that did not move the counter would reappear as a blank row,
+    which is the #88 defect wearing the other sign. Widget state may only be
+    written before its widget is instantiated, which is what a callback is.
+    """
+    if 0 <= index < len(rows):
+        del rows[index]
+    st.session_state[widget_key(f"{prefix}.count")] = len(rows)
+
+
+def _delete_button(where: Any, rows: List[Any], index: int, prefix: str,
+                   title: str) -> None:
+    """A per-row delete control, naming the row it removes (:func:`_delete_row`)."""
+    where.button(
+        f"\U0001f5d1 Delete row {index + 1} · {title}",
+        key=widget_key(f"{prefix}.{index}.delete"),
+        on_click=_delete_row, args=(rows, index, prefix),
+        help=f"Removes **{title}** from the project. The row count follows; "
+             "nothing else in the table moves.")
+
+
 def render_table(project: Project, prefix: str, paths: Sequence[str]) -> None:
     """One list record. Flat rows get a data editor; rows holding a composite get
     an expander each, because a table cell cannot hold a polyline."""
@@ -935,6 +1030,7 @@ def render_table(project: Project, prefix: str, paths: Sequence[str]) -> None:
             title = _row_title(row, paths, f"{prefix}.{index}")
             with st.expander(f"{index + 1} · {title}", expanded=index == 0):
                 render_record_row(row, paths, f"{prefix}.{index}", project)
+                _delete_button(st, rows, index, prefix, title)
         return
 
     _render_flat_table(rows, paths, prefix)
@@ -998,9 +1094,38 @@ def _render_flat_table(rows: List[Any], paths: Sequence[str], prefix: str) -> No
             headers[p]: _column_config(p, headers[p]) for p in paths
         },
     )
+    kept: List[str] = []
+    with st.expander("\U0001f5d1 Remove a row", expanded=False):
+        # A grid cannot carry a per-row button, so the flat shape picks the row
+        # by name and deletes it here; the expander shape puts the same control
+        # inside each row (#72, PB-23). Both go through :func:`_delete_row`.
+        # ``_``-prefixed like the shell's own widgets: this picker holds no
+        # project value, so the round-trip journey must not try to type it.
+        # The labels are read **once**, here, and the picker formats from that
+        # list: a ``format_func`` that reaches back into the live rows is
+        # re-evaluated later against a list that has since moved, and then it
+        # cannot find its own option (the round-trip journey does exactly that).
+        titles = [f"{i + 1} · {_row_title(row, paths, f'{prefix}.{i}')}"
+                  for i, row in enumerate(rows)]
+        chosen = st.selectbox(
+            "Row", list(range(len(rows))), key=widget_key(f"_delete_choice.{prefix}"),
+            format_func=lambda i: titles[i] if i < len(titles) else str(i + 1))
+        _delete_button(st, rows, int(chosen), prefix, titles[int(chosen)])
+
     for row, (_index, edited_row) in zip(rows, edited.iterrows()):
         for path in paths:
-            _cell_in(row, path, edited_row[headers[path]], units[path])
+            if (_cell_in(row, path, edited_row[headers[path]], units[path])
+                    and headers[path] not in kept):
+                kept.append(headers[path])
+    # Clearing a required cell restores the old value, which it must -- ``None``
+    # is not one of that field's values -- but it used to do it in silence: the
+    # number reappeared in the cell with nothing to say why, reading as a grid
+    # that had eaten the edit (#72, PB-23). The sibling rule for a *row* with an
+    # empty cell is stated by ``render_curve``; this is the cell rule.
+    if kept:
+        st.caption(
+            f"{', '.join(kept)} cannot be empty — the previous value was kept. "
+            "Type a new one to change it, or delete the row below to remove it.")
 
 
 def _column_config(path: str, header: str) -> Any:
@@ -1023,13 +1148,19 @@ def _cell_out(value: Any, unit: FieldUnit) -> Any:
     return _to_display(value, unit)
 
 
-def _cell_in(row: Any, path: str, value: Any, unit: FieldUnit) -> None:
+def _cell_in(row: Any, path: str, value: Any, unit: FieldUnit) -> bool:
+    """Write one edited cell back to its row; report a *required* cell kept.
+
+    An emptied cell clears an Optional column and is refused by a required one
+    -- the return value says which happened, so the grid can state the refusal
+    instead of just putting the old number back (#72, PB-23).
+    """
     name = _leaf(path)
     hint = fr.field_type(path)
     inner, optional = _unwrap_optional(hint)
     if value is None or (isinstance(value, float) and pd.isna(value)):
         _persist(row, name, None if optional else getattr(row, name))
-        return
+        return not optional and getattr(row, name, None) is not None
     # Past the NaN guard the cell held a concrete value, so it is a real entry
     # even when falsy -- a typed 0 into an unfilled Optional column must land,
     # which _persist's absent-stays-absent clause would drop (#35, CR-A-3).
@@ -1044,6 +1175,7 @@ def _cell_in(row: Any, path: str, value: Any, unit: FieldUnit) -> None:
         _set_entered(row, name, int(value))
     else:
         _set_entered(row, name, float(_to_imperial_kept(value, unit, getattr(row, name, None))))
+    return False
 
 
 # --------------------------------------------------------------------------- #

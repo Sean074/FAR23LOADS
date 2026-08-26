@@ -28,6 +28,7 @@ import io as _io
 import json
 import logging
 import os
+import re
 from itertools import takewhile
 
 import pytest
@@ -545,6 +546,221 @@ def test_deleting_surplus_rows_takes_a_deliberate_click():
     assert "2" in button.label, button.label
     button.click().run()
     assert len(at.session_state["project"].weight.items) == before - 2
+
+
+# --------------------------------------------------------------------------- #
+# An override is not a one-way door, and a row is deleted where it sits (#72)
+# --------------------------------------------------------------------------- #
+def _clear_keys(at):
+    return [b.key.split("::")[-1][: -len(".clear")] for b in at.button
+            if (b.key or "").endswith(".clear")]
+
+
+def test_a_filled_number_widget_cannot_be_emptied_from_the_frontend():
+    """Why the clear is a button and not three lines on the return path.
+
+    PB-20 proposed writing ``None`` when the widget comes back empty. It cannot
+    work: an empty submission is deserialized as **the seed**, so a filled
+    ``st.number_input`` never comes back empty and the return path never sees the
+    clear. Asserted against Streamlit\'s own serde rather than through
+    ``AppTest``, which writes widget state directly and so models the
+    *programmatic* clear (what the button does), not the user\'s keystroke. If a
+    future Streamlit returns ``None`` here, this fails and the button can go.
+    """
+    from streamlit.elements.widgets.number_input import NumberInputSerde
+    from streamlit.proto.NumberInput_pb2 import NumberInput as NumberInputProto
+
+    serde = NumberInputSerde(value=180.0, data_type=NumberInputProto.FLOAT,
+                             min_value=-1e308, max_value=1e308)
+    assert serde.deserialize(None) == 180.0, "an emptied widget now reports itself"
+    assert NumberInputSerde(value=None, data_type=NumberInputProto.FLOAT,
+                            min_value=-1e308, max_value=1e308).deserialize(None) is None
+
+
+def test_a_filled_optional_override_can_be_cleared_back_to_computed():
+    """PB-20: once ``chosen_vc``, ``gear_load_factor``, ``tau`` or ``envelope.mac``
+    held a number this GUI could not un-set it, and it has no JSON editor -- so an
+    override entered to try a number was permanent. Clearing is a named click, and
+    the field goes back to unfilled, where the program's own value governs."""
+    project = _seeded()
+    project.speeds.chosen_vc = 180.0
+    at = _render("structural_speeds", project)
+
+    button = next(b for b in at.button if (b.key or "").endswith("speeds.chosen_vc.clear"))
+    button.click().run()
+    assert at.session_state["project"].speeds.chosen_vc is None
+    assert next(w for w in at.number_input if "chosen_vc" in (w.key or "")).value is None
+
+    # ... and it is an ordinary unfilled field again, not a dead one.
+    next(w for w in at.number_input if "chosen_vc" in (w.key or "")).set_value(150.0).run()
+    assert at.session_state["project"].speeds.chosen_vc == 150.0
+
+
+def test_only_a_filled_optional_field_offers_a_clear():
+    """The drift guard on the affordance: a clear button on a **required** field
+    would offer a state the model does not have, and one on an empty field would
+    be furniture. Every button is checked back against the registry entry of the
+    field it clears."""
+    from oracle_app.form import _unwrap_optional
+
+    seen = 0
+    for key in sorted(wf.oracle_step_keys()):
+        at = _render(key)
+        for widget_path in _clear_keys(at):
+            path = re.sub(r"\.\d+\.", ".", widget_path)
+            hint = fr.field_type(path)
+            assert hint is not None, f"{key}: clear button on {path}, not a registry field"
+            _inner, optional = _unwrap_optional(hint)
+            assert optional, f"{key}: {path} is required -- it cannot be unfilled"
+            seen += 1
+    assert seen, "no filled Optional field in any fixture -- the guard proves nothing"
+
+
+def test_a_converted_field_clears_in_si_too():
+    """The widget key a converted field registers carries the active system, and a
+    clear that computed that key a second time would empty a widget that does not
+    exist. One owner names it (``components.number_input_name``); this is that
+    agreement seen from the outside, on the mode where the two spellings differ."""
+    project = _seeded()
+    project.unit_system = UnitSystem.SI.value
+    project.weight.envelope.mac = 58.0            # a length: converted, suffixed key
+    at = _render("weight_mass", project)
+    next(b for b in at.button
+         if (b.key or "").endswith("weight.envelope.mac.clear")).click().run()
+    assert at.session_state["project"].weight.envelope.mac is None
+
+
+def test_a_field_the_owner_governs_offers_no_clear():
+    """A display-only copy is disabled and shows the value that governs (#36), so
+    there is nothing on it for the user to clear."""
+    project = _seeded()
+    project.speeds.wing_area_sqft = 174.0   # a copy the wing planform owns
+    at = _render("structural_speeds", project)
+    assert "speeds.wing_area_sqft" not in _clear_keys(at)
+
+
+def test_a_row_is_deleted_where_it_sits_and_does_not_come_back():
+    """PB-23: a row could only be removed from the **end** (the counter plus
+    #88's surplus button), so dropping item 3 of 24 meant deleting twenty-one
+    rows and retyping twenty. The counter has to follow the deletion -- left
+    where it was, the next render grows the list straight back up to it, which is
+    the #88 defect wearing the other sign."""
+    project = _seeded()
+    at = _render("weight_mass", project)
+    before = [i.name for i in at.session_state["project"].weight.items]
+    assert len(before) > 3, "the fixture must have rows to delete"
+
+    picker = next(w for w in at.selectbox if (w.key or "").endswith("_delete_choice.weight.items[]"))
+    picker.set_value(2).run()
+    button = next(b for b in at.button if (b.key or "").endswith("weight.items[].2.delete"))
+    assert before[2] in button.label, button.label
+    button.click().run()
+
+    after = [i.name for i in at.session_state["project"].weight.items]
+    assert after == before[:2] + before[3:], "the wrong row went"
+    at.run()  # a plain revisit: the counter must not re-grow what was deleted
+    assert [i.name for i in at.session_state["project"].weight.items] == after
+
+
+def test_a_composite_row_is_deleted_from_inside_its_own_expander():
+    """The other table shape: rows holding a polyline get an expander each, so the
+    delete control goes in the row rather than under the grid."""
+    project = _seeded()
+    at = _render("configuration_layout", project)
+    before = [s.name for s in at.session_state["project"].geometry.surfaces]
+    assert len(before) > 1, "the fixture must have surfaces to delete"
+
+    button = next(b for b in at.button
+                  if (b.key or "").endswith("geometry.surfaces[].1.delete"))
+    assert before[1] in button.label, button.label
+    button.click().run()
+    assert [s.name for s in at.session_state["project"].geometry.surfaces] == before[:1]
+    at.run()
+    assert [s.name for s in at.session_state["project"].geometry.surfaces] == before[:1]
+
+
+class _GridStub:
+    """``st`` with its grid replaced: ``AppTest`` cannot drive a ``data_editor``
+    (a canvas), so the write-back path is exercised by direct call, as
+    ``tests/test_dirty_flag.py`` does for curves. Everything else falls through
+    to the real module."""
+
+    def __init__(self, edited):
+        self._edited = edited
+        self.captions = []
+
+    def __getattr__(self, name):
+        import streamlit as real_st
+        return getattr(real_st, name)
+
+    def data_editor(self, frame, **_kwargs):
+        return self._edited
+
+    def caption(self, text, *_args, **_kwargs):
+        self.captions.append(text)
+
+
+def _replayed_grid(rows, paths, prefix, cells):
+    """``_render_flat_table`` over ``rows``, fed ``cells`` as the edited grid.
+
+    ``cells`` is one dict per row, keyed by registry path, so the test states
+    what the user typed and the harness -- not the test -- builds the headers the
+    renderer expects."""
+    import pandas as pd
+
+    from oracle_app import form
+    from sloads.units import field_unit, unit_label
+
+    system = active_system()
+    header = {
+        p: f"{form._field_label(p)} ({unit_label(field_unit(form._leaf(p)), system)})"
+           .replace(" ()", "")
+        for p in paths
+    }
+    edited = pd.DataFrame([{header[p]: row[p] for p in paths} for row in cells],
+                          columns=[header[p] for p in paths])
+    stub = _GridStub(edited)
+    original = form.st
+    form.st = stub
+    try:
+        form._render_flat_table(rows, list(paths), prefix)
+    finally:
+        form.st = original
+    return stub
+
+
+def test_an_emptied_optional_grid_cell_unfills_the_field():
+    """PB-20 inside a grid. This half already worked -- ``_cell_in`` writes
+    ``None`` for an Optional column -- and it is pinned here so the scalar fix
+    cannot drift away from it: ``aero.surfaces[].tau``, one of the four fields
+    the finding names, is a grid cell and not a widget."""
+    from sloads.models import WingLoadCase
+
+    rows = [WingLoadCase(name="C1", case=1, nz=3.8)]
+    paths = ["wing_mass.cases[].case", "wing_mass.cases[].nz"]
+    _replayed_grid(rows, paths, "wing_mass.cases[]",
+                   [{"wing_mass.cases[].case": float("nan"),
+                     "wing_mass.cases[].nz": 3.8}])
+    assert rows[0].case is None, "an emptied Optional cell must unfill the field"
+    assert rows[0].nz == 3.8, "the untouched cell moved"
+
+
+def test_an_emptied_required_grid_cell_says_the_old_value_was_kept():
+    """The other half of the same keystroke (PB-23). A required column has no
+    ``None`` to be set to, so the old number goes back in the cell -- correct,
+    and until now silent, which read as a grid that had eaten the edit."""
+    from sloads.models import MassItem
+
+    rows = [MassItem(name="Wing", weight_lb=250.0, x=100.0, y=0.0, z=0.0)]
+    paths = ["weight.items[].name", "weight.items[].weight_lb", "weight.items[].x"]
+    stub = _replayed_grid(rows, paths, "weight.items[]",
+                          [{"weight.items[].name": "Wing",
+                            "weight.items[].weight_lb": float("nan"),
+                            "weight.items[].x": 100.0}])
+    assert rows[0].weight_lb == 250.0, "a required field has no None to be set to"
+    said = " ".join(stub.captions)
+    assert "cannot be empty" in said and "previous value was kept" in said, said
+    assert "Weight" in said, "the caption must name the column that refused"
 
 
 def test_a_blank_cg_case_does_not_read_as_not_ready():

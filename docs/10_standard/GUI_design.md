@@ -337,7 +337,12 @@ consistent:
   all whenever the model had grown underneath a retained count — the `02_parked.md`
   L-8d mutation case, which no generation bump covers. The rule now: **the model
   wins**, growth is the only thing a counter does, and a deletion is a separate
-  named button stating which rows go. Counting up is the other half — the seeded
+  named button stating which rows go — **at any position in the list** (#72,
+  PB-23): a row is removed where it sits, from inside its own expander or by name
+  beneath the grid, not by deleting every row after it and retyping them. A
+  deletion re-sizes the counter as it goes, or the next render grows the list
+  straight back up to the retained count and the deleted row returns as a blank
+  — the same defect wearing the other sign. Counting up is the other half — the seeded
   row joins the project immediately (`commit_pending`'s blank-record rule, OG-F,
   governs records a pass *creates*, not rows appended to an attached list), so a
   blank row is real, saved, and reaches the calc: a zero-weight `FLIGHT` CG case
@@ -478,8 +483,29 @@ deliberate 0 (sea level into `one_engine_out.altitude_ft`, a datum-at-nose
 station) is indistinguishable from "not entered" and can never be persisted. The
 oracle GUI's generic renderer follows this for every Optional scalar and table
 cell: a value that comes back from an empty-seeded widget — including 0 — is a
-real entry and lands. Guards: `tests/test_dirty_flag.py`
-(typed-zero-lands, unfilled-renders-empty-and-stays-absent).
+real entry and lands.
+
+**And the door opens both ways** (#72, PB-20). An override entered is an override
+that can be taken back: a filled `Optional` field SHALL offer a way back to
+unfilled, because the value it suppresses is one the program computes and a user
+trying a number must be able to stop trying it. The GUI is the only editor its
+projects have, so "hand-edit the JSON" is not an escape. A number-seeded
+`st.number_input` **cannot** be emptied by the user — the frontend restores the
+last value and `NumberInputSerde.deserialize` reads an empty submission as the
+seed — so this is not something the return path can be taught; the clear is a
+named click writing `None` to the widget's own state, which is legal only inside
+an `on_click` callback. `app_shell.components.clear_number_input` is that writer
+and `number_input_name` names the widget for it and for `unit_number_input` alike,
+so the two spellings cannot drift (the converted mode suffixes the active system;
+the other two must not). A grid cell needs none of this: emptying it already
+yields `None`, which `_cell_in` writes for an `Optional` column and refuses for a
+required one — **saying so**, because a required cell that silently puts its old
+number back reads as a grid that ate the edit. Guards:
+`tests/test_dirty_flag.py` (typed-zero-lands,
+unfilled-renders-empty-and-stays-absent), `tests/test_oracle_gui.py`
+(clear-and-retype, clear-in-SI, only-a-filled-Optional-offers-one,
+emptied-cell-unfills / says-it-was-kept, and the standing check that a filled
+widget still cannot clear itself — if Streamlit ever lets it, the button goes).
 
 **Aviation-standard exception:** airspeed (KEAS) and altitude (ft) stay in
 aviation units in *both* systems and are never converted — do not add a unit kind
