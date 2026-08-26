@@ -55,7 +55,7 @@ from app_shell.components import (
     unit_number_input,
 )
 from app_shell.widget_keys import widget_key
-from oracle_app.labels import pretty
+from oracle_app.labels import FIELD_LABELS, pretty
 from oracle_app.results import render_results
 from sloads import field_registry as fr
 from sloads import workflow as wf
@@ -63,7 +63,13 @@ from sloads.applicability import step_not_applicable
 from sloads.derived import refresh_derived
 from sloads.models import Project, same_name
 from sloads.selectors import duplicate_selectors, seed_name
-from sloads.units import FieldUnit, field_unit, to_display, to_imperial_scalar
+from sloads.units import (
+    FieldUnit,
+    display_format,
+    field_unit,
+    to_display,
+    to_imperial_scalar,
+)
 from sloads.units import unit_label as _unit_label
 
 #: Member labels for the composite fields the input set contains. Declared
@@ -105,14 +111,32 @@ _UNIT_SUFFIX = {
     "_per_rad": "per rad", "_rad_s": "rad/s", "_pct": "%",
 }
 
+#: :data:`_UNIT_SUFFIX` **longest suffix first**, which is the only order that
+#: answers correctly: ``design_pitch_rate_rad_s`` ends in both ``_s`` and
+#: ``_rad_s``, and matching the short one first labelled a rate in rad/s
+#: *Design Pitch Rate Rad (s)* -- a unit split in half, with the other half left
+#: in the name (PB-22). Declaration order in a dict is the author's, not the
+#: matcher's; this makes the matcher's explicit.
+_UNIT_SUFFIXES: Tuple[Tuple[str, str], ...] = tuple(
+    sorted(_UNIT_SUFFIX.items(), key=lambda item: -len(item[0])))
+
 
 def _field_label(path: str) -> str:
+    """A schema leaf as a widget label: the hand-declared name, else prettified.
+
+    :data:`~oracle_app.labels.FIELD_LABELS` wins over :func:`pretty` because
+    some leaves are codes rather than shortened words, but it does **not** win
+    over the unit suffix -- an override replaces the *name*, and the unit
+    stays -- so a hand-written label cannot accidentally drop the ``(deg)`` off
+    a deflection.
+    """
     leaf = _leaf(path)
-    for suffix, unit in _UNIT_SUFFIX.items():
+    declared = FIELD_LABELS.get(leaf)
+    for suffix, unit in _UNIT_SUFFIXES:
         if leaf.endswith(suffix) and len(leaf) > len(suffix):
-            stem = pretty(leaf[: -len(suffix)])
+            stem = declared if declared is not None else pretty(leaf[: -len(suffix)])
             return f"{stem} ({unit})" if unit else stem
-    return pretty(leaf)
+    return declared if declared is not None else pretty(leaf)
 
 
 def _leaf(path: str) -> str:
@@ -696,7 +720,8 @@ def render_scalar(record: Any, path: str, *, key: str, container: Any = None,
 
     entered = _number(
         label, None if (optional and value is None) else float(value or 0.0),
-        unit, key, container=where, help=help_text, format="%.4f", disabled=disabled)
+        unit, key, container=where, help=help_text, format=display_format(unit),
+        disabled=disabled)
     if disabled:
         return
     if entered is None:
@@ -741,7 +766,7 @@ def render_tuple(record: Any, path: str, *, key: str, container: Any = None,
     units = _member_units(path, arity)
     entered = [
         _number(member, float(current[i]), units[i], f"{key}.{i}",
-                container=columns[i], format="%.4f")
+                container=columns[i], format=display_format(units[i]))
         for i, member in enumerate(_members(path, arity))
     ]
     _persist(record, name, tuple(entered))
@@ -1263,7 +1288,12 @@ def render_step(key: str) -> None:
             )
         for prefix, paths in groups:
             st.subheader(pretty(prefix.rstrip(fr.LIST_MARKER).rsplit(".", 1)[-1] or "Project"))
-            st.caption(f"`{prefix or '(project)'}`")
+            # The caption is the schema path, as code. The root group has no
+            # path, so it says what it is instead of rendering ``(project)`` in
+            # backticks -- which reads as a path, and there is no such path
+            # (PB-22).
+            st.caption(f"`{prefix}`" if prefix
+                       else "Fields held on the project itself, not in a slice")
             if prefix.endswith(fr.LIST_MARKER):
                 render_table(ctx.project, prefix, paths)
             else:

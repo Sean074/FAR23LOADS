@@ -478,16 +478,24 @@ _PROJECT_PAIR_KIND: Dict[str, Tuple[Optional[str], Optional[str]]] = {
 #: guard could not tell the two apart either. A front-end asking "what unit does
 #: this field carry?" needs the difference, because *stated in kt* and
 #: *dimensionless* are different widgets.
+#: The airspeed label, owned here because it is *also* a widget's ``fixed_unit``
+#: (``app_shell.components.KEAS`` re-exports this one rather than spelling it a
+#: second time). One word, not ``kt (EAS)``: a renderer that appends a unit as
+#: ``f"{label} ({unit})"`` -- which is what both GUIs do -- turned that into
+#: *Chosen Vc (kt (EAS))*, parentheses inside parentheses (PB-22). **KEAS** is
+#: what `CONVENTIONS.md` calls the quantity and what every help string in the
+#: tool already says, so the fix is to stop spelling it two ways.
+KEAS = "KEAS"
+
 AVIATION_STANDARD: Dict[str, str] = {
     "altitude_ft": "ft", "altitudes_ft": "ft", "increment_ft": "ft",
     "max_operating_altitude_ft": "ft", "shoulder_altitude_ft": "ft",
-    "speeds_kt": "kt (EAS)", "v_eas_kt": "kt (EAS)", "vb_kt": "kt (EAS)",
-    "vh_kt": "kt (EAS)",
+    "speeds_kt": KEAS, "v_eas_kt": KEAS, "vb_kt": KEAS, "vh_kt": KEAS,
     # The design speeds and the concept speed targets: KEAS, entered and
     # reported as such (CONVENTIONS.md, "airspeed is always KEAS").
-    "chosen_va": "kt (EAS)", "chosen_vc": "kt (EAS)", "chosen_vd": "kt (EAS)",
-    "chosen_vf": "kt (EAS)", "target_vfe": "kt (EAS)", "target_vmo": "kt (EAS)",
-    "target_vne": "kt (EAS)", "target_vno": "kt (EAS)",
+    "chosen_va": KEAS, "chosen_vc": KEAS, "chosen_vd": KEAS, "chosen_vf": KEAS,
+    "target_vfe": KEAS, "target_vmo": KEAS, "target_vne": KEAS,
+    "target_vno": KEAS,
 }
 
 #: Name patterns that make a numeric field dimensionless, each with its reason.
@@ -644,6 +652,39 @@ def unit_label(unit: FieldUnit, system: UnitSystem) -> str:
     if unit.kind is not None:
         return UNIT_LABELS[system].get(unit.kind, "")
     return unit.fixed_label or ""
+
+
+#: What a widget shows a **dimensionless** value at: ``%g``, six significant
+#: figures, trailing zeros dropped. Coefficients live here -- FLTLOADS' lift
+#: polynomial is ``0.320479`` and its moment polynomial ``0.004128`` -- and the
+#: fixed four decimals every float widget used to carry displayed those as
+#: ``0.3205`` and ``0.0041`` (PB-22). The stored value was never touched, but
+#: this persona reads the coefficients off the screen to check them against the
+#: manual, and a coefficient the screen cannot show is a coefficient the screen
+#: cannot check. ``%g`` also passes Streamlit's own format validator
+#: (``float(fmt % 2)``) and sprintf.js renders it.
+DIMENSIONLESS_FORMAT = "%g"
+
+#: What a widget shows a value **with a unit** at. Four decimals, unchanged:
+#: these are stations, areas and weights, where a fixed decimal place keeps a
+#: column readable and ``%g``'s six significant figures would *lose* precision
+#: (a wing area of 184.12113907866492 renders ``184.121``, worse than
+#: ``184.1211``).
+DIMENSIONAL_FORMAT = "%.4f"
+
+
+def display_format(unit: FieldUnit) -> str:
+    """The printf format a number widget shows a value of ``unit`` at.
+
+    One owner for widget precision, because it is a property of the *quantity*
+    and not of the page that happens to render it: every renderer that used to
+    pass a format literal of its own had to be right about a field it does not
+    know (:data:`DIMENSIONLESS_FORMAT` for the reason it was wrong). Guarded by
+    ``tests/test_oracle_gui.py``, which fails on a hand-written float format in
+    ``oracle_app/`` or ``app_shell/``.
+    """
+    return (DIMENSIONAL_FORMAT if unit.kind or unit.fixed_label
+            else DIMENSIONLESS_FORMAT)
 
 
 def _is_number(value: Any) -> bool:

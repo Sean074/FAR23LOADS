@@ -859,7 +859,9 @@ def test_every_composite_field_declares_its_member_labels():
 def test_the_aviation_units_agree_with_the_shell():
     """``units.AVIATION_STANDARD`` supplies ``unit_number_input``'s
     ``fixed_unit``, so its values must be the shell's own two labels -- not a
-    third spelling of "knots"."""
+    third spelling of "knots". Since #73 the shell re-exports the units module's
+    own constant rather than declaring a second one, which is what let the two
+    spell the same unit differently in the first place."""
     from app_shell.components import ALTITUDE_FT, KEAS
 
     assert set(AVIATION_STANDARD.values()) == {KEAS, ALTITUDE_FT}
@@ -1500,3 +1502,135 @@ def test_grid_pages_carry_the_commit_hint():
     at = _render("structural_speeds")      # scalars only
     assert not any(hint in c.value for c in at.caption), (
         "a page with no grid must not carry the hint")
+
+
+# --------------------------------------------------------------------------- #
+# A field is shown at its own precision, under its own name (#73, PB-22)
+# --------------------------------------------------------------------------- #
+def _number_widgets(at):
+    """Every ``st.number_input`` on a rendered page, by label."""
+    return {w.label: w for w in at.number_input}
+
+
+def test_a_coefficient_is_shown_at_the_precision_it_was_entered():
+    """The defect in one line: FLTLOADS' lift polynomial C1 is ``0.320479`` and
+    the widget rendered ``0.3205``. The stored value was never touched — but
+    this persona reads the coefficients off the screen to check them against the
+    manual, so a coefficient the screen rounds is a coefficient nobody can
+    check (PB-22). Asserted on the format *applied to the value*, not on the
+    format string, because it is the rendered number that was wrong."""
+    from sloads.units import DIMENSIONLESS_FORMAT
+
+    project = io.load_project(_EXAMPLE)
+    project.aero_coeffs.cruise.lift = (0.320479, 0.081234, 0.0, 0.0, 0.0)
+    project.aero_coeffs.cruise.moment = (0.004128, 0.0, 0.0, 0.0, 0.0)
+    at = _render("aero_coefficients", project)
+    assert not at.exception, [e.message for e in at.exception]
+
+    shown = [w.proto.format % w.value for w in at.number_input
+             if w.value in (0.320479, 0.004128)]
+    assert shown, "the coefficient widgets did not render"
+    assert set(shown) == {"0.320479", "0.004128"}, shown
+    assert DIMENSIONLESS_FORMAT % 0.004128 == "0.004128"
+
+
+def test_a_dimensioned_field_keeps_its_fixed_decimals():
+    """The other half of the per-unit rule, and the reason it is per-unit rather
+    than ``%g`` everywhere: six *significant* figures on a station or an area
+    loses precision a fixed four decimals keeps (184.12113907866492 renders
+    ``184.121``, against ``184.1211``)."""
+    from sloads.units import DIMENSIONAL_FORMAT, display_format, field_unit
+
+    assert display_format(field_unit("wing_area_sqft")) == DIMENSIONAL_FORMAT
+    assert display_format(field_unit("chosen_vc")) == DIMENSIONAL_FORMAT
+    at = _render("structural_speeds")
+    areas = [w for w in at.number_input if "Wing Area" in w.label]
+    assert areas and all(w.proto.format == DIMENSIONAL_FORMAT for w in areas)
+
+
+_FORMAT_LITERAL = re.compile(r'^%[0-9.]*[feg]$')
+
+
+@pytest.mark.parametrize("path", _DOWNLOAD_SOURCES)
+def test_no_renderer_writes_a_number_format_of_its_own(path):
+    """Widget precision is a property of the **quantity**, so ``sloads.units``
+    owns it (``display_format``) and no page may write a format literal: a
+    renderer passing its own is a renderer being right about a field it does not
+    know, which is how every float widget in this GUI came to show four decimals
+    (PB-22, practice 3).
+
+    ``app/views/`` is deliberately outside this scan — it is frozen pending the
+    main-GUI review (#29), and its coefficient entry is a grid, which does not
+    carry the defect."""
+    for node in ast.walk(_parse(path)):
+        if not isinstance(node, ast.Call):
+            continue
+        for kw in node.keywords:
+            if kw.arg == "format" and isinstance(kw.value, ast.Constant) \
+                    and isinstance(kw.value.value, str) \
+                    and _FORMAT_LITERAL.match(kw.value.value):
+                raise AssertionError(
+                    f"{os.path.basename(path)}:{node.lineno}: format="
+                    f"{kw.value.value!r} — call sloads.units.display_format(unit)")
+
+
+def test_a_hand_declared_label_names_a_field_that_exists():
+    """``FIELD_LABELS`` is hand-written presentation, so it rots the moment a
+    field is renamed — silently, because a label for a field nobody renders
+    simply never appears. The guard is the same one ``MEMBER_LABELS`` carries."""
+    from oracle_app.labels import FIELD_LABELS
+
+    leaves = {p.rsplit(".", 1)[-1].replace(fr.LIST_MARKER, "") for p in fr.BY_PATH}
+    unknown = sorted(set(FIELD_LABELS) - leaves)
+    assert not unknown, f"labels for fields that are not in the input set: {unknown}"
+
+
+def test_a_hand_declared_label_does_not_swallow_the_unit():
+    """An override replaces the field's *name*, never its unit — otherwise a
+    hand-written label is one place a deflection can lose its degrees."""
+    from oracle_app.form import _field_label
+
+    assert _field_label("geometry.empennage.htail.elevator_te_down_deg").endswith("(deg)")
+    assert _field_label("geometry.empennage.htail.xt25") == "H-tail quarter-chord station"
+
+
+def test_a_unit_suffix_is_matched_longest_first():
+    """``design_pitch_rate_rad_s`` ends in both ``_s`` and ``_rad_s``, and the
+    short match split the unit in half: *Design Pitch Rate Rad (s)*. Dict order
+    is the author's; the matcher's order has to be stated (PB-22)."""
+    from oracle_app.form import _field_label
+
+    assert _field_label("engines[].design_pitch_rate_rad_s") == "Design Pitch Rate (rad/s)"
+    assert _field_label("engines[].design_yaw_rate_rad_s") == "Design Yaw Rate (rad/s)"
+    assert _field_label("engines[].stop_time_s") == "Stop Time (s)"
+
+
+@pytest.mark.parametrize("key", sorted(wf.oracle_step_keys()))
+def test_no_widget_label_nests_its_units_in_parentheses(key):
+    """The renderer appends a unit as ``f"{label} ({unit})"``, so a unit that is
+    itself parenthesised gives *Chosen Vc (kt (EAS))*. Fixed at the unit owner —
+    the airspeed label is **KEAS**, the one word the rest of the tool already
+    uses — rather than by teaching every renderer to inspect the string."""
+    at = _render(key)
+    nested = [w.label for w in at.number_input if re.search(r"\(.*\(", w.label)]
+    assert not nested, nested
+
+
+def test_the_coefficient_mach_field_says_what_it_is():
+    """The one field on the V-n page whose name gives no clue was the one field
+    whose help named a different quantity: ``mn``'s registry basis read
+    "FLTLOADS gust/manoeuvre matrix" while it is the Mach the coefficients were
+    measured at (PB-22). The help is built from the basis, so the fix is at the
+    registry row."""
+    assert "gust" not in fr.BY_PATH["flight_loads.mn"].basis.lower()
+    at = _render("flight_envelope")
+    mach = [w for w in at.number_input if w.label == "Coefficient Mach number"]
+    assert mach, [w.label for w in at.number_input]
+    assert "Mach" in (mach[0].help or "")
+
+
+def test_the_root_group_caption_is_not_a_path():
+    """Group captions are the schema path, in backticks. The root group has no
+    path, and ``(project)`` rendered as code reads as one that exists (PB-22)."""
+    at = _render("engine_mount")
+    assert not any("(project)" in (c.value or "") for c in at.caption)
