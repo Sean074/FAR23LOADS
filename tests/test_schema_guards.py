@@ -298,10 +298,12 @@ def test_persisted_dataclass_shapes_are_unchanged():
     assert actual == EXPECTED_FIELDS_HASH, (
         "a persisted dataclass changed shape.\n"
         f"  expected {EXPECTED_FIELDS_HASH}, got {actual}\n"
-        "If the on-disk shape changed (a field renamed, removed or moved), bump "
-        "SCHEMA_VERSION and add a hop to sloads.migrations.MIGRATIONS. If it is "
-        "purely additive (a new optional field with a default), no hop is needed. "
-        f"Either way, update EXPECTED_FIELDS_HASH in {os.path.basename(__file__)} "
+        "Bump SCHEMA_VERSION -- required for any persisted-shape change, "
+        "additive or not -- and re-stamp the bundled examples at the new "
+        "version, which the guard below requires and the Imperial digests then "
+        "prove changed no delivered number. Pre-production there is no "
+        "migration hop to write (#93): the floor is the current version. "
+        f"Then update EXPECTED_FIELDS_HASH in {os.path.basename(__file__)} "
         "to the value above."
     )
 
@@ -327,10 +329,37 @@ def test_the_fields_hash_actually_detects_a_change():
     assert fields_hash() == baseline, "the tripwire did not reset"
 
 
-def test_schema_version_is_an_int_and_matches_the_examples():
+def test_schema_version_is_an_int():
     assert isinstance(SCHEMA_VERSION, int)
-    project = io.load_project(_GA)
-    assert project.schema_version == SCHEMA_VERSION
+
+
+def test_every_bundled_example_is_written_at_the_current_version():
+    """The examples are the floor's only customers, so they must sit on it.
+
+    Pre-production the supported floor *is* ``SCHEMA_VERSION`` (#93): a project
+    file at any other version is refused, migration hops and all. That makes a
+    stale example not a compatibility question but a broken example -- the app
+    would refuse to open its own bundled projects. This is the guard that turns
+    the next ``SCHEMA_VERSION`` bump into a red suite until they are re-stamped.
+
+    Read off **disk**, never off a loaded ``Project``: ``project_from_dict``
+    normalises the stamp, so asking the built object is the #68 defect and would
+    make this test vacuous exactly when it matters.
+    """
+    examples = sorted(f for f in os.listdir(_EXAMPLES) if f.endswith(".json"))
+    assert examples, "no bundled examples found -- the guard would pass vacuously"
+    stale = {}
+    for name in examples:
+        with open(os.path.join(_EXAMPLES, name), encoding="utf-8") as fh:
+            version = json.load(fh).get("schema_version")
+        if version != SCHEMA_VERSION:
+            stale[name] = version
+    assert not stale, (
+        f"these examples are not at schema {SCHEMA_VERSION}: {stale}.\n"
+        "Re-stamp them by loading and re-saving each one -- and check the "
+        "Imperial digests are unchanged, which is what proves the re-stamp "
+        "changed no delivered number."
+    )
 
 
 if __name__ == "__main__":

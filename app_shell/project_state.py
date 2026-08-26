@@ -5,10 +5,10 @@ The whole app is one reloadable ``project.json`` carried in
 the *saved snapshot* baseline the dirty flag diffs against, and the
 load-guard chain every load action goes through —
 
-    safe_load(read_dict, source)  ->  apply_schema_check  ->  load_with_guard
-                                                              |
-                                        clean project ---> adopt + rerun
-                                        dirty project ---> confirm_discard dialog
+    safe_load(read_dict, source)  ->  load_with_guard
+                                          |
+                    clean project ---> adopt + rerun
+                    dirty project ---> confirm_discard dialog
 
 Extracted from ``app/Home.py`` by design note 32 step OG-B. They were private
 module functions of a Streamlit *script*: importing them meant executing the
@@ -19,9 +19,10 @@ of duplication ``CLAUDE.md`` rule 3 exists to prevent. Behaviour is unchanged
 from the script version; only the leading underscores are gone, since these are
 now the shell's public surface.
 
-The schema check is deliberately **soft** in both directions (a newer file warns
-and still loads, an older one is migrated in place) — the hard contract lives in
-``sloads.io``, and this is only how the GUI reports it.
+The shell does **no** schema classification of its own (#93): a file at any
+version but the current one is refused by the gate in ``sloads.migrations``, and
+``safe_load``'s existing error handling reports the refusal like any other bad
+file. Guard: ``tests/test_app_shell.py::test_no_gui_decides_whether_a_file_is_readable``.
 """
 
 from __future__ import annotations
@@ -114,54 +115,27 @@ def confirm_discard(new_project: Project, source: str, path: Optional[str] = Non
         st.rerun()
 
 
-def apply_schema_check(new_project: Project, source_version: int) -> Project:
-    """Surface a soft ``SCHEMA_VERSION`` mismatch, then return the project ready to
-    adopt. A newer file warns (and still loads); an older file has already been
-    migrated by ``io.py`` and is reported as such. Uses ``st.toast`` because the
-    adopt path ends in ``st.rerun()``, which would discard an ordinary
-    ``st.warning``.
-
-    ``source_version`` is the version the file carried **before** migration
-    (``io.source_schema_version``), and it has to be passed in: this used to ask
-    ``new_project.schema_version``, which ``migrate`` has already stamped at
-    :data:`SCHEMA_VERSION`, so the answer was always "ok" and the migration
-    notice could never fire -- a v41 file opened, was upgraded, and would be
-    rewritten at v55 on save with nothing said (review PB-14).
-
-    The stamp itself is not touched here any more, for the same reason: it was
-    already current before this function saw the project.
-    """
-    status, message = sloads_io.schema_status(source_version)
-    if status == "newer":
-        st.toast(message, icon="⚠️")
-    elif status == "older":
-        st.toast(message, icon="🔁")
-    return new_project
-
-
 def safe_load(read_dict: Callable[[], Mapping[str, Any]], source: str) -> Optional[Project]:
     """Build a project from a load action, showing ``st.error`` instead of a
     traceback on a malformed / wrong-shape file (parity with the JSON Editor).
     Returns ``None`` on failure so the caller skips the load.
 
-    The argument is the **dict reader**, not a project builder: what version the
-    file was written at is a fact about the dict, and ``project_from_dict``
-    stamps it away (review PB-14). Building here rather than at the call site is
-    what keeps the two -- the project and the version it came from -- in one
-    place for every load action in either GUI.
+    The argument is the **dict reader**, not a project builder, so every load
+    action in either GUI reaches ``project_from_dict`` -- and therefore the
+    schema gate -- through this one function. A file of any other version raises
+    ``SchemaVersionError``, a ``ValueError``, which the except below already
+    catches: the user is told the file is not readable and by how much, and no
+    project is adopted.
     """
     try:
-        # A migration hop that had to choose between two disagreeing copies of
-        # one quantity (v55, #52) says so with ``warnings.warn``; headless that
-        # reaches stderr, but a Streamlit page would swallow it. Captured here
-        # and shown as toasts, the same channel ``apply_schema_check`` uses,
-        # because the adopt path ends in ``st.rerun()`` and an ordinary
-        # ``st.warning`` would not survive it.
+        # A reader that had to make a judgement call about the file says so with
+        # ``warnings.warn``; headless that reaches stderr, but a Streamlit page
+        # would swallow it. Captured here and shown as toasts because the adopt
+        # path ends in ``st.rerun()``, which an ordinary ``st.warning`` would not
+        # survive.
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            raw = read_dict()
-            project = apply_schema_check(sloads_io.project_from_dict(raw),
-                                         sloads_io.source_schema_version(raw))
+            project = sloads_io.project_from_dict(read_dict())
         for w in caught:
             st.toast(f"{source}: {w.message}", icon="⚠️")
         return project

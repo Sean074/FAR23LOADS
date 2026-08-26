@@ -1,5 +1,5 @@
 {
-  "schema_version": 41,
+  "schema_version": 55,
   "name": "de Havilland Canada DHC-8-100 Dash 8 \u2014 2x PW121 (concept, category C)",
   "engines": [
     {
@@ -390,33 +390,80 @@
         "name": "aft gross",
         "weight_lb": 34500,
         "xcg": 398.83,
-        "zcg": 138.8
+        "zcg": 138.8,
+        "analyses": [
+          "flight"
+        ]
       },
       {
         "name": "fwd gross",
         "weight_lb": 34500,
         "xcg": 381.72,
-        "zcg": 139.58
+        "zcg": 139.58,
+        "analyses": [
+          "flight"
+        ]
       },
       {
         "name": "fwd regardless",
         "weight_lb": 28000,
         "xcg": 377.45,
-        "zcg": 142.17
+        "zcg": 142.17,
+        "analyses": [
+          "flight"
+        ]
       },
       {
         "name": "min weight",
         "weight_lb": 22050.0,
         "xcg": 384.76,
-        "zcg": 137.35
+        "zcg": 137.35,
+        "analyses": [
+          "flight"
+        ]
       },
       {
         "name": "mid gross",
         "weight_lb": 34500,
         "xcg": 390.28,
-        "zcg": 139.58
+        "zcg": 139.58,
+        "analyses": [
+          "flight"
+        ]
+      },
+      {
+        "name": "aft max landing",
+        "weight_lb": 32800.0,
+        "xcg": 398.83,
+        "zcg": 138.55,
+        "analyses": [
+          "ground"
+        ],
+        "role": "aft_max_landing"
+      },
+      {
+        "name": "fwd max landing",
+        "weight_lb": 32800.0,
+        "xcg": 380.61,
+        "zcg": 138.55,
+        "analyses": [
+          "ground"
+        ],
+        "role": "fwd_max_landing"
+      },
+      {
+        "name": "fwd light",
+        "weight_lb": 28000,
+        "xcg": 377.45,
+        "zcg": 138.55,
+        "analyses": [
+          "ground"
+        ],
+        "role": "fwd_light"
       }
-    ]
+    ],
+    "max_landing_weight_lb": 32800.0,
+    "max_takeoff_weight_lb": 34500
   },
   "mass": {
     "cases": [
@@ -563,7 +610,6 @@
         "elevator_area_sqft": 28.0,
         "elevator_fwd_hinge_sqft": 3.0,
         "elevator_aft_hinge_sqft": 25.0,
-        "airplane_length_in": 876.0,
         "wing_lift_slope_per_rad": 5.3,
         "htail_semispan_in": 115.0
       },
@@ -577,13 +623,13 @@
         "vtail_mac_in": 96.0,
         "xv25": 805.0,
         "xv50": 820.0,
-        "airplane_length_in": 876.0,
         "wing_span_in": 1020.0,
         "gross_weight_lb": 34500.0,
         "rudder_large_deflection_factor": 1.0,
         "izz_slugft2": 0.0,
         "vtail_span_in": 130.0
-      }
+      },
+      "airplane_length_in": 876.0
     },
     "landing_gear": {
       "main_gear": {
@@ -650,7 +696,6 @@
     "chosen_n": 2.5,
     "chosen_nneg": -1.0,
     "mach_limit": {
-      "shoulder_altitude_ft": 15000,
       "max_operating_altitude_ft": 25000,
       "increment_ft": 1000
     }
@@ -739,38 +784,6 @@
       0.0,
       15000.0,
       25000.0
-    ],
-    "cg_cases": [
-      {
-        "name": "aft gross",
-        "weight_lb": 34500,
-        "xcg": 398.83,
-        "zcg": 138.8
-      },
-      {
-        "name": "fwd gross",
-        "weight_lb": 34500,
-        "xcg": 381.72,
-        "zcg": 139.58
-      },
-      {
-        "name": "fwd regardless",
-        "weight_lb": 28000,
-        "xcg": 377.45,
-        "zcg": 142.17
-      },
-      {
-        "name": "min weight",
-        "weight_lb": 22050.0,
-        "xcg": 384.76,
-        "zcg": 137.35
-      },
-      {
-        "name": "mid gross",
-        "weight_lb": 34500,
-        "xcg": 390.28,
-        "zcg": 139.58
-      }
     ]
   },
   "wing_mass": {
@@ -869,33 +882,11 @@
     "xcg_in": 0.0
   },
   "landing": {
-    "max_landing_weight_lb": 32800.0,
-    "gross_weight_lb": 34500.0,
     "strut_stroke_in": 12,
     "tire_od_in": 34,
     "hub_diameter_in": 14,
     "lift_factor": 0.667,
     "tail_down_angle_deg": 12.0,
-    "gear_load_factor": 2.0,
-    "cg_cases": [
-      {
-        "name": "aft max landing",
-        "weight_lb": 32800.0,
-        "xcg": 398.83,
-        "zcg": 138.55
-      },
-      {
-        "name": "fwd max landing",
-        "weight_lb": 32800.0,
-        "xcg": 380.61,
-        "zcg": 138.55
-      },
-      {
-        "name": "fwd light",
-        "weight_lb": 28000,
-        "xcg": 377.45,
-        "zcg": 138.55
-      }
-    ]
+    "gear_load_factor": 2.0
   }
 }

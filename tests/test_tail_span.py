@@ -1132,22 +1132,18 @@ def test_an_untagged_surface_says_so_rather_than_reporting_zero():
     assert untagged_tail_surfaces(p2) == []
 
 
-def test_the_override_flag_round_trips_and_an_old_file_keeps_its_weight():
-    """Schema + migration: v43 entered weights survive as explicit overrides."""
-    from sloads.migrations import migrate
+def test_the_override_flag_round_trips():
+    """An entered panel weight survives a save/load as an explicit override.
 
+    The other half of this test read a v43 file through the hop that introduced
+    the flag; #93 retired the hop, and with it the only file shape that needed
+    it.
+    """
     p = io.load_project(os.path.join(_ROOT, "examples", "ga6_normal.project.json"))
     p.tail_mass = [TailMassInput(surface=HTAIL, panel_weight_lb=99.0,
                                  weight_is_override=True)]
     back = io.project_from_dict(io.project_to_dict(p))
     assert back.tail_mass == p.tail_mass
-
-    old = {"schema_version": 43, "name": "x",
-           "tail_mass": [{"surface": HTAIL, "panel_weight_lb": 99.0},
-                         {"surface": VTAIL, "panel_weight_lb": 0.0}]}
-    hopped = migrate(old)["tail_mass"]
-    assert hopped[0]["weight_is_override"] is True, "an entered weight was discarded"
-    assert "weight_is_override" not in hopped[1], "a zero weight was pinned as an override"
 
 
 def test_the_deck_states_its_inertia_basis():

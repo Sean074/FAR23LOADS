@@ -225,35 +225,6 @@ def test_weight_cg_cases_round_trips_through_io():
         [(c.name, c.analyses, c.role) for c in project.weight.cg_cases]
 
 
-def test_legacy_flight_loads_cg_cases_migrate_to_weight():
-    """Pre-schema-19 files carried the loading scenarios only under
-    ``flight_loads.cg_cases``; loading one must still populate
-    ``Project.weight.cg_cases`` (Step D5 migration), tagged FLIGHT so the
-    calc-facing resolver the FLTLOADS/SELECT modules read returns exactly them
-    (decision G-3b's migration guard).
-
-    M4-10: the fixture now declares ``schema_version = 18``, i.e. it really is a
-    pre-v19 file. Before the migration chain the shim ran on *every* file
-    regardless of version, so this test passed while mutating a current-schema
-    dict -- which also meant a v36 project that legitimately had no
-    ``weight.cg_cases`` had them silently invented from ``flight_loads``. The
-    chain runs the hop only for files old enough to need it."""
-    legacy = io.project_to_dict(io.load_project(GA6))
-    # Reconstruct the genuine pre-v19 shape: the cases lived *only* on
-    # flight_loads. (Writing them there is no longer a round-trip of the current
-    # schema either -- decision G-3b removed that field, so this is the fixture
-    # building an old file rather than a current one being downgraded.)
-    legacy["flight_loads"]["cg_cases"] = [
-        {"name": c["name"], "weight_lb": c["weight_lb"],
-         "xcg": c["xcg"], "zcg": c["zcg"]}
-        for c in legacy["weight"]["cg_cases"] if c["analyses"] == ["flight"]]
-    del legacy["weight"]["cg_cases"]
-    legacy["schema_version"] = 18
-
-    rebuilt = io.project_from_dict(legacy)
-    assert [c.name for c in flight_cases(rebuilt)] == ["CG1", "CG2", "CG3", "CG4"]
-
-
 def test_critical_load_set_selected_case_ids_round_trip():
     """Step D5: the Critical Loads page's opt-out selection persists on
     CriticalLoadSet.selected_case_ids (SCHEMA_VERSION 19); empty means no filter."""
@@ -526,21 +497,27 @@ def test_safety_factor_null_no_longer_crashes_the_export():
     assert csv_text.strip().splitlines()[1].endswith("1.5")
 
 
-def test_legacy_flat_file_still_loads(tmp_path=None):
-    # A pre-Project file is just the engine fields at top level; it must wrap.
-    flat = os.path.join(EXAMPLES, "_legacy_tmp.json")
+def test_a_bare_engine_file_is_refused():
+    """A pre-``Project`` file is just the engine fields at top level. It used to
+    be wrapped into a project, discriminated by key-sniffing; since #93 it has no
+    ``schema_version`` and so is refused like any other file this build does not
+    read. The refusal is the load path's, not a special case for this shape."""
     import json
+    import tempfile
+
+    from sloads.migrations import SchemaVersionError
 
     payload = io.engine_to_dict(io520bb())
-    try:
+    with tempfile.TemporaryDirectory() as tmp:
+        flat = os.path.join(tmp, "legacy.json")
         with open(flat, "w", encoding="utf-8") as fh:
             json.dump(payload, fh)
-        project = io.load_project(flat)
-        assert project.engine is not None
-        assert project.engine.cylinders == 6
-    finally:
-        if os.path.exists(flat):
-            os.remove(flat)
+        raised = False
+        try:
+            io.load_project(flat)
+        except SchemaVersionError:
+            raised = True
+        assert raised, "a file with no schema_version was read anyway"
 
 
 def test_csv_has_three_load_cases():
@@ -556,61 +533,12 @@ def test_csv_has_three_load_cases():
     assert "ULT" in lines[0]
 
 
-def test_schema_status_current():
-    status, message = io.schema_status(SCHEMA_VERSION)
-    assert status == "ok"
-    assert message == ""
-
-
-def test_schema_status_older():
-    status, message = io.schema_status(SCHEMA_VERSION - 1)
-    assert status == "older"
-    assert str(SCHEMA_VERSION) in message
-
-
-def test_schema_status_newer():
-    status, message = io.schema_status(SCHEMA_VERSION + 1)
-    assert status == "newer"
-    assert str(SCHEMA_VERSION) in message
-
-
-def test_the_version_a_file_was_written_at_survives_the_load():
-    """PB-14 (#68): ``migrate`` stamps the dict at :data:`SCHEMA_VERSION`, so the
-    built project cannot report what the file said -- the pre-hop version has to
-    be read from the raw dict, and :func:`io.source_schema_version` is the one
-    reader of it.
-
-    Asserted together with the fact that makes it necessary, because a caller
-    reading ``project.schema_version`` instead looks correct and is silently
-    always "ok" (the GUIs' migration notice could never fire).
-    """
-    import glob
-
-    from sloads.migrations import SUPPORTED_FLOOR
-
-    examples = sorted(glob.glob(os.path.join(EXAMPLES, "*.project.json")))
-    assert examples, "no examples to read"
-    for path in examples:
-        raw = io.read_project_dict(path)
-        on_disk = raw["schema_version"]
-        assert io.source_schema_version(raw) == on_disk
-        # The stamp on the built project is not that number -- this is the trap.
-        assert io.project_from_dict(raw).schema_version == SCHEMA_VERSION
-        assert io.load_project(path).schema_version == SCHEMA_VERSION
-        if on_disk < SCHEMA_VERSION:
-            assert io.schema_status(io.source_schema_version(raw))[0] == "older"
-
-    # ``migrate`` reads an unversioned dict as the supported floor; so does this.
-    assert io.source_schema_version({}) == SUPPORTED_FLOOR
-    assert io.source_schema_version({"schema_version": "41"}) == SUPPORTED_FLOOR
-    assert io.source_schema_version({"schema_version": SCHEMA_VERSION + 3}) == \
-        SCHEMA_VERSION + 3
-
-
 def test_reading_a_project_dict_does_not_migrate_it():
-    """``read_project_dict`` is the raw file: ``load_project`` is it plus
-    ``project_from_dict``, and the split is what lets a caller ask the version
-    question before the hops run."""
+    """``read_project_dict`` is the raw file; ``load_project`` is it plus
+    ``project_from_dict``. The split is what lets a caller hold the dict the user
+    actually wrote -- what the JSON editor edits, and what
+    ``migrations.source_schema_version`` reads -- rather than only the built
+    project."""
     import json
 
     with open(GA6, encoding="utf-8") as fh:
@@ -628,52 +556,28 @@ def test_project_from_dict_raises_on_malformed():
     assert raised
 
 
-def test_legacy_ft_sqin_keys_migrate_to_canonical():
-    """Phase G0 (schema v24): a legacy project with the old ft/in^2 geometry keys
-    loads with those keys renamed and rescaled to canonical in/ft^2. Feet -> inches
-    (x12), in^2 -> ft^2 (/144); the calc result is unchanged because the ft/in^2
-    math is restored internally."""
-    d = {
-        "schema_version": 20,
-        "tail_loads": {"airplane_length_ft": 26.522},
-        "vtail_loads": {"airplane_length_ft": 26.522, "wing_span_ft": 33.5,
-                        "vtail_mac_ft": 3.367},
-        "configuration": {"h_tail_span_ft": 10.0, "v_tail_span_ft": 4.0},
-        "tab_loads": {"tabs": [{"surface": "htail", "area_sqin": 226.0}]},
-    }
-    p = io.project_from_dict(d)
-    # v54 (#52): the two rescaled LF copies agree, so they fold silently into
-    # the one empennage field.
-    assert abs(p.geometry.empennage.airplane_length_in - 26.522 * 12.0) < 1e-9
-    assert abs(p.vtail_loads.wing_span_in - 33.5 * 12.0) < 1e-9
-    assert abs(p.vtail_loads.vtail_mac_in - 3.367 * 12.0) < 1e-9
-    # v27 (Step G6): legacy top-level tail_loads/vtail_loads migrate into
-    # geometry.empennage; Project.tail_loads/.vtail_loads read them via the property.
-    assert p.geometry.empennage is not None
-    assert p.geometry.empennage.htail is p.tail_loads
-    assert abs(p.tab_loads.tabs[0].area_sqft - 226.0 / 144.0) < 1e-9
-    # A canonical (new-key) value already present is not double-converted.
-    p2 = io.project_from_dict({"vtail_loads": {"wing_span_in": 402.0}})
-    assert p2.vtail_loads.wing_span_in == 402.0
+def test_a_parametric_block_defaults_the_fuselage_outline():
+    """The fuselage outline is defaulted from the parametric length/width/height
+    scalars, and the oracle-locked ``.surfaces`` consumers are untouched.
 
-
-def test_legacy_configuration_folds_into_geometry():
-    """Phase G1 (schema v25): a pre-v25 file's top-level "configuration" block folds
-    onto the unified geometry slice as geometry.parametric, and the fuselage outline
-    is defaulted from the length/width/height scalars. The oracle-locked .surfaces
-    consumers are untouched."""
+    Written against the current schema. It used to enter through the v25 hop from
+    a pre-v25 top-level ``configuration`` block, which #93 retired -- but the
+    defaulting is the reader's, not the hop's, and is what this test is about.
+    """
     d = {
-        "schema_version": 24,
-        "configuration": {"wing_area_sqft": 174.0, "aspect_ratio": 6.0,
-                          "fuselage_length": 300.0, "fuselage_width": 48.0,
-                          "fuselage_height": 54.0, "datum_x": 0.0},
-        "geometry": {"surfaces": [{"name": "wing",
-                                   "leading_edge": [[0.0, 0.0], [10.0, 100.0]],
-                                   "trailing_edge": [[50.0, 0.0], [55.0, 100.0]]}]},
+        "schema_version": SCHEMA_VERSION,
+        "geometry": {
+            "parametric": {"wing_area_sqft": 174.0, "aspect_ratio": 6.0,
+                           "fuselage_length": 300.0, "fuselage_width": 48.0,
+                           "fuselage_height": 54.0, "datum_x": 0.0},
+            "surfaces": [{"name": "wing",
+                          "leading_edge": [[0.0, 0.0], [10.0, 100.0]],
+                          "trailing_edge": [[50.0, 0.0], [55.0, 100.0]]}],
+        },
     }
     p = io.project_from_dict(d)
     assert p.geometry is not None
-    # Parametric folded in from the legacy top-level key.
+    # The parametric block arrives on the geometry slice.
     assert p.geometry.parametric is not None
     assert p.geometry.parametric.wing_area_sqft == 174.0
     # Surfaces (oracle path) preserved unchanged.
@@ -684,7 +588,7 @@ def test_legacy_configuration_folds_into_geometry():
     assert secs[0].x == 0.0 and secs[0].width == 0.0
     assert abs(secs[1].x - 0.35 * 300.0) < 1e-9
     assert secs[1].width == 48.0 and secs[1].height == 54.0
-    # Round-trips onto the new slice with no legacy top-level "configuration".
+    # Round-trips on the geometry slice, with no top-level "configuration".
     out = io.project_to_dict(p)
     assert "configuration" not in out
     assert out["geometry"]["parametric"]["wing_area_sqft"] == 174.0

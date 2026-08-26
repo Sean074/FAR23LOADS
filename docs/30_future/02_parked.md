@@ -24,10 +24,11 @@ looking at rather than a regex. Kept separate from M4-10's migration chain
 (shipped) so any regression is attributable.
 
 **Acceptance:** the properties and their setters are gone from `models/project.py`;
-all 6 examples still round-trip byte-identically; every frozen fixture in
-`tests/fixtures_schema/` still loads; `test_migrations.py`'s
-`test_pre_g6_file_lands_its_tail_slices_on_the_empennage` is rewritten against the
-direct path.
+all 6 examples still round-trip byte-identically; the frozen fixture in
+`tests/fixtures_schema/` still loads; `test_empennage.py`'s
+`test_the_tail_slice_properties_read_the_empennage` — which is what the retired
+`test_pre_g6_file_lands_its_tail_slices_on_the_empennage` became at #93 — is
+rewritten against the direct path or deleted with the properties.
 
 ### M4-11b — Split the highest-complexity view functions **[maintainability]**
 The scaffold helpers (`unit_number_input`, `page_header`/`page`) exist and are

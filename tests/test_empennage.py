@@ -21,6 +21,7 @@ from sloads import (  # noqa: E402
     VTailLoadsInput,
     io,
 )
+from sloads.models import SCHEMA_VERSION  # noqa: E402
 from sloads.modules.select import build_critical  # noqa: E402
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
@@ -57,14 +58,25 @@ def test_empennage_round_trips_through_io():
     assert "htail" in d["geometry"]["empennage"] and "vtail" in d["geometry"]["empennage"]
 
 
-def test_pre_v27_top_level_tail_slices_migrate_to_empennage():
+def test_the_tail_slice_properties_read_the_empennage():
+    """``Project.tail_loads``/``.vtail_loads`` are views onto
+    ``geometry.empennage``, not slices of their own -- which is what made the
+    pre-v27 top-level blocks re-homeable. That hop went out with #93; the
+    single-owner reading it established is what this pins.
+    """
     d = {
-        "name": "legacy",
-        "tail_loads": {"htail_area_sqft": 36.944, "xt25": 261.027, "htail_semispan_in": 73.1},
-        "vtail_loads": {"vtail_area_sqft": 14.84, "vtail_span_in": 57.0},
+        "schema_version": SCHEMA_VERSION,
+        "name": "empennage-owned",
+        "geometry": {"empennage": {
+            "htail": {"htail_area_sqft": 36.944, "xt25": 261.027,
+                      "htail_semispan_in": 73.1},
+            "vtail": {"vtail_area_sqft": 14.84, "vtail_span_in": 57.0},
+        }},
     }
     p = io.project_from_dict(d)
     assert p.geometry is not None and p.geometry.empennage is not None
+    assert p.tail_loads is p.geometry.empennage.htail
+    assert p.vtail_loads is p.geometry.empennage.vtail
     assert math.isclose(p.tail_loads.htail_area_sqft, 36.944)
     assert math.isclose(p.vtail_loads.vtail_span_in, 57.0)
 
