@@ -14,6 +14,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import pytest  # noqa: E402
+
 from sloads import Project, io  # noqa: E402
 from sloads.constants import DEFAULT_FRONT_SPAR_PCT, DEFAULT_REAR_SPAR_PCT  # noqa: E402
 from sloads.derived_geometry import (  # noqa: E402
@@ -21,6 +23,7 @@ from sloads.derived_geometry import (  # noqa: E402
     SOB_HALF_WIDTH,
     carry_through,
     fuselage_summary,
+    require_integrable_planform,
     sob_station,
     require_wing_reference,
     sync_geometry_derived,
@@ -332,3 +335,144 @@ def test_the_landing_and_speeds_wing_areas_agree_on_every_fixture():
                             rel_tol=1e-12), f
         checked += 1
     assert checked, "no fixture carried both slices -- the check proved nothing"
+
+
+# --------------------------------------------------------------------------- #
+# #71 (review 2026-08-22, PB-21) -- a mid-entry planform is refused, not crashed
+# --------------------------------------------------------------------------- #
+#: The states a planform passes through while it is being entered in the oracle
+#: GUI's curve editor, each expressed as a mutation of a shipped surface. The
+#: one-point edges are what ``render_curve`` persists after the first complete
+#: row; ``te=le`` and ``zero span`` are what a second row looks like before its
+#: butt line or its chord is typed; ``swapped`` is the edges entered the wrong
+#: way round; ``dup station`` repeats a butt line, which is what ``interp_x``
+#: divides by.
+_MID_ENTRY = {
+    "le[:1]": lambda s: setattr(s, "leading_edge", s.leading_edge[:1]),
+    "te[:1]": lambda s: setattr(s, "trailing_edge", s.trailing_edge[:1]),
+    "le[]": lambda s: setattr(s, "leading_edge", []),
+    "te[]": lambda s: setattr(s, "trailing_edge", []),
+    "te=le": lambda s: setattr(s, "trailing_edge", list(s.leading_edge)),
+    "swapped": lambda s: (lambda le, te: (setattr(s, "leading_edge", te),
+                                          setattr(s, "trailing_edge", le)))(
+        list(s.leading_edge), list(s.trailing_edge)),
+    "zero span": lambda s: (setattr(s, "leading_edge", [(p[0], 0.0) for p in s.leading_edge]),
+                            setattr(s, "trailing_edge", [(p[0], 0.0) for p in s.trailing_edge])),
+    "dup station": lambda s: setattr(
+        s, "leading_edge", [s.leading_edge[0], s.leading_edge[0]] + list(s.leading_edge[1:])),
+    "elements=1": lambda s: setattr(s, "elements", 1),
+}
+
+
+def _examples():
+    import glob
+    return sorted(glob.glob(os.path.join(_EXAMPLES, "*.project.json")))
+
+
+@pytest.mark.parametrize("example", _examples(),
+                         ids=[os.path.basename(f).split(".")[0] for f in _examples()])
+def test_a_mid_entry_planform_is_refused_by_name_not_by_traceback(example):
+    """Gate for #71 (PB-21), stated as the property rather than the four sites.
+
+    Every module, on every shipped fixture, for every surface, in every state a
+    planform passes through while it is being typed: the only exception allowed
+    out is a ``ValueError``. That is what the oracle GUI's ``_NOT_READY`` catches
+    and renders as "cannot run yet"; anything else reaches the page as a
+    traceback, which is what PB-21 reported for Wing Loads.
+
+    Written as a sweep on purpose. The finding named one site
+    (``wing_geometry.interp_x`` via ``wing_inertia``); the sweep found four more
+    that no one had looked at -- ``tail_geometry``'s two polyline integrals,
+    reached from SELECT and the balance, and the Schrenk distribution's own copy
+    of the guard, which had the point check but still divided by an area of
+    zero. A per-site test would have locked in the one site and missed them.
+    """
+    import copy
+
+    from sloads import registry
+    import sloads.modules  # noqa: F401  -- registers the modules
+
+    base = io.load_project(example)
+    if base.geometry is None:
+        pytest.skip("no geometry slice to half-enter")
+    names = sorted(registry.available())
+    escaped = []
+    for surf in base.geometry.surfaces:
+        for label, mutate in _MID_ENTRY.items():
+            project = copy.deepcopy(base)
+            mutate(project.geometry.by_name(surf.name))
+            for name in names:
+                try:
+                    registry.get(name)(project)
+                except ValueError:
+                    pass                       # refused by name: the contract
+                except Exception as exc:       # noqa: BLE001 -- that is the point
+                    escaped.append(f"{surf.name} {label} -> {name}: "
+                                   f"{type(exc).__name__}: {exc}")
+    assert not escaped, (
+        "a half-entered planform reached the page as a traceback rather than a "
+        f"named refusal (#71): {escaped}")
+
+
+def test_the_planform_precondition_names_the_surface_and_what_is_wrong():
+    """The refusal is only useful if it says which surface and which edge.
+
+    ``_NOT_READY`` prints ``str(exc)`` alone (showing the type and a traceback is
+    #73's), so the message is the whole of what the user gets.
+    """
+    surf = io.load_project(_GA).geometry.by_name("wing")
+
+    def refusal(mutation):
+        import copy
+        s = copy.deepcopy(surf)
+        _MID_ENTRY[mutation](s)
+        try:
+            require_integrable_planform(s)
+        except ValueError as exc:
+            return str(exc)
+        return ""
+
+    assert "'wing'" in refusal("le[:1]") and "LE and TE points" in refusal("le[:1]")
+    assert "leading edge" in refusal("dup station"), refusal("dup station")
+    assert "integration elements" in refusal("elements=1")
+    assert not refusal("te=le"), "a zero-area planform is refused after the sweep, not before"
+
+
+def test_every_strip_sweep_asks_the_precondition_owner():
+    """Rule 3's drift guard: a new sweep must not repeat ``wing_inertia``'s omission.
+
+    The structural mark of a strip sweep is that it interpolates an edge
+    polyline -- it hands ``leading_edge``/``trailing_edge`` to ``interp_x`` (or
+    ``tail_geometry._interp``), which divides by the butt-line difference of the
+    segment it lands on and indexes ``pts[-2]``. Those are the entry points a
+    GUI can reach with a half-entered planform. Before #71 there were five, and
+    of the five two carried an inline copy of the check, one carried half of it
+    and two carried nothing; the copies had already begun to differ. Anything
+    that interpolates an edge asks the owner.
+
+    Reading an *endpoint* is not a sweep and is not covered here: ``balance``
+    takes ``leading_edge[-1][1]`` as a semispan and ``configuration`` reads root
+    and tip stations, each behind its own emptiness check, and neither divides
+    by anything the polyline controls.
+    """
+    import ast
+    import glob
+
+    root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "sloads")
+    offenders = []
+    for path in sorted(glob.glob(os.path.join(root, "**", "*.py"), recursive=True)):
+        with open(path, encoding="utf-8") as fh:
+            source = fh.read()
+        tree = ast.parse(source, filename=path)
+        interpolates_edge = any(
+            isinstance(node, ast.Call)
+            and any(isinstance(a, ast.Attribute)
+                    and a.attr in ("leading_edge", "trailing_edge")
+                    for a in node.args)
+            for node in ast.walk(tree))
+        if interpolates_edge and "require_integrable_planform" not in source:
+            offenders.append(os.path.relpath(path, root))
+    assert not offenders, (
+        "a strip sweep interpolates an edge polyline without asking "
+        f"`require_integrable_planform` -- that is exactly how PB-21 happened: {offenders}")

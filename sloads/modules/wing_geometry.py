@@ -32,6 +32,7 @@ from __future__ import annotations
 
 from typing import List, Optional, Sequence, Tuple
 
+from ..derived_geometry import require_integrable_planform, require_positive_planform_area
 from ..models import (
     ConditionResult,
     GeometryInput,
@@ -101,10 +102,7 @@ def interp_x(polyline: List, y: float) -> float:
 
 def surface_properties(surf: SurfaceInput) -> ConditionResult:
     """Geometric properties of one aerodynamic surface (WINGGEOM core)."""
-    if surf.elements < 2:
-        raise ValueError(f"surface '{surf.name}' needs >= 2 integration elements")
-    if len(surf.leading_edge) < 2 or len(surf.trailing_edge) < 2:
-        raise ValueError(f"surface '{surf.name}' needs >= 2 LE and TE points")
+    require_integrable_planform(surf)   # the shared precondition (#71)
 
     yroot = surf.leading_edge[0][1]
     ytip = surf.leading_edge[-1][1]
@@ -123,6 +121,11 @@ def surface_properties(surf: SurfaceInput) -> ConditionResult:
         saye += da * ye
         sbarxc += da * (xf + xa) / 2
 
+    # The post-sweep half of the same precondition (#71): every line below
+    # divides by `area`, and `_NOT_READY` deliberately does not catch
+    # `ZeroDivisionError` (0.7.2), so a coincident-edge planform reached the
+    # page as a traceback.
+    require_positive_planform_area(surf.name, area)
     xbar = sbarxc / area
     ybar = saye / area
     mac = sc2 / area
