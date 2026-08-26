@@ -382,6 +382,38 @@ class PageContext(NamedTuple):
     U: dict
 
 
+# --------------------------------------------------------------------------- #
+# What a grid does with a keystroke (C210-4 residual, issue #77)
+# --------------------------------------------------------------------------- #
+#: How ``st.data_editor`` commits a typed cell, said in the user's terms.
+#:
+#: Streamlit's grid keeps the cell editor **open** on Enter: the value is on
+#: screen but not in the frame the widget hands back, and the next Tab or click
+#: closes the editor by discarding it. Reproduced in a bare Streamlit 1.58.0 app
+#: during the Cessna 210 build review, so it is the grid's own behaviour and not
+#: anything this codebase does -- there is no version of ``form.py`` that fixes
+#: it, which is why the remedy is a sentence rather than a patch.
+#:
+#: Not to be confused with C210-4, the remount race that *was* ours: a grid
+#: whose base frame was rebuilt on every committed cell changed widget identity
+#: and dropped the keystroke in flight. That is fixed (``form._stable_frame``),
+#: and fixing it is what made this one visible -- the two presented identically
+#: as "Enter loses my entry", so the Enter warning was withdrawn with the race
+#: it was blamed on and the surviving half went unsaid until #77.
+#:
+#: Owned here rather than in either GUI because both render grids: fourteen
+#: ``st.data_editor`` call sites live in ``app/views/`` and two in
+#: ``oracle_app/form.py``. Only the oracle GUI states it today -- ``app/views/``
+#: layout is frozen pending the main-GUI review (#29) -- so the string lives in
+#: the shell, ready for that page set to adopt without spelling it a second
+#: time. ``tests/test_oracle_gui.py`` fails if anyone spells it a second time
+#: anyway.
+GRID_COMMIT_NOTE = (
+    "**Commit a grid cell with Tab, not Enter** — Enter leaves the cell's "
+    "editor open and the next keystroke discards what you typed."
+)
+
+
 def render_consistency_warnings(
     project: Project,
     key: str,
