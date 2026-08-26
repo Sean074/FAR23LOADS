@@ -49,6 +49,7 @@ import pandas as pd
 import streamlit as st
 
 from app_shell.components import (
+    GRID_COMMIT_NOTE,
     active_system,
     clear_number_input,
     page_header,
@@ -1269,12 +1270,21 @@ def render_step(key: str) -> None:
         )
     else:
         if _page_has_grid(groups):
+            # Everything a grid on this page will do with a keystroke, said
+            # once above the first one.
+            #
+            # How a cell commits is Streamlit's behaviour, not ours, and is
+            # owned by the shell so both GUIs can say it identically
+            # (:data:`~app_shell.components.GRID_COMMIT_NOTE`, #77). It was
+            # said here until 2026-08-23 and then withdrawn as fixed: Enter
+            # dropping an entry was *also* a symptom of C210-4, the remount
+            # race that was ours, and when _stable_frame closed that race the
+            # warning went out with it. The two presented identically and only
+            # one of them was fixed.
+            st.caption(GRID_COMMIT_NOTE)
             # Asked for by the owner mid-build (C210 review 2026-08-23): a
             # part-filled row is deliberately held out of the project, which is
-            # invisible until it vanishes on a rerun. Said once, above the
-            # first grid. (The original wording also warned that Enter could
-            # drop an entry — that was the C210-4 remount race, fixed by
-            # _stable_frame, so the warning came back out.)
+            # invisible until it vanishes on a rerun.
             # Both halves, because the first one alone was read as a promise the
             # page does not keep: a *grid* row with an empty cell is held out,
             # but a row created with the row counter is part of the project the

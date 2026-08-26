@@ -1634,3 +1634,62 @@ def test_the_root_group_caption_is_not_a_path():
     path, and ``(project)`` rendered as code reads as one that exists (PB-22)."""
     at = _render("engine_mount")
     assert not any("(project)" in (c.value or "") for c in at.caption)
+
+
+# --------------------------------------------------------------------------- #
+# What a grid does with a keystroke (#77, C210-4 residual)
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("key", sorted(wf.oracle_step_keys()))
+def test_a_page_with_a_grid_says_how_a_cell_commits(key):
+    """Streamlit's grid keeps the cell editor open on Enter and the next
+    keystroke discards the value — its behaviour, reproduced in a bare app, so
+    the remedy is a sentence and the sentence has to be on every page that can
+    lose an entry to it (#77).
+
+    Two-sided on purpose. The note was said here until 2026-08-23 and then
+    withdrawn as fixed, because Enter dropping an entry was *also* a symptom of
+    C210-4, the remount race that was ours: closing that race retired the
+    warning for a defect it did not cover. Asserting only "a grid page says it"
+    would let the same withdrawal happen again on a page that quietly stopped
+    rendering a grid; asserting the absence too means the note and the grids
+    move together.
+    """
+    from app_shell.components import GRID_COMMIT_NOTE
+    from oracle_app.form import _page_has_grid, page_groups, step_not_applicable
+
+    project = _seeded()
+    # A page for a condition this airplane cannot have collects nothing at all
+    # (#84, C210-43) -- no form, so no grid and nothing to say about one.
+    expected = (_page_has_grid(page_groups(key))
+                and not step_not_applicable(key, project))
+    at = _render(key, project)
+    said = [c for c in at.caption if (c.value or "") == GRID_COMMIT_NOTE]
+    assert bool(said) == expected, (key, expected, [c.value for c in at.caption])
+
+
+def test_at_least_one_oracle_page_has_a_grid():
+    """Anchors the test above: if the whole GUI stopped rendering grids, its
+    two-sided assertion would pass vacuously on all fourteen pages."""
+    from oracle_app.form import _page_has_grid, page_groups
+
+    assert any(_page_has_grid(page_groups(k)) for k in wf.oracle_step_keys())
+
+
+def test_the_grid_commit_note_is_spelled_once():
+    """One string, one owner (rule 3). Fourteen of the sixteen
+    ``st.data_editor`` call sites are in ``app/views/``, whose layout is frozen
+    pending #29 — so the note lives in the shell rather than the GUI that says
+    it today, and the main GUI adopts it by importing rather than by retyping a
+    sentence that would then drift.
+    """
+    from app_shell.components import GRID_COMMIT_NOTE
+
+    fragment = "Enter leaves the cell"
+    owner = os.path.join(_SHELL, "components.py")
+    assert fragment in GRID_COMMIT_NOTE
+    sources = _DOWNLOAD_SOURCES + sorted(
+        glob.glob(os.path.join(_ROOT, "app", "views", "*.py")))
+    spelled = [p for p in sources
+               if os.path.abspath(p) != os.path.abspath(owner)
+               and fragment in open(p, encoding="utf-8").read()]
+    assert not spelled, spelled
