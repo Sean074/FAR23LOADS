@@ -281,23 +281,34 @@ def test_no_module_integrates_the_wing_planform_behind_the_resolvers_back():
     slice copy -- opposite orders for one quantity, invisible only because
     ``sync_geometry_derived`` overwrote the landing copy before the module read
     it. This asserts the shape that keeps the divergence from coming back: the
-    strip integral is performed by its owner and by the two accessors that are
-    allowed to name it, and nowhere else.
+    strip integral is performed by its **producer** and read by its **owner**,
+    and nowhere else.
+
+    Two accessors were allowlisted here until #70 -- ``landing._wing_area`` and
+    ``structural_speeds._wing_area_sqft`` -- on the grounds that each keeps its
+    own precedence. Their precedence is a policy (LGFACTOR refuses when there is
+    no planform, STRSPEED falls back to a typed field); the integral underneath
+    it is not, and leaving it copied is what let ``validation`` grow a third
+    version and the oracle GUI display a fourth number entirely. Policy stays
+    with the caller; the arithmetic has one home. The sweep also covers all of
+    ``sloads/`` rather than ``sloads/modules/`` alone -- ``validation.py`` sat
+    outside the old scan and was never checked.
     """
     import ast
+    import glob
 
-    mods = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                        "sloads", "modules")
-    allowed = {"wing_geometry.py", "landing.py", "structural_speeds.py"}
+    root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "sloads")
+    allowed = {"wing_geometry.py", "derived_geometry.py"}
     offenders = []
-    for fn in sorted(os.listdir(mods)):
-        if not fn.endswith(".py") or fn in allowed:
+    for path in sorted(glob.glob(os.path.join(root, "**", "*.py"), recursive=True)):
+        if os.path.basename(path) in allowed:
             continue
-        with open(os.path.join(mods, fn), encoding="utf-8") as fh:
-            tree = ast.parse(fh.read(), filename=fn)
+        with open(path, encoding="utf-8") as fh:
+            tree = ast.parse(fh.read(), filename=path)
         for node in ast.walk(tree):
             if isinstance(node, ast.Constant) and node.value == "total_area":
-                offenders.append(f"{fn}:{node.lineno}")
+                offenders.append(f"{os.path.relpath(path, root)}:{node.lineno}")
     assert not offenders, (
         "a module integrates the wing planform itself rather than reading the one "
         f"resolver -- that is how the two-precedences defect started: {offenders}"

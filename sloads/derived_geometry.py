@@ -134,6 +134,43 @@ def wing_reference(project: Project, surface_name: str = "wing") -> Optional[Win
                          dihedral_deg, wrp_waterline)
 
 
+def planform_area_sqft(project: Project, surface_name: str = "wing") -> Optional[float]:
+    """The WINGGEOM planform area S (ft^2) of ``surface_name``, or ``None``.
+
+    The single owner of "what area does the analysis actually use" (#70, review
+    2026-08-22 PB-17). Three call sites computed this integral independently --
+    ``structural_speeds._wing_area_sqft``, ``validation._wing_geometry_area_sqft``
+    and this module's own :func:`wing_reference` -- and the oracle GUI showed a
+    fourth number entirely (``geometry.parametric.wing_area_sqft``, 18 % adrift
+    on ``atr42_100``) beside a widget claiming to be the one STRSPEED reads.
+    A displayed number that is not the governing number is worse than no number,
+    so the resolution lives in one place and both the calc and the widget read it.
+
+    ``None`` means *there is no such planform to integrate*: no geometry slice,
+    or no surface of that name -- the condition under which
+    ``speeds.wing_area_sqft`` stops being an ignored copy and becomes the
+    fallback the analysis really uses.
+
+    A surface that exists but cannot be integrated (fewer than two strips, a
+    degenerate chord) **raises**, as it always has: it is a half-entered
+    planform, and answering ``None`` there would send STRSPEED to a typed
+    fallback the user believes is inert -- a wrong number in place of a visible
+    error. Callers that only want to display something (the GUI mark,
+    ``validation``) catch it themselves; the crash-vs-not-ready reporting of
+    that raise is #71's, not this function's.
+    """
+    geom = project.geometry
+    if geom is None:
+        return None
+    surf = geom.by_name(surface_name)
+    if surf is None:
+        return None
+    from .modules.wing_geometry import surface_properties
+    total_in2 = next(v.value for v in surface_properties(surf).values
+                     if v.key == "total_area")
+    return total_in2 / IN2_PER_FT2
+
+
 def require_wing_reference(project: Project, surface_name: str = "wing") -> WingReference:
     """:func:`wing_reference`, or a refusal naming the page — note 33, DS-2/DS-3.
 

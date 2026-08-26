@@ -50,7 +50,7 @@ from typing import List, NamedTuple, Optional, Tuple
 from ..basic import basic_trunc3
 from ..case_ids import CaseIdAllocator
 from ..cg_cases import landing_role_cases, max_landing_weight, max_takeoff_weight
-from ..constants import IN2_PER_FT2, IN_PER_FT, G
+from ..constants import IN_PER_FT, G
 from ..models import (
     STRUT_TYPES,
     CaseRef,
@@ -505,14 +505,17 @@ def _wing_area(project: Project) -> float:
     :func:`sloads.modules.structural_speeds._wing_area_sqft` preferred geometry
     and fell back to its own slice copy — opposite orders for one quantity,
     masked only because ``sync_geometry_derived`` overwrote the landing copy
-    before this ran. The copy is gone (DS-1) and the planform is the answer.
+    before this ran. The copy is gone (DS-1) and the planform is the answer --
+    resolved by :func:`sloads.derived_geometry.planform_area_sqft`, which is now
+    the only place the strip integral is read for this quantity (#70): this
+    function and STRSPEED's still each own their *policy* (LGFACTOR refuses,
+    STRSPEED falls back), but neither owns the arithmetic any more.
     """
-    wing = project.geometry.by_name("wing") if project.geometry is not None else None
-    if wing is not None:
-        from .wing_geometry import surface_properties
-        r = surface_properties(wing)
-        total_in2 = next(v.value for v in r.values if v.key == "total_area")
-        return total_in2 / IN2_PER_FT2
+    from ..derived_geometry import planform_area_sqft
+
+    area = planform_area_sqft(project, "wing")
+    if area is not None:
+        return area
     raise MissingInputError(
         "landing needs the wing area: add a 'wing' surface to the geometry slice "
         "(Configuration & Layout). LGFACTOR reads the planform, not a second copy.")

@@ -78,7 +78,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, List, Optional
 
 from . import cg_cases, mass_distribution
-from .constants import IN2_PER_FT2, ULTIMATE_FACTOR
+from .constants import ULTIMATE_FACTOR
 from .models import (
     GROUND_CASE_ROLE_ORDER,
     AnalysisKind,
@@ -138,18 +138,11 @@ class ConsistencyWarning:
 
 def _wing_geometry_area_sqft(project: Project) -> Optional[float]:
     """WINGGEOM planform total area (ft^2) for the 'wing' surface, or None."""
-    if project.geometry is None:
-        return None
-    surf = project.geometry.by_name("wing")
-    if surf is None:
-        return None
-    from .modules.wing_geometry import surface_properties
+    from .derived_geometry import planform_area_sqft
     try:
-        r = surface_properties(surf)
-    except (ValueError, ZeroDivisionError):
-        return None
-    total_in2 = next((v.value for v in r.values if v.key == "total_area"), None)
-    return total_in2 / IN2_PER_FT2 if total_in2 is not None else None
+        return planform_area_sqft(project, "wing")
+    except (ValueError, ZeroDivisionError, StopIteration):
+        return None  # half-entered planform: nothing to compare, not a warning
 
 
 def _check_taper(project: Project) -> List[ConsistencyWarning]:
@@ -237,8 +230,12 @@ def _check_area_mismatch(project: Project) -> List[ConsistencyWarning]:
             f"Wing area mismatch: Configuration & Layout has "
             f"{cfg.wing_area_sqft:,.1f} ft² but the WINGGEOM planform is "
             f"{geo_area:,.1f} ft² ({rel * 100:.0f}% apart). They should agree.")
+        # Both pages, once each. It was PAGE_CONFIGURATION twice, so Configuration
+        # & Layout printed the same sentence twice and Design Speeds -- where the
+        # disagreement decides which number STRSPEED integrates -- printed it not
+        # at all (#70, alongside PB-17).
         return [ConsistencyWarning("area_mismatch", msg, PAGE_CONFIGURATION),
-                ConsistencyWarning("area_mismatch", msg, PAGE_CONFIGURATION)]
+                ConsistencyWarning("area_mismatch", msg, PAGE_STRUCTURAL_SPEEDS)]
     return []
 
 

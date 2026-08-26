@@ -1114,6 +1114,61 @@ def test_no_external_copy_renders_as_a_plain_widget(page):
             "them renders as an independent input")
 
 
+def test_the_wing_area_widget_shows_the_area_that_governs():
+    """PB-17: the disabled copy displayed a number STRSPEED does not use.
+
+    ``speeds.wing_area_sqft`` was registered as a copy of
+    ``geometry.parametric.wing_area_sqft`` and the disabled widget showed that
+    field, but ``structural_speeds`` integrates the ``speeds.wing_surface``
+    planform: 500.0 on screen against the 497.75 in the answer, and on a
+    hand-typed project two unrelated numbers. A disabled widget is a *statement
+    about the calc*, so the wrong number there is worse than an empty box.
+    """
+    from sloads import field_registry as reg
+    from sloads import io as sloads_io
+    from sloads.modules.structural_speeds import _wing_area_sqft
+
+    project = sloads_io.load_project(
+        os.path.join(_EXAMPLES, "concept_regional_jet.project.json"))
+    governing = _wing_area_sqft(project, project.speeds)
+    assert governing != pytest.approx(project.geometry.parametric.wing_area_sqft), (
+        "this example no longer distinguishes the planform from the parametric "
+        "area, so it cannot show which one the widget displays")
+    assert reg.external_value("speeds.wing_area_sqft", project) == pytest.approx(governing)
+
+    at = _render("structural_speeds", project)
+    assert not at.exception, [e.message for e in at.exception]
+    shown = [w for w in at.number_input if (w.label or "").lower().startswith("wing area")]
+    assert shown, [w.label for w in at.number_input]
+    assert shown[0].disabled, "the copy is enterable while a planform governs it"
+    assert shown[0].value == pytest.approx(governing, rel=1e-9), (
+        f"the widget shows {shown[0].value}; STRSPEED uses {governing}")
+
+
+def test_the_wing_area_widget_goes_live_when_no_planform_governs_it():
+    """The other half, and why the row is ``resolves`` rather than display-only.
+
+    With no such surface the field stops being inert and becomes the value
+    STRSPEED reads -- which is what its own ``MissingInputError`` tells the user
+    to set. Disabling it unconditionally (the state before #70) made that
+    instruction impossible to follow.
+    """
+    from sloads import io as sloads_io
+
+    project = sloads_io.load_project(
+        os.path.join(_EXAMPLES, "concept_regional_jet.project.json"))
+    from sloads.models import same_name
+    project.geometry.surfaces = [s for s in project.geometry.surfaces
+                                 if not same_name(s.name, project.speeds.wing_surface)]
+
+    at = _render("structural_speeds", project)
+    assert not at.exception, [e.message for e in at.exception]
+    shown = [w for w in at.number_input if (w.label or "").lower().startswith("wing area")]
+    assert shown and not shown[0].disabled, (
+        "with no wing planform the field is the one STRSPEED reads, and the GUI "
+        "still refuses to let it be entered")
+
+
 def test_no_non_owner_field_needs_a_mark_the_renderer_cannot_give():
     """The composite mark is a caption, so a display-only composite is unmarkable.
 

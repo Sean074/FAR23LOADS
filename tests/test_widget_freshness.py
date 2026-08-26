@@ -32,14 +32,22 @@ widgets inside it:
   a load whenever the loaded field repeats the seed — the common case, because
   the seed is ``Project(name="")``. The only exemptions are the shell's own
   session-state widgets, named per key with a companion that fails when an
-  entry stops naming anything.
+  entry stops naming anything;
+* **the sidebar survives a load intact** — the exemption list is the one part of
+  the stamp a human decides, and #70 (PB-16) is what a wrong decision looks
+  like: the unit radio was exempted as "the user's choice" when ``unit_system``
+  is a field of the project, so a load could not change it and dirtied the file
+  it had just read. The behavioural half below holds every shipped example to
+  "loading a file leaves it clean", which no future exemption can argue past.
 """
 
 import ast
 import glob
+import json
 import logging
 import os
 import sys
+import tempfile
 
 import pytest
 
@@ -135,6 +143,98 @@ def test_the_widgets_show_the_loaded_project_not_what_they_held():
     session = at.session_state["project"]
     assert len(session.weight.items) == len(project.weight.items)
     assert len(session.weight.cg_cases) == len(project.weight.cg_cases)
+
+
+# --------------------------------------------------------------------------- #
+# The shell sidebar: a load must reach it, and must not dirty what it loaded
+# --------------------------------------------------------------------------- #
+_SHELL_SCRIPT = """
+import streamlit as st
+
+from app_shell.project_state import adopt, ensure_project
+from app_shell.sidebar import render_shell_sidebar
+from sloads import io
+
+ensure_project()
+if st.session_state.pop("_load_now", False):
+    adopt(io.load_project(st.session_state["_load_path"]))
+with render_shell_sidebar(st.session_state["project"]):
+    st.write("page body")
+"""
+
+
+def _shell_then_loaded(example, timeout=90, before=None):
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_string(_SHELL_SCRIPT, default_timeout=timeout)
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    if before is not None:
+        before(at)
+        assert not at.exception, [e.message for e in at.exception]
+    at.session_state["_load_path"] = example
+    at.session_state["_load_now"] = True
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    return at
+
+
+def _switch_to_si(at):
+    """Give the sidebar a state of its own to hold, so 'it stayed clean' means
+    something: with every widget agreeing with the file, a stale one is
+    invisible."""
+    from sloads import UnitSystem
+
+    at.radio[0].set_value("SI").run()
+    assert at.session_state["project"].unit_system == UnitSystem.SI.value
+
+
+@pytest.mark.parametrize("example", _EXAMPLES, ids=_ids(_EXAMPLES))
+def test_loading_a_file_through_the_shell_leaves_it_clean(example):
+    """The general form of PB-16: a load is a read, and a read edits nothing.
+
+    Anything in the sidebar still holding the previous project's state writes it
+    onto the loaded one during the load's own rerun, so the file the user just
+    opened is dirty before they touch it -- and 'Unsaved changes' beside a file
+    nobody changed is the caption that teaches users to ignore the caption. This
+    is the behavioural guard behind ``_SHELL_OWNED_KEYS``: a future exemption
+    that turns out to be project data fails here whatever its rationale said.
+    """
+    at = _shell_then_loaded(example, before=_switch_to_si)
+    from app_shell.project_state import SAVED_SNAPSHOT_KEY
+
+    project = at.session_state["project"]
+    assert io.project_to_dict(project) == at.session_state[SAVED_SNAPSHOT_KEY], (
+        f"the shell dirtied {os.path.basename(example)} while loading it")
+    assert io.project_to_dict(project) == io.project_to_dict(io.load_project(example))
+
+
+def test_the_unit_radio_adopts_the_loaded_projects_system():
+    """PB-16 itself, in the direction that reproduced it.
+
+    ``unit_system`` is a field of ``Project`` (M4-20 D-22), so an SI-saved file
+    opened in an Imperial session must arrive as SI. Unstamped, the radio's
+    retained state beat ``index=`` and wrote Imperial back over it.
+    """
+    from sloads import UnitSystem
+
+    # Written outside ``examples/``: that directory is globbed by this file and
+    # several others, in a parallel run.
+    saved_si = io.load_project(_ATR42)
+    saved_si.unit_system = UnitSystem.SI.value
+    with tempfile.TemporaryDirectory() as tmp:
+        si_file = os.path.join(tmp, "si.project.json")
+        with open(si_file, "w", encoding="utf-8") as handle:
+            json.dump(io.project_to_dict(saved_si), handle)
+        at = _shell_then_loaded(si_file, before=_switch_to_si)
+        assert at.session_state["project"].unit_system == UnitSystem.SI.value
+
+    # ...and back the other way: the session is SI, the file says Imperial.
+    at = _shell_then_loaded(_ATR42, before=_switch_to_si)
+    assert at.session_state["project"].unit_system == UnitSystem.IMPERIAL.value, (
+        "the sidebar's unit radio kept its own selection across a load and put "
+        "it back on the loaded project")
+    assert at.radio[0].value == "Imperial"
 
 
 # --------------------------------------------------------------------------- #
@@ -257,14 +357,21 @@ _INPUT_CALLS = {
 }
 
 #: Widgets whose keys are the shell's own session state, not project data: the
-#: unit-system radio, the load-path pickers and the file uploader. These must
-#: **survive** a load — stamping them would reset the user's unit choice on
-#: every project they open. Named **per key**, not per file (#43's lesson:
-#: a whole-file exemption keeps exempting whatever the file grows), and the
-#: companion test below fails when an entry stops naming a real widget.
+#: load-path pickers and the file uploader. These must **survive** a load —
+#: stamping them would reset the picker the user is loading *through*. Named
+#: **per key**, not per file (#43's lesson: a whole-file exemption keeps
+#: exempting whatever the file grows), and the two companion tests below fail
+#: when an entry stops naming a real widget, or starts naming project data.
+#:
+#: ``_unit_system_radio`` was on this list until #70 (review 2026-08-22 PB-16) on
+#: the stated grounds that stamping it "would reset the user's unit choice on
+#: every project they open". That is what it is *for*: ``unit_system`` is a field
+#: of ``Project`` (M4-20 D-22), so the exemption made the radio's retained state
+#: beat a loaded file's own setting and dirty it on the way in. An exemption
+#: argued from the widget's subject matter rather than from where its value lives
+#: is the failure mode this allowlist has to keep out.
 _SHELL_OWNED_KEYS = {
-    "_unit_system_radio", "_open_saved_choice", "_open_example_choice",
-    "_uploader",
+    "_open_saved_choice", "_open_example_choice", "_uploader",
 }
 
 
