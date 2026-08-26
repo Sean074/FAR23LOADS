@@ -361,6 +361,46 @@ def render_consistency_warnings(
         st.warning(w.message)
 
 
+def render_page_order_reads(project: Project, key: str) -> None:
+    """State the later pages this page's numbers depend on (#69, PB-15/PB-19).
+
+    A page whose result reads a slice entered further down the workflow shows a
+    complete-looking answer that changes once that later page is filled -- the
+    Flap page's 23.457(b) slipstream case is a whole *delivered case* that does
+    not exist until an engine record does, ~19 % of the governing flap load on
+    the C210. Downloaded in between, the numbers are wrong and nothing on the
+    page ever said why.
+
+    The dependencies are declared on the step (:attr:`sloads.workflow.WorkflowStep.reads`)
+    and resolved by :func:`sloads.workflow.later_page_reads`, so this renders
+    what the workflow already knows and holds no list of its own. Stated on
+    every visit, not only when the slice is absent: it is provenance either way,
+    and a mark that appears only in the broken state teaches nothing about the
+    page. The loud channel stays :func:`render_consistency_warnings` -- this one
+    is a caption, and turns into a warning only when a dependency is genuinely
+    still empty.
+
+    Links to the entering page when the running GUI carries it; the oracle GUI
+    has fourteen of the twenty-two steps, so the name degrades to plain text
+    rather than pointing at a page that is not there.
+    """
+    rows = wf.later_page_reads(project, wf.BY_KEY[key])
+    if not rows:
+        return
+    parts = []
+    for row in rows:
+        where = wf.BY_KEY[row.entered_on].title if row.entered_on else "another page"
+        label = row.slice_name.replace("_", " ")
+        parts.append(f"**{label}** (entered on {where})"
+                     + ("" if row.present else " — not entered yet"))
+    lead = "These numbers also read " + ", ".join(parts) + "."
+    if all(row.present for row in rows):
+        st.caption(lead)
+        return
+    st.warning(lead + " Fill that page first: results shown or downloaded now "
+                      "will change once it is.")
+
+
 def page_header(
     key: str,
     *,
@@ -395,6 +435,10 @@ def page_header(
     # the same kind of thing: a page-targeted finding about the inputs, rendered
     # from the step key the header already has.
     render_consistency_warnings(project, key)
+    # Same rationale, the other direction: the consistency channel reports a
+    # contradiction in what was entered, this one reports a dependency on what
+    # has not been (#69).
+    render_page_order_reads(project, key)
 
     system = active_system()
     return PageContext(project, system, labels_for(system))

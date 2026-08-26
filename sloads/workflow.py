@@ -23,7 +23,7 @@ real output is a sub-field of a slice can still report completeness precisely.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, NamedTuple, Optional, Set, Tuple
 
 from .models import Project
 
@@ -65,6 +65,10 @@ class WorkflowStep:
                  ``edits`` is *self-entered*: absent it blocks the run, but the
                  remedy is this page's form, never an upstream page — the
                  :func:`missing_upstream` / :func:`missing_self_entered` split.
+    ``reads``    slices the step's numbers depend on that it neither gates on,
+                 enters, nor produces — and that are entered on a **later**
+                 page (#69). See :func:`later_page_reads`; the drift guard is
+                 ``tests/test_workflow.py::test_every_page_order_dependency_is_declared``.
     ``bas``      the original McMaster program(s), or ``None`` for a modern page.
     ``summary``  one-line description for tooltips/help.
     """
@@ -76,6 +80,7 @@ class WorkflowStep:
     requires: Tuple[str, ...] = ()
     produces: Optional[str] = None
     edits: Tuple[str, ...] = ()
+    reads: Tuple[str, ...] = ()
     bas: Optional[str] = None
     summary: str = ""
 
@@ -111,9 +116,14 @@ STEPS: Tuple[WorkflowStep, ...] = (
     # empennage form -- required downstream (Tail Loads, Tail Span Loads, One
     # Engine Out) but nobody's ``produces``. #52's v55 hop retires the proxies;
     # the rot companion in tests/test_workflow.py fails when it does.
+    # reads: WINGGEOM's engine stations come from ``engines``/``engine_layout``
+    # and the CG-envelope block from ``weight`` -- all entered on later pages
+    # (#69). ``engine_layout`` moves onto this page under C210-44 (#73), which
+    # removes one of the three.
     WorkflowStep("configuration_layout", "Geometry", DEVELOP_VN,
                  module="configuration", produces="geometry",
-                 edits=("tail_loads", "vtail_loads"), bas="WINGGEOM",
+                 edits=("tail_loads", "vtail_loads"),
+                 reads=("engines", "engine_layout", "weight"), bas="WINGGEOM",
                  summary="Single geometry source of truth: parametric fuselage/wing/"
                          "tail/gear, fuselage outline, and WINGGEOM surface planforms."),
     # 1b. Weight & mass properties -- Step G3 merged Weight Estimate (WTESTIMA),
@@ -124,7 +134,7 @@ STEPS: Tuple[WorkflowStep, ...] = (
     # own weight-database form -- self-entered, not an upstream gate (#45).
     WorkflowStep("weight_mass", "Weight & Mass Properties", DEVELOP_VN,
                  module="weight_onecg", requires=("weight",), produces="mass",
-                 edits=("weight",), bas="WTESTIMA+WTONECG+WTENV",
+                 edits=("weight",), reads=("engines",), bas="WTESTIMA+WTONECG+WTENV",
                  summary="All weight/mass data: statistical estimate, itemised mass "
                          "properties (weight/CG/inertia), loading scenarios, and the "
                          "CG envelope."),
@@ -186,7 +196,7 @@ STEPS: Tuple[WorkflowStep, ...] = (
 
     WorkflowStep("balanced_cases", "Balanced Cases", FLIGHT_LOADS,
                  module="balance", requires=("flight_loads", "wing_mass"),
-                 produces=None, bas=None,
+                 produces=None, reads=("engines", "landing"), bas=None,
                  summary="Assembled full-span free-free cases: aero + inertia, "
                          "both wings, with the residual stated."),
 
@@ -194,9 +204,13 @@ STEPS: Tuple[WorkflowStep, ...] = (
     WorkflowStep("aileron_loads", "Aileron Loads", OTHER_LOADS,
                  module="aileron", requires=("speeds",), produces="aileron_loads",
                  bas="AILERON", summary="Aileron design loads."),
+    # reads: the FAR 23.457(b) slipstream case exists only when an engine record
+    # supplies takeoff power and propeller diameter -- entered two pages later.
+    # Until then the flap is sized on the gust-combined load alone, ~19 % low on
+    # the C210 (#69, #85; the loud half is validation's flap_slipstream_skipped).
     WorkflowStep("flap_loads", "Flap Loads", OTHER_LOADS,
                  module="flap", requires=("speeds",), produces="flap_loads",
-                 bas="FLAPLOAD", summary="Flap design loads."),
+                 reads=("engines",), bas="FLAPLOAD", summary="Flap design loads."),
     WorkflowStep("tab_loads", "Tab Loads", OTHER_LOADS,
                  module="tab", requires=("speeds",), produces="tab_loads",
                  bas="TABLOADS", summary="Control-surface tab loads."),
@@ -322,6 +336,47 @@ def missing_self_entered(project: Project, step: WorkflowStep) -> List[str]:
     send the user upstream."""
     return [attr for attr in missing_requirements(project, step)
             if attr in step.edits]
+
+
+class PageOrderRead(NamedTuple):
+    """One declared :attr:`WorkflowStep.reads` dependency, resolved.
+
+    ``slice_name``  the ``Project`` slice this step's numbers read.
+    ``entered_on``  the step key whose form enters it, or ``""`` if none does.
+    ``present``     whether the project carries it *now*.
+    """
+
+    slice_name: str
+    entered_on: str
+    present: bool
+
+
+def later_page_reads(project: Project, step: WorkflowStep) -> List[PageOrderRead]:
+    """The step's declared later-page dependencies, resolved against ``project``.
+
+    A step's numbers can depend on a slice that neither gates the run
+    (``requires``) nor is entered here (``edits``): the Flap page's 23.457(b)
+    slipstream case needs an engine record two pages later, and WTESTIMA
+    correlates against the engine list's power rather than the horsepower typed
+    beside it. Run the page before that later page and the numbers are complete
+    on their face, download them, fill the later page, and they change --
+    silently, because nothing on the page ever said the dependency existed
+    (#69, PB-15/PB-19).
+
+    ``requires`` is the wrong instrument for this: it *blocks*, and the flap
+    calc runs perfectly well with no engine at all -- a glider has no slipstream
+    case to omit. So the dependency is declared and **stated**, not enforced;
+    ``present`` is what lets the statement say whether the numbers on screen are
+    still going to move.
+
+    The entering page is resolved through
+    :func:`sloads.field_registry.entering_step`, imported locally so this module
+    stays the leaf it claims to be in its own docstring.
+    """
+    from .field_registry import entering_step  # local: keep workflow a leaf
+
+    return [PageOrderRead(name, entering_step(name) or "", has(project, name))
+            for name in step.reads]
 
 
 def step_modules(key: str) -> Tuple[str, ...]:

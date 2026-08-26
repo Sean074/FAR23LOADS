@@ -314,12 +314,18 @@ def render_results(project: Project, key: str, system: UnitSystem) -> None:
             st.warning(warning)
         st.dataframe(pd.DataFrame(list(block.rows)), hide_index=True,
                      width="stretch")
-        columns = st.columns(len(block.artifacts))
-        for column, artifact in zip(columns, block.artifacts):
-            column.download_button(
-                f"Download {artifact.label}", artifact.payload,
-                file_name=artifact.file_name, mime=artifact.mime,
-                key=f"{key}.{artifact.file_name}", width="stretch")
+        # ``st.columns(0)`` raises, so a block with rows and no download would
+        # take the whole page down with it -- a real mechanism with no live
+        # trigger today, every result block that reaches here happening to carry
+        # at least one artifact (code review 2026-08-24 §4.3, #89). Guarded
+        # rather than left to that coincidence.
+        if block.artifacts:
+            columns = st.columns(len(block.artifacts))
+            for column, artifact in zip(columns, block.artifacts):
+                column.download_button(
+                    f"Download {artifact.label}", artifact.payload,
+                    file_name=artifact.file_name, mime=artifact.mime,
+                    key=f"{key}.{artifact.file_name}", width="stretch")
         st.divider()
 
 

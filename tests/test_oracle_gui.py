@@ -371,6 +371,46 @@ def test_an_entry_error_is_shown_on_the_page_that_owns_it():
         "its own validator raises")
 
 
+def test_a_page_states_the_later_page_its_numbers_depend_on():
+    """The #69 mark, read from the rendered page (PB-15/PB-19).
+
+    Flap Loads computes its FAR 23.457(b) slipstream case from an engine record
+    entered two pages later. With the engine present the numbers are final, and
+    the page says where they came from -- provenance, not an alarm.
+    """
+    at = _render("flap_loads")
+    assert not at.exception, [e.message for e in at.exception]
+    said = " ".join((c.value or "") for c in at.caption)
+    assert "engines" in said and "Engine Mount Loads" in said, (
+        "the Flap page does not say its numbers read the engine record entered "
+        "on a later page")
+
+
+def test_a_page_warns_while_the_later_page_is_still_empty():
+    """The state the defect was filed on: the page shows a complete-looking
+    answer, the user downloads it, fills the Engine page, and the governing flap
+    load moves ~19 % (the C210's slipstream case). The caption becomes a warning
+    while the dependency is unfilled, so the numbers are never quietly final."""
+    import dataclasses
+
+    at = _render("flap_loads", dataclasses.replace(_seeded(), engines=[]))
+    assert not at.exception, [e.message for e in at.exception]
+    shown = " ".join(w.value for w in at.warning)
+    assert "not entered yet" in shown and "will change" in shown, (
+        "with no engine entered, the Flap page does not warn that its numbers "
+        f"are provisional; warnings were {[w.value for w in at.warning]}")
+
+
+def test_a_page_with_no_later_page_dependency_says_nothing():
+    """The mark is targeted like the warnings channel is: the Aileron page reads
+    nothing entered downstream, so it must stay quiet. A note on every page is a
+    note nobody reads."""
+    at = _render("aileron_loads")
+    assert not at.exception, [e.message for e in at.exception]
+    said = " ".join((c.value or "") for c in at.caption)
+    assert "These numbers also read" not in said
+
+
 def test_an_entry_error_is_not_shown_on_a_page_that_does_not_own_it():
     """The ``page`` tag is honoured, not ignored: the same project's warning
     must not appear on an unrelated page, or every page becomes a wall of text
@@ -970,6 +1010,128 @@ def _copies():
                     and row.owner_path and row.path in oracle):
                 out.append(row)
     return sorted(out, key=lambda r: r.path)
+
+
+#: A results page whose only block carries rows and **no** download (#89).
+_NO_ARTIFACT_SCRIPT = """
+import oracle_app.results as r
+from sloads.units import UnitSystem
+r.step_results = lambda project, key, system: [
+    r.ResultBlock(module="flap", title="Flap loads",
+                  rows=({"Quantity": "critical load", "Value": 629.0},))
+]
+r.render_results(None, "flap_loads", UnitSystem.IMPERIAL)
+"""
+
+
+def test_a_result_block_with_no_download_does_not_take_the_page_down():
+    """``st.columns(0)`` raises (code review 2026-08-24 §4.3, #89).
+
+    Latent, not live: every block that reaches the download row happens to carry
+    at least one artifact today, so the crash waits on the first block that has
+    a table and nothing to download -- a new program's results, or an export
+    withheld because an input is missing. Pinned here rather than left to that
+    coincidence, since nothing in the type says a block must have artifacts.
+    """
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_string(_NO_ARTIFACT_SCRIPT, default_timeout=60)
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    assert any("Flap loads" in (h.value or "") for h in at.subheader)
+
+
+def _external_copies():
+    """Every copy the oracle GUI renders whose owner is **not** a field (#69).
+
+    ``EXTERNAL`` rows: the engine weight and CG (owner: the weight database,
+    D-25), the engine-mount limit load factor (the computed 23.337 limit), the
+    weight estimate's engine count and horsepower (the engine list). Until #69
+    ``_copy_note`` returned early on exactly these, so the half of the registry
+    that says "owned, but not by a field" rendered as silent peer inputs.
+    """
+    oracle = fr.oracle_input_paths()
+    return sorted((row for row in fr.REGISTRY
+                   if row.owner_is_external and row.path in oracle),
+                  key=lambda r: r.path)
+
+
+def test_the_registry_still_has_external_copies_to_mark():
+    """Guard the guard, as above: no external rows left means retire the branch,
+    not keep a parametrized test with an empty parameter list."""
+    assert _external_copies(), "no EXTERNAL copies left: retire the mark, do not keep a vacuous guard"
+
+
+def test_every_external_copy_states_how_it_resolves():
+    """An EXTERNAL row's caption is a deliberate answer, never a default.
+
+    ``governs`` says the calc reads this field; ``resolves`` overrides the
+    sentence where the rule is conditional -- the weight estimate's horsepower
+    is ignored in favour of the engine sum *unless* the override switch beside
+    it is set, and neither plain sentence is true of it. Defaulting silently to
+    one of them is how the wrong one ships, which is the same reasoning
+    ``test_every_copy_declares_whether_it_governs`` applies to field copies.
+    """
+    for row in _external_copies():
+        assert row.governs or row.resolves, (
+            f"{row.path}: EXTERNAL owner {row.external_owner!r} with no stated "
+            "resolution -- set governs=True if the calc reads this field, or "
+            "give `resolves` the sentence that is actually true")
+        assert row.external_owner, (
+            f"{row.path}: EXTERNAL declaration has no owner phrase before its "
+            "parenthesised note")
+
+
+@pytest.mark.parametrize("page", sorted({r.page for r in _external_copies()}))
+def test_no_external_copy_renders_as_a_plain_widget(page):
+    """The #36 mark reaching the rows it always skipped (#69, C210-41).
+
+    Rendered end to end rather than asserted structurally, because the defect
+    #89 names is precisely a *route* that never reaches the marker:
+    ``_copy_note`` was called from ``render_scalar`` alone, so the engine CG --
+    a three-member tuple, and a copy of the weight database -- would still have
+    shipped unmarked with the registry saying otherwise. A page render is the
+    only thing that proves the route.
+
+    Counted per owner phrase, not merely searched for: two fields on the Engine
+    Mount page name the *same* external owner (the weight database owns both the
+    engine weight and the engine CG), so a plain substring test passes on the
+    scalar's caption while the tuple beside it renders bare -- which is exactly
+    the regression this is here to catch.
+    """
+    rows = [r for r in _external_copies() if r.page == page]
+    at = _render(page)
+    assert not at.exception, [e.message for e in at.exception]
+
+    captions = [c.value or "" for c in at.caption]
+    for owner in sorted({r.external_owner for r in rows}):
+        want = sum(1 for r in rows if r.external_owner == owner)
+        got = sum(1 for c in captions if owner in c)
+        assert got >= want, (
+            f"page {page!r} names external owner {owner!r} in {got} caption(s) "
+            f"but {want} field(s) there are copies of it "
+            f"({[r.path for r in rows if r.external_owner == owner]}); one of "
+            "them renders as an independent input")
+
+
+def test_no_non_owner_field_needs_a_mark_the_renderer_cannot_give():
+    """The composite mark is a caption, so a display-only composite is unmarkable.
+
+    ``render_tuple``/``render_curve``/``render_enum_set`` are N sub-widgets with
+    no single value to substitute, so they caption and never disable. A
+    ``display_only`` composite would therefore need a mark the renderer cannot
+    give, and would ship silently editable -- #89's mechanism, one door further
+    in. The registry is not allowed to hold one.
+    """
+    from oracle_app.form import is_composite
+
+    stray = [row.path for row in fr.REGISTRY
+             if row.path in fr.oracle_input_paths() and row.display_only
+             and is_composite(fr.field_type(row.path))]
+    assert not stray, (
+        "these are display-only copies of a composite type, which the form can "
+        "caption but not disable -- make them overrides (governs=True) or give "
+        f"the composite renderers a disabled path: {stray}")
 
 
 def test_the_registry_still_has_copies_to_mark():
