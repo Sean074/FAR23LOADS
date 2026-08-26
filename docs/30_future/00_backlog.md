@@ -39,15 +39,20 @@ closure gate in CI, benchmark-first); a page in `workflow.py`; the `Project`
 schema round-trips with `SCHEMA_VERSION` bumped and older files loading; docs
 synced per the closure tier.
 
-**Where things stand (2026-08-24):** **0.7.2 is content-complete and uncut.** Its
-seven `b`-class items (#76/#81/#82/#83/#84/#85/#86) closed 2026-08-24; the cut was
-started and **walked back** at the owner's direction so a code review of the oracle
-GUI and a re-cut of this table could run first
-([code review 2026-08-24](../50_reviews/2026-08-24_oracle_gui_code_review.md)). That
-review added one row to 0.7.2 — the oracle row counter, which deleted entered rows
-with no confirmation and attached a blank CG case that stopped the flight envelope —
-and the **narrow half of #71** with it (`ZeroDivisionError` out of the not-ready
-catch, which is what hid it). Both closed the same day. Before it: **0.7.1 cut 2026-08-23** (`v0.7.1`, schema
+**Where things stand (2026-08-25):** **0.7.2 is cut** — `v0.7.2`, 2026-08-25,
+schema v55 unchanged (release-cut block in
+[`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)).
+Defect-only by construction: the seven `b`-class items of the C210 build review
+(#76/#81/#82/#83/#84/#85/#86), closed 2026-08-24, plus the two first-order
+defects the code review of the oracle GUI found inside eight lines of one
+function (#88 — the row counter that deleted entered rows with no confirmation
+and attached a blank CG case that stopped the flight envelope) and the **narrow
+half of #71** with it (`ZeroDivisionError` out of the not-ready catch, which is
+what hid it). The cut carried the re-cut of this table for the two GUI
+milestones that follow
+([code review 2026-08-24](../50_reviews/2026-08-24_oracle_gui_code_review.md)).
+**Band A retired with the cut; band B is the milestone in flight — cut 0.8.0
+when band B is empty.** Before it: **0.7.1 cut 2026-08-23** (`v0.7.1`, schema
 v55 unchanged) — the 0.7.0 beta tested by building a Cessna 210 from blank in the
 oracle GUI ([build review](../50_reviews/2026-08-23_c210_oracle_gui_build_review.md)):
 51 findings, the two `a`'s fixed in-cycle (**none surviving**, so 0.8.0 keeps its
@@ -268,7 +273,6 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
-| **A — 0.7.2 (content-complete, uncut): the seven `b`'s of the C210 build review + the code review's row-counter defect; band A is empty** ||||||
 | **B — 0.8.0: oracle-GUI development** ||||||
 | 6 | **Docs/CI conformance sweep** (CR-D-4/D-5/D-6/D-7/D-8, CR-D-11) (#46) | The CI-matrix asymmetry stated where the docs claim otherwise (`DEVELOPMENT_PROCESS` §2 self-contradiction fixed); version-copy and phase-table drift fixed with the cheap guards; the one-way nav guard made two-way; the tripped runtime clause filed or re-stated; cspell gets a gate or the prose rule is dropped. **Extended 2026-08-25 (owner):** the merge-method contradiction found at the 0.7.2 cut — `RELEASE_PROCESS.md` §4, `DEVELOPMENT_PROCESS.md` §0 (two rows) and `WORKFLOW_COMMANDS.txt` all asserted "linear history off, merge commits allowed" while `main` enforces linear history and refused the PR ("This branch must not contain merge commits"). Docs corrected to **rebase-merge** in the same session (the method that keeps one commit per item *and* stays linear), including the hotfix recovery that said `git merge main` onto the milestone branch — the very thing that makes the milestone PR unmergeable, invisible until the cut. What remains for this row: a **guard** so a documented git/CI setting cannot drift from the live one again, which is this row's whole subject — the correction is done, the drift class is not. **Second instance, same day (owner):** #71 sat open on the **already-cut 0.7.1** milestone while its row was in band B (0.8.0), and no gate saw it — `scripts/backlog_issues.py check` fetches `number,title,labels` and proves row↔open-issue correspondence both ways, but never requests `milestone`, so a row's **band** is never compared with its issue's **milestone**. The named fix: add `milestone` to that query and assert the band→milestone map (A → the milestone being cut, B → 0.8.0, B2 → 0.9.0, C → 1.0.0, D → none — band D is "when the module is next touched" and names no release), failing on a milestone already present in `CHANGELOG.md` as cut. Same shape as the merge-method instance: the doc stated one thing, the live setting another, and nothing compared them | V | S / S–M | — |
 | 11 | **Oracle-GUI gate rot sweep** — G2 page-set proxy, G8/OG-10 discovery pinned to `app/`, G1 factor-scan halves, G7 single fixture *(PB-10 … PB-13; defect sweep)* (#67) | The entry-point test asserts the registered page set; `_gui_dirs()` pinned to `{app, oracle_app}`; one factor-literal set over all four packages; G7 over (example, system) with every page proving an artifact | V | S / S | — |
