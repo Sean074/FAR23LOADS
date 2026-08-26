@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import replace
-from typing import List
+from typing import List, NamedTuple, Tuple
 
 from ..basic import basic_int
 from ..constants import (
@@ -237,6 +237,96 @@ def estimate_to_mass_items(inp: WeightEstimationInput) -> List[MassItem]:
             name=options_misc.label, weight_lb=float(options_misc.value), kind=MassItemKind.EMPTY,
         ))
     return items
+
+
+# --------------------------------------------------------------------------- #
+# The estimate against the weight data base (C210-9, issue #78)
+# --------------------------------------------------------------------------- #
+#: What WTESTIMA's output is for, in one sentence.
+#:
+#: **Nothing reads these figures.** WTONECG and WTENV are parallel siblings off
+#: WTESTIMA in the suite's data flow (UG Table 2.2), but that flow runs through
+#: the weight data base -- and here the data base is authored by the user, so the
+#: estimate reaches it only when the main GUI's seed button copies it there
+#: (:func:`estimate_to_mass_items`). Absent that, the estimate is a statistical
+#: sanity figure standing beside the item total, which is the question the owner
+#: asked on reaching the block during the Cessna 210 build: "what does this feed,
+#: is it either/or with the item table, are the two compared?" (C210-9). The page
+#: answered none of the three.
+ADVISORY = (
+    "Advisory: nothing reads these figures. WTONECG and WTENV take their mass "
+    "properties from the itemized weight data base you enter, not from this "
+    "statistical estimate — it is here to compare against your item total."
+)
+
+
+class EstimateVsItemized(NamedTuple):
+    """One estimated weight beside the entered weight that answers to it.
+
+    Weights are pounds, the calc's internal channel; the display boundary
+    converts (``CONVENTIONS.md``). ``entered_lb`` of zero means the data base
+    has nothing to compare against yet, which is why
+    :func:`compare_with_itemized` drops the row rather than reporting a 100 %
+    gap against an empty table.
+    """
+
+    quantity: str
+    estimated_lb: float
+    entered_lb: float
+
+    @property
+    def delta_lb(self) -> float:
+        """Estimate minus entered — positive when the correlation reads high."""
+        return self.estimated_lb - self.entered_lb
+
+    @property
+    def delta_pct(self) -> float:
+        """:attr:`delta_lb` as a percentage of the entered weight."""
+        return 100.0 * self.delta_lb / self.entered_lb if self.entered_lb else 0.0
+
+
+def compare_with_itemized(project: Project) -> Tuple[EstimateVsItemized, ...]:
+    """The estimate's headline weights beside the ones the project actually uses.
+
+    A GA statistical correlation and a weighed airplane are not expected to
+    agree closely, and the gap is ordinary scatter rather than an error in
+    either -- WTESTIMA gives the Cessna 210 an empty weight of 2,688 lb against
+    the type's roughly 2,200 (+22 %). What C210-9 found is that nothing said so,
+    or showed the two numbers together at all.
+
+    Both entered figures come from their own owners rather than being re-summed
+    here: the empty weight from :meth:`WeightInput.database_totals`, the design
+    take-off weight from :func:`sloads.cg_cases.max_takeoff_weight` (decision
+    G-14) -- **not** from ``database_totals``' first element, which is the sum of
+    every row including full fuel *and* full payload at once and is documented as
+    a ceiling, not a loading.
+
+    ``database_totals`` names its second element ``oew``, and it is the sum of
+    the ``EMPTY`` rows only: it excludes the ``minimum`` crew that operating
+    empty weight includes. It is compared here against WTESTIMA's **empty
+    weight** and labelled as such, which is the like-for-like pair; the mislabel
+    in the summary itself is filed separately (#94).
+
+    Rows whose entered side is absent are dropped: an estimate beside an empty
+    data base is not a comparison.
+    """
+    from ..cg_cases import max_takeoff_weight  # local: cg_cases imports models
+
+    if project.weight is None or project.weight.estimation is None:
+        return ()
+    summary = estimate(replace(project.weight.estimation,
+                               max_continuous_hp=resolve_max_continuous_hp(project)))[0]
+
+    def estimated(key: str) -> float:
+        return next((float(v.value) for v in summary.values if v.key == key), 0.0)
+
+    _, empty_entered, _ = project.weight.database_totals()
+    rows = (
+        EstimateVsItemized("Empty weight", estimated("empty_weight"), empty_entered),
+        EstimateVsItemized("Max take-off weight", estimated("max_take_off_weight"),
+                           max_takeoff_weight(project, required=False)),
+    )
+    return tuple(r for r in rows if r.entered_lb > 0.0)
 
 
 # --------------------------------------------------------------------------- #

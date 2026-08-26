@@ -58,12 +58,15 @@ from oracle_app.labels import pretty
 from sloads import UnitSystem, convert_results, mass_distribution, registry
 from sloads import io as sloads_io
 from sloads import workflow as wf
-from sloads.models import Project
+from sloads.models import ConditionResult, LoadValue, Project
 from sloads.modules.body_loads import body_load_rows, build_body_loads
 from sloads.modules.net_loads import build_net_loads, wing_load_rows
 from sloads.modules.taildist import build_tail_chordwise
+from sloads.modules.weight_estimate import ADVISORY as _ESTIMATE_ADVISORY
+from sloads.modules.weight_estimate import compare_with_itemized
 from sloads.report import (
     csv_comment_block,
+    format_value,
     has_load_case_data,
     load_cases_to_rows,
     module_text_report,
@@ -129,6 +132,12 @@ class ResultBlock(NamedTuple):
     rows: Tuple[Dict[str, Any], ...] = ()
     artifacts: Tuple[Artifact, ...] = ()
     note: str = ""
+    #: What the block *is*, said before the numbers rather than about them: a
+    #: statistical estimate that feeds nothing downstream reads as an input to
+    #: everything below it unless the page says otherwise (C210-9, #78). Shown
+    #: as a caption, not a warning — nothing here is wrong, and a warning on a
+    #: block that is behaving exactly as designed is the boy who cried wolf.
+    advisory: str = ""
     #: What the numbers rest on that the user should know before trusting them
     #: -- an item data base that never said which beam carries the wing, a
     #: wing-mass tie that does not close. Shown as warnings above the table.
@@ -191,7 +200,9 @@ def _module_block(project: Project, name: str, system: UnitSystem) -> ResultBloc
         Artifact(f"{title} (text)", f"{name}.txt", "text/plain",
                  module_text_report(title, display)),
     )
-    return ResultBlock(name, title, ULTIMATE, tuple(rows), artifacts)
+    advisory = MODULE_ADVISORIES.get(name)
+    return ResultBlock(name, title, ULTIMATE, tuple(rows), artifacts,
+                       advisory=advisory(project, system) if advisory else "")
 
 
 def _station_block(project: Project, name: str, system: UnitSystem) -> ResultBlock:
@@ -246,6 +257,48 @@ def fuselage_mass_warnings(project: Project) -> Tuple[str, ...]:
 #: Per station table, the pure check that says what its numbers rest on.
 STATION_WARNINGS: Dict[str, Callable[[Project], Tuple[str, ...]]] = {
     "body_loads": fuselage_mass_warnings,
+}
+
+
+def weight_estimate_advisory(project: Project, system: UnitSystem) -> str:
+    """WTESTIMA's block caption: what it feeds, and how it compares.
+
+    The sentence is the module's own (:data:`sloads.modules.weight_estimate.ADVISORY`)
+    -- it is a fact about the program, not about this page, and the main GUI's
+    Weight & Mass tab states the same thing beside its seed button. The numbers
+    come from :func:`~sloads.modules.weight_estimate.compare_with_itemized` and
+    are converted through :func:`~sloads.convert_results`, the same boundary
+    every other figure on the page crosses, so an SI page cannot show a pound.
+
+    A gap here is expected: the estimate is a GA correlation and the data base is
+    a weighed airplane. It is shown plainly and never thresholded — there is no
+    sourced figure for "too far", and inventing one would put a verdict on the
+    page where C210-9 asked only for the comparison.
+    """
+    rows = compare_with_itemized(project)
+    if not rows:
+        return _ESTIMATE_ADVISORY
+    values = [LoadValue(f"{r.quantity}|{part}", v, "lb", quantity="mass")
+              for r in rows
+              for part, v in (("est", r.estimated_lb), ("entered", r.entered_lb),
+                              ("delta", r.delta_lb))]
+    display = convert_results(
+        [ConditionResult(title="", far_reference="", values=values)], system)[0].values
+    parts = []
+    for i, r in enumerate(rows):
+        est, entered, delta = display[3 * i:3 * i + 3]
+        parts.append(
+            f"**{r.quantity}** — estimate {format_value(est.value)} {est.units} "
+            f"against {format_value(entered.value)} {entered.units} entered "
+            f"({delta.value:+.0f} {delta.units}, {r.delta_pct:+.1f} %)")
+    return f"{_ESTIMATE_ADVISORY} " + "; ".join(parts) + "."
+
+
+#: Per-module block captions, keyed the same way :data:`STATION_WARNINGS` is:
+#: what a program *is* belongs to the program, so the page looks it up rather
+#: than naming WTESTIMA in a renderer (gate G2).
+MODULE_ADVISORIES: Dict[str, Callable[[Project, UnitSystem], str]] = {
+    "weight_estimate": weight_estimate_advisory,
 }
 
 
@@ -310,6 +363,8 @@ def render_results(project: Project, key: str, system: UnitSystem) -> None:
             continue
 
         st.caption(_ULT_NOTE if block.basis == ULTIMATE else _LIMIT_NOTE)
+        if block.advisory:
+            st.caption(block.advisory)
         for warning in block.warnings:
             st.warning(warning)
         st.dataframe(pd.DataFrame(list(block.rows)), hide_index=True,
@@ -330,6 +385,7 @@ def render_results(project: Project, key: str, system: UnitSystem) -> None:
 
 
 __all__ = [
-    "LIMIT", "STATION_TABLES", "STATION_WARNINGS", "ULTIMATE", "Artifact", "ResultBlock",
-    "StationTable", "page_artifacts", "render_results", "step_results",
+    "LIMIT", "MODULE_ADVISORIES", "STATION_TABLES", "STATION_WARNINGS", "ULTIMATE",
+    "Artifact", "ResultBlock", "StationTable", "page_artifacts", "render_results",
+    "step_results", "weight_estimate_advisory",
 ]

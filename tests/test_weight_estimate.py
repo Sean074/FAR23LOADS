@@ -144,6 +144,77 @@ def test_run_returns_module_result():
     assert mr.conditions
 
 
+# --------------------------------------------------------------------------- #
+# The estimate against the data base (C210-9, #78)
+# --------------------------------------------------------------------------- #
+def _project_with_items(items):
+    return Project(name="cmp",
+                   weight=WeightInput(estimation=ga6_estimation(), items=items))
+
+
+def test_the_estimate_is_compared_against_the_weight_the_project_uses():
+    """C210-9: the estimate and the item table are never shown together, so a
+    +22 % correlation gap reads as a discrepancy nobody explains. Both entered
+    figures come from their owners — the empty weight from ``database_totals``,
+    MTOW from ``cg_cases.max_takeoff_weight`` (G-14) — never re-summed here."""
+    from sloads.models import MassItem
+
+    project = _project_with_items([
+        MassItem(name="airframe", weight_lb=1000.0, x=100.0, kind=MassItemKind.EMPTY),
+        MassItem(name="fuel", weight_lb=200.0, x=100.0, kind=MassItemKind.DISCRETIONARY),
+    ])
+    project.weight.max_takeoff_weight_lb = 1500.0
+    rows = {r.quantity: r for r in calc.compare_with_itemized(project)}
+    assert set(rows) == {"Empty weight", "Max take-off weight"}
+    assert rows["Empty weight"].entered_lb == 1000.0        # EMPTY rows only
+    assert rows["Max take-off weight"].entered_lb == 1500.0  # the SSOT, not the row sum
+    empty = rows["Empty weight"]
+    assert empty.delta_lb == empty.estimated_lb - 1000.0
+    assert empty.delta_pct == 100.0 * empty.delta_lb / 1000.0
+
+
+def test_the_take_off_comparison_is_not_the_sum_of_every_row():
+    """``database_totals()[0]`` is documented as a **ceiling** — it holds full
+    fuel and full payload at once, which no loading does — so comparing the
+    estimate against it would report a gap against a weight the airplane never
+    has. The design take-off weight is a different owner and is the one used."""
+    from sloads.models import MassItem
+
+    project = _project_with_items([
+        MassItem(name="airframe", weight_lb=1000.0, x=100.0, kind=MassItemKind.EMPTY),
+        MassItem(name="fuel", weight_lb=900.0, x=100.0, kind=MassItemKind.DISCRETIONARY),
+    ])
+    project.weight.max_takeoff_weight_lb = 1500.0
+    rows = {r.quantity: r for r in calc.compare_with_itemized(project)}
+    assert project.weight.database_totals()[0] == 1900.0
+    assert rows["Max take-off weight"].entered_lb == 1500.0
+
+
+def test_an_empty_data_base_is_not_compared_against():
+    """An estimate beside no items is not a comparison, and reporting it as a
+    100 % gap against zero would be a verdict on an unfinished project."""
+    project = _project_with_items([])
+    assert calc.compare_with_itemized(project) == ()
+
+
+def test_a_project_with_no_estimation_inputs_compares_nothing():
+    """The advisory renders on a blank page too; the comparison half simply has
+    nothing to say, rather than raising into the results renderer."""
+    assert calc.compare_with_itemized(Project(name="x")) == ()
+    assert calc.compare_with_itemized(Project(name="x", weight=WeightInput())) == ()
+
+
+def test_the_advisory_says_nothing_reads_the_estimate():
+    """The sentence is a fact about WTESTIMA, so it is owned by the module and
+    not by whichever page happens to render it (C210-9). It has to survive
+    contact with ``PROGRAM_SPEC``'s "feeds WTONECG *and* WTENV", which is the
+    suite's data flow *through the data base* — a base the user authors here, so
+    the estimate reaches it only via the seed button."""
+    assert "nothing reads these figures" in calc.ADVISORY
+    assert "itemized weight data base" in calc.ADVISORY
+
+
+
 if __name__ == "__main__":
     import traceback
 
