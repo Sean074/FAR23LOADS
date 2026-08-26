@@ -35,7 +35,13 @@ from sloads import (
 from sloads import workflow as wf
 from sloads.applicability import design_weight_lb
 from sloads.modules.structural_speeds import maneuver_load_factors
-from sloads.units import labels_for, to_display, to_imperial_scalar, unit_system_from
+from sloads.units import (
+    KEAS,  # noqa: F401 -- re-exported as this layer's fixed_unit constant
+    labels_for,
+    to_display,
+    to_imperial_scalar,
+    unit_system_from,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -199,7 +205,11 @@ def render_applicability_banner(project: Project, *, switch_action: bool = True)
 #: :func:`unit_number_input` as ``fixed_unit=``, an explicit branch of the
 #: signature: the carve-out is a property of the *field*, decided by the caller,
 #: never sniffed out of a unit string at render time.
-KEAS = "kt (EAS)"
+#:
+#: ``KEAS`` is re-exported from :mod:`sloads.units`, which needs the same string
+#: for :data:`~sloads.units.AVIATION_STANDARD` -- the two spelled it separately
+#: until PB-22, and a widget's ``fixed_unit=`` and the registry's answer for the
+#: same field disagreeing is the one way this constant can go wrong.
 ALTITUDE_FT = "ft"
 
 

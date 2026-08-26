@@ -819,7 +819,14 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     # flight_loads -- FLTLOADS (flight_envelope); the M2-6 derived copies
     # ----------------------------------------------------------------- #
     _E("flight_loads.altitudes_ft", _VN, _ORIG, "FLTLOADS envelope altitudes"),
-    _E("flight_loads.mn", _VN, _ORIG, "FLTLOADS gust/manoeuvre matrix"),
+    # Not "the gust/manoeuvre matrix", which is what this row said until PB-22:
+    # ``mn`` is the Mach number the aero coefficients were *measured* at (~0.1;
+    # FLTLOADS.BAS line 138, ``FlightLoadsInput``), and the help tooltip is
+    # built from this string, so the one field on the page whose name gives no
+    # clue was the one field whose help named a different quantity.
+    _E("flight_loads.mn", _VN, _ORIG,
+       "FLTLOADS coefficient Mach number — the Mach the aero-coefficient sets "
+       "were obtained at (typically ~0.1), not a design Mach"),
     _E("flight_loads.xtc", _VN, _ORIG, "FLTLOADS tail CP, cruise"),
     _E("flight_loads.xtf", _VN, _ORIG, "FLTLOADS tail CP, flapped"),
 
