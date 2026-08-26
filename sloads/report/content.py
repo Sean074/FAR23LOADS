@@ -1011,7 +1011,7 @@ def _speed_altitude_figure(project: Project) -> Tuple[Figure, Optional[Table]]:
                        absent_reason="the Mach-limit lines could not be "
                                      "computed from the inputs present"), None)
 
-    lines = results[1:]  # results[0] is the MC/MD/MNE/MFC summary
+    lines = results[1:]  # results[0] is the MC/MD/MNE summary
 
     def series_for(key: str, name: str, style: str) -> Series:
         alts, vs = [], []
@@ -1026,7 +1026,6 @@ def _speed_altitude_figure(project: Project) -> Tuple[Figure, Optional[Table]]:
         series_for("v_mc", "V(MC) cruise", "solid"),
         series_for("v_mne", "V(MNE) never-exceed", "dashed"),
         series_for("v_md", "V(MD) dive", "dotted"),
-        series_for("v_fc", "V(MFC) flutter clearance", "dashdotted"),
     ]
     rows = []
     for r in lines:
@@ -1035,13 +1034,13 @@ def _speed_altitude_figure(project: Project) -> Tuple[Figure, Optional[Table]]:
         rows.append([
             format_value(h),
             format_value(by_key["v_mc"]), format_value(by_key["v_mne"]),
-            format_value(by_key["v_md"]), format_value(by_key["v_fc"]),
+            format_value(by_key["v_md"]),
             format_value(_gust_ude("C", h)), format_value(_gust_ude("D", h)),
         ])
     table = Table(
         title="Mach-limited speeds and derived gust velocities by altitude",
         columns=["Altitude (ft)", "V(MC) (KEAS)", "V(MNE) (KEAS)", "V(MD) (KEAS)",
-                 "V(MFC) (KEAS)", "Ude at VC (fps)", "Ude at VD (fps)"],
+                 "Ude at VC (fps)", "Ude at VD (fps)"],
         rows=rows,
         note="The derived gust velocities are tabulated rather than plotted: they "
              "are a velocity in fps, not an equivalent airspeed, and share no axis "

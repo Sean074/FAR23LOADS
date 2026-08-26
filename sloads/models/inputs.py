@@ -525,7 +525,7 @@ class MachLimitInput:
     design speeds by :func:`sloads.modules.structural_speeds.design_speed_values`
     and passed to :func:`sloads.modules.mach_limit.mach_limit_lines` explicitly.
     They used to be stored here *and* silently recomputed by the Streamlit page,
-    so the CLI and the GUI produced different MNE/MFC for the same project; the
+    so the CLI and the GUI produced different MNE for the same project; the
     v39 migration hop drops the stale stored values.
 
     **The shoulder altitude is not stored here either** (#52, schema v55). It

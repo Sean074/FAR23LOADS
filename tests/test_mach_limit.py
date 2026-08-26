@@ -2,9 +2,17 @@
 
 The 6-place single's Mach-limit lines are printed in Appendix A p160: inputs
 MC 0.323, MD 0.403, shoulder 12000 ft, max operating 18000 ft, 1000 ft steps;
-outputs MNE 0.3627, MFC 0.4836 and the per-altitude Mach-limited equivalent
-airspeeds, e.g. at 12000 ft V(MC) 170.16, V(MNE) 191.08, V(MD) 212.31, V(FC)
-254.77, falling to V(MC) 150.77 at 18000 ft.
+outputs MNE 0.3627 and the per-altitude Mach-limited equivalent airspeeds, e.g.
+at 12000 ft V(MC) 170.16, V(MNE) 191.08, V(MD) 212.31, falling to V(MC) 150.77 at
+18000 ft.
+
+The same page prints MFC 0.4836 and V(FC) 254.77 at 12000 ft, which this port
+**deliberately does not produce** (#79): flutter clearance is 23.629
+substantiation rather than a design load, and the symbol collides with 25.253's
+VFC/MFC. Registered as a scope withdrawal in
+``docs/20_theory/02_approved_corrections.md`` -- the printed figures are correct
+and unchallenged. The values stay in this docstring so the page can still be
+checked against what the tool does and does not claim.
 
 Per Decision 3 the figures are matched within ±0.1%; the shared
 ``standard_atmosphere`` uses a = 29.02436 vs the program's 29.02 (~0.01%).
@@ -44,20 +52,19 @@ def _line_at(conditions, altitude):
     raise KeyError(altitude)
 
 
-def test_mne_and_mfc():
-    # MNE = 0.9*MD = 0.3627; MFC = 1.2*MD = 0.4836.
+def test_mne():
+    # MNE = 0.9*MD = 0.3627. (The page's MFC 0.4836 is out of scope -- #79.)
     r = results()
     assert math.isclose(value_of(r, "never_exceed_mach_mne"), 0.3627, rel_tol=TOL)
-    assert math.isclose(value_of(r, "flutter_clearance_mach_mfc"), 0.4836, rel_tol=TOL)
 
 
 def test_line_at_shoulder_altitude():
-    # 12000 ft: V(MC) 170.16, V(MNE) 191.08, V(MD) 212.31, V(FC) 254.77.
+    # 12000 ft: V(MC) 170.16, V(MNE) 191.08, V(MD) 212.31.
+    # (The page also prints V(FC) 254.77, out of scope -- #79.)
     line = _line_at(results(), 12000)
     assert math.isclose(value_of([line], "v_mc"), 170.16, rel_tol=TOL)
     assert math.isclose(value_of([line], "v_mne"), 191.08, rel_tol=TOL)
     assert math.isclose(value_of([line], "v_md"), 212.31, rel_tol=TOL)
-    assert math.isclose(value_of([line], "v_fc"), 254.77, rel_tol=TOL)
 
 
 def test_line_at_max_altitude():
@@ -75,10 +82,18 @@ def test_altitude_rows_span_shoulder_to_max():
     assert lines[-1].title.endswith("18000 ft")
 
 
-def test_vfc_is_120_percent_of_vmd():
-    # V(FC) = 1.2 * V(MD) at every altitude (MFC = 1.2*MD).
-    line = _line_at(results(), 15000)
-    assert math.isclose(value_of([line], "v_fc"), 1.2 * value_of([line], "v_md"), rel_tol=1e-9)
+def test_no_flutter_clearance_quantity_is_produced():
+    """#79: MFC and V(FC) are out of scope, not merely unasserted.
+
+    A removal that only deletes assertions leaves the quantity free to come back
+    -- and it would come back looking like every other Mach line, which is the
+    misread the removal is about. Every emitted key is checked, on the summary
+    and on every altitude row.
+    """
+    keys = {v.key for c in results() for v in c.values}
+    assert "flutter_clearance_mach_mfc" not in keys
+    assert "v_fc" not in keys
+    assert {"never_exceed_mach_mne", "v_mc", "v_mne", "v_md"} <= keys
 
 
 def test_run_requires_mach_limit_inputs():
@@ -117,7 +132,7 @@ def test_mc_md_come_from_strspeed_on_every_front_end():
         assert math.isclose(value_of(r, "cruise_mach_mc"), ds.mc, rel_tol=1e-12), name
         assert math.isclose(value_of(r, "dive_mach_md"), ds.md, rel_tol=1e-12), name
         assert math.isclose(value_of(r, "never_exceed_mach_mne"), 0.9 * ds.md, rel_tol=1e-12), name
-        assert math.isclose(value_of(r, "flutter_clearance_mach_mfc"), 1.2 * ds.md, rel_tol=1e-12), name
+        assert "flutter_clearance_mach_mfc" not in {v.key for c in r for v in c.values}, name
 
 
 def test_mach_limit_input_no_longer_carries_mc_md():
@@ -138,6 +153,55 @@ def test_above_tropopause_uses_constant_speed_of_sound():
     # V(MD) decreases monotonically with altitude (sigma falls).
     vmd = [value_of([line], "v_md") for line in lines]
     assert vmd[0] > vmd[1] > vmd[2]
+
+
+def test_no_shipped_module_computes_a_flutter_clearance_speed():
+    """The structural half: removed from the code, not just from the output.
+
+    The runtime guard above proves the current fixtures emit no MFC. This one
+    proves nobody recomputes it locally -- which is exactly how it survived in
+    the first place: ``app/views/structural_speeds.py`` carried its own
+    ``mne, mfc = 0.9 * md, 1.2 * md`` beside the module's, so deleting the
+    module's alone would have left the Speed-Altitude chart still drawing the
+    line (#79).
+
+    Reads identifiers and load-value keys out of the AST, so the prose in this
+    file's own docstrings -- and in ``mach_limit.py``'s, which has to explain
+    what was withdrawn -- is not the subject. Comments never reach the AST at
+    all.
+    """
+    import ast
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    targets = []
+    for package in ("sloads", "app", "app_shell", "oracle_app"):
+        for dirpath, _dirs, files in os.walk(os.path.join(root, package)):
+            if "__pycache__" in dirpath:
+                continue
+            targets += [os.path.join(dirpath, f) for f in files if f.endswith(".py")]
+    targets.append(os.path.join(root, "cli.py"))
+
+    _KEYS = {"v_fc", "flutter_clearance_mach_mfc"}
+    offenders = []
+    for path in sorted(targets):
+        with open(path, encoding="utf-8") as fh:
+            tree = ast.parse(fh.read(), filename=path)
+        for node in ast.walk(tree):
+            name = None
+            if isinstance(node, ast.Name):
+                name = node.id
+            elif isinstance(node, ast.arg):
+                name = node.arg
+            elif isinstance(node, ast.Attribute):
+                name = node.attr
+            elif isinstance(node, ast.keyword):
+                name = node.arg
+            elif isinstance(node, ast.Constant) and node.value in _KEYS:
+                name = node.value
+            if name and ("mfc" in name.lower() or name in _KEYS):
+                offenders.append(f"{os.path.relpath(path, root)}: {name}")
+    assert not offenders, offenders
+
 
 
 if __name__ == "__main__":
