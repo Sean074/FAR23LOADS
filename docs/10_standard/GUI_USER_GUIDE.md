@@ -66,15 +66,19 @@ ultimate deliverables. Everything that is exported or consolidated is ultimate.
 The left sidebar is built from the workflow graph, so page order is the analysis
 order. There are seven phases:
 
+This table is **derived from `sloads/workflow.py`** — the navigation SSOT — and
+held to it by `tests/test_page_links.py::test_the_gui_guide_phase_table_matches_the_workflow`.
+Edit the graph, not the table.
+
 | Phase | Pages | What happens |
 |---|---|---|
 | **Start** | Project Dashboard · Project JSON Editor | Load/save a project; see completeness. |
 | **Develop V-n diagram** | Geometry · Weight & Mass Properties · Aerodynamic Data · Structural Speeds · Flight Envelope (V-n) | Define the airplane and build its flight envelope. |
-| **Flight loads** | Wing Loads · Fuselage Loads · Tail Loads | Distribute the balanced flight loads onto the structure. |
-| **Other loads** | Aileron · Flap · Tab · Engine Mount · One Engine Out | Control-surface and engine-mount loads. |
+| **Flight loads** | Wing Loads · Fuselage Loads · Tail Loads · Tail Span Loads · Balanced Cases | Distribute the balanced flight loads onto the structure — including the two pages that carry the primary distributed deliverable. |
+| **Other loads** | Aileron Loads · Flap Loads · Tab Loads · Engine Mount Loads · One Engine Out | Control-surface and engine-mount loads. |
 | **Landing loads** | Landing Loads | Ground/landing gear loads. |
-| **Load-case plotting** | Loads Plots · Aircraft Comparison | Visualize the envelope and load cases. |
-| **Export** | Results Review · Export & Report | Consolidate and export the ultimate deliverables. |
+| **Load-case plotting** | Loads Plots | Visualize the envelope and load cases. |
+| **Export** | Aircraft Comparison · Results Review · Export & Report | Compare configurations, consolidate and export the ultimate deliverables. |
 
 **The Dashboard is your map.** It shows which slices are present and which pages
 are ready to run (a page is "ready" once the slices it *requires* exist). Work

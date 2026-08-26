@@ -51,6 +51,17 @@ in `CLAUDE.md`, not re-audited at release time.
 - [ ] [`../30_future/00_backlog.md`](../30_future/00_backlog.md) — every item in this release is removed (**spot-check**, not an audit; closed items don't live in the backlog).
 - [ ] [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md) — every tier-M/L step in this release is recorded at its closure-tier depth (tier S has no history entry — its `changes/` fragment is the record).
 - [ ] `changes/` — every closed item has its fragment; `.venv/bin/python scripts/build_changelog.py --dry-run` runs clean and reads as the release note (`changes/README.md`).
+- [ ] **The band being cut is retired from the priority table** and the band that
+      follows becomes the milestone in flight (§Where things stand says so). A band
+      left in the table naming a released version is caught by
+      `tests/test_backlog_issues.py::test_no_open_row_sits_in_a_band_whose_release_is_already_cut`
+      — it was missed at the 0.7.2 cut, which is why the assertion exists.
+- [ ] `.venv/bin/python scripts/branch_protection_snapshot.py --check` — the live
+      protection on `main` still matches `.github/branch-protection.json`, which the
+      process docs are asserted against. **This is the one comparison CI cannot make**
+      (the test job has no `gh` auth), and the cut is when it matters: the 0.7.2
+      milestone PR was refused at exactly this point by a linear-history rule three
+      documents denied (issue #46, CR-D-4).
 
 ### 3.2 Code quality
 - [ ] No open `[CRITICAL]`/`[MAJOR]` findings from the latest review (see [`CODE_REVIEW_PROCESS.md`](CODE_REVIEW_PROCESS.md)).

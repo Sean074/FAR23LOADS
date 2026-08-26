@@ -108,16 +108,27 @@ main (always releasable)  ->  release manager cuts release/x.y.z per RELEASE_PRO
 - **Names:** `<type>/<slug>` — `step/14-pbar-passthrough`, `fix/gear-csv-ult-marker`,
   `note/28-multi-dev`, `docs/…`, `chore/…`. The slug is the fragment slug.
 - **`main` is protected** (settings, owner-applied): PRs only, the owner
-  included; required checks `test (3.9)`, `test (3.11)`, `test (3.12)`,
-  `typecheck`, `sbeam-roundtrip (3.11)`, `sbeam-roundtrip (3.12)`; **one
-  approving review from someone other than the author**; review from Code
-  Owners required (`.github/CODEOWNERS`); stale approvals dismissed on push;
-  conversations resolved; **linear history — squash-merge only**. (While §0 is
-  in force the live settings are §0's, not this bullet's: linear history is
-  **on** and the milestone PR is **rebase**-merged, so it keeps its per-item
-  commits *and* stays linear. The difference from this bullet is therefore the
-  merge *method* — squash here, rebase under §0 — not the protection setting.
-  Restoring this bullet is part of the switch-over.)
+  included; required checks are the **fast gate** — `test (3.12)`, `typecheck`,
+  `sbeam-roundtrip (3.12)`; **one approving review from someone other than the
+  author**; review from Code Owners required (`.github/CODEOWNERS`); stale
+  approvals dismissed on push; conversations resolved; **linear history —
+  squash-merge only**.
+  - **Why only three, and why they are the same three under §0:** the 3.9/3.11
+    legs and `sbeam-roundtrip (3.11)` **do not run on a pull request at all**
+    (`ci.yml`'s matrix keys on push-to-`main`), so they cannot be required checks
+    — a check that never reports blocks the PR forever. This bullet listed all
+    six until 2026-08-25, contradicting §0's table on the same page and the live
+    setting alike (2026-08-20 review, CR-D-4). The compatibility legs are a
+    *fixed-forward* claim measured on the merge push, not a gate.
+  - **What §0 does change** is the merge *method* — squash here, **rebase** under
+    the solo profile, so the milestone PR keeps one commit per item and still
+    satisfies linear history. The protection settings and the required-check set
+    are the same in both profiles. Restoring squash-merge is part of the
+    switch-over. The live settings are snapshotted in
+    [`../../.github/branch-protection.json`](../../.github/branch-protection.json)
+    and this prose is asserted against that snapshot by
+    `tests/test_ci_conformance.py`, so the two cannot drift apart in silence
+    again.
 - **Squash-merge, PR title = commit subject** in the project's existing style
   (`Step 14: PBAR/MAT1 pass-through (tier M, 2026-08-20)`), so `git log` stays
   the step-per-commit record it is today.

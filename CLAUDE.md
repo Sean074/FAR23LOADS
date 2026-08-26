@@ -99,7 +99,9 @@ rationale in `docs/50_reviews/`):
   (`00_program_overview.md` §Documentation currency; guard `tests/test_doc_currency.py`).
 - **Keep the build green.** `ruff check sloads/ cli.py oracle.py app/ app_shell/ oracle_app/ scripts/` clean, `mypy` clean (zero
   errors on `sloads/`; strictness ratchets per package in `pyproject.toml`) and `pytest` passing
-  are the merge gate (CI: 3.9 / 3.11 / 3.12; mypy on 3.12). New domain terms → `cspell.json`.
+  are the merge gate. **CI is asymmetric — `ci.yml` is the authority** (guard
+  `tests/test_ci_conformance.py`): PRs and `dev/**` pushes run the fast gate (3.12,
+  `typecheck`, `sbeam-roundtrip (3.12)`); 3.9/3.11 and coverage run on the push to `main`.
 - **Git is the user's to run.** ANY and ALL git usage — `commit`, `add`, `push`,
   `branch`, `merge`, `checkout`, `tag`, `rebase`, `reset`, etc. — SHALL be performed by
   the user, NOT by Claude, UNLESS the user explicitly requests that specific git

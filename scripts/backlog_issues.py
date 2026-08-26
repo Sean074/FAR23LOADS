@@ -10,8 +10,10 @@ This script does the one-off migration and the standing both-ways check:
              ``title -> #N`` in .github/backlog_issue_map.json
     rewrite  add ``(#N)`` to every priority-table row and replace each detail
              section / defect bullet with a one-line pointer to its issue
-    check    every priority-table row names an open issue, and every open issue
-             labelled ``band:*`` appears in the table (needs gh; exit 1 on drift)
+    check    every priority-table row names an open issue, every open issue
+             labelled ``band:*`` appears in the table, and every row's issue sits
+             on the milestone its **band header** names — never on one already
+             cut in CHANGELOG.md (needs gh; exit 1 on drift)
     render   regenerate the priority table's item rows from the issues: a row
              whose issue is CLOSED is dropped, an OPEN issue's row is re-emitted
              from its body (the ``**Item.** / **What ships.** / **Tag.** /
@@ -42,7 +44,12 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BACKLOG = os.path.join(ROOT, "docs", "30_future", "00_backlog.md")
 MAP = os.path.join(ROOT, ".github", "backlog_issue_map.json")
 
-BAND_ROW = re.compile(r"^\|\s*\*\*([A-Z])\s+[—-]\s*(.*?)\*\*\s*\|")
+# Band identifiers are not all a single letter: the 2026-08-24 re-cut added
+# **B2** (0.9.0). Matching `[A-Z]` alone silently skipped that header row, so
+# every 0.9.0 row inherited the previous header's band and was labelled
+# `band:B` -- the band an issue is filed under is exactly what the milestone
+# check below compares, so the parser has to see the band before anything can.
+BAND_ROW = re.compile(r"^\|\s*\*\*([A-Z]\d?)\s+[—-]\s*(.*?)\*\*\s*\|")
 ITEM_ROW = re.compile(r"^\|\s*(\d+)\s*\|")
 DETAIL_HEADING = re.compile(r"^### \[([EVM])\]\s+(.*)$")
 DEFECT_BULLET = re.compile(r"^- \*\*(.+?)\*\*")
@@ -247,8 +254,28 @@ def rewrite_backlog(text: str, numbers: Dict[str, int]) -> str:
     return "\n".join(out) + "\n"
 
 
+def row_ref(line: str) -> Optional[int]:
+    """The issue a priority-table row *is*, or ``None``.
+
+    Only the **Item** cell is read. ``rewrite`` appends ``(#N)`` to that cell, but
+    other cells cite other issues in prose -- band D's function-size row says "the
+    view functions wait for the GUI review (#29)" -- and a scan of the whole line
+    reads that cross-reference as the row's own identity. It put #29, the single
+    band-B2 (0.9.0) row, under band D, where the milestone check below would have
+    demanded it carry no milestone at all: a guard reporting a fault against the
+    row it misread. Found writing that check, 2026-08-25 (issue #46).
+    """
+    if not ITEM_ROW.match(line):
+        return None
+    cells = line.strip().strip("|").split("|")
+    if len(cells) < 2:
+        return None
+    m = ISSUE_REF.search(cells[1])
+    return int(m.group(1)) if m else None
+
+
 def table_refs(text: str) -> List[int]:
-    return [int(n) for line in text.splitlines() if ITEM_ROW.match(line) for n in ISSUE_REF.findall(line)]
+    return [n for line in text.splitlines() if (n := row_ref(line)) is not None]
 
 
 # --- render: the table as a view of the issues -------------------------------
@@ -257,7 +284,7 @@ def table_refs(text: str) -> List[int]:
 #: ``create`` posts). ``render`` reads it back; a body that does not match --
 #: hand-edited, or not a row issue -- leaves the existing table line untouched.
 ISSUE_BODY = re.compile(
-    r"\*\*Priority table row (\d+), band ([A-Z])\*\*.*?\n\n"
+    r"\*\*Priority table row (\d+), band ([A-Z]\d?)\*\*.*?\n\n"
     r"\*\*Item\.\*\* (.*?)\n\n\*\*What ships\.\*\* (.*?)\n\n"
     r"\*\*Tag\.\*\* (.*?)  \*\*Tier / effort\.\*\* (.*?)  \*\*Depends on\.\*\* (.*?)\n",
     re.S)
@@ -350,15 +377,99 @@ def create(items: Sequence[Item], milestone: Optional[str]) -> Dict[str, int]:
     return numbers
 
 
-def check(text: str) -> Tuple[List[int], List[Tuple[int, str]]]:
-    """(table refs with no open issue, open band:* issues not in the table)."""
+CHANGELOG = os.path.join(ROOT, "CHANGELOG.md")
+#: `## [0.7.2] — 2026-08-25` — a released section. `[Unreleased]` is not one.
+CUT_SECTION = re.compile(r"^##\s*\[(\d+\.\d+\.\d+)\]", re.M)
+#: The release a band header names: `**B — 0.8.0: oracle-GUI development**`.
+BAND_MILESTONE = re.compile(r"(\d+\.\d+\.\d+)")
+
+
+def band_milestones(text: str) -> Dict[str, Optional[str]]:
+    """{band: the release its header names}, ``None`` where it names none.
+
+    Read from the header row rather than hardcoded, because the letters move at
+    every re-cut and a hardcoded map is the drift this check exists to catch:
+    when 0.7.2 was cut, band A retired and **B** became the milestone in flight.
+    Band **D** ("maintenance and hygiene, when the module is next touched") names
+    no release by design, so its issues carry no milestone.
+    """
+    out: Dict[str, Optional[str]] = {}
+    for line in text.splitlines():
+        m = BAND_ROW.match(line)
+        if m:
+            v = BAND_MILESTONE.search(m.group(2))
+            out[m.group(1)] = v.group(1) if v else None
+    return out
+
+
+def row_bands(text: str) -> Dict[int, str]:
+    """{issue number: the band whose header it sits under}."""
+    out: Dict[int, str] = {}
+    band = ""
+    for line in text.splitlines():
+        m = BAND_ROW.match(line)
+        if m:
+            band = m.group(1)
+            continue
+        if band:
+            n = row_ref(line)
+            if n is not None:
+                out[n] = band
+    return out
+
+
+def cut_milestones() -> set:
+    """Releases that already have a section in ``CHANGELOG.md`` — i.e. are cut.
+
+    GitHub milestone *state* is not usable for this: every cut milestone in this
+    repository is still open on GitHub (0.6.0 … 0.7.2, checked 2026-08-25).
+    """
+    with open(CHANGELOG, encoding="utf-8") as fh:
+        return set(CUT_SECTION.findall(fh.read()))
+
+
+def check(text: str) -> Tuple[List[int], List[Tuple[int, str]], List[str]]:
+    """(table refs with no open issue, open band:* issues not in the table,
+    band-vs-milestone faults).
+
+    The third list is the 2026-08-25 addition (backlog row 6 / issue #46). This
+    check proved row ↔ open-issue correspondence both ways but never requested
+    ``milestone``, so a row's **band** was never compared with its issue's
+    milestone — and #71 sat open on the already-cut **0.7.1** while its row was
+    in the 0.8.0 band, with no gate seeing it. Two faults are reported: an issue
+    whose milestone is not the one its band names, and an issue parked on a
+    milestone `CHANGELOG.md` shows as already cut, which can never ship.
+    """
     refs = set(table_refs(text))
-    raw = _gh("issue", "list", "--state", "open", "--limit", "500", "--json", "number,title,labels")
+    raw = _gh("issue", "list", "--state", "open", "--limit", "500",
+              "--json", "number,title,labels,milestone")
     open_issues = json.loads(raw)
     open_nums = {it["number"] for it in open_issues}
     banded = [(it["number"], it["title"]) for it in open_issues
               if any(lb["name"].startswith("band:") for lb in it["labels"])]
-    return sorted(refs - open_nums), [(n, t) for n, t in banded if n not in refs]
+
+    wanted = band_milestones(text)
+    bands = row_bands(text)
+    cut = cut_milestones()
+    faults: List[str] = []
+    for it in open_issues:
+        n = it["number"]
+        if n not in bands:
+            continue
+        band = bands[n]
+        have = (it.get("milestone") or {}).get("title")
+        want = wanted.get(band)
+        if have != want:
+            faults.append(
+                f"#{n} is a band-{band} row (names {want or 'no milestone'}) "
+                f"but its milestone is {have or 'unset'}: {it['title'][:60]}"
+            )
+        elif have in cut:
+            faults.append(
+                f"#{n} is open on milestone {have}, which CHANGELOG.md shows as already "
+                f"cut — it can never ship there: {it['title'][:60]}"
+            )
+    return sorted(refs - open_nums), [(n, t) for n, t in banded if n not in refs], faults
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -402,12 +513,14 @@ def main(argv: Optional[List[str]] = None) -> int:
             fh.write(rendered)
         print(f"rendered {os.path.relpath(BACKLOG, ROOT)} from the issues -- review with git diff")
         return 0
-    dangling, missing = check(text)
+    dangling, missing, faults = check(text)
     for n in dangling:
         print(f"table row references #{n} but no such open issue")
     for n, t in missing:
         print(f"open band:* issue #{n} is not in the priority table: {t}")
-    return 1 if (dangling or missing) else 0
+    for f in faults:
+        print(f"band/milestone: {f}")
+    return 1 if (dangling or missing or faults) else 0
 
 
 if __name__ == "__main__":

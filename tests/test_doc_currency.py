@@ -54,6 +54,10 @@ VOLATILE = [
     ("a coverage percentage", re.compile(r"\bcoverage\W{0,20}\d+\s?%")),
     ("a version-is-now claim", re.compile(r"\bversion\W{0,4}(?:is|currently|now)\W{0,4}\d")),
     ("an item/commit count", re.compile(r"\b\d[\d,]*\s+(?:open |backlog )?(?:items|commits)\b")),
+    # CR-D-5 (2026-08-20 review): `streamlit>=1.30` sat in the overview against a
+    # real `>=1.36`. A version floor is `pyproject.toml`'s to state; a copy of one
+    # is a claim about now, and this class was invisible to the patterns above.
+    ("a dependency version specifier", re.compile(r"[A-Za-z][\w.-]*\s*[<>~!=]=\s*\d")),
 ]
 
 
