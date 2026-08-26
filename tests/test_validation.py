@@ -90,6 +90,50 @@ def test_area_mismatch_fires():
             parametric=LayoutInput(wing_area_sqft=150.0, aspect_ratio=7.0, fuselage_length=300.0),
             surfaces=[surf]))
     assert "area_mismatch" in _codes(project)
+    # Once on each page that can act on it, never twice on one (#70). Design
+    # Speeds is where the disagreement decides which number STRSPEED integrates,
+    # so a warning that only reaches Configuration & Layout is a warning the
+    # reader of the affected result never sees.
+    from sloads.validation import PAGE_CONFIGURATION, PAGE_STRUCTURAL_SPEEDS
+
+    pages = [w.page for w in consistency_warnings(project) if w.code == "area_mismatch"]
+    assert sorted(pages) == sorted([PAGE_CONFIGURATION, PAGE_STRUCTURAL_SPEEDS])
+
+
+def test_no_warning_is_raised_twice_for_one_page():
+    """A page must not print the same sentence twice.
+
+    The doubled ``area_mismatch`` (#70) was two identical entries returned from
+    one check -- invisible to every code-level assertion in this file, and to
+    the renderer, which prints what it is given. This is the general form:
+    (code, page, message) is unique, across the shipped projects and across a
+    project built to trip the checks rather than pass them.
+    """
+    import glob
+
+    projects = [(os.path.basename(path), sloads_io.load_project(path))
+                for path in sorted(glob.glob(os.path.join(_EXAMPLES, "*.project.json")))]
+    projects.append(("a deliberately contradictory project", _contradictory()))
+    for name, project in projects:
+        seen = [(w.code, w.page, w.message) for w in consistency_warnings(project)]
+        duplicates = {entry for entry in seen if seen.count(entry) > 1}
+        assert not duplicates, (
+            f"{name} raises the same warning more than once: "
+            f"{sorted(c for c, _p, _m in duplicates)}")
+
+
+def _contradictory():
+    """A project that trips as many checks at once as one project can."""
+    surf = SurfaceInput(
+        name="wing",
+        leading_edge=[(0.0, 0.0), (0.0, 200.0)],
+        trailing_edge=[(120.0, 0.0), (120.0, 200.0)])
+    return Project(
+        name="t",
+        geometry=GeometryInput(
+            parametric=LayoutInput(wing_area_sqft=150.0, aspect_ratio=7.0,
+                                   taper_ratio=1.5, fuselage_length=300.0),
+            surfaces=[surf]))
 
 
 def test_area_match_silent():

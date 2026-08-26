@@ -67,7 +67,6 @@ import math
 from typing import List, NamedTuple, Optional
 
 from ..constants import (
-    IN2_PER_FT2,
     cruise_speed_coefficient,
     dive_ratio_coefficient,
     stall_speed_kt,
@@ -205,14 +204,18 @@ def maneuver_load_factors(category: str, weight: float, chosen_n: Optional[float
 
 
 def _wing_area_sqft(project: Project, inp: StructuralSpeedsInput) -> float:
-    """Wing area S (ft^2): from the geometry slice (in^2 -> ft^2) or direct input."""
-    if project.geometry is not None:
-        surf = project.geometry.by_name(inp.wing_surface)
-        if surf is not None:
-            from .wing_geometry import surface_properties
-            r = surface_properties(surf)
-            total_in2 = next(v.value for v in r.values if v.key == "total_area")
-            return total_in2 / IN2_PER_FT2
+    """Wing area S (ft^2): the ``wing_surface`` planform, else the direct input.
+
+    The planform wins whenever there is one, so ``inp.wing_area_sqft`` is reached
+    only by a project carrying no such surface. The resolution itself belongs to
+    :func:`sloads.derived_geometry.planform_area_sqft` -- the oracle GUI marks
+    this field by asking the same function, so the number shown beside the
+    disabled widget is the number computed here, by construction (#70, PB-17).
+    """
+    from ..derived_geometry import planform_area_sqft
+    area = planform_area_sqft(project, inp.wing_surface)
+    if area is not None:
+        return area
     if inp.wing_area_sqft:
         return inp.wing_area_sqft
     raise MissingInputError(

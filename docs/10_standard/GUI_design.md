@@ -185,7 +185,13 @@ consistent:
   the session project equal to the loaded file, on every oracle page and every
   shipped example; a type-then-load reproduction that asserts the typed value
   does not survive; and an AST walk that fails on any GUI input widget without
-  a stamped key.
+  a stamped key. The walk's exemption list is the one part a human decides, and
+  it is decided by **where the value lives, never by what the widget is about**
+  (#70, PB-16): the sidebar's unit radio was exempted as "the user's choice"
+  when `unit_system` is a field of `Project`, so its retained state beat a
+  loaded file's own setting and reported the file dirty before the user had
+  touched it. The behavioural half — loading any shipped example through the
+  shell leaves it clean — is what a future mis-exemption fails on.
 - **A copy says it is a copy** (#36, CR-A-2). Where a quantity is held by more
   than one field, `sloads/field_registry.py` names the owner, and the renderer
   **reads that** rather than presenting every holder as an independent input.
@@ -198,6 +204,11 @@ consistent:
     rule — STRSPEED integrates the wing planform and only falls back to this
     field when no wing surface exists, which no GUI-built project lacks, so a
     value typed here was silently ignored (18 % divergence measured on atr42).
+    **The value shown must be the value that governs** (#70, PB-17): this row
+    named `geometry.parametric.wing_area_sqft` as its owner, which is a
+    neighbouring quantity rather than the resolved planform, so the disabled
+    widget stated 500.0 where STRSPEED used 497.75. A disabled widget is a
+    claim about the calc, so a wrong number in one is worse than an empty box.
   - `governs=True`, **override**: some module reads the field verbatim, so it
     stays **editable** and is captioned with the owner and the owner's current
     value; a disagreement draws a warning. It warns rather than corrects,
@@ -223,6 +234,21 @@ consistent:
   where `governs` alone would state the rule wrongly the row carries the true
   sentence in `resolves`. Every EXTERNAL row must state one or the other; a
   silent default is what let five of them ship as peer inputs.
+
+  "Never disabled" holds only while there is nothing to substitute (#70).
+  `field_registry.EXTERNAL_VALUES` maps a row to **the same function the calc
+  calls** to resolve its owner; a row that has one is display-only and shows
+  that number, a row that has none stays live and caption-only. The resolver
+  answering "no value" is itself the answer: the wing area's owner is a
+  planform, and *no planform* is exactly the condition under which the field
+  stops being inert and becomes what STRSPEED reads — which is what its own
+  `MissingInputError` tells the user to set — so the widget goes live in the
+  same breath. Guarded from both sides in `tests/test_oracle_gui.py`.
+
+  **A quoted number is quoted in the page's units** (#70). Captions that state
+  an owner's current value convert it and label it like any other displayed
+  quantity (`oracle_app.form._shown`); a bare Imperial number beside a widget
+  showing kilograms is two numbers for one quantity, on one line.
 
   **The mark reaches composites too** (#89). `_copy_note` was called from
   `render_scalar` alone, so a non-owner tuple, curve or enum set rendered bare —

@@ -97,7 +97,7 @@ def _render_units(project: Project) -> None:
     unit_label = st.radio(
         "Reported results in", ["Imperial", "SI"],
         index=0 if unit_system_from(project.unit_system) == UnitSystem.IMPERIAL else 1,
-        horizontal=True, key="_unit_system_radio",
+        horizontal=True, key=widget_key("_unit_system_radio"),
         help=(
             "Applies everywhere in the app: weights, lengths, forces, moments, "
             "torque, power and inertia — **and to everything you export** (the "
@@ -114,6 +114,15 @@ def _render_units(project: Project) -> None:
     # edit and shows as an unsaved change (the dirty flag below is a diff against
     # the last loaded/saved snapshot). The session key is kept in step so a render
     # that has no project yet still resolves.
+    #
+    # Because it lives on the project, the radio is a **project-seeded** widget and
+    # carries the generation stamp like any other (#70, review 2026-08-22 PB-16).
+    # Unstamped, its retained state beat ``index=``: opening an SI-saved file in an
+    # Imperial session put "imperial" back on the loaded project and showed
+    # "Unsaved changes" before the user had touched anything -- the load editing
+    # the file it had just read. Within a session the stamp does not move, so a
+    # unit choice still survives every rerun; only a project *replacement*
+    # re-seeds it, which is the whole point.
     if project.unit_system != selected.value:
         project.unit_system = selected.value
     st.session_state["unit_system"] = selected

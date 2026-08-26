@@ -385,7 +385,15 @@ class FieldEntry:
 
         The form's rule (``oracle_app.form._copy_note``) and the G5 journey's
         (a field no widget can write is not compared) are the one rule, here.
+
+        An **external** owner qualifies only when its governing value can be
+        resolved (:data:`EXTERNAL_VALUES`, #70). Without a number there is
+        nothing to substitute into the widget, and one of these rows -- the
+        weight estimate's horsepower -- is the fallback the analysis uses when
+        its owner is empty; disabling it would make that fallback unenterable.
         """
+        if not self.governs and self.owner_is_external:
+            return self.path in EXTERNAL_VALUES
         return bool(self.owner_path) and not self.governs
 
 
@@ -395,6 +403,41 @@ class FieldEntry:
 #: database — so the registry has to be able to say *owned, but not by a field*
 #: rather than either inventing an owner row or dropping the duplicate from view.
 EXTERNAL = "external: "
+
+
+def _speeds_wing_area(project: Project) -> Optional[float]:
+    """The planform area STRSPEED resolves for ``speeds.wing_area_sqft``."""
+    from sloads.derived_geometry import planform_area_sqft
+
+    surface = getattr(getattr(project, "speeds", None), "wing_surface", None) or "wing"
+    try:
+        return planform_area_sqft(project, surface)
+    except (ValueError, ZeroDivisionError, StopIteration):
+        # A half-entered planform: the calc raises here and #71 owns how that is
+        # reported. A mark must not be the thing that takes the page down, so it
+        # answers "no governing value yet" and the widget stays live.
+        return None
+
+
+#: ``{path: resolver}`` for the copies whose owner is an expression rather than a
+#: field, but whose governing value can still be computed and shown (#70, PB-17).
+#:
+#: :attr:`FieldEntry.owner_path` is a dotted path the GUI reads with ``getattr``;
+#: an external owner has none, so before #70 such a row could only be captioned,
+#: never valued -- and the one row that *did* show a number was pointed at a
+#: neighbouring field with a different value. A resolver here is the same
+#: function the calc calls, so the two cannot drift; a row with no resolver stays
+#: caption-only and editable. Guarded by
+#: ``tests/test_field_registry.py::test_every_external_resolver_names_a_registry_row``.
+EXTERNAL_VALUES: Dict[str, "typing.Callable[[Project], Optional[float]]"] = {
+    "speeds.wing_area_sqft": _speeds_wing_area,
+}
+
+
+def external_value(path: str, project: Project) -> Optional[float]:
+    """The governing value behind an external copy, or ``None`` if there is none."""
+    resolver = EXTERNAL_VALUES.get(path)
+    return None if resolver is None else resolver(project)
 
 
 #: When a ``SLOADS`` field may be marked :attr:`FieldEntry.supplied` (G5).
@@ -704,14 +747,19 @@ REGISTRY: Tuple[FieldEntry, ...] = (
        "this value verbatim; the link back is cg_cases.max_takeoff_weight's fallback "
        "and validation's mtow_representation_drift warning -- note 33 DS-6/2.3)",
        governs=True),
-    # The one display-only copy (governs=False, #36): STRSPEED resolves the wing
-    # planform first and only falls back to this field when the geometry carries no
-    # wing surface -- which no project the GUI can build ever does. A value entered
-    # here was therefore ignored, measured at an 18 % divergence on atr42. It renders
-    # disabled, showing the area that actually governs.
+    # The one conditionally-governing copy (#36, corrected by #70 / PB-17). STRSPEED
+    # resolves the ``speeds.wing_surface`` **planform** and reaches this field only
+    # when the geometry carries no such surface. The owner named here was
+    # ``geometry.parametric.wing_area_sqft`` -- a different quantity, which the
+    # disabled widget then displayed: 500.0 against the 497.75 STRSPEED used on
+    # concept_regional_jet, and unrelated numbers on a hand-typed project. The owner
+    # is not a field at all, so it is external, and the value shown comes from the
+    # same resolver the calc calls (:data:`EXTERNAL_VALUES`).
     _E("speeds.wing_area_sqft", _SPD, _ORIG, "STRSPEED S (W/S)", "wing reference area",
-       "geometry.parametric.wing_area_sqft (display-only: structural_speeds._wing_area_sqft "
-       "prefers the planform and reaches this only with no wing surface -- #36)"),
+       EXTERNAL + "wing planform (the WINGGEOM integral over speeds.wing_surface -- #70)",
+       resolves="STRSPEED integrates that planform whenever the surface exists, "
+                "and reads this field only when it does not -- so it is disabled "
+                "while there is a planform, and live when there is none."),
     _E("speeds.wing_surface", _SPD, _SLDS, "surface selector (standing ruling)"),
     _E("speeds.vh_kt", _SPD, _ORIG, "STRSPEED VH, max level speed"),
     _E("speeds.shoulder_altitude_ft", _SPD, _ORIG,

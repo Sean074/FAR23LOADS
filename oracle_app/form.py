@@ -130,7 +130,26 @@ def _owner_value(project: Any, owner_path: str) -> Any:
     return obj
 
 
-def _external_note(row: Any, where: Any) -> bool:
+def _shown(path: str, value: Any) -> str:
+    """``value`` (Imperial) written for a caption in the page's own units.
+
+    A caption that quotes a governing number beside a converted widget has to
+    convert it too, or the SI reader is told the widget's 19 200 kg "is"
+    42,325 -- two numbers for one quantity, on one line, which is the exact
+    confusion the copy mark exists to end (#70). The unit label is stated for
+    the same reason; a bare number in the wrong system is not less wrong for
+    being unlabelled.
+    """
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return f"{value}"
+    system = active_system()
+    unit = field_unit(_leaf(path))
+    number = to_display(float(value), unit.kind, system) if unit.kind else float(value)
+    label = _unit_label(unit, system)
+    return f"{number:,.4g}{' ' + label if label else ''}"
+
+
+def _external_note(row: Any, project: Any, where: Any) -> bool:
     """Mark a copy whose owner is not a field, and never disable it (#69).
 
     Until now ``_copy_note`` returned early on these rows, so the registry knew
@@ -139,17 +158,29 @@ def _external_note(row: Any, where: Any) -> bool:
     three as silent peer inputs (C210-41). Half the point of the #36 mark was
     the half it never reached.
 
-    Never disabled, unlike a display-only field copy: an external owner is an
-    expression, not a path, so there is no value to substitute into the widget,
-    and one of these rows (the weight estimate's horsepower) is the *fallback*
-    the analysis uses when the owner is empty. Disabling it would make the
-    fallback unenterable.
+    Disabled only when the owner's value can actually be resolved
+    (``field_registry.EXTERNAL_VALUES``, #70/PB-17). An external owner is
+    usually an expression rather than a path, so there is nothing to substitute
+    into the widget, and one of these rows (the weight estimate's horsepower) is
+    the *fallback* the analysis uses when the owner is empty -- disabling that
+    would make the fallback unenterable. Where a resolver does exist, it is the
+    same function the calc calls, so the number shown is the number used; and it
+    answering ``None`` is itself meaningful -- the wing-area row's owner is a
+    planform, and no planform is exactly when that field stops being inert and
+    starts governing, so the widget goes live in the same breath.
 
     What it says is the row's deliberate answer, never a default: ``resolves``
     verbatim where the rule is conditional, else ``governs`` -- pinned by
     ``tests/test_field_registry.py::test_every_external_copy_states_how_it_resolves``.
     """
     owner = row.external_owner
+    governing = fr.external_value(row.path, project) if project is not None else None
+    if governing is not None:
+        where.caption(
+            f"Derived from the **{owner}** ({_shown(row.path, governing)}) — entering a value "
+            "here has no effect; the analysis reads the owner."
+            + (f" {row.resolves}" if row.resolves else ""))
+        return True
     if row.resolves:
         where.caption(f"Also owned by **{owner}** — {row.resolves}")
     elif row.governs:
@@ -182,7 +213,7 @@ def _copy_note(path: str, value: Any, project: Any, where: Any) -> bool:
     if row is None or row.is_owner:
         return False
     if row.owner_is_external:
-        return _external_note(row, where)
+        return _external_note(row, project, where)
     owner = row.owner_path
     if not owner:
         return False
@@ -196,7 +227,7 @@ def _copy_note(path: str, value: Any, project: Any, where: Any) -> bool:
         return True
 
     where.caption(f"Overrides {owner_label}"
-                  + (f" (currently {owner_value:,.4g})"
+                  + (f" (currently {_shown(path, owner_value)})"
                      if isinstance(owner_value, (int, float)) and not isinstance(owner_value, bool)
                      else "")
                   + " — a value entered here is what the analysis uses.")
@@ -204,8 +235,9 @@ def _copy_note(path: str, value: Any, project: Any, where: Any) -> bool:
             and not isinstance(owner_value, bool) and not isinstance(value, bool)
             and owner_value and value and abs(float(owner_value) - float(value)) > 1e-9):
         where.warning(
-            f"This is {value:,.4g} but {owner_label} says {owner_value:,.4g}. "
-            "Both reach the calc, on different pages — confirm which is intended.")
+            f"This is {_shown(path, value)} but {owner_label} says "
+            f"{_shown(owner, owner_value)}. Both reach the calc, on different "
+            "pages — confirm which is intended.")
     return False
 
 
@@ -533,7 +565,10 @@ def render_scalar(record: Any, path: str, *, key: str, container: Any = None,
     disabled = _copy_note(path, value, project, where) if project is not None else False
     if disabled:
         row = fr.entry(path)
-        governing = _owner_value(project, row.owner_path) if row is not None else None
+        governing = None
+        if row is not None:
+            governing = (fr.external_value(path, project) if row.owner_is_external
+                         else _owner_value(project, row.owner_path))
         if governing is not None:
             value = governing
 
