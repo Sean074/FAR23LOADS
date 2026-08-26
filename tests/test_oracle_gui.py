@@ -1693,3 +1693,55 @@ def test_the_grid_commit_note_is_spelled_once():
                if os.path.abspath(p) != os.path.abspath(owner)
                and fragment in open(p, encoding="utf-8").read()]
     assert not spelled, spelled
+
+
+# --------------------------------------------------------------------------- #
+# What the weight estimate is for (#78, C210-9)
+# --------------------------------------------------------------------------- #
+def test_the_weight_estimate_block_says_it_feeds_nothing():
+    """WTESTIMA sits above WTONECG and WTENV on the page and feeds neither: the
+    itemized data base is the sole source of every downstream mass property.
+    Rendered above the estimate's own table, so it is read before the numbers
+    rather than as a footnote to them (C210-9)."""
+    from oracle_app.results import step_results
+    from sloads.modules.weight_estimate import ADVISORY
+
+    blocks = {b.module: b for b in step_results(_seeded(), "weight_mass",
+                                                UnitSystem.IMPERIAL)}
+    assert ADVISORY in blocks["weight_estimate"].advisory
+
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_string(
+        "from oracle_app.results import render_results\n"
+        "from sloads import UnitSystem\n"
+        "import streamlit as st\n"
+        "render_results(st.session_state['project'], 'weight_mass', UnitSystem.IMPERIAL)\n",
+        default_timeout=60)
+    at.session_state["project"] = _seeded()
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    assert any(ADVISORY in (c.value or "") for c in at.caption)
+
+
+def test_only_the_advisory_module_carries_one():
+    """Keyed by module in ``MODULE_ADVISORIES``, so a caption cannot leak onto
+    the two programs on this page whose output *is* consumed downstream —
+    which would say the opposite of the truth about them."""
+    from oracle_app.results import step_results
+
+    blocks = {b.module: b for b in step_results(_seeded(), "weight_mass",
+                                                UnitSystem.IMPERIAL)}
+    assert not blocks["weight_onecg"].advisory
+    assert not blocks["weight_envelope"].advisory
+
+
+def test_the_estimate_comparison_is_shown_in_the_page_unit_system():
+    """The delta crosses the same display boundary as every other figure on the
+    page: an SI page states kilograms, not the calc's internal pounds."""
+    from oracle_app.results import weight_estimate_advisory
+
+    project = _seeded()
+    assert "lb" in weight_estimate_advisory(project, UnitSystem.IMPERIAL)
+    si = weight_estimate_advisory(project, UnitSystem.SI)
+    assert "kg" in si and " lb" not in si
