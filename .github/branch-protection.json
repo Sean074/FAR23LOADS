@@ -1,0 +1,18 @@
+{
+  "_what": "Snapshot of the live, owner-applied protection settings on `main`, plus the two facts about `dev/**` and the milestone merge that the process docs assert. It exists because a documented git setting and the live one drifted apart twice in one day (2026-08-25): the docs said 'linear history off, merge commits allowed' while `main` refused the 0.7.2 PR with 'This branch must not contain merge commits'. Nothing in CI can read GitHub (the test job has no auth), so the doc-to-live comparison is made in two hops: this file is compared with the docs by `tests/test_ci_conformance.py` on every run, and with the live setting by `scripts/branch_protection_snapshot.py --check`, which the owner runs (it needs `gh` auth). Backlog row 6 / issue #46, CR-D-4.",
+  "_owner": "GitHub branch-protection settings on `main` are the authority. This file is a copy; refresh it with `python scripts/branch_protection_snapshot.py --write`, never by hand.",
+  "branch": "main",
+  "captured": "2026-08-25",
+  "captured_by": "seed",
+  "required_status_checks": [
+    "sbeam-roundtrip (3.12)",
+    "test (3.12)",
+    "typecheck"
+  ],
+  "required_linear_history": true,
+  "required_pull_request": true,
+  "milestone_pr_merge_method": "rebase",
+  "unprotected_branch_globs": [
+    "dev/**"
+  ]
+}

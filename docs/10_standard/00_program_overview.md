@@ -271,9 +271,18 @@ plain units with no `-ULT` suffix.
 
 ## Dependency requirements
 
-Runtime (`pyproject.toml` `[project.dependencies]`): `streamlit>=1.30`,
-`pandas>=2.0`. Dev extras (`[project.optional-dependencies].dev`): `pytest>=8.0`,
-`pytest-cov`, `pytest-xdist`, `ruff`. Install with `pip install -e '.[dev]'`.
+**`pyproject.toml` is the single owner of every dependency and every version
+floor; this page names none of them.** Runtime requirements are
+`[project.dependencies]`, the supported developer set is
+`[project.optional-dependencies].dev` (it pins `ruff` and `mypy` to the versions
+the pre-commit hooks run, so hook and CI agree). Install with
+`pip install -e '.[dev]'`; add `,solver` for the sbeam round-trip gate. A floor
+copied here drifts from the one that is enforced — this page carried a
+`streamlit` floor six minor versions below the real one (2026-08-20 review,
+CR-D-5), which exists because of `st.navigation(expanded=…)`. The doc-currency
+guard now treats a version specifier beside a dependency name as a volatile
+literal, so the class cannot come back — including in a sentence like this one,
+which is why the numbers here are words.
 
 ---
 
@@ -284,8 +293,14 @@ Runtime (`pyproject.toml` `[project.dependencies]`): `streamlit>=1.30`,
   twin turboprop, p251) figures within **±0.1%** (`rel_tol=1e-3`); exact equality
   only for integer/dimensionless quantities.
 - `ruff check sloads/ cli.py oracle.py app/ app_shell/ oracle_app/ scripts/` clean, `mypy` clean and `pytest` passing are the
-  merge gate; CI runs ruff + pytest on Python 3.9 / 3.11 / 3.12 and mypy in its own job.
-  See §Static typing & lint below for what each checks.
+  merge gate. **The CI matrix is asymmetric and `.github/workflows/ci.yml` is its
+  authority** (guard: `tests/test_ci_conformance.py`): every pull request and every
+  push to a `dev/**` milestone branch runs ruff + pytest on **3.12 only**, with `mypy`
+  and `sbeam-roundtrip (3.12)` in their own jobs — that trio is the required-check set
+  on `main`. The **3.9 / 3.11 compatibility legs, `sbeam-roundtrip (3.11)` and the
+  coverage-instrumented leg run on the push to `main` only**, i.e. on the milestone
+  merge, and are fixed forward (`DEVELOPMENT_PROCESS.md` §0): a change that breaks 3.9
+  merges green by design. See §Static typing & lint below for what each checks.
 - **Parallel by default (CH-1).** `addopts` in `pyproject.toml` carries
   `-n auto` (`pytest-xdist`), so every `pytest` invocation — local and CI —
   runs across all cores. To debug with `-s`/pdb, disable workers with
@@ -293,8 +308,9 @@ Runtime (`pyproject.toml` `[project.dependencies]`): `streamlit>=1.30`,
 - **Coverage floor.** Coverage is **CI's concern**: the `test` job passes
   `--cov=sloads --cov-report=term-missing --cov-fail-under=80` explicitly
   (`.github/workflows/ci.yml`), so coverage cannot silently regress while local
-  runs skip the instrumentation cost. **On one leg only** (the 3.12 leg, via the
-  matrix `include`; item 8, 2026-08-16): the floor is one number and needs
+  runs skip the instrumentation cost. **On one leg, on the push to `main` only**
+  (the 3.12 leg, via the matrix `include`; item 8, 2026-08-16; moved off the PR
+  leg 2026-08-22, where instrumentation had grown the run past 27 minutes): the floor is one number and needs
   measuring once, and branch instrumentation was what made every leg a
   ten-minute job — the 3.9/3.11 legs are the compatibility claim and run
   uninstrumented. Opt in locally with `--cov=sloads`; the `[tool.coverage.*]`
@@ -303,13 +319,20 @@ Runtime (`pyproject.toml` `[project.dependencies]`): `streamlit>=1.30`,
   gain tests, and tighten to a per-module gate on `sloads/modules/` (the load
   math) as the suite grows.
 - **Suite runtime is a measured thing, not a tier.** `--durations=15` runs on
-  every CI leg; a test that dominates the parallel critical path is fixed (the
+  every CI leg and **that output, not this page, is the number** — a figure in
+  prose here rots (the 2026-08-20 review, CR-D-6: this bullet still claimed "the
+  suite in the tens of seconds and no test over ten" against a measured parallel
+  suite several times that, with the revisit threshold below already crossed and
+  nothing filed). A test that dominates the parallel critical path is fixed (the
   2026-08-16 case: one sweep re-ran the whole pipeline once per (example,
   module) key — 40 s of a 59 s suite — for an assertion that needs one run per
-  example). There is deliberately **no `slow` marker**: with the suite in the
-  tens of seconds and no test over ten, a fast subset would save seconds and
-  add a second thing to keep in step. Revisit if a single test passes ~30 s or
-  the parallel suite passes ~2 min locally.
+  example). There is deliberately **no `slow` marker**: a fast subset would add a
+  second thing to keep in step, and the measured shape has been one or two
+  whole-pipeline-per-assertion tests on the critical path, which is a fix and not
+  a marker. **The revisit threshold has tripped and is owned:** the split of the
+  whole-pipeline-per-assertion tests is a backlog row, not a standing claim on
+  this page. Read `--durations` (or `.pre-commit-config.yaml`, which records the
+  last measurement beside the hook timings) before asserting a runtime anywhere.
 - **Git hooks (opt-in).** `.pre-commit-config.yaml` runs ruff + mypy on
   commit and the whole suite on push, all as *local* hooks on the venv's own
   tools, so hook and CI use the same pinned `ruff`/`mypy` versions
@@ -356,6 +379,13 @@ the fix is the error contract above (`MissingInputError` for an absent slice,
 `ValueError` for present-but-invalid input), never a bare guard that changes a
 number. The checker is the code owner of the "no `None` reaches an attribute"
 convention (rule 3 in `CLAUDE.md`); the CI job is its drift guard.
+
+**`cspell.json` is an editor convenience, not a gate.** No CI step and no hook
+runs it, and the prose rule that used to say "new domain terms → `cspell.json`"
+has been removed from `CLAUDE.md` rather than given one (2026-08-20 review,
+CR-D-11; rule 3 forbids a convention with no owner, and the honest resolution of
+an ungated rule is to drop the rule). Keep the word list current if your editor
+uses it; nothing fails if you do not.
 
 **ruff** runs `E F W B SIM PLE PLW ARG RUF I C4` (`pyproject.toml [tool.ruff.lint]`
 is the owner, with each ignore explained in place). `UP` (pyupgrade) stays off

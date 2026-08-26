@@ -112,5 +112,67 @@ def test_render_round_trips_the_live_table_and_drops_closed_rows(bi, backlog_tex
     assert bi.render_backlog(backlog_text, issues) == backlog_text
 
 
+# --- band -> milestone (issue #46, 2026-08-25) -------------------------------
+
+def test_every_band_header_is_parsed_including_the_two_character_one(bi, backlog_text):
+    """`BAND_ROW` matched a single letter until 2026-08-25, so the **B2** header
+    (0.9.0) never matched and every row beneath it inherited band **B** — the
+    0.8.0 label — with no gate seeing it. The band an issue is filed under is
+    what the milestone check compares, so a band the parser cannot see is a
+    milestone check that cannot work."""
+    headers = [ln for ln in backlog_text.splitlines() if re.match(r"^\|\s*\*\*[A-Z]\d?\s+[—-]", ln)]
+    parsed = bi.band_milestones(backlog_text)
+    assert len(parsed) == len(headers) > 0, (
+        f"{len(headers)} band header row(s) in the file, {len(parsed)} parsed: {sorted(parsed)}"
+    )
+    assert any(len(b) > 1 for b in parsed), (
+        "no multi-character band in the table — if B2 was retired, this assertion "
+        "and BAND_ROW's `\\d?` can go together; until then it is the regression pin"
+    )
+
+
+def test_a_band_names_the_release_it_ships_in_or_names_none(bi, backlog_text):
+    """The map is read from the header text, never hardcoded: band letters move at
+    every re-cut (band A retired when 0.7.2 was cut, making **B** the milestone in
+    flight), and a hardcoded letter→release map is the drift this check exists to
+    catch. Only a band that names no release — 'when the module is next touched' —
+    may map to ``None``."""
+    milestones = bi.band_milestones(backlog_text)
+    named = {b: v for b, v in milestones.items() if v}
+    assert named, "no band header names a release"
+    assert len(set(named.values())) == len(named), f"two bands name the same release: {named}"
+    for band, ship in milestones.items():
+        if ship is None:
+            header = next(ln for ln in backlog_text.splitlines()
+                          if re.match(rf"^\|\s*\*\*{band}\s+[—-]", ln))
+            assert "when the module is next touched" in header, (
+                f"band {band} names no release and is not the maintenance band: {header[:120]}"
+            )
+
+
+def test_a_rows_issue_is_its_item_cell_not_a_cross_reference(bi):
+    """A row is identified by the ``(#N)`` in its **Item** cell. Other cells cite
+    other rows' issues in prose, and reading the whole line put #29 — the single
+    band-B2 row — under band D, where the milestone check would have demanded it
+    carry no milestone: a guard reporting a fault against the row it misread."""
+    line = "| 13 | Calc-side function size (#17) | the view functions wait for the review (#29) | V | S / S | — |"
+    assert bi.row_ref(line) == 17
+    assert bi.row_bands("| **D — maintenance, when the module is next touched** ||||||\n" + line) == {17: "D"}
+
+
+def test_no_open_row_sits_in_a_band_whose_release_is_already_cut(bi, backlog_text):
+    """The offline half of the #71 case: that issue sat open on the already-cut
+    0.7.1 while its row was in the 0.8.0 band. The live half needs `gh` and lives
+    in ``check``; this half needs only the two files — a band still in the table
+    may not name a release ``CHANGELOG.md`` shows as shipped."""
+    cut = bi.cut_milestones()
+    assert cut, "no released section parsed out of CHANGELOG.md — the pattern broke"
+    shipped = {b: v for b, v in bi.band_milestones(backlog_text).items() if v in cut}
+    assert not shipped, (
+        f"band(s) naming an already-cut release: {shipped}. Retire the band at the cut "
+        "(RELEASE_PROCESS.md §4) — rows under it can never ship."
+    )
+
+
 if __name__ == "__main__":  # zero-dependency self-runner
     sys.exit(pytest.main([__file__, "-p", "no:xdist", "-q"]))
