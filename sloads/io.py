@@ -844,6 +844,9 @@ def _critical_condition_from_dict(d: Dict[str, Any]) -> CriticalCondition:
         beta_deg=d.get("beta_deg"),
         cy_beta_fin=d.get("cy_beta_fin"),
         cn_beta_fin=d.get("cn_beta_fin"),
+        alpha_tail_deg=d.get("alpha_tail_deg"),
+        delta_deg=d.get("delta_deg"),
+        q_psf=d.get("q_psf"),
     )
 
 
@@ -1170,6 +1173,10 @@ def _tail_chord_result_from_dict(d: Dict[str, Any]) -> TailChordResult:
         case_ref=_case_ref_from_dict(d.get("case_ref")),
         far_reference=d.get("far_reference", ""),
         safety_factor=_safety_factor(d),
+        alpha_tail_deg=d.get("alpha_tail_deg"),
+        beta_deg=d.get("beta_deg"),
+        delta_deg=d.get("delta_deg"),
+        q_psf=d.get("q_psf"),
     )
 
 

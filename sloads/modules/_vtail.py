@@ -12,8 +12,13 @@ from __future__ import annotations
 import math
 
 
-def vtail_lift_slope(aspect_ratio: float) -> float:
-    """Vertical-tail lift-curve slope AVT = 2*pi/(1 + 2/ARVT) (per radian)."""
+def lift_curve_slope(aspect_ratio: float) -> float:
+    """Finite-surface lift-curve slope 2*pi/(1 + 2/AR) (per radian).
+
+    The h-tail's AHT and the v-tail's AVT are the *same* chart evaluated on
+    each surface's own aspect ratio (Ref 1 Ch 9); one owner here so the slope
+    TAILDIST prints beside a distributed load is arithmetically the one inside
+    it (note 35, AS-5 -- rule 3, make it structural)."""
     return 2.0 * math.pi / (1.0 + 2.0 / aspect_ratio)
 
 

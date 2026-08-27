@@ -9,7 +9,7 @@ reports the **maximum vertical-tail load**.
 
 This is a time-marching simulation (Euler, ``time_step_s`` step), not a static
 condition like SELECT's v-tail loads -- but it shares SELECT's v-tail aero terms
-(``vtail_lift_slope`` AVT, ``rudder_effectiveness`` EFFECTV, ``large_deflection_factor``
+(``lift_curve_slope`` AVT, ``rudder_effectiveness`` EFFECTV, ``large_deflection_factor``
 EF; see :mod:`sloads.modules._vtail`). Per ONENGOUT.BAS, with ``Q = V^2/295``:
 
     SLOPELT25 = AVT/57.3                                 # per deg
@@ -71,7 +71,7 @@ from ..models import (
 )
 from ..picks import extreme
 from ..registry import register
-from ._vtail import large_deflection_factor, rudder_effectiveness, vtail_lift_slope
+from ._vtail import large_deflection_factor, lift_curve_slope, rudder_effectiveness
 
 MODULE_NAME = "one_engine_out"
 
@@ -176,7 +176,7 @@ def simulate(c: CaseInputs) -> Tuple[List[HistoryRow], CaseSummary]:
     thrust, drag, _ = engine_thrust_and_drag(c)
     mom_eng = thrust * c.bleng
     mom_windmill = drag * c.bleng
-    slope_lt25 = vtail_lift_slope(c.arvt) / DEG_PER_RAD          # per deg
+    slope_lt25 = lift_curve_slope(c.arvt) / DEG_PER_RAD          # per deg
     sr_over_sv = c.sr_in2 / c.svt_in2
     effectv = rudder_effectiveness(sr_over_sv)
     q = dynamic_pressure_psf(c.v_kt)

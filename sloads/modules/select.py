@@ -92,7 +92,7 @@ from ..models import (
 from ..picks import extreme
 from ..registry import register
 from ..selectors import keyed
-from ._vtail import large_deflection_factor, rudder_effectiveness, vtail_lift_slope
+from ._vtail import large_deflection_factor, lift_curve_slope, rudder_effectiveness
 from .flight_envelope import build_envelope, density_ratio, design_inputs
 
 MODULE_NAME = "select"
@@ -372,7 +372,7 @@ def htail_balance(p: VnPoint, cg: CgCase, xw: float, zw: float,
     """
     e_down = 2.0 * DEG_PER_RAD * p.cl / (math.pi * ti.aspect_ratio_wing)  # 114.6*CL/(pi*AR)
     at = p.alpha_deg + ti.tail_incidence_deg - e_down
-    aht = 2.0 * math.pi / (1.0 + 2.0 / ti.aspect_ratio_htail)
+    aht = lift_curve_slope(ti.aspect_ratio_htail)
     q = dynamic_pressure_psf(p.v_eas_kt)
     st = ti.htail_area_sqft
     lt25 = (at * aht / DEG_PER_RAD) * q * st
@@ -551,7 +551,10 @@ def select_htail_balancing(project: Project,
             LoadValue("Elevator deflection (TE dn +)", b.delta, "deg", key="elevator_deflection_te_dn"),
             LoadValue("CP of total load", b.cp, "% tail MAC", key="cp_of_total_load"),
             LoadValue("V (EAS)", p.v_eas_kt, "kt(EAS)", key="v_eas"),
-        ], lt25=b.lt25, lt50=b.lt50)
+        ], lt25=b.lt25, lt50=b.lt50,
+            # The same locals as the loose LoadValues above (AS-6): screen and
+            # structure cannot disagree.
+            alpha_tail_deg=b.at, delta_deg=b.delta)
 
     out: List[CriticalCondition] = []
     if retracted:
@@ -565,15 +568,23 @@ def select_htail_balancing(project: Project,
 
 def _htail_condition(label: str, far: str, p: VnPoint, total_lt: float,
                      extra: List[LoadValue], lt25: Optional[float] = None,
-                     lt50: Optional[float] = None) -> CriticalCondition:
+                     lt50: Optional[float] = None,
+                     alpha_tail_deg: Optional[float] = None,
+                     delta_deg: Optional[float] = None) -> CriticalCondition:
     """Build an htail :class:`CriticalCondition` whose first load is the total.
 
     ``lt25``/``lt50`` are the angle-of-attack (25% MAC) and camber (50% MAC) split
-    TAILDIST distributes chordwise; ``lt25 + lt50 == total_lt``."""
+    TAILDIST distributes chordwise; ``lt25 + lt50 == total_lt``.
+
+    ``alpha_tail_deg``/``delta_deg`` are the case's published aero state (note
+    35, AS-2: the state the method actually used -- see
+    :class:`CriticalCondition`); ``q_psf`` is stamped here from the governing
+    point itself, so no emitter can publish a q that is not its own point's."""
     return CriticalCondition(
         component="htail", label=label, far_reference=far, case=p.case,
         loads=[LoadValue("Total tail load", total_lt, "lb", key="total_tail_load"), *extra],
-        lt25=lt25, lt50=lt50)
+        lt25=lt25, lt50=lt50, alpha_tail_deg=alpha_tail_deg, delta_deg=delta_deg,
+        q_psf=dynamic_pressure_psf(p.v_eas_kt))
 
 
 def _ef(defl: float, se2st: float) -> float:
@@ -620,7 +631,7 @@ def select_htail_maneuver(project: Project,
     cg_map = _cg_map(project)
     np_ = design_inputs(project).n_pos
     lf_in = airplane_length_in(project)
-    aht = 2.0 * math.pi / (1.0 + 2.0 / ti.aspect_ratio_htail)
+    aht = lift_curve_slope(ti.aspect_ratio_htail)
     se2st = ti.elevator_area_sqft / ti.htail_area_sqft if ti.htail_area_sqft else 0.0
     vn = _resolve_envelope(project, envelope).vn
 
@@ -655,7 +666,10 @@ def select_htail_maneuver(project: Project,
                     key="elevator_deflection_increment_cp_50_pct"),
                 LoadValue("Elevator load", elevator_load(lt50, b.lt25, ti), "lb", key="elevator_load"),
                 LoadValue("Elevator deflection", sign * edefl, "deg", key="elevator_deflection"),
-            ], lt25=b.lt25, lt50=lt50))
+            ], lt25=b.lt25, lt50=lt50,
+                # Trim AT plus the signed full throw (AS-2): the state the
+                # 23.423(a) method actually used.
+                alpha_tail_deg=b.at, delta_deg=sign * edefl))
 
     # Checked: pitch-acceleration increment T = Iyy*theta_ddot/(arm) at VC/VD.
     def iyy(p: VnPoint) -> float:
@@ -677,7 +691,11 @@ def select_htail_maneuver(project: Project,
             LoadValue("Balanced tail load", b.lt, "lb", key="balanced_tail_load"),
             LoadValue("Maneuver load increment", -increment(p), "lb", key="maneuver_load_increment"),
             LoadValue("Pitch inertia Iyy", iyy(p), "slug-ft^2", key="pitch_inertia_iyy")],
-            lt25=b.lt25 - increment(p), lt50=b.lt50))
+            lt25=b.lt25 - increment(p), lt50=b.lt50,
+            # Trim AT only; delta_deg stays None -- the 23.423(b) increment is
+            # the pitching-acceleration inertia term, no delta in the method
+            # (AS-2/AS-4; the display states the reason).
+            alpha_tail_deg=b.at))
     if man_cd:
         p = extreme(man_cd, lambda p: bal(p).lt + increment(p))   # largest up
         b = bal(p)
@@ -685,7 +703,7 @@ def select_htail_maneuver(project: Project,
             LoadValue("Balanced tail load", b.lt, "lb", key="balanced_tail_load"),
             LoadValue("Maneuver load increment", increment(p), "lb", key="maneuver_load_increment"),
             LoadValue("Pitch inertia Iyy", iyy(p), "slug-ft^2", key="pitch_inertia_iyy")],
-            lt25=b.lt25 + increment(p), lt50=b.lt50))
+            lt25=b.lt25 + increment(p), lt50=b.lt50, alpha_tail_deg=b.at))
     return out
 
 
@@ -700,7 +718,7 @@ def select_htail_gust(project: Project,
     ti = effective_tail_inputs(project)   # OV-1: blank ARW/AW derive
     assert ti is not None
     cg_map = _cg_map(project)
-    aht = 2.0 * math.pi / (1.0 + 2.0 / ti.aspect_ratio_htail)
+    aht = lift_curve_slope(ti.aspect_ratio_htail)
     aw, arw = ti.wing_lift_slope_per_rad, ti.aspect_ratio_wing
     mac_ft = wr.mac / IN_PER_FT
     vn = _resolve_envelope(project, envelope).vn
@@ -734,14 +752,16 @@ def select_htail_gust(project: Project,
                                 b.lt + gust_increment(up), [
         LoadValue("Balanced tail load", b.lt, "lb", key="balanced_tail_load"),
         LoadValue("Gust increment (cp 25%)", gust_increment(up), "lb", key="gust_increment_cp_25_pct")],
-        lt25=b.lt25 + gust_increment(up), lt50=b.lt50))
+        lt25=b.lt25 + gust_increment(up), lt50=b.lt50,
+        alpha_tail_deg=b.at, delta_deg=b.delta))
     dn = extreme(bal_cd, lambda p: bal_lt(p) - gust_increment(p), largest=False)
     b = bal_full(dn)
     out.append(_htail_condition("GUST DN RETRACTED", "23.425(a)(1)", dn,
                                 b.lt - gust_increment(dn), [
         LoadValue("Balanced tail load", b.lt, "lb", key="balanced_tail_load"),
         LoadValue("Gust increment (cp 25%)", -gust_increment(dn), "lb", key="gust_increment_cp_25_pct")],
-        lt25=b.lt25 - gust_increment(dn), lt50=b.lt50))
+        lt25=b.lt25 - gust_increment(dn), lt50=b.lt50,
+        alpha_tail_deg=b.at, delta_deg=b.delta))
 
     # Flaps extended (FAR 23.425(a)(2)): the BAL VF points with a 25 fps gust at
     # sea-level density (FLTLOADS.BAS 5700-5910).
@@ -760,14 +780,16 @@ def select_htail_gust(project: Project,
                                     b.lt + flap_gust_increment(up), [
             LoadValue("Balanced tail load", b.lt, "lb", key="balanced_tail_load"),
             LoadValue("Gust increment (cp 25%)", flap_gust_increment(up), "lb", key="gust_increment_cp_25_pct")],
-            lt25=b.lt25 + flap_gust_increment(up), lt50=b.lt50))
+            lt25=b.lt25 + flap_gust_increment(up), lt50=b.lt50,
+        alpha_tail_deg=b.at, delta_deg=b.delta))
         dn = extreme(bal_vf, lambda p: bal_lt(p) - flap_gust_increment(p), largest=False)
         b = bal_full(dn)
         out.append(_htail_condition("GUST DN EXTENDED", "23.425(a)(2)", dn,
                                     b.lt - flap_gust_increment(dn), [
             LoadValue("Balanced tail load", b.lt, "lb", key="balanced_tail_load"),
             LoadValue("Gust increment (cp 25%)", -flap_gust_increment(dn), "lb", key="gust_increment_cp_25_pct")],
-            lt25=b.lt25 - flap_gust_increment(dn), lt50=b.lt50))
+            lt25=b.lt25 - flap_gust_increment(dn), lt50=b.lt50,
+        alpha_tail_deg=b.at, delta_deg=b.delta))
     return out
 
 
@@ -827,7 +849,11 @@ def select_htail_unsymmetrical(htail: List[CriticalCondition], np_: float) -> Li
                LoadValue("RH side load", rh, "lb", key="rh_side_load"),
                LoadValue("LH side load", lh, "lb", key="lh_side_load"),
                LoadValue("Other-side percent", pc, "%", key="other_side_percent")],
-        lt25=worst.lt25, lt50=worst.lt50, note=_UNSYMMETRICAL_DEVIATION_NOTE)]
+        lt25=worst.lt25, lt50=worst.lt50, note=_UNSYMMETRICAL_DEVIATION_NOTE,
+        # The aero state is the governing source condition's, copied -- the
+        # unsymmetrical case is the same state distributed asymmetrically (AS-2).
+        alpha_tail_deg=worst.alpha_tail_deg, delta_deg=worst.delta_deg,
+        q_psf=worst.q_psf)]
 
 
 def select_htail(project: Project, envelope: Optional[EnvelopeResult] = None) -> List[CriticalCondition]:
@@ -854,7 +880,7 @@ def _effectv(vt: VTailLoadsInput) -> float:
 
 def _avt(vt: VTailLoadsInput) -> float:
     """Vertical-tail lift-curve slope AVT = 2*pi/(1 + 2/ARVT)."""
-    return vtail_lift_slope(vt.aspect_ratio_vtail)
+    return lift_curve_slope(vt.aspect_ratio_vtail)
 
 
 def _default_izz(vt: VTailLoadsInput, gw: float, lf_in: float) -> float:
@@ -999,7 +1025,11 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
                LoadValue("Load on rudder", on_rudder1, "lb", key="load_on_rudder"),
                LoadValue("V (EAS)", p1.v_eas_kt, "kt(EAS)", key="v_eas")],
         lt25=0.0, lt50=lv,
-        beta_deg=0.0, cy_beta_fin=cy_fin, cn_beta_fin=cn_fin))
+        beta_deg=0.0, cy_beta_fin=cy_fin, cn_beta_fin=cn_fin,
+        # Fin AoA is 0 by the method (23.441(a)(1): deflection before yaw);
+        # the state is the input full-rudder throw at the governing point.
+        alpha_tail_deg=0.0, delta_deg=vt.rudder_deflection_deg,
+        q_psf=dynamic_pressure_psf(p1.v_eas_kt)))
 
     # 2. Yaw to sideslip 19.5 deg, rudder held full (FAR 23.441(a)(2)) -- largest down.
     def total2(p: VnPoint) -> float:
@@ -1014,7 +1044,11 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
                LoadValue("Load due to rudder (cp 50%)", lrud, "lb", key="load_due_to_rudder_cp_50_pct"),
                LoadValue("Load on rudder", on_rudder2, "lb", key="load_on_rudder")],
         lt25=lyaw, lt50=lrud,
-        beta_deg=19.5, cy_beta_fin=cy_fin, cn_beta_fin=cn_fin))
+        beta_deg=19.5, cy_beta_fin=cy_fin, cn_beta_fin=cn_fin,
+        # The fin AoA the method feeds _vt_aoa_load: opposite sign to beta_deg,
+        # which is the SC-1 restatement (AS-3).
+        alpha_tail_deg=-19.5, delta_deg=vt.rudder_deflection_deg,
+        q_psf=dynamic_pressure_psf(p2.v_eas_kt)))
 
     # 3. Yaw 15 deg, rudder neutral (FAR 23.441(a)(3)) -- largest down.
     p3 = extreme(bal_a, lambda p: _vt_aoa_load(-15.0, p, vt), largest=False)
@@ -1023,7 +1057,9 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
         loads=[LoadValue("Total tail load (cp 25%)", _vt_aoa_load(-15.0, p3, vt), "lb",
             key="total_tail_load_cp_25_pct")],
         lt25=_vt_aoa_load(-15.0, p3, vt), lt50=0.0,
-        beta_deg=15.0, cy_beta_fin=cy_fin, cn_beta_fin=cn_fin))
+        beta_deg=15.0, cy_beta_fin=cy_fin, cn_beta_fin=cn_fin,
+        alpha_tail_deg=-15.0, delta_deg=0.0,
+        q_psf=dynamic_pressure_psf(p3.v_eas_kt)))
 
     # 4. Lateral gust at VC (FAR 23.443(b)) -- largest.
     p4 = extreme(bal_c, lambda p: _vt_side_gust(p, cg_map[p.cg], vt, izz))
@@ -1034,7 +1070,11 @@ def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) ->
             key="total_tail_load_cp_25_pct"),
                LoadValue("Yaw inertia IZZ", izz, "slug-ft^2", key="yaw_inertia_izz")],
         lt25=gust_load, lt50=0.0,
-        beta_deg=gust_beta, cy_beta_fin=cy_fin, cn_beta_fin=cn_fin))
+        beta_deg=gust_beta, cy_beta_fin=cy_fin, cn_beta_fin=cn_fin,
+        # The effective gust AoA on the fin, -beta in the SC-1 hand -- the very
+        # Kgt*Ude/V that made the load, so lt25 = alpha*AVT/57.3*q*SV holds
+        # exactly. q_psf stays None: 23.443(b) is linear in V, no q term (AS-4).
+        alpha_tail_deg=-gust_beta, delta_deg=0.0))
     return out
 
 
