@@ -109,10 +109,25 @@ main (always releasable)  ->  release manager cuts release/x.y.z per RELEASE_PRO
   `note/28-multi-dev`, `docs/…`, `chore/…`. The slug is the fragment slug.
 - **`main` is protected** (settings, owner-applied): PRs only, the owner
   included; required checks are the **fast gate** — `test (3.12)`, `typecheck`,
-  `sbeam-roundtrip (3.12)`; **one approving review from someone other than the
-  author**; review from Code Owners required (`.github/CODEOWNERS`); stale
-  approvals dismissed on push; conversations resolved; **linear history —
-  squash-merge only**.
+  `sbeam-roundtrip (3.12)`; conversations resolved; **linear history —
+  squash-merge only**. **The review requirements split by profile** — see the
+  next-but-one bullet.
+  - **Review requirements are the multi-dev profile's, and are OFF under §0
+    (2026-08-26).** The multi-dev target is **one approving review from someone
+    other than the author**, review from Code Owners (`.github/CODEOWNERS`) and
+    **stale approvals dismissed on push**. Live `main` requires none of the
+    three, and that is deliberate rather than neglect: GitHub does not let an
+    author approve their own pull request, and `CODEOWNERS` names one person on
+    every line, so under the solo profile either setting would block **every**
+    merge — the milestone PR included — until a second collaborator exists.
+    Turning all three on is part of the switch-over, beside restoring
+    squash-merge. Until 2026-08-26 this bullet stated the three as live; nothing
+    could see the difference, because `required_pull_request` was true the moment
+    a review block existed at all and the snapshot tracked nothing finer. It now
+    tracks `required_approving_review_count`, `required_code_owner_reviews`,
+    `dismiss_stale_reviews` and `required_conversation_resolution`, and
+    `tests/test_ci_conformance.py` asserts this prose against them — CR-D-4's own
+    class, one field deeper.
   - **Why only three, and why they are the same three under §0:** the 3.9/3.11
     legs and `sbeam-roundtrip (3.11)` **do not run on a pull request at all**
     (`ci.yml`'s matrix keys on push-to-`main`), so they cannot be required checks

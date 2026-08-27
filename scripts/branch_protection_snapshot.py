@@ -43,6 +43,17 @@ LIVE_KEYS = (
     "required_status_checks",
     "required_linear_history",
     "required_pull_request",
+    # The review settings the process prose makes specific claims about. Tracked
+    # since 2026-08-26: `required_pull_request` alone was true the moment a review
+    # block existed, so `DEVELOPMENT_PROCESS.md` §2 could promise "one approving
+    # review from someone other than the author", "review from Code Owners" and
+    # "stale approvals dismissed on push" against a block that required none of
+    # them, and no hop-1 assertion could see it. CR-D-4's own class, one field
+    # deeper.
+    "required_approving_review_count",
+    "required_code_owner_reviews",
+    "dismiss_stale_reviews",
+    "required_conversation_resolution",
 )
 
 
@@ -66,6 +77,7 @@ def _gh_json(*args: str) -> dict:
 def live(branch: str) -> dict:
     """The live settings, reduced to the keys this snapshot tracks."""
     prot = _gh_json(f"repos/:owner/:repo/branches/{branch}/protection")
+    reviews = prot.get("required_pull_request_reviews")
     checks = prot.get("required_status_checks", {}) or {}
     contexts = checks.get("contexts")
     if contexts is None:  # newer API shape
@@ -75,7 +87,19 @@ def live(branch: str) -> dict:
         "required_linear_history": bool(
             (prot.get("required_linear_history") or {}).get("enabled", False)
         ),
-        "required_pull_request": prot.get("required_pull_request_reviews") is not None,
+        # A PR is required exactly when GitHub carries a review block for the
+        # branch; enabling the setting is what creates it. A proxy, not the
+        # toggle -- said plainly so the guard does not claim more than it reads.
+        "required_pull_request": reviews is not None,
+        "required_approving_review_count": int(reviews.get("required_approving_review_count", 0))
+        if reviews else 0,
+        "required_code_owner_reviews": bool(reviews.get("require_code_owner_reviews", False))
+        if reviews else False,
+        "dismiss_stale_reviews": bool(reviews.get("dismiss_stale_reviews", False))
+        if reviews else False,
+        "required_conversation_resolution": bool(
+            (prot.get("required_conversation_resolution") or {}).get("enabled", False)
+        ),
     }
 
 
