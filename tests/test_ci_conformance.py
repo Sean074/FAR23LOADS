@@ -212,6 +212,47 @@ def test_the_process_docs_agree_with_the_live_merge_method():
             )
 
 
+def test_the_process_docs_agree_with_the_live_review_settings():
+    """The 2026-08-26 instance, and CR-D-4's own class one field deeper. §2 promised
+    an approving review from a non-author, Code Owners review and stale-approval
+    dismissal against a branch that required none of them: `required_pull_request`
+    was true the moment GitHub carried *any* review block, so no assertion here
+    could see the difference. The snapshot now tracks the three settings
+    themselves, and this test holds the prose to whichever way they are set —
+    including back, when a second collaborator turns them on."""
+    snap = json.load(open(_SNAPSHOT, encoding="utf-8"))
+    text = _read(_DEV_PROCESS)
+
+    # The one review setting that IS live, in both profiles.
+    assert snap["required_conversation_resolution"] is True, (
+        "`main` no longer requires conversation resolution; §2 still says it does."
+    )
+    assert "conversations resolved" in text, (
+        "DEVELOPMENT_PROCESS.md §2 stopped naming conversation resolution, which is "
+        "live on `main`."
+    )
+
+    solo = (
+        snap["required_approving_review_count"] == 0
+        and snap["required_code_owner_reviews"] is False
+        and snap["dismiss_stale_reviews"] is False
+    )
+    caveat = "Review requirements are the multi-dev profile's, and are OFF under §0"
+    if solo:
+        assert caveat in text, (
+            "no review requirement is live on `main` (approvals, Code Owners and "
+            "stale dismissal are all off in .github/branch-protection.json), but "
+            "DEVELOPMENT_PROCESS.md §2 does not carry the bullet saying so. Written "
+            "as a live requirement, it is a promise the branch does not keep."
+        )
+    else:
+        assert caveat not in text, (
+            "a review requirement is now live on `main`, so §2's 'OFF under §0' "
+            "bullet is stale — state the settings as live and move them out of the "
+            "switch-over list."
+        )
+
+
 # --- hop 1c: no doc may state the matrix without its asymmetry -------------
 
 _FULL_LIST = re.compile(r"3\.9\s*(?:/|,)\s*3\.11\s*(?:/|,)\s*3\.12")
