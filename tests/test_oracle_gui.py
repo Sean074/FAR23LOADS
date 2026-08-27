@@ -1572,6 +1572,29 @@ def test_an_override_that_disagrees_with_its_owner_warns():
         "agreement must be quiet, or the warning is noise nobody reads")
 
 
+# --- #98 (C210-29): an empty list table says what it hides ------------------- #
+
+
+def test_an_empty_list_table_says_what_it_hides():
+    """At zero rows `render_table` used to return before either row branch, so
+    the whole AIRLOADS block -- section slope, the TAU ratios, target CL, the
+    twist/CDO(Y)/CM(Y) grids -- had no visible trace ("I can not find that
+    anywhere", C210-29). The caption is **generated from the page's own field
+    set**: hand-written it would be one caption per list, drifting the moment a
+    field is added; generated, every empty list in the GUI gains it (rule 4)."""
+    from oracle_app.form import _empty_table_note, page_groups
+
+    groups = dict(page_groups("wing_loads"))
+    note = _empty_table_note("Surfaces", groups["aero.surfaces[]"])
+    assert note.startswith("0 rows")
+    for trace in ("Section Slope", "Tau", "Target CL", "Twist", "Profile Drag",
+                  "Section CM"):
+        assert trace in note, (trace, note)
+    # Generated for *every* list, not just the one the review caught.
+    tabs = dict(page_groups("tab_loads"))["tab_loads.tabs[]"]
+    assert "Surface" in _empty_table_note("Tabs", tabs)
+
+
 if __name__ == "__main__":  # zero-dependency self-runner
     import sys
 

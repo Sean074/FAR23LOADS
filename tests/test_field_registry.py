@@ -35,8 +35,10 @@ import pytest
 from sloads import workflow as wf
 from sloads.field_registry import (
     BY_PATH,
+    LIST_MARKER,
     NON_INPUT,
     REGISTRY,
+    SENTINEL_DEFAULTS,
     SLICE_ALIASES,
     Origin,
     field_at,
@@ -217,6 +219,52 @@ def test_the_supplied_mark_is_earned():
         "these rows are marked supplied on neither ground in SUPPLIED_RULE — "
         "they have a declared default, and the basis does not cite the G5 "
         f"result that shows omitting them moves a number: {unearned}"
+    )
+
+
+def test_a_list_row_selector_is_always_asked():
+    """#98 (C210-46): a page can resolve a *scalar* surface selector
+    positionally -- the flap page means the flap -- but it cannot resolve which
+    surface each **row** of a list belongs to, so filtering a row's selector
+    hardcodes it: every tab silently became an h-tail tab, and a rudder tab
+    could not be entered at all. Detected structurally (a ``name``/``surface``
+    leaf on a list record the GUI builds), so the next list with a selector
+    cannot ship with it hidden.
+    """
+    keep = oracle_input_paths()
+    omitted = omitted_records()
+    hidden = sorted(
+        e.path for e in REGISTRY
+        if LIST_MARKER in e.path
+        and e.path.rsplit(".", 1)[-1] in ("name", "surface")
+        and record_of(e.path) not in omitted
+        and e.path not in keep
+    )
+    assert not hidden, (
+        "these row selectors are filtered off their oracle page, so every row "
+        "is silently pinned to the dataclass default:\n  " + "\n  ".join(hidden)
+    )
+
+
+def test_a_sentinel_default_field_is_always_asked():
+    """#98 (C210-49): a field whose declared default is "not stated" -- refused,
+    assumed-with-a-note, or a free body left open -- cannot be left at it, so
+    filtering it off the page removes a deliverable with nothing said: an
+    oracle-built project could not export ground cases. The register of such
+    fields is ``SENTINEL_DEFAULTS``; each entry cites the consumer that treats
+    the default as a sentinel, and every one must be asked.
+    """
+    keep = oracle_input_paths()
+    omitted = omitted_records()
+    for path, why in SENTINEL_DEFAULTS.items():
+        assert path in BY_PATH, f"SENTINEL_DEFAULTS names an unregistered path: {path}"
+        assert why, path
+    hidden = sorted(p for p in SENTINEL_DEFAULTS
+                    if p not in keep and record_of(p) not in omitted)
+    assert not hidden, (
+        "these fields have a sentinel default (SENTINEL_DEFAULTS says which "
+        "consumer refuses it) yet are filtered off their oracle page:\n  "
+        + "\n  ".join(hidden)
     )
 
 

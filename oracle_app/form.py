@@ -737,6 +737,24 @@ def render_scalar(record: Any, path: str, *, key: str, container: Any = None,
             _persist(record, name, chosen_s)
         return
 
+    choices = fr.ROW_SELECTOR_CHOICES.get(path)
+    if choices is not None:
+        # A row selector offers its surfaces, never free text (#98, C210-46):
+        # same contract as the coded fields above, with names instead of codes.
+        # A stored value outside the vocabulary is still shown, marked -- the
+        # consumer refuses it by name (models.inputs.require_surface).
+        options_n: List[str] = list(choices)
+        current_n = (value or "").strip().lower()
+        if current_n not in options_n:
+            options_n.append(current_n)
+        chosen_n = where.selectbox(
+            label, options_n, index=options_n.index(current_n), key=widget_key(key),
+            help=help_text, disabled=disabled,
+            format_func=lambda n: n if n in choices else f"{n or '—'} · (not a known surface)")
+        if not disabled:
+            _persist(record, name, chosen_n)
+        return
+
     if inner is str:
         entered_str = where.text_input(label, value or "", key=widget_key(key),
                                        help=help_text, disabled=disabled)
@@ -1055,6 +1073,18 @@ def _delete_button(where: Any, rows: List[Any], index: int, prefix: str,
              "nothing else in the table moves.")
 
 
+def _empty_table_note(label: str, paths: Sequence[str]) -> str:
+    """What an empty list table is hiding, generated from its own field set.
+
+    Every empty list in the GUI gains this, not just the one the review caught
+    (#98, C210-29; rule 4): at zero rows the fields exist nowhere on the page,
+    so the caption is the only trace that adding a row is how they are reached.
+    """
+    names = ", ".join(_field_label(p) for p in paths)
+    return (f"0 rows — nothing entered. The {label} fields are off the page "
+            f"until a row is added: {names}.")
+
+
 def render_table(project: Project, prefix: str, paths: Sequence[str]) -> None:
     """One list record. Flat rows get a data editor; rows holding a composite get
     an expander each, because a table cell cannot hold a polyline."""
@@ -1097,6 +1127,13 @@ def render_table(project: Project, prefix: str, paths: Sequence[str]) -> None:
             del rows[count:]
             st.rerun()
     if not rows:
+        # An empty list used to be a bare rows counter with no trace of the
+        # fields it hides -- for `aero.surfaces` that was the whole AIRLOADS
+        # block, and the owner could not find it (#98, C210-29). The caption is
+        # generated from the page's own field set, never hand-written: a
+        # hand-written list per table is the doc-currency failure mode, one
+        # caption per list drifting the moment a field is added.
+        st.caption(_empty_table_note(label, paths))
         return
 
     if any(is_composite(fr.field_type(p)) for p in paths):
@@ -1207,6 +1244,12 @@ def _column_config(path: str, header: str) -> Any:
     if enum is not None:
         return st.column_config.SelectboxColumn(
             header, options=[m.value for m in enum], help=_help(path))
+    choices = fr.ROW_SELECTOR_CHOICES.get(path)
+    if choices is not None:
+        # A row selector is a choice in the grid too (#98, C210-46) -- free
+        # text here would let a typo route a tab to the wrong component.
+        return st.column_config.SelectboxColumn(
+            header, options=list(choices), help=_help(path))
     inner, _ = _unwrap_optional(fr.field_type(path))
     if inner in (float, int):
         # An explicit NumberColumn, not the inferred generic cell: the generic

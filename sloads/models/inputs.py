@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Dict, List, Mapping, Optional, Set, Tuple
+from typing import Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 from ..constants import DEFAULT_REF_AXIS_PCT, ULTIMATE_FACTOR
 from .enums import (
@@ -582,6 +582,35 @@ STRUT_TYPES: Dict[str, str] = {
     "O": "Oleo (0.75 strut efficiency)",
     "S": "Spring (0.50 strut efficiency)",
 }
+
+
+#: Host surfaces a :class:`TabSpec` can sit on (#98, C210-46) -> the component
+#: its case is filed under is ``modules/tab.py``'s ``_TAB_COMPONENT``, guarded to
+#: match this tuple. Stored lowercase (``__post_init__`` normalises case); an
+#: unknown surface is refused by :func:`require_surface`, never silently filed
+#: under a default component.
+TAB_SURFACES: Tuple[str, ...] = ("wing", "htail", "vtail")
+
+#: Surfaces a :class:`TailMassInput` row can describe (#98). Same contract as
+#: :data:`TAB_SURFACES`: lowercase storage, unknown names refused by name --
+#: before this an unmatched row was silently inert and the surface kept its
+#: derived weight with nothing said.
+TAIL_SURFACES: Tuple[str, ...] = ("htail", "vtail")
+
+
+def require_surface(value: str, choices: Sequence[str], what: str) -> str:
+    """``value`` as its canonical lowercase surface name, or a ``ValueError``
+    naming the choices.
+
+    The surface-name sibling of :func:`normalise_code` (#98): case and edge
+    spaces are forgiven, anything else is refused rather than read as a
+    default -- a tab or tail-mass row on an unknown surface is a misrouted
+    load case, not a normal one.
+    """
+    name = value.strip().lower()
+    if name not in choices:
+        raise ValueError(f"{what} {value!r} is not one of " + ", ".join(choices))
+    return name
 
 
 def normalise_code(value: str, codes: Mapping[str, str], what: str) -> str:
@@ -1304,6 +1333,11 @@ class TailMassInput:
     #: guessed actuator position moves a real torsion peak along the surface.
     actuator_span_in: float = 0.0
 
+    def __post_init__(self) -> None:
+        # A TAIL_SURFACES name; unknown surfaces refused by name where the row
+        # is read (#98) -- before this an unmatched row was silently inert
+        self.surface = self.surface.strip().lower()
+
 
 @dataclass
 class EmpennageInput:
@@ -1421,6 +1455,10 @@ class TabSpec:
     station_in: float = 0.0                    # BL (wing/htail) or WL (vtail) of tab MAC
     airfoil_chord_in: float = 0.0             # CAIRFOIL (host-airfoil chord at the tab MAC, in)
     deflection_deg: float = 0.0                # DELTATAB (max tab deflection, deg)
+
+    def __post_init__(self) -> None:
+        # A TAB_SURFACES name; unknown surfaces refused by name in TABLOADS (#98)
+        self.surface = self.surface.strip().lower()
 
 
 @dataclass
@@ -1749,6 +1787,8 @@ def default_fuselage_outline(parametric: "LayoutInput") -> Optional[FuselageOutl
 __all__ = [
     "CATEGORIES",
     "STRUT_TYPES",
+    "TAB_SURFACES",
+    "TAIL_SURFACES",
     "AeroCoeffSet",
     "AeroCoefficientsInput",
     "AeroInput",
@@ -1796,5 +1836,6 @@ __all__ = [
     "XYPoint",
     "default_fuselage_outline",
     "normalise_code",
+    "require_surface",
     "same_name",
 ]

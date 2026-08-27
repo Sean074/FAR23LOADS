@@ -101,6 +101,7 @@ from .models import (
     MassItemKind,
     Project,
 )
+from .models.inputs import TAIL_SURFACES, require_surface
 
 #: Two stations closer than this (in) are one beam node. Sized so the itemized
 #: data base's hand-entered stations (whole inches, occasionally one decimal --
@@ -505,6 +506,11 @@ def tail_surface_weight(project: Project, component: str) -> float:
     and no override. That is reported in-band by the caller (the deck says it
     carries no inertia), never silently taken for "weightless".
     """
+    # An unknown surface name is refused here, at the SSOT reader, rather than
+    # leaving the row silently inert and this surface on its derived weight
+    # with nothing said (#98; the C210-21 refuse-by-name pattern).
+    for tm in project.tail_mass or []:
+        require_surface(tm.surface, TAIL_SURFACES, "tail_mass surface")
     for tm in project.tail_mass or []:
         if tm.surface == component and tm.weight_is_override:
             return tm.panel_weight_lb
