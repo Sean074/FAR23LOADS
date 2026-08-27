@@ -58,6 +58,9 @@ from .methods import (
     strip_comment_lines,
 )
 from .render import (
+    SUMMARY_GROUP_BY,
+    SUMMARY_SHAPES,
+    critical_rows,
     envelope_extremes,
     format_value,
     governing_loads_table,
@@ -65,9 +68,11 @@ from .render import (
     load_cases_to_rows,
     module_text_report,
     results_to_rows,
+    summary_rows,
     text_report,
     to_ultimate,
     ultimate_units,
+    weight_station_rows,
 )
 
 __all__ = [
@@ -76,6 +81,8 @@ __all__ = [
     "NOT_ANALYSED",
     "NOT_APPLICABLE",
     "OUT_OF_SCOPE",
+    "SUMMARY_GROUP_BY",
+    "SUMMARY_SHAPES",
     "ComponentLoads",
     "CoverageRow",
     "Figure",
@@ -91,6 +98,7 @@ __all__ = [
     # --- G8.4: FAR 23 Subpart C coverage ----------------------------------- #
     "coverage_matrix",
     "coverage_summary",
+    "critical_rows",
     "csv_comment_block",
     "envelope_extremes",
     "format_value",
@@ -104,7 +112,9 @@ __all__ = [
     "render_report",
     "results_to_rows",
     "strip_comment_lines",
+    "summary_rows",
     "text_report",
     "to_ultimate",
     "ultimate_units",
+    "weight_station_rows",
 ]

@@ -1332,6 +1332,38 @@ def _check_derive_overrides(project: Project) -> List[ConsistencyWarning]:
             "it from the aileron (note 36), or confirm the difference is intended.",
             PAGE_FLIGHT))
 
+    # A typed elevator/rudder area that disagrees with its own hinge halves
+    # (#95, C210-5): SELECT reads SE/ST and (SEFWDHL + 0.5*SEAFTHL)/(ST -
+    # SEAFTHL) independently, so an SE != fwd + aft entry hands each formula
+    # its own view of one surface. Blank SE/SR derives as the sum
+    # (select.derived_elevator_area / derived_rudder_area); a typed
+    # disagreement is legal and warned here, never corrected.
+    ti, vt = project.tail_loads, project.vtail_loads
+    for code, what, total, fwd, aft in (
+        ("elevator_area_mismatch", "elevator area SE",
+         ti.elevator_area_sqft if ti else 0.0,
+         ti.elevator_fwd_hinge_sqft if ti else 0.0,
+         ti.elevator_aft_hinge_sqft if ti else 0.0),
+        ("rudder_area_mismatch", "rudder area SR",
+         vt.rudder_area_sqft if vt else 0.0,
+         vt.rudder_fwd_hinge_sqft if vt else 0.0,
+         vt.rudder_aft_hinge_sqft if vt else 0.0),
+    ):
+        halves = fwd + aft
+        # Tolerance 1 % relative: the Appendix A ga6 inputs themselves carry
+        # manual rounding (SE 16.403 vs 16.431, SR 5.236 vs 5.200 -- 0.2 %/
+        # 0.7 %), and a warning that fires on the oracle's own printed data
+        # calls the manual wrong. Past 1 % the entry is a data error, not
+        # rounding.
+        if total and halves and abs(total - halves) > 0.01 * max(abs(total), abs(halves)):
+            out.append(ConsistencyWarning(
+                code,
+                f"The typed {what} is {total:g} sq ft but its hinge halves sum "
+                f"to {fwd:g} + {aft:g} = {halves:g} sq ft. Both reach SELECT "
+                "as views of one surface. Blank the total to derive it from "
+                "the halves (#95), or fix whichever is wrong.",
+                PAGE_CONFIGURATION))
+
     for i, eng in enumerate(project.engines, start=1):
         label = eng.engine_designation or f"engine {i}"
         for which, selector, weight_lb, cg in (

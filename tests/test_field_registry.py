@@ -54,6 +54,7 @@ from sloads.field_registry import (
     structurally_required,
     untagged,
 )
+from sloads import field_registry as fr
 from sloads.models import Project
 
 # --- G4: the table covers the schema, and only the schema ------------------- #
@@ -466,6 +467,60 @@ def test_the_consolidated_quantities_have_exactly_one_field():
             f"{name!r} is entered in more than one place again: "
             f"{[e.path for e in editable]}"
         )
+
+
+# --------------------------------------------------------------------------- #
+# #95: display groups and the fuselage-length summary
+# --------------------------------------------------------------------------- #
+def test_every_display_group_path_is_registered_and_rendered():
+    """A DISPLAY_GROUPS path that is not a rendered oracle input is a section
+    title for a widget that never appears -- and paths sharing one (page,
+    record) must share one title, or page_groups' split becomes ambiguous."""
+    keep = fr.oracle_input_paths()
+    titles: dict = {}
+    for path, title in fr.DISPLAY_GROUPS.items():
+        entry = fr.entry(path)
+        assert entry is not None, f"{path}: DISPLAY_GROUPS names an unregistered path"
+        assert path in keep, f"{path}: titled but filtered off its page"
+        assert title.strip(), f"{path}: blank display-group title"
+        key = (entry.page, fr.record_of(path))
+        assert titles.setdefault(key, title) == title, (
+            f"{key}: two display-group titles on one page/record -- "
+            f"{titles[key]!r} vs {title!r}")
+
+
+def test_the_moved_select_rows_render_with_their_quantity():
+    """C210-6/22: the wing-aero fields that live on the h-tail record render on
+    the Aerodynamic Data page, and the SELECT trio on the pages their
+    quantities belong to -- placement is the registry's, so this is the drift
+    guard on the placement itself."""
+    assert fr.entry("geometry.empennage.htail.wing_lift_slope_per_rad").page == "aero_coefficients"
+    assert fr.entry("geometry.empennage.htail.aspect_ratio_wing").page == "aero_coefficients"
+    assert fr.entry("select_input.basic_airfoil_cm").page == "aero_coefficients"
+    assert fr.entry("select_input.full_down_aileron_deg").page == "aileron_loads"
+    assert fr.entry("select_input.wing_weight_lb").page == "weight_mass"
+
+
+def test_the_fuselage_length_summary_is_display_only_once_an_outline_exists():
+    """C210-2: sync_geometry_derived overwrites the scalar on every run, so the
+    widget renders disabled exactly when the outline it summarises exists --
+    and stays live on a project with no outline yet."""
+    entry = fr.entry("geometry.parametric.fuselage_length")
+    assert entry.owner_is_external and not entry.governs and entry.display_only
+    assert "geometry.parametric.fuselage_length" not in fr.COLLAPSED_OVERRIDES, (
+        "a derived summary is not an override -- the OV-1 contract does not apply")
+    import os
+
+    from sloads import io as sloads_io
+
+    ga = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                      "examples", "ga6_normal.project.json")
+    project = sloads_io.load_project(ga)
+    fus = project.geometry.fuselage
+    length = fr.external_value("geometry.parametric.fuselage_length", project)
+    assert length == max(s.x for s in fus.sections) - min(s.x for s in fus.sections)
+    project.geometry.fuselage = None
+    assert fr.external_value("geometry.parametric.fuselage_length", project) is None
 
 
 if __name__ == "__main__":  # zero-dependency self-runner

@@ -1025,8 +1025,20 @@ def test_every_csv_the_oracle_gui_offers_states_its_basis(key, example, system):
             assert any(ln.startswith(_STAMP) for ln in head), (
                 f"{art.file_name} leaves the oracle GUI with no basis statement "
                 f"in its comment block -- pass report.csv_comment_block(project)")
-            assert "SF" in header.split(","), (
-                f"{art.file_name} states ULTIMATE but has no per-case SF column")
+            # The SF column is required exactly where a load was scaled (M4-8:
+            # the factor is stated where it is applied). A pure property table
+            # (geometry, mass properties -- no ``-ULT`` column anywhere)
+            # carries no SF since #95/C210-8: the always-blank SF column on
+            # those tables was C210-27's own complaint, not a basis statement.
+            if "-ULT" in header:
+                assert "SF" in header.split(","), (
+                    f"{art.file_name} carries ULTIMATE loads but no per-case "
+                    "SF column")
+            else:
+                assert "-ULT" not in art.payload.split("\n", len(head) + 1)[-1] or \
+                    "SF" in header.split(","), (
+                    f"{art.file_name} has -ULT data beyond the header row but "
+                    "no SF column")
 
 
 @pytest.mark.parametrize("example,system", _G7_FIXTURES, ids=_G7_IDS)

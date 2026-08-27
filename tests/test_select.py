@@ -448,6 +448,62 @@ def test_a_threaded_envelope_refuses_at_the_read_instead_of_zeroing():
         select.select_htail_balancing(project, envelope=envelope)
 
 
+# --------------------------------------------------------------------------- #
+# #95 (C210-3/5): SE/SR/wing-span falsy-derives on the effective inputs
+# --------------------------------------------------------------------------- #
+def test_a_blank_elevator_area_derives_from_its_hinge_halves():
+    p = io.load_project(_GA)
+    p.geometry.empennage.htail.elevator_area_sqft = 0.0
+    ti = select.effective_tail_inputs(p)
+    assert math.isclose(ti.elevator_area_sqft, 1.639 + 14.792)
+    # ...and a typed SE passes through verbatim (the override half).
+    p.geometry.empennage.htail.elevator_area_sqft = 16.403
+    assert select.effective_tail_inputs(p).elevator_area_sqft == 16.403
+
+
+def test_a_blank_rudder_area_and_wing_span_derive():
+    p = io.load_project(_GA)
+    vt = p.geometry.empennage.vtail
+    vt.rudder_area_sqft = 0.0
+    vt.wing_span_in = 0.0
+    eff = select.effective_vtail_inputs(p)
+    assert math.isclose(eff.rudder_area_sqft, 0.57 + 4.63)
+    # The WINGGEOM strip integral's own span (C210-3: the C210 build typed
+    # 440 in against the integrator's 441).
+    from sloads.derived_geometry import wing_span_in
+
+    assert eff.wing_span_in == wing_span_in(p) > 0
+    # The stored slice is untouched -- effective inputs live on a copy.
+    assert vt.rudder_area_sqft == 0.0 and vt.wing_span_in == 0.0
+
+
+def test_the_one_engine_out_rudder_is_selects_rudder():
+    """Rule 4: the 23.367 simulation sizes the same derived SR SELECT does --
+    before #95 it read the raw slice and a blank SR was silently 0."""
+    from sloads.modules.one_engine_out import _case_inputs
+
+    # A twin -- 23.367 does not apply to the single-engine ga6.
+    p = io.load_project(os.path.join(_EXAMPLES, "atr42_100.project.json"))
+    vt = p.geometry.empennage.vtail
+    vt.rudder_area_sqft = 0.0
+    ci = _case_inputs(p, 180.0)
+    from sloads.constants import IN2_PER_FT2
+
+    halves = vt.rudder_fwd_hinge_sqft + vt.rudder_aft_hinge_sqft
+    assert halves > 0 and math.isclose(ci.sr_in2, halves * IN2_PER_FT2)
+
+
+def test_the_rod_izz_resolver_is_the_calcs_own_number():
+    """The registry caption's IZZ (C210-25 disclosure) is the same rod estimate
+    a blank izz_slugft2 computes with -- resolver == calc, the OV mechanics."""
+    from sloads import field_registry as fr
+
+    p = io.load_project(_GA)
+    izz = select.default_side_gust_izz(p)
+    assert izz is not None and izz > 0
+    assert fr.external_value("geometry.empennage.vtail.izz_slugft2", p) == izz
+
+
 if __name__ == "__main__":
     import traceback
 

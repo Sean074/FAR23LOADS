@@ -270,6 +270,29 @@ def wing_aspect_ratio(project: Project, surface_name: str = "wing") -> Optional[
         return None
 
 
+def wing_span_in(project: Project, surface_name: str = "wing") -> Optional[float]:
+    """The project wing's full planform span (in), or ``None`` when absent.
+
+    The derivation owner for ``geometry.empennage.vtail.wing_span_in`` (SELECT
+    B), which falsy-derives from it (#95, C210-3): the WINGGEOM strip
+    integral's own span, read from
+    :func:`~sloads.modules.wing_geometry.surface_properties` so it is the
+    number the wing analysis itself reports (the C210 build saw the typed
+    copy disagree with it, 440 vs 441 in). Same shape and same reasons as
+    :func:`wing_aspect_ratio` above.
+    """
+    geom = project.geometry
+    surf = geom.by_name(surface_name) if geom is not None else None
+    if surf is None:
+        return None
+    from .modules.wing_geometry import surface_properties
+    try:
+        return next(v.value for v in surface_properties(surf).values
+                    if v.key == "span")
+    except (ValueError, ZeroDivisionError):
+        return None
+
+
 def _edge_chord(surf: SurfaceInput, y: float) -> float:
     """Local chord (in) at butt line ``y`` from the edge polylines."""
     from .modules.wing_geometry import interp_x

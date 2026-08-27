@@ -647,6 +647,27 @@ def test_landing_light_not_lighter_fires():
     assert "landing_light_not_lighter" in _codes(project, page="landing_loads")
 
 
+# --------------------------------------------------------------------------- #
+# #95 (C210-5): a typed SE/SR that disagrees with its own hinge halves warns
+# --------------------------------------------------------------------------- #
+def test_a_disagreeing_elevator_area_warns_and_the_manual_rounding_does_not():
+    p = sloads_io.load_project(_GA)
+    # ga6 itself carries Appendix A's own manual rounding (SE 16.403 vs the
+    # halves' 16.431, 0.2 %) -- inside the 1 % tolerance, silent by design.
+    assert not [w for w in consistency_warnings(p)
+                if w.code in ("elevator_area_mismatch", "rudder_area_mismatch")]
+    p.geometry.empennage.htail.elevator_area_sqft = 20.0   # 22 % off the halves
+    codes = [w.code for w in consistency_warnings(p)]
+    assert "elevator_area_mismatch" in codes
+
+
+def test_a_disagreeing_rudder_area_warns():
+    p = sloads_io.load_project(_GA)
+    p.geometry.empennage.vtail.rudder_area_sqft = 8.0      # halves sum 5.2
+    hits = [w for w in consistency_warnings(p) if w.code == "rudder_area_mismatch"]
+    assert len(hits) == 1 and "5.2" in hits[0].message and "8" in hits[0].message
+
+
 if __name__ == "__main__":
     import traceback
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

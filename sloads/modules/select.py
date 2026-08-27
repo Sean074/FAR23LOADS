@@ -72,6 +72,7 @@ from ..derived_geometry import (
     sync_geometry_derived,
     wing_aspect_ratio,
     wing_reference,
+    wing_span_in,
 )
 from ..models import (
     CaseRef,
@@ -415,6 +416,28 @@ def wing_lift_slope_per_rad(project: Project) -> Optional[float]:
     return cs.lift[1] * DEG_PER_RAD
 
 
+def derived_elevator_area(ti: TailLoadsInput) -> float:
+    """SE: the typed value, else the sum of its own hinge halves (#95, C210-5).
+
+    One owner for the elevator-area triple instead of three independently-typed
+    views of one surface: a blank SE derives as SEFWDHL + SEAFTHL. A typed SE
+    that disagrees with the halves is legal and warned, never corrected
+    (``validation.elevator_area_mismatch``). Standalone -- not folded into
+    :func:`effective_tail_inputs` alone -- because the discrete control-load
+    split (``tail_span``) needs the derived SE without that function's ARW
+    refusal, which its geometry-only read has no business tripping.
+    """
+    return ti.elevator_area_sqft or (
+        ti.elevator_fwd_hinge_sqft + ti.elevator_aft_hinge_sqft)
+
+
+def derived_rudder_area(vt: VTailLoadsInput) -> float:
+    """SR: the typed value, else SRFWDHL + SRAFTHL (#95, C210-5); see
+    :func:`derived_elevator_area`."""
+    return vt.rudder_area_sqft or (
+        vt.rudder_fwd_hinge_sqft + vt.rudder_aft_hinge_sqft)
+
+
 def effective_tail_inputs(project: Project) -> Optional[TailLoadsInput]:
     """The h-tail inputs with the note 36 falsy-derives resolved (OV-1/OV-5).
 
@@ -433,6 +456,7 @@ def effective_tail_inputs(project: Project) -> Optional[TailLoadsInput]:
         return None
     arw = ti.aspect_ratio_wing or (wing_aspect_ratio(project) or 0.0)
     aw = ti.wing_lift_slope_per_rad or (wing_lift_slope_per_rad(project) or 0.0)
+    se = derived_elevator_area(ti)
     if arw <= 0.0:
         raise ValueError(
             "the rational h-tail loads need the wing aspect ratio (ARW): "
@@ -440,10 +464,35 @@ def effective_tail_inputs(project: Project) -> Optional[TailLoadsInput]:
             "no integrable wing planform to derive it from -- the downwash "
             "E = 114.6*CL/(pi*ARW) divides by it. Enter it on the Geometry "
             "page, or add the wing planform.")
-    if arw == ti.aspect_ratio_wing and aw == ti.wing_lift_slope_per_rad:
+    if (arw == ti.aspect_ratio_wing and aw == ti.wing_lift_slope_per_rad
+            and se == ti.elevator_area_sqft):
         return ti
     from dataclasses import replace
-    return replace(ti, aspect_ratio_wing=arw, wing_lift_slope_per_rad=aw)
+    return replace(ti, aspect_ratio_wing=arw, wing_lift_slope_per_rad=aw,
+                   elevator_area_sqft=se)
+
+
+def effective_vtail_inputs(project: Project) -> Optional[VTailLoadsInput]:
+    """The v-tail inputs with the note 36 falsy-derives resolved (#95, C210-3/5).
+
+    :func:`effective_tail_inputs`' v-tail sibling, same contract: a blank
+    rudder area SR derives as the sum of its hinge halves (SRFWDHL + SRAFTHL,
+    C210-5) and a blank wing span B from the WINGGEOM ``wing`` planform's own
+    span (:func:`~sloads.derived_geometry.wing_span_in`, C210-3 -- the typed
+    copy disagreed with the integrator's 441 in on the C210 build). Typed
+    values pass through untouched, resolved values live on a local copy, and
+    every SELECT/ONENGOUT consumer reads through here rather than the raw
+    slice, so a derived SR reaches the 23.367 simulation too (rule 4).
+    """
+    vt = project.vtail_loads
+    if vt is None:
+        return None
+    sr = derived_rudder_area(vt)
+    span = vt.wing_span_in or (wing_span_in(project) or 0.0)
+    if sr == vt.rudder_area_sqft and span == vt.wing_span_in:
+        return vt
+    from dataclasses import replace
+    return replace(vt, rudder_area_sqft=sr, wing_span_in=span)
 
 
 def resolved_full_down_aileron_deg(project: Project) -> float:
@@ -818,6 +867,29 @@ def _default_izz(vt: VTailLoadsInput, gw: float, lf_in: float) -> float:
             + ((0.62 * gw - w_wing) / G) * (lf_in / IN_PER_FT) ** 2 / 12.0)
 
 
+def default_side_gust_izz(project: Project) -> Optional[float]:
+    """The rod-estimate IZZ the side-gust search falls back on, or ``None``.
+
+    The number a blank ``vtail.izz_slugft2`` uses (:func:`_default_izz` with
+    the same effective inputs the search resolves), exposed so the registry
+    resolver shows the value the calc computes with rather than a second
+    spelling of it (#95, C210-25 -- the rod estimate measured +49 % over
+    WTONECG's database IZZ on the C210 and nothing on the page said an
+    estimate was in play). ``None`` when the inputs to estimate from are
+    themselves absent.
+    """
+    vt = effective_vtail_inputs(project)
+    if vt is None or vt.wing_span_in <= 0:
+        return None
+    gw = vt.gross_weight_lb or max_takeoff_weight(project, required=False)
+    if not gw:
+        return None
+    try:
+        return _default_izz(vt, gw, airplane_length_in(project))
+    except (ValueError, ZeroDivisionError):
+        return None
+
+
 def _vt_rudder_load(p: VnPoint, vt: VTailLoadsInput) -> float:
     """Side load from full rudder deflection (camber, cp 50% chord)."""
     return (vt.rudder_deflection_deg * vt.rudder_large_deflection_factor * _effectv(vt)
@@ -897,7 +969,7 @@ def fin_sideslip_derivatives(project: Project, vt: VTailLoadsInput
 def select_vtail(project: Project, envelope: Optional[EnvelopeResult] = None) -> List[CriticalCondition]:
     """The four critical vertical-tail loads (FAR 23.441 maneuver / 23.443 gust),
     searched over the V-n ``BAL A`` (VA) and ``BAL C`` (VC) points."""
-    vt = project.vtail_loads
+    vt = effective_vtail_inputs(project)   # #95: blank SR / wing span derive
     fl = project.flight_loads
     if vt is None or fl is None:
         return []
