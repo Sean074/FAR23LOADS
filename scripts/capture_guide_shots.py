@@ -123,6 +123,10 @@ def _load_example(page, example: str) -> None:
     _wait_idle(page)
     sidebar.get_by_role("button", name="Load example").click()
     _wait_idle(page)
+    # Collapse the expander again: page shots must not carry the capturing
+    # machine's local saved-projects list.
+    sidebar.get_by_text("📂 Open", exact=False).first.click()
+    _wait_idle(page)
 
 
 def _set_channel(page, channel: str) -> None:
