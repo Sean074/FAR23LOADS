@@ -30,28 +30,28 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest  # noqa: E402
+import pytest
+from imperial_baseline import EXAMPLES
 
-from sloads import io, mass_distribution as md  # noqa: E402
-from sloads.export.bands import IdKind, bands_of_kind  # noqa: E402
-from sloads.export import mass_cards as mc  # noqa: E402
-from sloads.export import sbeam_bridge as sb  # noqa: E402
-from sloads.export.equilibrium import parse_cards  # noqa: E402
-from sloads.cg_cases import flight_cases  # noqa: E402
-from sloads.models import (  # noqa: E402
+from sloads import io
+from sloads import mass_distribution as md
+from sloads.cg_cases import flight_cases
+from sloads.export import mass_cards as mc
+from sloads.export import sbeam_bridge as sb
+from sloads.export.bands import IdKind, bands_of_kind
+from sloads.export.equilibrium import parse_cards
+from sloads.models import (
     LoadingDefinition,
     MassComponent,
     MassItem,
     MassItemKind,
 )
-from sloads.units import (  # noqa: E402
+from sloads.units import (
     G_IN_S2,
     Channel,
     UnitSystem,
     deliverable_units,
 )
-
-from imperial_baseline import EXAMPLES  # noqa: E402
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _SYSTEMS = (UnitSystem.IMPERIAL, UnitSystem.SI)

@@ -17,8 +17,8 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import sloads.modules  # noqa: E402,F401  -- self-registers every module
-from sloads import io, registry  # noqa: E402
+import sloads.modules  # noqa: F401  -- self-registers every module
+from sloads import io, registry
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXAMPLES = sorted(glob.glob(os.path.join(_ROOT, "examples", "*.project.json")))
@@ -31,7 +31,7 @@ def test_load_keys_unique_within_every_condition(path):
     for name in registry.available():
         try:
             result = registry.get(name)(project)
-        except Exception:  # noqa: BLE001 -- a module the example lacks inputs for
+        except Exception:
             continue
         ran += 1
         for cond in result.conditions:

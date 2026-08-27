@@ -57,28 +57,29 @@ from dataclasses import replace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest  # noqa: E402
+import pytest
 
-from sloads import io  # noqa: E402
-from sloads.export import mass_cards as mc  # noqa: E402
-from sloads.export import sbeam_bridge as sb  # noqa: E402
-from sloads.export.balanced_deck import (  # noqa: E402
+from sloads import io
+from sloads.derived_geometry import sob_station
+from sloads.export import mass_cards as mc
+from sloads.export import sbeam_bridge as sb
+from sloads.export.balanced_deck import (
     balanced_deck,
     case_sids,
 )
-from sloads.export.coordinates import (  # noqa: E402
+from sloads.export.coordinates import (
     tail_force_to_airplane,
     to_force,
     to_grid,
     to_moment,
 )
-from sloads.export.equilibrium import (  # noqa: E402
+from sloads.export.equilibrium import (
     closes,
     parse_cards,
     ref_first_loaded,
     resultant,
 )
-from sloads.export.roundtrip import (  # noqa: E402
+from sloads.export.roundtrip import (
     Support,
     Topology,
     flatten_mass_case,
@@ -86,20 +87,19 @@ from sloads.export.roundtrip import (  # noqa: E402
     total_reaction,
     wrap_as_stick_model,
 )
-from sloads.derived_geometry import sob_station  # noqa: E402
-from sloads.mass_distribution import derive_case_loadings  # noqa: E402
-from sloads.modules.balance import (  # noqa: E402
+from sloads.mass_distribution import derive_case_loadings
+from sloads.modules.balance import (
     build_balanced_cases,
     fin_load,
     is_lateral,
 )
-from sloads.modules.body_loads import build_body_loads  # noqa: E402
-from sloads.modules.flight_envelope import build_envelope  # noqa: E402
-from sloads.modules.net_loads import build_net_loads, loads_ref_axis_results  # noqa: E402
-from sloads.modules.select import build_critical  # noqa: E402
-from sloads.modules.tail_span import build_tail_span  # noqa: E402
-from sloads.modules.taildist import build_tail_chordwise  # noqa: E402
-from sloads.units import Channel, UnitSystem, deliverable_units  # noqa: E402
+from sloads.modules.body_loads import build_body_loads
+from sloads.modules.flight_envelope import build_envelope
+from sloads.modules.net_loads import build_net_loads, loads_ref_axis_results
+from sloads.modules.select import build_critical
+from sloads.modules.tail_span import build_tail_span
+from sloads.modules.taildist import build_tail_chordwise
+from sloads.units import Channel, UnitSystem, deliverable_units
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

@@ -22,11 +22,12 @@ sys.path.insert(0, _HERE)
 
 from dataclasses import replace
 
+from fixtures import io520bb, turboprop  # noqa: E402
+from helpers import value_of  # noqa: E402
+
 from sloads import EngineLayout, Project, run_all
 from sloads import io as fio
 from sloads.modules import engine as calc
-from fixtures import io520bb, turboprop  # noqa: E402
-from helpers import value_of  # noqa: E402
 
 TOL = 1e-3  # ±0.1% relative
 

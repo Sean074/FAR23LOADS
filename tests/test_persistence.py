@@ -26,8 +26,8 @@ import typing
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import io  # noqa: E402
-from sloads.models import (  # noqa: E402
+from sloads import io
+from sloads.models import (
     AeroCoefficientsInput,
     AeroInput,
     AileronLoadsInput,

@@ -337,6 +337,36 @@ def convert_airspeed(eas_kt: float, altitude_ft: float, unit: str) -> float:
     raise ValueError(f"Unknown airspeed unit {unit!r} (expected KEAS/KTAS/KCAS)")
 
 
+def eas_from_airspeed(speed_kt: float, altitude_ft: float, unit: str) -> float:
+    """Equivalent airspeed (KEAS) of a KEAS / KTAS / KCAS reading at an altitude.
+
+    The exact inverse of :func:`convert_airspeed`, so that
+    ``convert_airspeed(eas_from_airspeed(v, h, u), h, u) == v``. It exists
+    because the numbers a user has in hand come off a POH or a placard in CAS,
+    while every speed in this package is equivalent airspeed: without it the
+    conversion the tool exists to save is still done by hand in the one
+    direction that matters. Inverting the impact-pressure relation::
+
+        qc/P0 = (1 + 0.2*(KCAS/a0)**2)**3.5 - 1         at sea level, by definition
+        M     = sqrt(5*(((qc/P0)/delta + 1)**(2/7) - 1))  at altitude
+        KEAS  = M*a*sqrt(sigma)
+
+    with ``delta = sigma*(a/a0)**2`` as above. Subsonic (M < 1).
+    """
+    u = unit.upper().lstrip("K")
+    if u == "EAS":
+        return speed_kt
+    a, sigma = standard_atmosphere(altitude_ft)
+    if u == "TAS":
+        return speed_kt * math.sqrt(sigma)
+    if u == "CAS":
+        qc_over_p0 = (1.0 + 0.2 * (speed_kt / SEA_LEVEL_SOUND_KT) ** 2) ** 3.5 - 1.0
+        delta = sigma * (a / SEA_LEVEL_SOUND_KT) ** 2
+        mach = math.sqrt(5.0 * ((qc_over_p0 / delta + 1.0) ** (2.0 / 7.0) - 1.0))
+        return mach_to_eas(mach, a, sigma)
+    raise ValueError(f"Unknown airspeed unit {unit!r} (expected KEAS/KTAS/KCAS)")
+
+
 # Dynamic pressure of an equivalent airspeed: q = 1/2 rho_0 V^2 with V in ft/s, so
 # Q [lb/ft^2] = V_keas^2 / DYNAMIC_PRESSURE_DIVISOR. The suite wrote the divisor as
 # 295 (its FAR-23-era engineering form); the exact value from the two owners above

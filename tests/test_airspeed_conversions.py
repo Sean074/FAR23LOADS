@@ -13,7 +13,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads.constants import (  # noqa: E402
+from sloads.constants import (
     convert_airspeed,
     eas_to_mach,
     mach_to_eas,

@@ -523,7 +523,6 @@ def test_the_download_and_the_dirty_flag_describe_this_reruns_edit():
     Before #64 all three were one rerun behind (the sidebar serialised before
     the page persisted) while the oracle GUI -- no Apply -- had no second
     rerun to catch up on."""
-    import json
 
     at = _oracle_entry_point()
     assert _dirty_caption(at) == "⚪ No unsaved changes"
@@ -724,6 +723,118 @@ def test_open_records_the_file_so_save_goes_back_to_it(tmp_path):
     at.run()
     _save(at)
     assert '"engineer": "me"' in src.read_text(encoding="utf-8")
+
+
+# --------------------------------------------------------------------------- #
+# The sidebar Tools section (#80, C210 build review)
+# --------------------------------------------------------------------------- #
+# One implementation in the shell, so both front-ends get the same answer. The
+# section is display-only: these tests pin that it reads the project and writes
+# nothing back, and that it names *which* XLEMAC/MAC it measured from -- the
+# C210-13 blank-derive fallback the Weight & Mass page still does not state.
+_TOOLS_SCRIPT = """
+import streamlit as st
+from sloads import io as sloads_io
+from app_shell.sidebar import render_shell_sidebar
+
+project = sloads_io.load_project({path!r})
+st.session_state["_before"] = sloads_io.project_to_dict(project)
+with render_shell_sidebar(project):
+    pass
+st.session_state["_after"] = sloads_io.project_to_dict(project)
+"""
+
+_GA6 = os.path.join(_ROOT, "examples", "ga6_normal.project.json")
+
+
+def _tools_app(path=_GA6):
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_string(_TOOLS_SCRIPT.format(path=path), default_timeout=60)
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    return at
+
+
+def _captions(at):
+    return [c.value for c in at.sidebar.caption]
+
+
+def test_the_tools_section_offers_both_conversions():
+    at = _tools_app()
+    labels = ([w.label for w in at.sidebar.number_input]
+              + [w.label for w in at.sidebar.selectbox]
+              + [w.label for w in at.sidebar.radio])
+    assert "Speed (kt)" in labels and "at altitude (ft)" in labels
+    assert "is" in labels, "the converter must say which measure the number is"
+    headings = [m.value for m in at.sidebar.markdown]
+    assert any("Airspeed converter" in h for h in headings), headings
+    assert any("% MAC" in h and "station" in h for h in headings), headings
+
+
+def test_the_tools_section_writes_nothing_to_the_project():
+    """Display-only is the whole ground of its exemption from OG-1's capability
+    cap: a Tool that could edit the project would be a second data path into it."""
+    at = _tools_app()
+    assert at.session_state["_before"] == at.session_state["_after"]
+    speed = next(w for w in at.sidebar.number_input if w.label == "Speed (kt)")
+    speed.set_value(250.0).run()
+    assert not at.exception, [e.message for e in at.exception]
+    assert at.session_state["_before"] == at.session_state["_after"]
+
+
+def test_the_speed_converter_answers_with_the_shared_atmosphere():
+    from sloads.constants import convert_airspeed, eas_from_airspeed
+
+    at = _tools_app()
+    next(w for w in at.sidebar.number_input if w.label == "Speed (kt)").set_value(180.0).run()
+    next(w for w in at.sidebar.number_input
+         if w.label == "at altitude (ft)").set_value(20000.0).run()
+    assert not at.exception, [e.message for e in at.exception]
+    eas = eas_from_airspeed(180.0, 20000.0, "KCAS")
+    frame = at.sidebar.dataframe[0].value
+    shown = {m: v for m, v in zip(frame["Measure"], frame["kt"])}
+    for measure, want in (("KEAS", eas), ("KTAS", convert_airspeed(eas, 20000.0, "KTAS")),
+                          ("KCAS", 180.0)):
+        assert abs(shown[measure] - want) < 0.01, (measure, shown[measure], want)
+
+
+def test_the_mac_tool_names_the_reference_it_measured_from():
+    """The C210-13 half of the row: WTENV derives XLEMAC/MAC from the planform
+    when the envelope's pair is blank and nothing says so. A tool that answers
+    with the fallback silently would carry the same defect into the sidebar."""
+    at = _tools_app()
+    assert any("wing planform" in c and "XLEMAC" in c for c in _captions(at)), _captions(at)
+
+
+def test_the_mac_tool_says_what_is_missing_when_there_is_no_wing(tmp_path):
+    from sloads import io as sloads_io
+
+    project = sloads_io.load_project(_GA6)
+    project.geometry = None
+    project.weight.envelope.xlemac = None
+    project.weight.envelope.mac = None
+    path = tmp_path / "nowing.project.json"
+    sloads_io.save_project(project, str(path))
+    at = _tools_app(str(path))
+    assert any("No wing to measure against" in c for c in _captions(at)), _captions(at)
+    assert not [w for w in at.sidebar.number_input if "% MAC" in w.label]
+
+
+def test_both_front_ends_get_the_tools_section():
+    """Neither GUI may grow its own: the section is built by the shared shell
+    both entry points wrap their pages in, and neither spells its widgets."""
+    with open(os.path.join(_ROOT, "app_shell", "sidebar.py"), encoding="utf-8") as fh:
+        shell = fh.read()
+    assert "_render_tools(project)" in shell
+    for gui in ("app", "oracle_app"):
+        for name in os.listdir(os.path.join(_ROOT, gui)):
+            if not name.endswith(".py"):
+                continue
+            with open(os.path.join(_ROOT, gui, name), encoding="utf-8") as fh:
+                body = fh.read()
+            assert "_tool_speed" not in body and "Airspeed converter" not in body, name
+
 
 if __name__ == "__main__":  # zero-dependency self-runner
     import sys

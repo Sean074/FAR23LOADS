@@ -21,12 +21,13 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import Project, io  # noqa: E402
-from sloads.models import SCHEMA_VERSION  # noqa: E402
-from sloads.modules.select import build_critical  # noqa: E402
-from sloads.registry import run_all_modules  # noqa: E402
-from sloads.report import governing_loads_table  # noqa: E402
-from sloads.report.content import (  # noqa: E402
+import sloads.modules  # noqa: F401  (module registration)
+from sloads import Project, io
+from sloads.models import SCHEMA_VERSION
+from sloads.modules.select import build_critical
+from sloads.registry import run_all_modules
+from sloads.report import governing_loads_table
+from sloads.report.content import (
     AVIATION_UNITS_NOTE,
     BASIS_STATEMENT,
     SECTIONS,
@@ -36,8 +37,7 @@ from sloads.report.content import (  # noqa: E402
     section_heading,
     section_ref,
 )
-from sloads.units import UnitSystem  # noqa: E402
-import sloads.modules  # noqa: E402,F401  (module registration)
+from sloads.units import UnitSystem
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                          "examples")
@@ -813,7 +813,7 @@ if __name__ == "__main__":  # zero-dependency self-runner (see PROGRAM_SPEC)
         try:
             fn()
             print(f"ok   {name}")
-        except Exception:  # noqa: BLE001 - a self-runner reports, it does not raise
+        except Exception:
             failures += 1
             print(f"FAIL {name}")
             traceback.print_exc()

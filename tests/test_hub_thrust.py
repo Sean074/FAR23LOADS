@@ -338,7 +338,7 @@ def test_the_transferred_set_keeps_the_resultant_with_thrust_present():
         got[4] += moment[1] + dz * force[0] - dx * force[2]
         got[5] += moment[2] + dx * force[1] - dy * force[0]
     scale = case.n_w * max(1.0, case.semi_span)
-    for name, a, b in zip("fx fy fz mx my mz".split(), got, want):
+    for name, a, b in zip(["fx", "fy", "fz", "mx", "my", "mz"], got, want):
         assert abs(a - b) < 1e-6 * scale, f"{name}: {a} vs {b}"
 
 

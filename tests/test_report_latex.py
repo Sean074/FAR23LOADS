@@ -20,13 +20,13 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import Project, io  # noqa: E402
-from sloads.modules.structural_speeds import design_speed_values  # noqa: E402
-from sloads.report.content import PlotData, Series, build_report  # noqa: E402
-from sloads.report.latex import NOT_ANALYSED_MARKER, render_document, render_report  # noqa: E402
-from sloads.report.plots_tex import escape, plot_tex, vn_diagram_tex  # noqa: E402
-from sloads.units import UnitSystem  # noqa: E402
-import sloads.modules  # noqa: E402,F401  (module registration)
+import sloads.modules  # noqa: F401  (module registration)
+from sloads import Project, io
+from sloads.modules.structural_speeds import design_speed_values
+from sloads.report.content import PlotData, Series, build_report
+from sloads.report.latex import NOT_ANALYSED_MARKER, render_document, render_report
+from sloads.report.plots_tex import escape, plot_tex, vn_diagram_tex
+from sloads.units import UnitSystem
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                          "examples")
@@ -203,7 +203,7 @@ if __name__ == "__main__":  # zero-dependency self-runner (see PROGRAM_SPEC)
         try:
             fn()
             print(f"ok   {name}")
-        except Exception:  # noqa: BLE001 - a self-runner reports, it does not raise
+        except Exception:
             failures += 1
             print(f"FAIL {name}")
             traceback.print_exc()

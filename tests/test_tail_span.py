@@ -33,37 +33,36 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest  # noqa: E402
+import pytest
 
-from sloads import io  # noqa: E402
-from sloads.models import MissingInputError, SurfaceInput, TailMassInput, TailType  # noqa: E402
-from sloads.modules.flight_envelope import build_envelope  # noqa: E402
-from sloads.modules.select import build_critical  # noqa: E402
-from sloads.modules.tail_span import (  # noqa: E402
-    X25_PCT,
-    X50_PCT,
+from sloads import io
+from sloads.cg_cases import flight_cases
+from sloads.derived_geometry import fuselage_width_at
+from sloads.export.coordinates import tail_station_to_airplane
+from sloads.models import MissingInputError, SurfaceInput, TailMassInput, TailType
+from sloads.modules.flight_envelope import build_envelope
+from sloads.modules.select import build_critical
+from sloads.modules.tail_span import (
     ATTACH_ENTERED,
     ATTACH_FIN_TIP,
     ATTACH_OUTLINE,
     ATTACH_STRIP_PAIR,
+    X25_PCT,
+    X50_PCT,
     air_total,
     attachment_stations,
     build_tail_span,
-    htail_attachment,
     control_centre_of_pressure,
     control_load_parts,
-    distribute,
     free_torsion_total,
     hinge_chord_fraction,
+    htail_attachment,
     inertia_total,
     root_index,
     side_scales,
     strip_spans,
 )
-from sloads.derived_geometry import fuselage_width_at  # noqa: E402
-from sloads.export.coordinates import tail_station_to_airplane  # noqa: E402
-from sloads.cg_cases import flight_cases  # noqa: E402
-from sloads.tail_geometry import (  # noqa: E402
+from sloads.tail_geometry import (
     HTAIL,
     VTAIL,
     _polyline_mac_and_x25,

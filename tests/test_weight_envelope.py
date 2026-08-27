@@ -21,14 +21,15 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import Project, WeightInput, io  # noqa: E402
-from sloads.models import (  # noqa: E402
+from helpers import value_of
+
+from sloads import Project, WeightInput, io
+from sloads.models import (
     MassItem,
     MassItemKind,
     WeightEnvelopeInput,
 )
-from sloads.modules import weight_envelope as calc  # noqa: E402
-from helpers import value_of  # noqa: E402
+from sloads.modules import weight_envelope as calc
 
 TOL = 1e-3  # ±0.1% relative
 

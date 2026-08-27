@@ -31,12 +31,12 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import io  # noqa: E402
-from sloads.models import WingMassInput  # noqa: E402
-from sloads.modules.flight_envelope import build_envelope  # noqa: E402
-from sloads.modules.net_loads import _air_cl_v  # noqa: E402
-from sloads.modules.select import build_critical  # noqa: E402
-from sloads.modules.wing_inertia import (  # noqa: E402
+from sloads import io
+from sloads.models import WingMassInput
+from sloads.modules.flight_envelope import build_envelope
+from sloads.modules.net_loads import _air_cl_v
+from sloads.modules.select import build_critical
+from sloads.modules.wing_inertia import (
     _resolve_case,
     resolve_wing_cases,
     wing_case_ref,

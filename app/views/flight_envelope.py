@@ -44,7 +44,7 @@ from sloads import (
 from sloads.case_ids import case_label
 from sloads.cg_cases import flight_cases
 from sloads.constants import IN_PER_FT
-from sloads.derived_geometry import wing_reference
+from sloads.derived_geometry import MacReference, station_to_pct_mac, wing_reference
 from sloads.models import MissingInputError
 from sloads.modules.configuration import run as configuration_run
 from sloads.modules.flight_envelope import build_envelope, trim_sweep
@@ -574,7 +574,11 @@ def _tab_trim() -> None:
             "configuration_layout", kind="info")
         return
     np_pct, xlemac, mac_in = npt
-    cg_pct = [(x - xlemac) / mac_in * 100.0 for x in stations]
+    # One relation, one owner (#80). The reference is the planform's, matching
+    # the neutral point this sweep is plotted against -- a weight-envelope
+    # XLEMAC/MAC override would put the two curves in different frames.
+    cg_pct = [station_to_pct_mac(x, MacReference(xlemac, mac_in, "planform", "wing"))
+              for x in stations]
     sm_pct = [np_pct - p for p in cg_pct]
 
     figs = go.Figure()

@@ -26,7 +26,7 @@ from typing import NamedTuple, Optional, Tuple
 
 from . import workflow as wf
 from .constants import DEFAULT_FRONT_SPAR_PCT, DEFAULT_REAR_SPAR_PCT, IN2_PER_FT2
-from .models import MissingInputError, Project, SurfaceInput
+from .models import MissingInputError, Project, SurfaceInput, WeightEnvelopeInput
 
 
 class CarryThrough(NamedTuple):
@@ -247,6 +247,87 @@ def require_wing_reference(project: Project, surface_name: str = "wing") -> Wing
             f"surface on the {wf.BY_KEY['configuration_layout'].title} page. The MAC, "
             "area, 25%-MAC station and waterline are read from it, not entered separately.")
     return ref
+
+
+# --------------------------------------------------------------------------- #
+# The %MAC <-> fuselage-station relation (#80, C210-13)
+# --------------------------------------------------------------------------- #
+# ``X = XLEMAC + (pct/100)*MAC`` (Reference 1 Ch 3) was spelled three times with
+# three different answers to the prior question -- *which* XLEMAC and MAC:
+# WTENV's private ``_xlemac_mac`` preferred the typed ``envelope.xlemac``/``mac``
+# override and fell back to the planform; the report's envelope-corner table
+# inverted the relation over :func:`wing_reference`, which reads the planform and
+# ignores the override; and the sidebar %MAC tool (#80) would have been a fourth.
+# So a project that typed an override got a CG-limit *line* drawn from it and a
+# ``% MAC`` *column* drawn from the planform, on the same chart. One resolver and
+# one relation now serve all of them; the drift guard is
+# ``tests/test_derived_geometry.py``'s scan for a second spelling.
+class MacReference(NamedTuple):
+    """Where a %MAC is measured from: the MAC leading-edge station and the MAC.
+
+    ``source`` is ``"override"`` when the pair came from the typed
+    ``envelope.xlemac``/``mac`` and ``"planform"`` when it came from the WINGGEOM
+    surface -- the C210-13 blank-derive fallback, which nothing on the page
+    states. It is carried so a display can say which it used rather than leaving
+    the reader to guess why a station moved.
+    """
+    xlemac: float           # fuselage station of the MAC leading edge (in)
+    mac: float              # mean aerodynamic chord (in)
+    source: str             # "override" | "planform"
+    surface_name: str
+
+
+def mac_reference(project: Project,
+                  env: Optional[WeightEnvelopeInput] = None,
+                  surface_name: Optional[str] = None) -> Optional[MacReference]:
+    """The XLEMAC/MAC a %MAC is measured against, or ``None`` when unresolvable.
+
+    The one resolution chain (C210-13): an explicit ``envelope.xlemac`` *and*
+    ``envelope.mac`` win; otherwise the WINGGEOM planform of the envelope's
+    ``wing_surface``. ``env`` defaults to ``project.weight.envelope`` so a caller
+    that does not hold one still honours the override; pass it explicitly when
+    running an envelope input that is not the one on the project (the report's
+    figure builder does).
+    """
+    if env is None:
+        weight = project.weight
+        env = weight.envelope if weight is not None else None
+    if surface_name is None:
+        surface_name = env.wing_surface if env is not None else "wing"
+    if env is not None and env.xlemac is not None and env.mac is not None:
+        return MacReference(env.xlemac, env.mac, "override", surface_name)
+    ref = wing_reference(project, surface_name)
+    if ref is None:
+        return None
+    return MacReference(ref.xlemac, ref.mac, "planform", surface_name)
+
+
+def require_mac_reference(project: Project,
+                          env: Optional[WeightEnvelopeInput] = None,
+                          surface_name: Optional[str] = None) -> MacReference:
+    """:func:`mac_reference`, or a refusal naming both ways to supply it."""
+    ref = mac_reference(project, env, surface_name)
+    if ref is None:
+        raise MissingInputError(
+            "this analysis needs the wing XLEMAC/MAC a %MAC is measured from: add "
+            f"the {wf.BY_KEY['configuration_layout'].title} wing surface (they are "
+            "read from the planform) or set envelope.xlemac and envelope.mac.")
+    return ref
+
+
+def pct_mac_to_station(pct: float, ref: MacReference) -> float:
+    """Fuselage station (in) of a percentage of MAC: ``X = XLEMAC + pct/100*MAC``."""
+    return ref.xlemac + pct / 100.0 * ref.mac
+
+
+def station_to_pct_mac(station_in: float, ref: MacReference) -> float:
+    """Percentage of MAC of a fuselage station -- the inverse of
+    :func:`pct_mac_to_station`. Undefined on a degenerate (zero) MAC, which
+    :func:`mac_reference` cannot return from a planform but a typed override can,
+    so a zero MAC yields 0.0 rather than dividing by it."""
+    if not ref.mac:
+        return 0.0
+    return (station_in - ref.xlemac) / ref.mac * 100.0
 
 
 def airplane_length_in(project: Project) -> float:

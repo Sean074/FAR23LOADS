@@ -13,11 +13,12 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from fixtures import io520bb, turboprop
+from helpers import value_of
+
 from sloads import run_all
 from sloads.basic import basic_int
 from sloads.modules import engine as calc
-from fixtures import io520bb, turboprop
-from helpers import value_of
 
 # Engineering tolerance for matching the manual's printed figures (see Decision 3).
 TOL = 1e-3  # ±0.1% relative
@@ -175,6 +176,7 @@ def test_single_engine_run_matches_run_all():
 
 def test_twin_wing_loops_over_each_engine():
     from dataclasses import replace
+
     from sloads import EngineLayout, Project
 
     left = replace(io520bb(), engine_designation="LEFT", engine_cg=(22.0, -60.0, -10.0))

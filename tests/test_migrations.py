@@ -23,8 +23,8 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import io  # noqa: E402
-from sloads.migrations import (  # noqa: E402
+from sloads import io
+from sloads.migrations import (
     MIGRATIONS,
     SUPPORTED_FLOOR,
     SchemaVersionError,
@@ -32,7 +32,7 @@ from sloads.migrations import (  # noqa: E402
     migrate,
     source_schema_version,
 )
-from sloads.models import SCHEMA_VERSION  # noqa: E402
+from sloads.models import SCHEMA_VERSION
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _FIXTURES = os.path.join(_HERE, "fixtures_schema")

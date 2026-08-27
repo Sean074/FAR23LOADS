@@ -18,9 +18,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import io  # noqa: E402
-from sloads.modules import airloads as airloads_mod  # noqa: E402
-from sloads.registry import run_all_modules  # noqa: E402
+from sloads import io
+from sloads.modules import airloads as airloads_mod
+from sloads.registry import run_all_modules
 
 _EXAMPLE = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),

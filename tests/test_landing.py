@@ -34,12 +34,13 @@ from dataclasses import replace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import io  # noqa: E402
-from sloads.models import (  # noqa: E402
+from sloads import io
+from sloads.cg_cases import landing_role_cases
+from sloads.models import (
     AnalysisKind,
     CgCase,
-    GroundCaseRole,
     GeometryInput,
+    GroundCaseRole,
     LandingGearGeometry,
     LandingGearInput,
     LandingInput,
@@ -47,8 +48,7 @@ from sloads.models import (  # noqa: E402
     StructuralSpeedsInput,
     WeightInput,
 )
-from sloads.cg_cases import landing_role_cases  # noqa: E402
-from sloads.modules.landing import (  # noqa: E402
+from sloads.modules.landing import (
     _geometry,
     build_landing,
     landing_load_factor,

@@ -12,15 +12,16 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import (  # noqa: E402
+from helpers import value_of
+
+from sloads import (
     EngineWeightType,
     MassItemKind,
     Project,
     WeightEstimationInput,
     WeightInput,
 )
-from sloads.modules import weight_estimate as calc  # noqa: E402
-from helpers import value_of  # noqa: E402
+from sloads.modules import weight_estimate as calc
 
 
 def _raises_value_error(fn) -> bool:

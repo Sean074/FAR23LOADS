@@ -12,10 +12,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest  # noqa: E402
+import pytest
 
-from sloads import MissingInputError, io, registry  # noqa: E402
-from sloads.models import ModuleResult  # noqa: E402
+from sloads import MissingInputError, io, registry
+from sloads.models import ModuleResult
 
 EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 GA6 = os.path.join(EXAMPLES, "ga6_normal.project.json")

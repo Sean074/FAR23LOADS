@@ -28,19 +28,18 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import importlib  # noqa: E402
-import pkgutil  # noqa: E402
+import importlib
+import pkgutil
 
-import pytest  # noqa: E402
+import pytest
 
-import sloads.export as export_pkg  # noqa: E402
-from sloads.case_ids import (BALANCED_HAND_BLOCK, SUBCASE_BLOCK,  # noqa: E402
-                             balanced_subcase_id, subcase_id)
-from sloads.export import bands as bd  # noqa: E402
-from sloads.export import balanced_deck as bdk  # noqa: E402
-from sloads.export import mass_cards as mc  # noqa: E402
-from sloads.export import roundtrip as rt  # noqa: E402
-from sloads.export import sbeam_bridge as sb  # noqa: E402
+import sloads.export as export_pkg
+from sloads.case_ids import BALANCED_HAND_BLOCK, SUBCASE_BLOCK, balanced_subcase_id, subcase_id
+from sloads.export import balanced_deck as bdk
+from sloads.export import bands as bd
+from sloads.export import mass_cards as mc
+from sloads.export import roundtrip as rt
+from sloads.export import sbeam_bridge as sb
 
 
 # --------------------------------------------------------------------------- #

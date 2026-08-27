@@ -217,7 +217,7 @@ def test_a_structurally_required_field_is_never_omitted():
     assert not stranded, (
         "these fields have no default, so the oracle GUI cannot omit them, yet "
         "they are neither ORIGINAL nor supplied and their record is one it does "
-        f"build:\n  " + "\n  ".join(stranded)
+        "build:\n  " + "\n  ".join(stranded)
     )
 
 

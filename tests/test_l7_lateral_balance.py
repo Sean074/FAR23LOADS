@@ -41,9 +41,9 @@ _ROOT = os.path.dirname(_HERE)
 sys.path.insert(0, _HERE)
 
 from sloads import io  # noqa: E402
+from sloads.derived_geometry import require_wing_reference  # noqa: E402
 from sloads.export.balanced_deck import balanced_deck, case_sids  # noqa: E402
 from sloads.export.equilibrium import parse_cards, resultant  # noqa: E402
-from sloads.derived_geometry import require_wing_reference  # noqa: E402
 from sloads.fuselage_moment import munk_yaw_slope_per_deg  # noqa: E402
 from sloads.models import LateralBodyAeroInput  # noqa: E402
 from sloads.modules.balance import (  # noqa: E402

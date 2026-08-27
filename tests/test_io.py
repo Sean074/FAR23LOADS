@@ -11,13 +11,18 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import Project, io, registry  # noqa: E402
-from sloads.cg_cases import flight_cases, ground_cases  # noqa: E402
-from sloads.models import (  # noqa: E402
-    SCHEMA_VERSION, EngineType, LoadingDefinition, MassItem, MassItemKind,
+from fixtures import io520bb
+
+from sloads import Project, io, registry
+from sloads.cg_cases import flight_cases, ground_cases
+from sloads.models import (
+    SCHEMA_VERSION,
+    EngineType,
+    LoadingDefinition,
+    MassItem,
+    MassItemKind,
 )
-from sloads.validation import LANDING_CG_NAMES  # noqa: E402
-from fixtures import io520bb  # noqa: E402
+from sloads.validation import LANDING_CG_NAMES
 
 EXAMPLES = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples"
@@ -141,7 +146,7 @@ def test_surface_ref_axis_pct_round_trips():
 
 def test_wing_load_result_torsion_axis_round_trips():
     """A transferred result's torsion-axis stamp survives persistence."""
-    from sloads.models import WingLoadResult, LoadsResult
+    from sloads.models import LoadsResult, WingLoadResult
 
     project = io.load_project(GA6)
     project.loads = LoadsResult(

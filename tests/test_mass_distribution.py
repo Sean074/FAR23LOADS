@@ -29,16 +29,16 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest  # noqa: E402
+import pytest
+from imperial_baseline import EXAMPLES
 
-from sloads import io, mass_distribution as md  # noqa: E402
-from sloads.models import MassComponent  # noqa: E402
-from sloads.units import Channel, UnitSystem, deliverable_units  # noqa: E402
-from sloads.modules.body_loads import build_body_loads  # noqa: E402
-from sloads.modules.flight_envelope import build_envelope  # noqa: E402
-from sloads.modules.select import build_critical  # noqa: E402
-
-from imperial_baseline import EXAMPLES  # noqa: E402
+from sloads import io
+from sloads import mass_distribution as md
+from sloads.models import MassComponent
+from sloads.modules.body_loads import build_body_loads
+from sloads.modules.flight_envelope import build_envelope
+from sloads.modules.select import build_critical
+from sloads.units import Channel, UnitSystem, deliverable_units
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -250,8 +250,8 @@ def test_every_consumer_agrees_with_the_owner_on_the_wing_share(example):
     """The WF-3 drift guard: ``balance``'s wing/body split, the CONM2 header's
     wing total and ``distribution()`` all read the same parts. Measured on the
     gross-weight loading, where the whole fuel row is aboard."""
-    from sloads.modules import balance
     from sloads.export import mass_cards
+    from sloads.modules import balance
     p = _project(example)
     loading = max(md.derive_case_loadings(p), key=lambda ld: ld.weight_lb)
     parts = md.reacted_parts(loading.items, p)

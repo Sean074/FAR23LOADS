@@ -48,9 +48,20 @@ from app_shell.project_state import (
 from app_shell.widget_keys import widget_key
 from sloads import Project, UnitSystem
 from sloads import io as sloads_io
+from sloads.constants import convert_airspeed, eas_from_airspeed
+from sloads.derived_geometry import (
+    mac_reference,
+    pct_mac_to_station,
+    station_to_pct_mac,
+)
 from sloads.report.results_zip import results_zip_bytes
 from sloads.report.results_zip import results_zip_name as _results_zip_name
-from sloads.units import unit_system_from
+from sloads.units import (
+    labels_for,
+    to_display,
+    to_imperial_scalar,
+    unit_system_from,
+)
 
 #: Bundled example projects (``<repo>/examples``), offered as New-from-example.
 EXAMPLES_DIR = os.path.join(
@@ -80,6 +91,7 @@ def render_shell_sidebar(project: Project, *,
     with st.sidebar:
         _render_units(project)
         slot = st.container()
+        _render_tools(project)
         _render_about()
     st.session_state[IN_SHELL_KEY] = True
     try:
@@ -246,6 +258,115 @@ def _render_project_file(project: Project, examples_dir: str) -> None:
                 f"{_ran} of {len(_manifest)} modules ran — see MANIFEST.txt "
                 "inside; your browser chooses the location."
             )
+
+
+# --------------------------------------------------------------------------- #
+# Tools (#80) -- display-only arithmetic, in the sidebar of both front-ends
+# --------------------------------------------------------------------------- #
+#: The airspeed measures the converter offers, in the order a POH quotes them.
+_SPEED_UNITS = ("KCAS", "KEAS", "KTAS")
+
+#: The two directions of the %MAC <-> fuselage-station conversion.
+_PCT_TO_STATION = "% MAC → station"
+_STATION_TO_PCT = "station → % MAC"
+
+
+def _render_tools(project: Project) -> None:
+    """The collapsed Tools expander: the two conversions done by hand in the
+    C210 build (#80, owner feature request, build review 2026-08-23).
+
+    Rendered from the shared shell so both front-ends get one implementation.
+    It is **display-only** -- it reads the project and writes nothing back, so
+    no entry here can dirty a project or move a load -- which is the ground of
+    the owner's refinement to the oracle GUI's capability cap (OG-1): the cap
+    governs analysis and data capability, not inert display utilities.
+
+    Both conversions delegate their arithmetic to the ``sloads`` owners
+    (:func:`sloads.constants.eas_from_airspeed` / ``convert_airspeed`` over the
+    suite's own atmosphere; :func:`sloads.derived_geometry.mac_reference` and the
+    two %MAC functions), so a tool cannot answer a question differently from the
+    modules -- the no-dual-path rule (G1) applies to a sidebar as much as a page.
+    """
+    system = unit_system_from(project.unit_system)
+    st.divider()
+    with st.expander("🛠️ Tools", expanded=False):
+        _render_speed_converter()
+        st.divider()
+        _render_mac_converter(project, system)
+
+
+def _render_speed_converter() -> None:
+    st.markdown("**Airspeed converter**")
+    speed = st.number_input(
+        "Speed (kt)", min_value=0.0, value=100.0, step=1.0,
+        key=widget_key("_tool_speed"),
+        help="A speed off a POH, a placard or a page of this app. Airspeeds are "
+             "knots in both unit systems (aviation standard).",
+    )
+    measure = st.selectbox(
+        "is", _SPEED_UNITS, index=0, key=widget_key("_tool_speed_unit"),
+        help="Which airspeed the number above is. **KCAS** is what a POH and a "
+             "placard quote; **KEAS** is what every speed in this app and in the "
+             "FAR 23 LOADS manual is; **KTAS** is true airspeed.",
+    )
+    altitude = st.number_input(
+        "at altitude (ft)", min_value=0.0, value=0.0, step=500.0,
+        key=widget_key("_tool_altitude"),
+        help="Pressure altitude on a standard day. The conversion is ISA-only — "
+             "it takes no account of a non-standard temperature.",
+    )
+    if speed <= 0.0:
+        st.caption("Enter a speed above zero.")
+        return
+    eas = eas_from_airspeed(float(speed), float(altitude), str(measure))
+    st.dataframe(
+        {"Measure": list(_SPEED_UNITS),
+         "kt": [round(convert_airspeed(eas, float(altitude), u), 2) for u in _SPEED_UNITS]},
+        hide_index=True, use_container_width=True,
+    )
+    st.caption(
+        "ISA standard day, subsonic. The three are equal at sea level and part "
+        "with altitude and Mach."
+    )
+
+
+def _render_mac_converter(project: Project, system: UnitSystem) -> None:
+    st.markdown("**% MAC ↔ fuselage station**")
+    ref = mac_reference(project)
+    if ref is None:
+        st.caption(
+            "No wing to measure against yet. A %MAC is read from the wing "
+            "planform (its MAC and MAC leading-edge station) — add the wing "
+            "surface on the Configuration & Layout page, or set the weight "
+            "envelope's XLEMAC and MAC directly."
+        )
+        return
+    length_label = labels_for(system)["length"]
+    direction = st.radio(
+        "Convert", [_PCT_TO_STATION, _STATION_TO_PCT], key=widget_key("_tool_mac_dir"),
+        label_visibility="collapsed",
+    )
+    if direction == _PCT_TO_STATION:
+        pct = st.number_input("% MAC", value=25.0, step=1.0, key=widget_key("_tool_pct_mac"))
+        station = pct_mac_to_station(float(pct), ref)
+        st.metric(f"Fuselage station ({length_label})",
+                  f"{to_display(station, 'length', system):.2f}")
+    else:
+        entered = st.number_input(f"Fuselage station ({length_label})",
+                                  value=float(to_display(ref.xlemac, "length", system)),
+                                  step=1.0, key=widget_key("_tool_station"))
+        station = to_imperial_scalar(float(entered), "length", system)
+        st.metric("% MAC", f"{station_to_pct_mac(station, ref):.2f}")
+    # The C210-13 half of the row: WTENV falls back to the planform when the
+    # envelope's XLEMAC/MAC are blank, and nothing on that page says so. A tool
+    # that answers with the fallback and does not name it repeats the defect.
+    source = ("the weight envelope's typed XLEMAC/MAC" if ref.source == "override"
+              else f"the {ref.surface_name!r} wing planform")
+    st.caption(
+        f"Measured from {source}: XLEMAC "
+        f"{to_display(ref.xlemac, 'length', system):.2f}, MAC "
+        f"{to_display(ref.mac, 'length', system):.2f} {length_label}."
+    )
 
 
 def _render_about() -> None:

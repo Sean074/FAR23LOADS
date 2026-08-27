@@ -943,7 +943,7 @@ def _weight_cg_figure(project: Project, u: Units) -> Tuple[Figure, Optional[Tabl
                        absent_reason="no itemized weight database, so "
                                      "there is no loading envelope to draw"), None)
 
-    from ..derived_geometry import wing_reference
+    from ..derived_geometry import mac_reference, station_to_pct_mac
 
     W, L = u.label("mass"), u.label("length")
     len_f = u.d.length.factor
@@ -959,18 +959,20 @@ def _weight_cg_figure(project: Project, u: Units) -> Tuple[Figure, Optional[Tabl
                 if v.key in ("aft_gross_station", "forward_gross_station",
                              "forward_regardless_station"):
                     vlines.append((v.label, v.value * len_f))
-    wing = wing_reference(project)
-    mac = wing.mac if wing is not None else None
-    xlemac = wing.xlemac if wing is not None else None
+    # The %MAC column reads the same reference WTENV drew the limit lines from
+    # (#80): a typed envelope.xlemac/mac override else the planform. Reading the
+    # planform here regardless meant that on a project carrying an override the
+    # column and the vertical lines on this one chart described different wings.
+    mac_ref = mac_reference(project, env_in)
     points_marked = [
         (c.name, c.xcg * len_f, c.weight_lb * mass_f)
         for c in (weight.cg_cases if weight is not None else [])
     ]
 
     def pct_mac(x: float) -> str:
-        if not mac or xlemac is None:
+        if mac_ref is None or not mac_ref.mac:
             return ""
-        return format_value((x - xlemac) / mac * 100.0)
+        return format_value(station_to_pct_mac(x, mac_ref))
 
     rows = [[u.plain(w, "mass"), u.plain(x, "length"), pct_mac(x)] for w, x in points]
     table = Table(

@@ -12,17 +12,18 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import (  # noqa: E402
+from fixtures import io520bb, turboprop
+from helpers import load_value
+
+from sloads import (
     UnitSystem,
     convert_results,
     run_all,
     to_display,
     to_imperial,
 )
-from sloads.units import _convert_value  # noqa: E402
-from sloads.models import LoadValue  # noqa: E402
-from fixtures import io520bb, turboprop  # noqa: E402
-from helpers import load_value  # noqa: E402
+from sloads.models import LoadValue
+from sloads.units import _convert_value
 
 
 def test_one_display_unit_per_dimension():
@@ -115,8 +116,8 @@ def test_inertia_slugft2_and_lbin2_agree_in_kgm2():
 def test_mass_properties_result_converts_end_to_end():
     # A whole WTONECG result through convert_results: weight -> kg, CG -> mm,
     # inertia -> kg·m^2, angle (deg) unchanged.
-    from sloads.modules.weight_onecg import weights_and_inertia
     from sloads import MassItem
+    from sloads.modules.weight_onecg import weights_and_inertia
 
     items = [
         MassItem("a", 100.0, x=10.0, z=5.0),

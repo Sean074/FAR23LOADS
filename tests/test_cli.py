@@ -39,14 +39,14 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest  # noqa: E402
+import pytest
 
-import cli  # noqa: E402
-from sloads import io as sloads_io  # noqa: E402
-from sloads.export import sbeam_bridge as sb  # noqa: E402
-from sloads.models import Project  # noqa: E402
-from sloads.modules.net_loads import build_net_loads, loads_ref_axis_results  # noqa: E402
-from sloads.report.methods import strip_comment_lines  # noqa: E402
+import cli
+from sloads import io as sloads_io
+from sloads.export import sbeam_bridge as sb
+from sloads.models import Project
+from sloads.modules.net_loads import build_net_loads, loads_ref_axis_results
+from sloads.report.methods import strip_comment_lines
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GA6 = os.path.join(_ROOT, "examples", "ga6_normal.project.json")

@@ -15,9 +15,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import Project, io, registry  # noqa: E402
-from sloads import field_registry as fr  # noqa: E402
-from sloads import workflow as wf  # noqa: E402
+from sloads import Project, io, registry
+from sloads import field_registry as fr
+from sloads import workflow as wf
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 

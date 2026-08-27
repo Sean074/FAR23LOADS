@@ -16,7 +16,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads.export.coordinates import (  # noqa: E402
+from sloads.export.coordinates import (
     tail_axial_to_airplane,
     tail_force_to_airplane,
     tail_torsion_to_airplane,

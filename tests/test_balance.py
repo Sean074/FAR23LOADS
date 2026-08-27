@@ -41,26 +41,19 @@ from typing import NamedTuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest  # noqa: E402
+import pytest
+from imperial_baseline import EXAMPLES
 
-from sloads import io  # noqa: E402
-from sloads.constants import DEG_PER_RAD, LBIN2_PER_SLUGFT2, POLAR_TRUSTED_ALPHA_DEG  # noqa: E402
-from sloads.derived_geometry import (  # noqa: E402
+from sloads import io
+from sloads import mass_distribution as md
+from sloads.constants import DEG_PER_RAD, LBIN2_PER_SLUGFT2, POLAR_TRUSTED_ALPHA_DEG
+from sloads.derived_geometry import (
     body_drag_waterline,
     require_wing_reference,
     wing_plane,
 )
-from sloads.gear_loads import gear_case_loads  # noqa: E402
-from sloads import mass_distribution as md  # noqa: E402
-from sloads.models import (  # noqa: E402
-    BalancedLoad,
-    MassComponent,
-    MassItemKind,
-    MissingInputError,
-)
-from sloads.modules import one_engine_out  # noqa: E402
-from sloads.rigid_body import InertiaTensor, radians_per_s2  # noqa: E402
-from sloads.export.balanced_deck import (  # noqa: E402
+from sloads.export import balanced_deck as balanced_deck_module
+from sloads.export.balanced_deck import (
     BALANCED_GEAR_BASE,
     BALANCED_WING_L_BASE,
     BALANCED_WING_R_BASE,
@@ -69,18 +62,25 @@ from sloads.export.balanced_deck import (  # noqa: E402
     case_sids,
     deck_nodes,
 )
-from sloads.export import balanced_deck as balanced_deck_module  # noqa: E402
-from sloads.export.coordinates import (  # noqa: E402
+from sloads.export.coordinates import (
     reflect_force,
     reflect_moment,
     reflect_point,
     reflect_side,
 )
-from sloads.export.equilibrium import parse_cards, resultant  # noqa: E402
-from sloads.modules import balance as balance_module  # noqa: E402
-from sloads.modules.balance import (  # noqa: E402
-    FORCE_RESIDUAL_ACCEPTANCE,
+from sloads.export.equilibrium import parse_cards, resultant
+from sloads.gear_loads import gear_case_loads
+from sloads.models import (
+    BalancedLoad,
+    MassComponent,
+    MassItemKind,
+    MissingInputError,
+)
+from sloads.modules import balance as balance_module
+from sloads.modules import one_engine_out
+from sloads.modules.balance import (
     BALANCED_VTAIL_CONDITIONS,
+    FORCE_RESIDUAL_ACCEPTANCE,
     HANDEDNESS_TOL,
     RESIDUAL_GATE,
     ROLLING_WING_CONDITIONS,
@@ -88,32 +88,31 @@ from sloads.modules.balance import (  # noqa: E402
     SKIPPED_RECORD_TITLE,
     SYMMETRIC_WING_CONDITIONS,
     build_balanced_cases,
-    skipped_condition_lines,
-    source_case_name,
     carry_sources_absent,
     fin_load,
     handed_twin,
     htail_load,
     htail_side_loads,
-    is_unsymmetrical_htail,
     is_ground,
     is_handed,
     is_lateral,
     is_powered,
+    is_unsymmetrical_htail,
     polar_alpha_trusted,
     residual_gate_applies,
     residual_gate_exemptions,
     residual_gate_family,
     resultant6,
+    skipped_condition_lines,
+    source_case_name,
 )
-from sloads.modules.balance import resultant as case_resultant  # noqa: E402
-from sloads.modules.select import default_critical, default_envelope  # noqa: E402
-from sloads.modules.tail_span import build_tail_span, strip_spans  # noqa: E402
-from sloads.modules.wing_inertia import inertia_units  # noqa: E402
-from sloads.tail_geometry import HTAIL, VTAIL, resolve_tail_planform  # noqa: E402
-from sloads.units import Channel, UnitSystem, deliverable_units  # noqa: E402
-
-from imperial_baseline import EXAMPLES  # noqa: E402
+from sloads.modules.balance import resultant as case_resultant
+from sloads.modules.select import default_critical, default_envelope
+from sloads.modules.tail_span import build_tail_span, strip_spans
+from sloads.modules.wing_inertia import inertia_units
+from sloads.rigid_body import InertiaTensor, radians_per_s2
+from sloads.tail_geometry import HTAIL, VTAIL, resolve_tail_planform
+from sloads.units import Channel, UnitSystem, deliverable_units
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _SYSTEMS = (UnitSystem.IMPERIAL, UnitSystem.SI)

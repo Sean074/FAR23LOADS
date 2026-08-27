@@ -20,8 +20,7 @@ from sloads import (
     consistency_warnings,
 )
 from sloads import io as sloads_io
-from sloads.models import (
-    AnalysisKind, GeometryInput, GroundCaseRole, MassComponent)
+from sloads.models import AnalysisKind, GeometryInput, GroundCaseRole, MassComponent
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                          "examples")

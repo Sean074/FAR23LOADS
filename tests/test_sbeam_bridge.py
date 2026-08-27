@@ -20,11 +20,11 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import io  # noqa: E402
-from sloads.modules.flight_envelope import build_envelope  # noqa: E402
-from sloads.export import sbeam_bridge as sb  # noqa: E402
-from sloads.modules.net_loads import build_net_loads  # noqa: E402
-from sloads.export.equilibrium import card_totals, closes, parse_cards  # noqa: E402
+from sloads import io
+from sloads.export import sbeam_bridge as sb
+from sloads.export.equilibrium import card_totals, closes, parse_cards
+from sloads.modules.flight_envelope import build_envelope
+from sloads.modules.net_loads import build_net_loads
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
@@ -293,9 +293,7 @@ def test_degenerate_chordwise_profile_raises():
     chordwise writers share one owner (``_trapezoid_tributary_forces``), so both
     are pinned here; a zero case load keeps the (consistent) zero set.
     """
-    from sloads.models.results import (ControlSurfaceLoadResult,
-                                       ControlSurfaceStation, TailChordResult,
-                                       TailChordStation)
+    from sloads.models.results import ControlSurfaceLoadResult, ControlSurfaceStation, TailChordResult, TailChordStation
 
     flat = [TailChordStation(x=x, psi=0.0) for x in (0.0, 10.0, 20.0)]
     tail = TailChordResult(case="X", component="htail", lt25=300.0, lt50=-100.0,
@@ -386,6 +384,7 @@ def test_export_package_exposes_all_component_families():
     deliverable is "all components to sbeam" -- assert body + control + the case
     index are all importable from the package (not just the submodule).
     """
+    import sloads.export as export_pkg
     from sloads.export import (  # noqa: F401
         body_force_moment_cards,
         body_span_load_csv,
@@ -397,7 +396,6 @@ def test_export_package_exposes_all_component_families():
         write_control_surface_csv,
         write_control_surface_force_moment_cards,
     )
-    import sloads.export as export_pkg
 
     # Every re-exported name is advertised in __all__ and resolves to the
     # sbeam_bridge implementation (no accidental shadowing).

@@ -17,15 +17,15 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import Project, io  # noqa: E402
-from sloads.export.pdf import (  # noqa: E402
+import sloads.modules  # noqa: F401  (module registration)
+from sloads import Project, io
+from sloads.export.pdf import (
     ENGINE_ENV_VAR,
     CompileResult,
     compile_pdf,
     find_engine,
 )
-from sloads.report.latex import render_report  # noqa: E402
-import sloads.modules  # noqa: E402,F401  (module registration)
+from sloads.report.latex import render_report
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                          "examples")

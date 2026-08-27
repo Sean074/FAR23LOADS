@@ -21,12 +21,12 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import io  # noqa: E402
-from sloads.constants import CARRY_THROUGH_NODES  # noqa: E402
-from sloads.derived_geometry import CarryThrough, carry_through  # noqa: E402
-from sloads.export import sbeam_bridge  # noqa: E402
-from sloads.models import FuselageMassInput, FuselageStation, TailLoadsInput  # noqa: E402
-from sloads.modules import body_loads  # noqa: E402
+from sloads import io
+from sloads.constants import CARRY_THROUGH_NODES
+from sloads.derived_geometry import CarryThrough, carry_through
+from sloads.export import sbeam_bridge
+from sloads.models import FuselageMassInput, FuselageStation, TailLoadsInput
+from sloads.modules import body_loads
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")

@@ -24,12 +24,13 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import glob  # noqa: E402
+import glob
 
-from sloads import MachLimitInput, Project, StructuralSpeedsInput, io  # noqa: E402
-from sloads.modules import mach_limit as calc  # noqa: E402
-from sloads.modules.structural_speeds import design_speed_values  # noqa: E402
-from helpers import value_of  # noqa: E402
+from helpers import value_of
+
+from sloads import MachLimitInput, Project, StructuralSpeedsInput, io
+from sloads.modules import mach_limit as calc
+from sloads.modules.structural_speeds import design_speed_values
 
 TOL = 1e-3  # ±0.1% relative
 
