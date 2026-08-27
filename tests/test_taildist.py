@@ -24,16 +24,16 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from dataclasses import replace  # noqa: E402
+from dataclasses import replace
 
-from sloads import AeroSurfaceInput, SurfaceInput, io  # noqa: E402
-from sloads.modules.airloads import schrenk_distribution, use_airload4  # noqa: E402
-from sloads.modules.taildist import (  # noqa: E402
+from sloads import AeroSurfaceInput, SurfaceInput, io
+from sloads.modules.airloads import schrenk_distribution, use_airload4
+from sloads.modules.select import build_critical
+from sloads.modules.taildist import (
     build_tail_chordwise,
     chordwise_pressures,
     run,
 )
-from sloads.modules.select import build_critical  # noqa: E402
 
 REL = 1e-3  # ±0.1%
 ABS = 1e-3  # stations printed to 3 decimals; some oracle values are ~0

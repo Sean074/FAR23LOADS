@@ -40,7 +40,7 @@ def sbeam():
     module that needs it (M4-12a: a test module never imports another).
     """
     try:
-        import sbeam as _sbeam  # noqa: F401
+        import sbeam as _sbeam
     except ImportError:
         if os.environ.get("SLOADS_REQUIRE_SBEAM") == "1":
             pytest.fail(

@@ -17,13 +17,14 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import AeroCoefficientsInput, Project, StructuralSpeedsInput, io  # noqa: E402
-from sloads.constants import (  # noqa: E402
+from helpers import value_of
+
+from sloads import AeroCoefficientsInput, Project, StructuralSpeedsInput, io
+from sloads.constants import (
     cruise_speed_coefficient,
     dive_ratio_coefficient,
 )
-from sloads.modules import structural_speeds as calc  # noqa: E402
-from helpers import value_of  # noqa: E402
+from sloads.modules import structural_speeds as calc
 
 TOL = 1e-3  # ±0.1% relative
 

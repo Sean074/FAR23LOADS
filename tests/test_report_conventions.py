@@ -17,13 +17,13 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import sloads.export.coordinates as coordinates  # noqa: E402
-from sloads import io  # noqa: E402
-from sloads.report import conventions_tex  # noqa: E402
-from sloads.report.content import Figure, build_report  # noqa: E402
-from sloads.report.latex import render_document  # noqa: E402
-from sloads.report.plots_tex import escape, figure_body_tex  # noqa: E402
-import sloads.modules  # noqa: E402,F401  (module registration)
+import sloads.export.coordinates as coordinates
+import sloads.modules  # noqa: F401  (module registration)
+from sloads import io
+from sloads.report import conventions_tex
+from sloads.report.content import Figure, build_report
+from sloads.report.latex import render_document
+from sloads.report.plots_tex import escape, figure_body_tex
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                          "examples")
@@ -178,7 +178,7 @@ if __name__ == "__main__":  # zero-dependency self-runner (see PROGRAM_SPEC)
         try:
             fn()
             print(f"ok   {name}")
-        except Exception:  # noqa: BLE001 - a self-runner reports, it does not raise
+        except Exception:
             failures += 1
             print(f"FAIL {name}")
             traceback.print_exc()

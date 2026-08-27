@@ -50,6 +50,7 @@ from __future__ import annotations
 import math
 from typing import List, Optional, Tuple
 
+from ..derived_geometry import pct_mac_to_station, require_mac_reference
 from ..models import (
     ConditionResult,
     LoadValue,
@@ -62,7 +63,6 @@ from ..models import (
 )
 from ..picks import extreme
 from ..registry import register
-from .wing_geometry import surface_properties
 
 _FAR = "23.23/23.25"
 _LB = "lb"
@@ -81,23 +81,6 @@ def _weight_and_station(items: List[MassItem]) -> Tuple[float, float]:
 def _is_ballast(item: MassItem) -> bool:
     """Ballast is computed by WTENV, so it is excluded from natural loadings."""
     return "ballast" in item.name.lower()
-
-
-def _xlemac_mac(project: Project, env: WeightEnvelopeInput) -> Tuple[float, float]:
-    """Wing XLEMAC and MAC, read from the geometry slice (else direct override)."""
-    if env.xlemac is not None and env.mac is not None:
-        return env.xlemac, env.mac
-    if project.geometry is not None:
-        surf = project.geometry.by_name(env.wing_surface)
-        if surf is not None:
-            r = surface_properties(surf)
-            mac = next(v.value for v in r.values if v.key == "mac")
-            xlemac = next(v.value for v in r.values if v.key == "xle_mac_station_of_mac_le")
-            return xlemac, mac
-    raise MissingInputError(
-        "WTENV needs wing XLEMAC/MAC: add a 'wing' geometry surface or set "
-        "envelope.xlemac/envelope.mac"
-    )
 
 
 def _fuselage_extent(
@@ -181,14 +164,13 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
     min_w, min_x = _weight_and_station(empty + minimum)
     max_w, max_x = _weight_and_station(empty + minimum + discretionary)
 
-    xlemac, mac = _xlemac_mac(project, inp)
+    # The XLEMAC/MAC and the relation both come from the one owner (#80): the
+    # typed override else the planform (C210-13), and X = XLEMAC + pct/100*MAC.
+    mac_ref = require_mac_reference(project, inp)
 
-    def station(pct: float) -> float:
-        return xlemac + pct / 100.0 * mac
-
-    aft_s = station(inp.aft_gross_pct_mac)
-    fwd_s = station(inp.fwd_gross_pct_mac)
-    reg_s = station(inp.fwd_regardless_pct_mac)
+    aft_s = pct_mac_to_station(inp.aft_gross_pct_mac, mac_ref)
+    fwd_s = pct_mac_to_station(inp.fwd_gross_pct_mac, mac_ref)
+    reg_s = pct_mac_to_station(inp.fwd_regardless_pct_mac, mac_ref)
 
     fwd_seq = _forward_sequence((min_w, min_x), discretionary)
     nose_x, tail_x = _fuselage_extent(project, inp)

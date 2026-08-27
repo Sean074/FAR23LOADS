@@ -8,41 +8,47 @@ are a derived summary of the ``GeometryInput.fuselage`` outline; and the weight-
 derivation, the no-persistence/no-op-round-trip acceptance, and the no-geometry fallback.
 """
 
+import ast
 import math
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest  # noqa: E402
+import pytest
 
-from sloads import Project, io  # noqa: E402
-from sloads.constants import DEFAULT_FRONT_SPAR_PCT, DEFAULT_REAR_SPAR_PCT  # noqa: E402
-from sloads.derived_geometry import (  # noqa: E402
+from sloads import Project, UnitSystem, io
+from sloads.constants import DEFAULT_FRONT_SPAR_PCT, DEFAULT_REAR_SPAR_PCT
+from sloads.derived_geometry import (
     SOB_ENTERED,
     SOB_HALF_WIDTH,
     carry_through,
     fuselage_summary,
+    mac_reference,
+    pct_mac_to_station,
     require_integrable_planform,
-    sob_station,
+    require_mac_reference,
     require_wing_reference,
+    sob_station,
+    station_to_pct_mac,
     sync_geometry_derived,
     wing_plane,
     wing_reference,
 )
-from sloads.models import (  # noqa: E402
+from sloads.models import (
     EngineInput,
     FlightLoadsInput,
     FuselageOutline,
     FuselageSection,
     GeometryInput,
     LandingInput,
+    MissingInputError,
     SurfaceInput,
     WeightEstimationInput,
     WeightInput,
     WingMassInput,
 )
-from sloads.modules.weight_estimate import resolve_max_continuous_hp  # noqa: E402
+from sloads.modules.weight_estimate import resolve_max_continuous_hp
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
@@ -389,8 +395,8 @@ def test_a_mid_entry_planform_is_refused_by_name_not_by_traceback(example):
     """
     import copy
 
-    from sloads import registry
     import sloads.modules  # noqa: F401  -- registers the modules
+    from sloads import registry
 
     base = io.load_project(example)
     if base.geometry is None:
@@ -406,7 +412,7 @@ def test_a_mid_entry_planform_is_refused_by_name_not_by_traceback(example):
                     registry.get(name)(project)
                 except ValueError:
                     pass                       # refused by name: the contract
-                except Exception as exc:       # noqa: BLE001 -- that is the point
+                except Exception as exc:
                     escaped.append(f"{surf.name} {label} -> {name}: "
                                    f"{type(exc).__name__}: {exc}")
     assert not escaped, (
@@ -476,3 +482,133 @@ def test_every_strip_sweep_asks_the_precondition_owner():
     assert not offenders, (
         "a strip sweep interpolates an edge polyline without asking "
         f"`require_integrable_planform` -- that is exactly how PB-21 happened: {offenders}")
+
+
+def _py_files(directory):
+    """Every ``.py`` under ``directory``, skipping dot/dunder directories."""
+    for dirpath, dirnames, filenames in os.walk(directory):
+        dirnames[:] = [d for d in dirnames if not d.startswith((".", "__"))]
+        for name in sorted(filenames):
+            if name.endswith(".py"):
+                yield os.path.join(dirpath, name)
+
+# --------------------------------------------------------------------------- #
+# The %MAC <-> station owner (#80, C210-13)
+# --------------------------------------------------------------------------- #
+def _ga6():
+    return io.load_project(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "examples", "ga6_normal.project.json"))
+
+
+def test_a_blank_envelope_derives_the_reference_from_the_planform():
+    """The C210-13 fallback, now named by the value it returns rather than
+    happening silently inside WTENV."""
+    project = _ga6()
+    project.weight.envelope.xlemac = None
+    project.weight.envelope.mac = None
+    ref = mac_reference(project)
+    wing = require_wing_reference(project)
+    assert ref.source == "planform"
+    assert (ref.xlemac, ref.mac) == (wing.xlemac, wing.mac)
+
+
+def test_a_typed_pair_overrides_the_planform_and_says_so():
+    project = _ga6()
+    project.weight.envelope.xlemac = 50.0
+    project.weight.envelope.mac = 60.0
+    ref = mac_reference(project)
+    assert (ref.xlemac, ref.mac, ref.source) == (50.0, 60.0, "override")
+
+
+def test_half_an_override_is_not_an_override():
+    """WTENV has always required *both*; a lone XLEMAC over a planform MAC would
+    be a reference no one entered."""
+    for field in ("xlemac", "mac"):
+        project = _ga6()
+        project.weight.envelope.xlemac = None
+        project.weight.envelope.mac = None
+        setattr(project.weight.envelope, field, 42.0)
+        assert mac_reference(project).source == "planform", field
+
+
+def test_the_two_directions_are_one_relation():
+    ref = mac_reference(_ga6())
+    for pct in (0.0, 15.0, 25.0, 40.0, 100.0):
+        assert math.isclose(station_to_pct_mac(pct_mac_to_station(pct, ref), ref), pct,
+                            abs_tol=1e-9)
+    assert math.isclose(pct_mac_to_station(0.0, ref), ref.xlemac)
+    assert math.isclose(pct_mac_to_station(100.0, ref), ref.xlemac + ref.mac)
+
+
+def test_the_report_column_and_wtenv_measure_the_same_wing():
+    """The defect the consolidation closes: with a typed override, WTENV drew
+    the CG-limit lines from it while the report's ``% MAC`` column read the
+    planform -- two wings on one chart, with nothing on it saying so. No shipped
+    example carries an override, which is why this went unseen; the test makes
+    one disagree on purpose."""
+    from sloads.modules.weight_envelope import envelope
+    from sloads.report.content import Units, _weight_cg_figure
+
+    project = _ga6()
+    wing = require_wing_reference(project)
+    project.weight.envelope.xlemac = wing.xlemac + 10.0   # deliberately disagree
+    project.weight.envelope.mac = wing.mac * 1.5
+    ref = mac_reference(project)
+    assert ref.source == "override"
+
+    stations = {v.key: v.value
+                for r in envelope(project, project.weight.envelope) for v in r.values}
+    assert math.isclose(
+        station_to_pct_mac(stations["aft_gross_station"], ref),
+        project.weight.envelope.aft_gross_pct_mac, abs_tol=1e-9)
+
+    _figure, table = _weight_cg_figure(project, Units(UnitSystem.IMPERIAL))
+    station_col = table.columns.index(next(c for c in table.columns if "station" in c))
+    pct_col = table.columns.index(next(c for c in table.columns if "% MAC" in c))
+    for row in table.rows:
+        assert math.isclose(
+            float(row[pct_col]),
+            station_to_pct_mac(float(row[station_col]), ref), abs_tol=0.02), row
+
+
+def test_a_project_with_no_wing_and_no_override_has_no_reference():
+    project = _ga6()
+    project.geometry = None
+    project.weight.envelope.xlemac = None
+    project.weight.envelope.mac = None
+    assert mac_reference(project) is None
+    with pytest.raises(MissingInputError):
+        require_mac_reference(project)
+
+
+def test_no_second_spelling_of_the_mac_station_relation():
+    """CLAUDE.md rule 3: the relation gets one owner *and* a guard. It was
+    spelled three times before #80 -- WTENV's ``xlemac + pct/100*mac``, the
+    report's ``(x - xlemac)/mac*100`` and ``wing_reference``'s 25%-MAC station
+    -- so a fourth is the failure mode this test exists to catch. Any arithmetic
+    that combines an XLEMAC-ish name with a MAC-ish name outside the owner
+    module is one."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    owner = os.path.join(root, "sloads", "derived_geometry.py")
+    offenders = []
+    for package in ("sloads", "app", "app_shell", "oracle_app"):
+        for path in _py_files(os.path.join(root, package)):
+            if os.path.abspath(path) == owner:
+                continue
+            with open(path, encoding="utf-8") as fh:
+                tree = ast.parse(fh.read(), filename=path)
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.BinOp):
+                    continue
+                names = {n.attr.lower() if isinstance(n, ast.Attribute) else n.id.lower()
+                         for n in ast.walk(node)
+                         if isinstance(n, (ast.Name, ast.Attribute))}
+                if any("xlemac" in n for n in names) and any(
+                        n == "mac" or n.endswith("_mac") or "mac" in n.split("_")
+                        for n in names):
+                    offenders.append(f"{os.path.relpath(path, root)}:{node.lineno}")
+    assert not offenders, (
+        "a second spelling of X = XLEMAC + pct/100*MAC (or its inverse) -- read "
+        "`sloads.derived_geometry.mac_reference` and the two %MAC functions "
+        f"instead, so a typed override cannot be honoured in one place only: {offenders}")

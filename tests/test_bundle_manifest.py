@@ -21,20 +21,20 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import io  # noqa: E402
-from sloads.export import mass_cards as mc  # noqa: E402
-from sloads.export import sbeam_bridge as sb  # noqa: E402
-from sloads.export.balanced_deck import balanced_deck  # noqa: E402
-from sloads.export.lra_model import lra_model_bdf  # noqa: E402
-from sloads.modules.balance import build_balanced_cases  # noqa: E402
-from sloads.registry import run_all_modules  # noqa: E402
-from sloads.report.bundle import (  # noqa: E402
+import sloads.modules  # noqa: F401  (module registration)
+from sloads import io
+from sloads.export import mass_cards as mc
+from sloads.export import sbeam_bridge as sb
+from sloads.export.balanced_deck import balanced_deck
+from sloads.export.lra_model import lra_model_bdf
+from sloads.modules.balance import build_balanced_cases
+from sloads.registry import run_all_modules
+from sloads.report.bundle import (
     bundle_members,
     bundle_zip_bytes,
     manifest_name_for,
 )
-from sloads.report.content import build_report, component_loads  # noqa: E402
-import sloads.modules  # noqa: E402,F401  (module registration)
+from sloads.report.content import build_report, component_loads
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _EXAMPLES = os.path.join(_ROOT, "examples")
@@ -205,8 +205,8 @@ def test_manifest_name_for_is_the_stem_substitution():
 def test_the_zip_bytes_are_the_member_list():
     """``bundle_zip_bytes`` writes the plan and nothing else -- what the gate
     asserts about members is therefore true of the downloaded file."""
-    import zipfile
     import io as _io
+    import zipfile
 
     members, _, _ = _bundle("ga6_normal", with_pdf=True)
     with zipfile.ZipFile(_io.BytesIO(bundle_zip_bytes(members))) as z:
@@ -223,7 +223,7 @@ if __name__ == "__main__":  # zero-dependency self-runner (see PROGRAM_SPEC)
         try:
             _fn()
             print(f"ok   {_name}")
-        except Exception:  # noqa: BLE001 - a self-runner reports, it does not raise
+        except Exception:
             failures += 1
             print(f"FAIL {_name}")
             traceback.print_exc()

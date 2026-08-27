@@ -21,7 +21,6 @@ import os
 import sys
 
 import pytest
-
 from helpers import apply_button
 
 logging.disable(logging.CRITICAL)  # silence Streamlit's bare-mode warnings

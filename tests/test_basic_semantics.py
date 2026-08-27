@@ -16,9 +16,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from test_constants import _code_lines, _package_sources  # noqa: E402
+from test_constants import _code_lines, _package_sources
 
-from sloads.basic import basic_int, basic_trunc3  # noqa: E402
+from sloads.basic import basic_int, basic_trunc3
 
 _OWNER = os.path.join("sloads", "basic.py")
 

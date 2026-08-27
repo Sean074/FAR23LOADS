@@ -27,17 +27,17 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import (  # noqa: E402
+from sloads import (
     AeroCoefficientsInput,
     AeroCoeffSet,
     FlightLoadsInput,
     Project,
     io,
 )
-from sloads.derived_geometry import require_wing_reference  # noqa: E402
-from sloads.modules import flight_envelope as fe  # noqa: E402
-from sloads.modules.flight_envelope import build_envelope, design_inputs  # noqa: E402
-from sloads.cg_cases import flight_cases  # noqa: E402
+from sloads.cg_cases import flight_cases
+from sloads.derived_geometry import require_wing_reference
+from sloads.modules import flight_envelope as fe
+from sloads.modules.flight_envelope import build_envelope, design_inputs
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")

@@ -37,40 +37,39 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest  # noqa: E402
+import pytest
+from imperial_baseline import EXAMPLES, _try
 
-from sloads import io  # noqa: E402
-from sloads.export import sbeam_bridge as sb  # noqa: E402
-from sloads.export.bands import band  # noqa: E402
-from sloads.export.coordinates import (  # noqa: E402
+from sloads import io
+from sloads.export import sbeam_bridge as sb
+from sloads.export.bands import band
+from sloads.export.coordinates import (
     bending_moment_vector,
     tail_force_to_airplane,
     to_force,
     to_grid,
     to_moment,
 )
-from sloads.export.equilibrium import (  # noqa: E402
+from sloads.export.equilibrium import (
     closes,
-    resultant,
     deck_resultants,
     parse_cards,
     ref_aftmost_loaded,
     ref_first_loaded,
+    resultant,
 )
-from sloads.modules.aileron import build_aileron  # noqa: E402
-from sloads.modules.body_loads import build_body_loads  # noqa: E402
-from sloads.modules.flap import build_flap  # noqa: E402
-from sloads.modules.flight_envelope import build_envelope  # noqa: E402
-from sloads.modules.net_loads import build_net_loads, loads_ref_axis_results  # noqa: E402
-from sloads.modules.select import build_critical  # noqa: E402
-from sloads.modules.tab import build_tabs  # noqa: E402
-from sloads.modules.tail_span import build_tail_span  # noqa: E402
-from sloads.modules.tail_span import axial_total as ts_axial  # noqa: E402
-from sloads.modules.tail_span import inertia_total as ts_inertia  # noqa: E402
-from sloads.modules.taildist import build_tail_chordwise  # noqa: E402
-from sloads.units import Channel, UnitSystem, deliverable_units  # noqa: E402
-
-from imperial_baseline import EXAMPLES, _try  # noqa: E402
+from sloads.modules.aileron import build_aileron
+from sloads.modules.body_loads import build_body_loads
+from sloads.modules.flap import build_flap
+from sloads.modules.flight_envelope import build_envelope
+from sloads.modules.net_loads import build_net_loads, loads_ref_axis_results
+from sloads.modules.select import build_critical
+from sloads.modules.tab import build_tabs
+from sloads.modules.tail_span import axial_total as ts_axial
+from sloads.modules.tail_span import build_tail_span
+from sloads.modules.tail_span import inertia_total as ts_inertia
+from sloads.modules.taildist import build_tail_chordwise
+from sloads.units import Channel, UnitSystem, deliverable_units
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _SYSTEMS = (UnitSystem.IMPERIAL, UnitSystem.SI)

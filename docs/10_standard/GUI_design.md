@@ -144,6 +144,22 @@ superseded Phase-D six-section grouping is in
   edit, then payload, caption and expander title read in the same run on the
   real oracle entry point; a stopping page keeps Save/Download; no view calls
   `st.stop()`.
+- **Tools** (#80, C210 build review 2026-08-23) — a collapsed expander holding
+  the two conversions the C210 build did by hand at the envelope and speeds
+  pages: an **airspeed converter** (a speed in any of KCAS/KEAS/KTAS plus a
+  pressure altitude, the three out; ISA-only, subsonic) and a **% MAC ↔ fuselage
+  station** converter. Both delegate their arithmetic to the `sloads` owners
+  (`constants.convert_airspeed` / `eas_from_airspeed`; `derived_geometry`'s
+  `mac_reference` and the two %MAC functions), so a Tool cannot answer a
+  question differently from a page — G1's no-dual-path rule applies to a sidebar
+  as much as to a view. It is **display-only**: it reads the project and writes
+  nothing back, which is the ground of the owner's refinement to the oracle
+  GUI's capability cap (OG-1 governs analysis and data capability, not inert
+  display utilities). The %MAC converter **names the reference it measured
+  from** — the typed `weight.envelope.xlemac`/`mac` or the wing planform — so
+  the C210-13 blank-derive fallback is stated where it is used rather than
+  silently applied. Guards in `tests/test_app_shell.py`, including one that
+  neither GUI spells a Tools widget of its own.
 
 ---
 

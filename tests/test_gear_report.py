@@ -39,16 +39,16 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest  # noqa: E402
+import pytest
 
-from sloads import io  # noqa: E402
-from sloads.export.balanced_deck import (  # noqa: E402
+from sloads import io
+from sloads.export.balanced_deck import (
     BALANCED_GEAR_BASE,
     balanced_deck,
     deck_nodes,
 )
-from sloads.export.sbeam_bridge import gear_report_rows  # noqa: E402
-from sloads.gear_loads import (  # noqa: E402
+from sloads.export.sbeam_bridge import gear_report_rows
+from sloads.gear_loads import (
     MAIN,
     NOSE,
     applied_wheels,
@@ -58,8 +58,8 @@ from sloads.gear_loads import (  # noqa: E402
     to_ground_line,
     transfer_couple,
 )
-from sloads.models import MissingInputError  # noqa: E402
-from sloads.modules.balance import (  # noqa: E402
+from sloads.models import MissingInputError
+from sloads.modules.balance import (
     GROUND_LIFT_CASES,
     GROUND_ONE_WHEEL_CASES,
     GROUND_SIDE_CASES,
@@ -67,11 +67,12 @@ from sloads.modules.balance import (  # noqa: E402
     is_ground,
     resultant6,
 )
+
 # ``gear_geometry`` is the module's own resolver for the gear geometry (note 33,
 # DS-2), and the rotational gate needs the same axle stations the reactions were
 # computed at. Reaching for it is the alternative to keeping a second copy of that
 # resolution beside the test.
-from sloads.modules.landing import (  # noqa: E402
+from sloads.modules.landing import (
     build_landing,
     gear_geometry,
     ground_angles,
@@ -760,7 +761,7 @@ def test_the_ground_case_closes_in_all_six_dof(example):
         ref = (case.cg_x, 0.0, case.cg_z)
         components = resultant6(case.loads, ref)
         scale = max(case.n_w, 1.0)
-        for name, value in zip("Fx Fy Fz Mx My Mz".split(), components):
+        for name, value in zip(["Fx", "Fy", "Fz", "Mx", "My", "Mz"], components):
             bound = scale * (1e-6 if name.startswith("F") else case.mac * 1e-6)
             assert abs(value) < max(bound, 1e-6), (
                 f"{example} {case.case_ref.case_id}: {name} = {value:.6g}")
@@ -1198,7 +1199,7 @@ if __name__ == "__main__":                                   # zero-dependency r
         for args in (params[0] if params else [None]):
             try:
                 fn(args) if args is not None else fn()
-            except Exception as exc:                          # noqa: BLE001
+            except Exception as exc:
                 failures += 1
                 print(f"FAIL {name}{f'[{args}]' if args else ''}: {exc}")
     print("FAILURES:" if failures else "OK", failures or "")

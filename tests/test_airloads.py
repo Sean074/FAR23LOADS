@@ -17,19 +17,19 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import (  # noqa: E402
+from sloads import (
     AeroSurfaceInput,
     Project,
     SurfaceInput,
     io,
 )
-from sloads.modules import airloads as airloads_calc  # noqa: E402
-from sloads.modules.airloads import (  # noqa: E402
+from sloads.modules import airloads as airloads_calc
+from sloads.modules.airloads import (
     _sweep_operating,
     _tau,
     schrenk_distribution,
 )
-from sloads.modules.net_loads import build_net_loads  # noqa: E402
+from sloads.modules.net_loads import build_net_loads
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")

@@ -40,22 +40,22 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import io  # noqa: E402
-from sloads.models import EnvelopeResult, MissingInputError, WingMassInput  # noqa: E402
-from sloads.modules.balance import build_balanced_cases  # noqa: E402
-from sloads.modules.body_loads import build_body_loads  # noqa: E402
-from sloads.modules.flight_envelope import build_envelope  # noqa: E402
-from sloads.modules.net_loads import build_net_loads  # noqa: E402
-from sloads.modules.select import (  # noqa: E402
+from sloads import io
+from sloads.models import EnvelopeResult, MissingInputError, WingMassInput
+from sloads.modules.balance import build_balanced_cases
+from sloads.modules.body_loads import build_body_loads
+from sloads.modules.flight_envelope import build_envelope
+from sloads.modules.net_loads import build_net_loads
+from sloads.modules.select import (
     build_critical,
     default_critical,
     default_envelope,
     vn_by_case,
     vn_points,
 )
-from sloads.modules.taildist import _critical_set as taildist_critical  # noqa: E402
-from sloads.modules.tail_span import _vn_points as tail_span_vn  # noqa: E402
-from sloads.modules.wing_inertia import (  # noqa: E402
+from sloads.modules.tail_span import _vn_points as tail_span_vn
+from sloads.modules.taildist import _critical_set as taildist_critical
+from sloads.modules.wing_inertia import (
     build_wing_inertia,
     resolve_wing_cases,
     wing_case_ref,

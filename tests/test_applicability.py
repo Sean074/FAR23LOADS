@@ -11,8 +11,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import io  # noqa: E402
-from sloads.applicability import (  # noqa: E402
+from sloads import io
+from sloads.applicability import (
     design_weight_lb,
     effective_crew,
     effective_occupants,

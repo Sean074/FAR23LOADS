@@ -27,12 +27,12 @@ from dataclasses import replace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import EngineLayout, OneEngineOutInput, io  # noqa: E402
-from sloads.constants import FT_LB_S_PER_HP, KT_TO_FPS, RHO_SL, standard_atmosphere  # noqa: E402
-from sloads.models import MassCase, MassResult  # noqa: E402
-from sloads.modules import one_engine_out as oeo  # noqa: E402
-from sloads.modules import select as sel  # noqa: E402
-from sloads.modules._vtail import (  # noqa: E402
+from sloads import EngineLayout, OneEngineOutInput, io
+from sloads.constants import FT_LB_S_PER_HP, KT_TO_FPS, RHO_SL, standard_atmosphere
+from sloads.models import MassCase, MassResult
+from sloads.modules import one_engine_out as oeo
+from sloads.modules import select as sel
+from sloads.modules._vtail import (
     large_deflection_factor,
     rudder_effectiveness,
     vtail_lift_slope,

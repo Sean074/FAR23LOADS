@@ -17,9 +17,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import GeometryInput, Project, SurfaceInput, io  # noqa: E402
-from sloads.modules import wing_geometry as calc  # noqa: E402
-from helpers import value_of  # noqa: E402
+from helpers import value_of
+
+from sloads import GeometryInput, Project, SurfaceInput, io
+from sloads.modules import wing_geometry as calc
 
 TOL = 1e-3  # ±0.1% relative
 
@@ -97,7 +98,9 @@ def test_engine_stations_for_wing_layout():
     # A wing-mounted twin reports each engine's butt line + local wing chord.
     project = io.load_project(_EXAMPLE)
     from dataclasses import replace
+
     from fixtures import io520bb
+
     from sloads import EngineLayout
 
     left = replace(io520bb(), engine_designation="LEFT", engine_cg=(60.0, -60.0, 90.0))

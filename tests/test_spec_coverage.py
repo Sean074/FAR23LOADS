@@ -20,9 +20,9 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads.registry import available  # noqa: E402
-from sloads.spec_names import NON_MODULE_SECTIONS, SPEC_HEADINGS  # noqa: E402
-import sloads.modules  # noqa: E402,F401  (module registration)
+import sloads.modules  # noqa: F401  (module registration)
+from sloads.registry import available
+from sloads.spec_names import NON_MODULE_SECTIONS, SPEC_HEADINGS
 
 _SPEC = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),

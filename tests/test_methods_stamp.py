@@ -25,12 +25,13 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import io  # noqa: E402
-from sloads.export import sbeam_bridge as sb  # noqa: E402
-from sloads.modules.flight_envelope import build_envelope  # noqa: E402
-from sloads.modules.net_loads import build_net_loads  # noqa: E402
-from sloads.registry import run_all_modules  # noqa: E402
-from sloads.report.methods import (  # noqa: E402
+import sloads.modules  # noqa: F401
+from sloads import io
+from sloads.export import sbeam_bridge as sb
+from sloads.modules.flight_envelope import build_envelope
+from sloads.modules.net_loads import build_net_loads
+from sloads.registry import run_all_modules
+from sloads.report.methods import (
     APPROVED_CORRECTIONS,
     STANDING_DISCLAIMER,
     _standing_limitations,
@@ -39,7 +40,6 @@ from sloads.report.methods import (  # noqa: E402
     methods_statement,
     strip_comment_lines,
 )
-import sloads.modules  # noqa: E402,F401
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")

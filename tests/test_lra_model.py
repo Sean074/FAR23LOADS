@@ -11,17 +11,18 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-import pytest  # noqa: E402
+import pytest
 
-from sloads import io  # noqa: E402
-from sloads.export.coordinates import transfer_couple  # noqa: E402
-from sloads.export.equilibrium import (closes, deck_resultants,  # noqa: E402
-                                       parse_cards, resultant)
-from sloads.export.lra_import import (LRA_IMPORT_TOL_IN,  # noqa: E402
-                                      lra_loads_on_imported_model,
-                                      read_lra_model, validate_imported_model)
-from sloads.export.lra_model import (LraRefusal, build_lra_model,  # noqa: E402
-                                     lra_model_bdf, transferred_case_loads)
+from sloads import io
+from sloads.export.coordinates import transfer_couple
+from sloads.export.equilibrium import closes, deck_resultants, parse_cards, resultant
+from sloads.export.lra_import import (
+    LRA_IMPORT_TOL_IN,
+    lra_loads_on_imported_model,
+    read_lra_model,
+    validate_imported_model,
+)
+from sloads.export.lra_model import LraRefusal, build_lra_model, lra_model_bdf, transferred_case_loads
 
 _EXAMPLES = os.path.join(os.path.dirname(__file__), "..", "examples")
 

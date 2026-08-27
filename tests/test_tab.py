@@ -15,8 +15,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import io  # noqa: E402
-from sloads.modules.tab import build_tabs, run, tab_load  # noqa: E402
+from sloads import io
+from sloads.modules.tab import build_tabs, run, tab_load
 
 REL = 1e-3  # ±0.1%
 

@@ -14,10 +14,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import Project, WingLoadCase, io  # noqa: E402
-from sloads.derived_geometry import wing_plane  # noqa: E402
-from sloads.modules import wing_inertia as wi  # noqa: E402
-from sloads.modules.wing_inertia import inertia_units, wing_inertia_distribution  # noqa: E402
+from sloads import Project, WingLoadCase, io
+from sloads.derived_geometry import wing_plane
+from sloads.modules import wing_inertia as wi
+from sloads.modules.wing_inertia import inertia_units, wing_inertia_distribution
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")

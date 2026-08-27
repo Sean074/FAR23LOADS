@@ -37,25 +37,25 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import io  # noqa: E402
-from sloads.export import sbeam_bridge as sb  # noqa: E402
-from sloads.export.coordinates import tail_force_to_airplane  # noqa: E402
-from sloads.modules import aileron as aileron_mod  # noqa: E402
-from sloads.modules import flap as flap_mod  # noqa: E402
-from sloads.modules import tab as tab_mod  # noqa: E402
-from sloads.modules.body_loads import build_body_loads  # noqa: E402
-from sloads.modules.flight_envelope import build_envelope  # noqa: E402
-from sloads.modules.net_loads import build_net_loads  # noqa: E402
-from sloads.modules.select import build_critical  # noqa: E402
-from sloads.modules.taildist import build_tail_chordwise  # noqa: E402
+from sloads import io
 from sloads.cg_cases import flight_cases
-from sloads.derived_geometry import require_wing_reference  # noqa: E402
-from sloads.export.equilibrium import (  # noqa: E402
+from sloads.derived_geometry import require_wing_reference
+from sloads.export import sbeam_bridge as sb
+from sloads.export.coordinates import tail_force_to_airplane
+from sloads.export.equilibrium import (
     card_totals,
     closes,
     deck_resultants,
     ref_aftmost_loaded,
 )
+from sloads.modules import aileron as aileron_mod
+from sloads.modules import flap as flap_mod
+from sloads.modules import tab as tab_mod
+from sloads.modules.body_loads import build_body_loads
+from sloads.modules.flight_envelope import build_envelope
+from sloads.modules.net_loads import build_net_loads
+from sloads.modules.select import build_critical
+from sloads.modules.taildist import build_tail_chordwise
 
 _EXAMPLE = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),

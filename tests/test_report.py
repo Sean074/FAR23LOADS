@@ -6,13 +6,14 @@ from dataclasses import replace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import convert_results, run_all, UnitSystem  # noqa: E402
-from sloads.report import (  # noqa: E402
+from fixtures import io520bb, turboprop
+
+from sloads import UnitSystem, convert_results, run_all
+from sloads.report import (
     envelope_extremes,
     has_load_case_data,
     load_cases_to_rows,
 )
-from fixtures import io520bb, turboprop  # noqa: E402
 
 
 def _col(rows, contains):

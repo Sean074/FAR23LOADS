@@ -15,10 +15,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import Project, SelectInput, UnitSystem, io  # noqa: E402
-from sloads.constants import ULTIMATE_FACTOR  # noqa: E402
-from sloads.modules import select  # noqa: E402
-from sloads.report import (  # noqa: E402
+from sloads import Project, SelectInput, UnitSystem, io
+from sloads.constants import ULTIMATE_FACTOR
+from sloads.modules import select
+from sloads.report import (
     format_value,
     governing_loads_table,
     to_ultimate,

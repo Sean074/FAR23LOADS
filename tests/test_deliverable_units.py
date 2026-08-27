@@ -28,19 +28,19 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import cli  # noqa: E402
-from sloads import io, registry  # noqa: E402
-from sloads.export import sbeam_bridge as sb  # noqa: E402
+import cli
+from sloads import io, registry
+from sloads.export import sbeam_bridge as sb
 from sloads.models import ConditionResult, LoadValue, Project
-from sloads.registry import run_all_modules  # noqa: E402
-from sloads.report.methods import (  # noqa: E402
+from sloads.registry import run_all_modules
+from sloads.report.methods import (
     bdf_comment_block,
     csv_comment_block,
     methods_statement,
     strip_comment_lines,
 )
-from sloads.report.render import _LOAD_UNITS, _ULT_UNITS, ultimate_units  # noqa: E402
-from sloads.units import (  # noqa: E402
+from sloads.report.render import _LOAD_UNITS, _ULT_UNITS, ultimate_units
+from sloads.units import (
     _RESULT_TO_SI,
     Channel,
     UnitSystem,

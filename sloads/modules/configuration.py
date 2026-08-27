@@ -34,6 +34,7 @@ import math
 from typing import Dict, List, Optional, Tuple
 
 from ..constants import IN2_PER_FT2, IN_PER_FT
+from ..derived_geometry import MacReference, pct_mac_to_station
 from ..models import (
     ConditionResult,
     EmpennageInput,
@@ -460,12 +461,17 @@ def _stability_condition(project: Project, layout: LayoutInput, geom: dict) -> O
     xlemac = geom["XLE(MAC) station of MAC LE"]
     if ht is None or ht.htail_area_sqft <= 0 or layout.wing_area_sqft <= 0 or mac <= 0:
         return None
-    h_arm = ht.xt25 - (xlemac + 0.25 * mac)
+    # The MAC frame is one relation (#80): the 25%-MAC station and the neutral
+    # point below are both a percentage of MAC off XLEMAC, and both read the
+    # *planform* reference -- these are aerodynamic quantities, so the weight
+    # envelope's XLEMAC/MAC override deliberately does not reach them.
+    mac_ref = MacReference(xlemac, mac, "planform", "wing")
+    h_arm = ht.xt25 - pct_mac_to_station(25.0, mac_ref)
     if h_arm <= 0:
         return None
     v_h = (ht.htail_area_sqft * h_arm) / (layout.wing_area_sqft * mac)
     h_n = _H_AC_WING + v_h * _LIFT_SLOPE_RATIO * _DOWNWASH_FACTOR
-    np_station = xlemac + h_n * mac
+    np_station = pct_mac_to_station(h_n * 100.0, mac_ref)
 
     values = [
         LoadValue("Horizontal tail volume V_H", v_h, key="horizontal_tail_volume_v_h"),
@@ -518,7 +524,8 @@ def cg_estimate(project: Project, layout: LayoutInput,
     if project.mass is not None and project.mass.cases:
         case = project.mass.cases[0]
         return case.cg_x, case.cg_z, "Weight DB"
-    return xlemac + 0.25 * mac, layout.root_waterline_z, "25% MAC estimate"
+    return (pct_mac_to_station(25.0, MacReference(xlemac, mac, "planform", "wing")),
+            layout.root_waterline_z, "25% MAC estimate")
 
 
 def _gear_condition(project: Project, layout: LayoutInput, geom: dict) -> Optional[ConditionResult]:

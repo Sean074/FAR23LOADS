@@ -23,11 +23,11 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest  # noqa: E402
+import pytest
 
-from sloads.mass_distribution import assembly_distributes_mass  # noqa: E402
-from sloads.models import MassComponent  # noqa: E402
-from sloads.rigid_body import (  # noqa: E402
+from sloads.mass_distribution import assembly_distributes_mass
+from sloads.models import MassComponent
+from sloads.rigid_body import (
     G_IN_S2,
     InertiaTensor,
     PointMass,
@@ -236,8 +236,8 @@ def test_the_weight_space_conversion_is_the_suites_own_gravity():
     """
     from sloads.constants import LBIN2_PER_SLUGFT2
 
-    assert G_IN_S2 == pytest.approx(386.088, rel=1e-9)
-    assert LBIN2_PER_SLUGFT2 == pytest.approx(144.0 * G_IN_S2 / 12.0, rel=1e-12)
+    assert pytest.approx(386.088, rel=1e-9) == G_IN_S2
+    assert pytest.approx(144.0 * G_IN_S2 / 12.0, rel=1e-12) == LBIN2_PER_SLUGFT2
     assert radians_per_s2((1.0, 2.0, 3.0)) == pytest.approx(
         (G_IN_S2, 2 * G_IN_S2, 3 * G_IN_S2))
 

@@ -22,11 +22,12 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest  # noqa: E402
+import pytest
+from imperial_baseline import EXAMPLES
 
-from sloads import io  # noqa: E402
-from sloads.models import SCHEMA_VERSION, SurfaceInput, TailMassInput  # noqa: E402
-from sloads.tail_geometry import (  # noqa: E402
+from sloads import io
+from sloads.models import SCHEMA_VERSION, SurfaceInput, TailMassInput
+from sloads.tail_geometry import (
     HTAIL,
     PLANFORM_TOLERANCE,
     VTAIL,
@@ -35,8 +36,6 @@ from sloads.tail_geometry import (  # noqa: E402
     resolve_tail_planform,
     validate_tail_planform,
 )
-
-from imperial_baseline import EXAMPLES  # noqa: E402
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

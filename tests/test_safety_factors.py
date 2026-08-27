@@ -28,23 +28,23 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import io  # noqa: E402
-from sloads.constants import ULTIMATE_FACTOR  # noqa: E402
-from sloads.export import sbeam_bridge as sb  # noqa: E402
-from sloads.models import SafetyFactorOverride, SafetyFactorPolicyInput  # noqa: E402
-from sloads.registry import run_all_modules  # noqa: E402
-from sloads.report.content import build_report, component_loads  # noqa: E402
-from sloads.report.methods import methods_statement  # noqa: E402
-from sloads.safety_factors import (  # noqa: E402
-    FAMILIES,
+import sloads.modules  # noqa: F401
+from sloads import io
+from sloads.constants import ULTIMATE_FACTOR
+from sloads.export import sbeam_bridge as sb
+from sloads.models import SafetyFactorOverride, SafetyFactorPolicyInput
+from sloads.registry import run_all_modules
+from sloads.report.content import build_report, component_loads
+from sloads.report.methods import methods_statement
+from sloads.safety_factors import (
     DERIVED_FACTOR,
+    FAMILIES,
     GoverningTable,
     LoadClass,
     RowStatus,
     classify,
 )
-from sloads.validation import consistency_warnings  # noqa: E402
-import sloads.modules  # noqa: E402,F401
+from sloads.validation import consistency_warnings
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _EXAMPLES = sorted(glob.glob(os.path.join(_ROOT, "examples", "*.project.json")))

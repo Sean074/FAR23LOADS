@@ -36,12 +36,15 @@ import pytest
 logging.disable(logging.CRITICAL)  # silence Streamlit's bare-mode warnings
 
 from helpers import widget_editing, widgets_editing  # noqa: E402
-from sloads import field_registry as fr  # noqa: E402
-from sloads import io  # noqa: E402
-from sloads import workflow as wf  # noqa: E402
-from sloads import UnitSystem  # noqa: E402
-from sloads.field_registry import reduce_to_oracle_inputs  # noqa: E402
+
 from app_shell.components import active_system  # noqa: E402
+from sloads import (
+    UnitSystem,
+    io,
+)
+from sloads import field_registry as fr  # noqa: E402
+from sloads import workflow as wf  # noqa: E402
+from sloads.field_registry import reduce_to_oracle_inputs  # noqa: E402
 from sloads.units import AVIATION_STANDARD, to_display  # noqa: E402
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -841,9 +844,7 @@ def test_every_composite_field_declares_its_member_labels():
     """``MEMBER_LABELS`` is presentation, but it is hand-written, so it gets the
     same totality treatment as everything else here: a new composite field in
     the input set must be named, not silently rendered as "1, 2"."""
-    from oracle_app.form import MEMBER_LABELS, is_composite
-
-    from oracle_app.form import _enum_of, _list_element
+    from oracle_app.form import MEMBER_LABELS, _enum_of, _list_element, is_composite
 
     missing = sorted(
         path.rsplit(".", 1)[-1] for path in fr.oracle_input_paths()
@@ -1059,8 +1060,8 @@ def test_the_station_tables_are_keyed_by_module_not_by_page():
     """The one hand-declared table in the results renderer. Keyed by module
     because which row builder a program has is a fact about the program -- and
     keying it by page would put a step key back in the GUI (gate G2)."""
-    from sloads import registry
     from oracle_app.results import STATION_TABLES
+    from sloads import registry
 
     assert set(STATION_TABLES) <= set(registry.available())
     assert not set(STATION_TABLES) & set(wf.BY_KEY)
@@ -1099,9 +1100,9 @@ def test_a_page_with_no_program_of_its_own_shows_no_results():
 def test_the_results_block_survives_an_empty_project(key):
     """The blank-project path: every program is unrunnable and the page has to
     say so rather than raise."""
-    from sloads.models import Project
-    from sloads import UnitSystem
     from oracle_app.results import step_results
+    from sloads import UnitSystem
+    from sloads.models import Project
 
     for block in step_results(Project(name=""), key, UnitSystem.IMPERIAL):
         assert block.note or block.rows, (key, block.title)
@@ -1113,9 +1114,9 @@ def test_a_self_sufficient_page_is_not_sent_upstream():
     blocked note must point at the form above — "run the pages before this one
     first" was wrong guidance on the beta's first-run path. A genuinely
     dependent page keeps the upstream wording."""
-    from sloads.models import Project
-    from sloads import UnitSystem
     from oracle_app.results import step_results
+    from sloads import UnitSystem
+    from sloads.models import Project
 
     fresh = Project(name="")
     for key in ("weight_mass", "engine_mount"):

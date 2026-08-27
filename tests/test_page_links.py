@@ -33,7 +33,7 @@ import glob
 import os
 import re
 
-from sloads import workflow as wf  # noqa: E402
+from sloads import workflow as wf
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _VIEWS_DIR = os.path.join(_ROOT, "app", "views")

@@ -16,9 +16,10 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import io  # noqa: E402
-from sloads.registry import run_all_modules  # noqa: E402
-from sloads.report.coverage import (  # noqa: E402
+import sloads.modules  # noqa: F401  (module registration)
+from sloads import io
+from sloads.registry import run_all_modules
+from sloads.report.coverage import (
     COVERED,
     FAR23_SUBPART_C,
     NOT_ANALYSED,
@@ -27,7 +28,6 @@ from sloads.report.coverage import (  # noqa: E402
     coverage_matrix,
     coverage_summary,
 )
-import sloads.modules  # noqa: E402,F401  (module registration)
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")

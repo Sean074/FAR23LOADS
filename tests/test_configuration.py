@@ -18,7 +18,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import (  # noqa: E402
+from sloads import (
     EmpennageInput,
     GeometryInput,
     LandingGearGeometry,
@@ -53,6 +53,8 @@ def _emp(h_area=30.0, h_semispan=60.0, v_area=18.0, v_span=48.0,
         vtail=VTailLoadsInput(vtail_area_sqft=v_area, vtail_span_in=v_span,
                               xv25=xv25, rudder_aft_hinge_sqft=r_aft),
     )
+from helpers import values_by_key  # noqa: E402
+
 from sloads.modules.configuration import (  # noqa: E402
     cg_estimate,
     component_stations,
@@ -61,7 +63,6 @@ from sloads.modules.configuration import (  # noqa: E402
     tail_planform,
     wing_planform,
 )
-from helpers import values_by_key  # noqa: E402
 
 
 def _props(project):

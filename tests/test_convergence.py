@@ -26,11 +26,11 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import io  # noqa: E402
-from sloads.convergence import SolveState, SolverFailure  # noqa: E402
-from sloads.modules import flight_envelope as fe  # noqa: E402
-from sloads.modules.flap import _slipstream_velocity  # noqa: E402
-from sloads.modules.wing_inertia import _root_density  # noqa: E402
+from sloads import io
+from sloads.convergence import SolverFailure, SolveState
+from sloads.modules import flight_envelope as fe
+from sloads.modules.flap import _slipstream_velocity
+from sloads.modules.wing_inertia import _root_density
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                          "examples")

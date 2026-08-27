@@ -32,7 +32,6 @@ import os
 import sys
 
 import pytest
-
 from helpers import apply_button, widget_editing
 
 logging.disable(logging.CRITICAL)  # silence Streamlit's bare-mode warnings

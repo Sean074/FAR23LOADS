@@ -29,11 +29,11 @@ from dataclasses import replace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import Project, SelectInput, TailLoadsInput, VTailLoadsInput, io  # noqa: E402
-from sloads.modules import select  # noqa: E402
-from sloads.modules.flight_envelope import build_envelope  # noqa: E402
-from sloads.cg_cases import flight_cases  # noqa: E402
-from sloads.derived_geometry import require_wing_reference  # noqa: E402
+from sloads import Project, SelectInput, TailLoadsInput, VTailLoadsInput, io
+from sloads.cg_cases import flight_cases
+from sloads.derived_geometry import require_wing_reference
+from sloads.modules import select
+from sloads.modules.flight_envelope import build_envelope
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")

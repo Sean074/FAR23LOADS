@@ -8,6 +8,7 @@ unit factor, and to the ``constants.py`` (Imperial<->Imperial) vs ``units.py``
 """
 
 import glob
+import math
 import os
 import sys
 
@@ -162,6 +163,50 @@ def test_sigma_is_read_from_the_shared_atmosphere():
 
     for alt in (0.0, 5000.0, 20000.0, 35332.0, 40000.0):
         assert density_ratio(alt) == standard_atmosphere(alt)[1]
+
+
+
+# --------------------------------------------------------------------------- #
+# The airspeed inverse (#80) -- KCAS in, KEAS out
+# --------------------------------------------------------------------------- #
+def test_the_three_airspeeds_agree_at_sea_level():
+    """KEAS == KCAS == KTAS at h = 0, by definition of the relations."""
+    for measure in ("KEAS", "KCAS", "KTAS"):
+        assert math.isclose(constants.eas_from_airspeed(150.0, 0.0, measure), 150.0,
+                            rel_tol=1e-12), measure
+
+
+def test_eas_from_airspeed_inverts_convert_airspeed_exactly():
+    """The converter offers all three measures as an *input*, so the two
+    directions must be one relation read backwards -- not two fits that agree
+    near sea level and part at altitude."""
+    for altitude in (0.0, 8000.0, 20000.0, 35000.0, 45000.0):
+        for measure in ("KEAS", "KCAS", "KTAS"):
+            for speed in (80.0, 180.0, 350.0):
+                eas = constants.eas_from_airspeed(speed, altitude, measure)
+                back = constants.convert_airspeed(eas, altitude, measure)
+                assert math.isclose(back, speed, rel_tol=1e-9), (altitude, measure, speed)
+
+
+def test_airspeeds_order_themselves_the_way_altitude_makes_them():
+    """Above sea level a given EAS reads as a larger TAS (thinner air) and a
+    larger CAS (the compressibility correction, which is *subtracted* from CAS
+    to get EAS) -- so KEAS is the smallest of the three, and an inverse that
+    ran the CAS relation the wrong way would put it in the middle."""
+    eas = 200.0
+    tas = constants.convert_airspeed(eas, 25000.0, "KTAS")
+    cas = constants.convert_airspeed(eas, 25000.0, "KCAS")
+    assert tas > cas > eas, (tas, cas, eas)
+    assert constants.eas_from_airspeed(cas, 25000.0, "KCAS") < cas
+
+
+def test_an_unknown_airspeed_measure_is_refused_in_both_directions():
+    for fn in (constants.convert_airspeed, constants.eas_from_airspeed):
+        try:
+            fn(100.0, 0.0, "KIAS")
+        except ValueError:
+            continue
+        raise AssertionError(f"{fn.__name__} accepted KIAS, which it cannot compute")
 
 
 if __name__ == "__main__":

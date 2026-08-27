@@ -32,8 +32,8 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sloads import io  # noqa: E402
-from sloads.cg_cases import (  # noqa: E402
+from sloads import io
+from sloads.cg_cases import (
     FLIGHT_CASE_NAMES,
     cases_for,
     database_total,
@@ -46,8 +46,8 @@ from sloads.cg_cases import (  # noqa: E402
     seed_flight_cases,
     seed_landing_cases,
 )
-from sloads.mass_distribution import derive_case_loadings  # noqa: E402
-from sloads.models import (  # noqa: E402
+from sloads.mass_distribution import derive_case_loadings
+from sloads.models import (
     GROUND_CASE_ROLE_ORDER,
     AnalysisKind,
     CgCase,
