@@ -11,7 +11,7 @@ and [`../../CHANGELOG.md`](../../CHANGELOG.md); the pre-2026-08-16 running
 [`../40_history/10_backlog_state_narrative_to_2026-08-16.md`](../40_history/10_backlog_state_narrative_to_2026-08-16.md).
 Narratives and plans: [`01_concept_loads_plan.md`](01_concept_loads_plan.md)
 (concept mode), [`03_gui_rework_plan.md`](03_gui_rework_plan.md) (GUI),
-design notes per step (open ones here — 09/11/21/24/32/34; shipped ones rolled
+design notes per step (open ones here — 09/11/21/24/32/34/35; shipped ones rolled
 to [`../40_history/`](../00_INDEX.md#40_history--historic-record) at each cut); architecture
 [`../10_standard/PROJECT_GUIDE.md §7`](../10_standard/PROJECT_GUIDE.md); per-module
 spec [`PROGRAM_SPEC.md`](../10_standard/PROGRAM_SPEC.md).

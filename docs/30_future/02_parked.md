@@ -375,6 +375,20 @@ v-tail terms deferred to L-7; user-defined thrust line (hub + incidence + toe);
 neither assembled one on HEAD) and the pre-Amdt-64 CFR pull. Rule basis pre-Amdt-64
 FAR 23. Tier L. Effort: L (7 steps). Next artefact: the code implementation plan.
 
+### [V] Equivalent gust Δα on the h-tail gust conditions *(new 2026-08-26, from note 35 AS-2)*
+Note 35 (#100) has the GUST UP/DN conditions state their **trim** aero state
+(AT, δ at the governing point) with the gust stated as the existing load
+increment — the state the method actually used. The fuller display would also
+state the gust as an **equivalent tail Δα** (from the same `Kg·Ude·V` term the
+increment is built from, divided back through the `AHT·q·ST` chain), so the
+page reads "trim AT + Δα_gust" instead of "trim AT + a load". Parked because
+it is new derived physics beyond C210-32's display-only scope with **zero
+effect on any delivered load** (rule 6: the number that parks it is 0 — it is
+a restatement of an already-printed increment), and no printed oracle states a
+gust Δα to check it against. Activation: move to the backlog with a stated
+closure identity (Δα reconstructs the increment exactly) if a reader of the
+TAILDIST page asks for the angle form.
+
 ---
 
 ## Future directions (not yet scoped — placeholders, much later)
