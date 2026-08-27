@@ -24,6 +24,12 @@ Checks (14 CFR / Reference-1 context in each predicate):
                              balance divides by (the flight envelope refuses to
                              run while one is present). See
                              ``_check_cg_cases_have_weight``.
+- ``tail_cp_station_unset`` -- a FLIGHT case present with the tail
+                             centre-of-pressure station (``xtc``/``xtf``) at its
+                             load-bearing 0.0 default: a tail CP at the datum
+                             sign-flips the tail arm and balances silently wrong
+                             (C210-21). See ``_check_tail_cp_stations``;
+                             ``flight_envelope.build_envelope`` refuses it by name.
 - ``mass_item_outside_body`` -- a fuselage-carried weight item whose station lies
                              ahead of the fuselage outline's nose or behind its
                              tail (decision D-27, 2026-08-17): the three-view's
@@ -111,6 +117,7 @@ PAGE_EXPORT = "export_report"
 PAGE_LANDING = "landing_loads"
 PAGE_AERO_COEFFS = "aero_coefficients"
 PAGE_FLAP = "flap_loads"
+PAGE_FLIGHT = "flight_envelope"
 
 # The three canonical LANDLOAD loadings, in the order LANDLOAD consumes them (UG
 # fig 18.2). Since decision G-3a the *contract* is ``CgCase.role``, not the name --
@@ -388,6 +395,45 @@ def _check_cg_cases_have_weight(project: Project) -> List[ConsistencyWarning]:
         "case weight, so the Flight Envelope and SELECT refuse to run at all while "
         "one is present — enter the weight and CG, or remove the case.",
         PAGE_WEIGHT_CG)]
+
+
+def _check_tail_cp_stations(project: Project) -> List[ConsistencyWarning]:
+    """A tail centre-of-pressure station left at the 0.0 default (C210-21).
+
+    ``xtc``/``xtf`` feed the tail arm ``xt - xcg`` directly
+    (``flight_envelope`` reads whichever the config's flap state selects), so a
+    zero station is load-bearing: it puts the tail CP at the datum -- tens of
+    inches *ahead* of the CG on any real airplane -- sign-flips the arm, and
+    the balance runs clean and plausible-looking. Warned here for the field
+    each config in play will actually read; ``flight_envelope.build_envelope``
+    refuses it by name when it runs (the ``cg_case_without_weight`` pattern).
+    """
+    fl = project.flight_loads
+    if fl is None or not cg_cases.flight_cases(project):
+        return []
+    from .modules.flight_envelope import balance_configs
+    try:
+        configs = balance_configs(project.aero_coeffs)
+    except MissingInputError:
+        # A set with no stall CL is its own refusal (#81) -- this check stays
+        # silent rather than guessing which configs would have been in play.
+        return []
+    unset = []
+    if any(not c.flaps_down for c in configs) and fl.xtc <= 0.0:
+        unset.append("`xtc` (flaps up)")
+    if (any(c.flaps_down for c in configs)
+            and any(alt <= 0.0 for alt in fl.altitudes_ft) and fl.xtf <= 0.0):
+        unset.append("`xtf` (flaps down)")
+    if not unset:
+        return []
+    return [ConsistencyWarning(
+        "tail_cp_station_unset",
+        "Tail centre-of-pressure station(s) " + " and ".join(unset)
+        + " are 0 / unset. A tail CP at the datum sign-flips the tail arm, so "
+        "the balance would run clean and silently wrong — the Flight Envelope "
+        "refuses to run while one is unset. Enter the fuselage station of the "
+        "horizontal-tail centre of pressure.",
+        PAGE_FLIGHT)]
 
 
 def _check_mass_items_in_body(project: Project) -> List[ConsistencyWarning]:
@@ -670,6 +716,18 @@ def _check_landing_hierarchy(project: Project) -> List[ConsistencyWarning]:
             f"The '{fwd_light.name}' loading weighs {fwd_light.weight_lb:,.0f} lb, more "
             f"than the max landing weight {w_land:,.0f} lb. It is the *light* corner of "
             "the landing envelope (UG fig 18.2).",
+            PAGE_LANDING))
+    elif w_land > 0 and abs(fwd_light.weight_lb - w_land) <= 1e-6:
+        # The role encodes a claim the numbers must honour (C210-14): a case
+        # tagged fwd_light at exactly the max landing weight is consumed in the
+        # light-forward slot while answering the heavy question -- the reaction
+        # table's labels then say something its numbers do not.
+        out.append(ConsistencyWarning(
+            "landing_light_not_lighter",
+            f"The '{fwd_light.name}' loading is tagged `fwd_light` but weighs the max "
+            f"landing weight {w_land:,.0f} lb exactly. The role claims the light corner "
+            "of the landing envelope (UG fig 18.2) -- LANDLOAD will consume it in the "
+            "light-forward slot while its numbers answer the heavy case.",
             PAGE_LANDING))
     if w_land > 0:
         off = [c for c in (aft, fwd_max) if abs(c.weight_lb - w_land) > 1e-6]
@@ -1255,6 +1313,7 @@ def consistency_warnings(project: Project) -> List[ConsistencyWarning]:
     out += _check_area_mismatch(project)
     out += _check_cg_envelope(project)
     out += _check_cg_cases_have_weight(project)
+    out += _check_tail_cp_stations(project)
     out += _check_mass_items_in_body(project)
     out += _check_operational_targets(project)
     out += _check_dive_speed_basis(project)

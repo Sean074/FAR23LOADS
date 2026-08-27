@@ -600,6 +600,53 @@ def test_every_warning_targets_a_real_page():
     assert emitted <= keys, f"emitted page tags outside workflow: {emitted - keys}"
 
 
+def test_tail_cp_station_unset_fires():
+    """C210-21 (#99): ``xtc`` = 0 flows straight into the tail arm, putting the
+    tail CP at the datum -- ahead of the CG -- and the balance runs clean and
+    silently wrong. Warned on the Flight Envelope page before anything runs."""
+    project = sloads_io.load_project(_GA)
+    project.flight_loads.xtc = 0.0
+    assert "tail_cp_station_unset" in _codes(project, page="flight_envelope")
+    said = " ".join(w.message for w in consistency_warnings(project)
+                    if w.code == "tail_cp_station_unset")
+    assert "xtc" in said and "sign-flips" in said, said
+
+
+def test_tail_cp_xtf_fires_with_a_flaps_down_set():
+    """The GA example has no flaps-down set, so ``xtf`` is unread there; give
+    it one and the flaps-down station becomes load-bearing."""
+    from dataclasses import replace
+
+    project = sloads_io.load_project(_GA)
+    project.aero_coeffs.flaps_down = replace(
+        project.aero_coeffs.cruise, name="LANDING", flaps_down=True)
+    project.flight_loads.xtf = 0.0
+    assert "tail_cp_station_unset" in _codes(project, page="flight_envelope")
+    said = " ".join(w.message for w in consistency_warnings(project)
+                    if w.code == "tail_cp_station_unset")
+    assert "xtf" in said and "flaps up" not in said, said
+
+
+def test_tail_cp_xtf_not_required_without_a_flaps_down_set():
+    """Only stations a config in play will read are required -- the GA example
+    has no flaps-down set, so its ``xtf`` may be anything."""
+    project = sloads_io.load_project(_GA)
+    project.flight_loads.xtf = 0.0
+    assert "tail_cp_station_unset" not in _codes(project)
+
+
+def test_landing_light_not_lighter_fires():
+    """C210-14 (#99): the role encodes a claim about the numbers -- a case
+    tagged ``fwd_light`` at exactly the max landing weight is consumed in the
+    light-forward slot while answering the heavy question."""
+    from dataclasses import replace
+
+    project = _ga_with_ground_cases(
+        lambda c: replace(c, weight_lb=3230.0)
+        if c.role is not None and c.role.value == "fwd_light" else c)
+    assert "landing_light_not_lighter" in _codes(project, page="landing_loads")
+
+
 if __name__ == "__main__":
     import traceback
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

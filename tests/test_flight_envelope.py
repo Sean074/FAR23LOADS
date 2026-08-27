@@ -465,6 +465,24 @@ def test_a_set_with_no_stall_cl_is_refused_by_name_not_divided_by():
         raise AssertionError("a zero stall CL must be refused, not divided by")
 
 
+def test_a_zero_tail_cp_station_is_refused_by_name_not_balanced():
+    """C210-21 (#99): ``xtc``/``xtf`` = 0 flow straight into the tail arm
+    (``xt - xcg``), so the field's default puts the tail CP at the datum --
+    tens of inches ahead of the CG -- sign-flips the arm, and balances cleanly
+    to a plausible-looking, silently wrong matrix. A tail CP at the datum is
+    never a real airplane, so it is refused by name, not balanced."""
+    from sloads.models import MissingInputError
+
+    project = io.load_project(_GA)
+    project.flight_loads.xtc = 0.0
+    try:
+        build_envelope(project)
+    except MissingInputError as exc:
+        assert "xtc" in str(exc) and "sign-flips" in str(exc), str(exc)
+    else:
+        raise AssertionError("a zero tail CP station must be refused, not balanced")
+
+
 def test_a_weightless_cg_case_is_refused_by_name_not_divided_by():
     """A case with no weight is not a light airplane (code review 2026-08-24).
 

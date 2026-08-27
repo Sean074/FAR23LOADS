@@ -1329,9 +1329,16 @@ def render_step(key: str) -> None:
     # because the file it would write is every page's.
     layout_problem = ctx.project.engine_layout_problem()
     if layout_problem:
-        page = wf.BY_KEY[fr.entry("engine_layout").page].title
+        # Both owning pages resolved from the registry, so the message follows
+        # any re-tag -- since C210-44 (#99) the layout is entered on Geometry
+        # while the engine rows stay on Engine Mount Loads, so the two are
+        # named separately.
+        layout_page = wf.BY_KEY[fr.entry("engine_layout").page].title
+        engines_page = wf.BY_KEY[fr.entry("engines[].engine_designation").page].title
+        where = (f"the {layout_page} page" if layout_page == engines_page
+                 else f"the {layout_page} (layout) and {engines_page} (engine rows) pages")
         problems.append(f"{layout_problem} -- set the engine layout and the engine "
-                        f"rows to agree on the {page} page.")
+                        f"rows to agree on {where}.")
     if problems:
         for problem in problems:
             st.error(problem)
