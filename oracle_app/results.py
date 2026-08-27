@@ -66,12 +66,11 @@ from sloads.modules.taildist import build_tail_chordwise
 from sloads.modules.weight_estimate import ADVISORY as _ESTIMATE_ADVISORY
 from sloads.modules.weight_estimate import compare_with_itemized
 from sloads.report import (
+    SUMMARY_GROUP_BY,
     csv_comment_block,
     format_value,
-    has_load_case_data,
-    load_cases_to_rows,
     module_text_report,
-    results_to_rows,
+    summary_rows,
 )
 
 #: What a page states about the loads in one block. The oracle GUI never applies
@@ -165,6 +164,12 @@ class ResultBlock(NamedTuple):
     #: -- an item data base that never said which beam carries the wing, a
     #: wing-mass tie that does not close. Shown as warnings above the table.
     warnings: Tuple[str, ...] = ()
+    #: Column to group the rows by on screen (#95, C210-27): a one-line-per-
+    #: case shape renders one sub-table per value of this column (per
+    #: component, the M2-4 Results Review layout), each dropping the quantity
+    #: columns that whole group leaves at "—". The artifacts keep the rows
+    #: flat -- same rows, same columns, one CSV.
+    group_by: str = ""
 
 
 class StationTable(NamedTuple):
@@ -216,8 +221,12 @@ def _module_block(project: Project, name: str, system: UnitSystem) -> ResultBloc
     if not display:
         return ResultBlock(name, title, note=f"{title} produced no conditions.")
 
-    rows = (load_cases_to_rows(display) if has_load_case_data(display)
-            else results_to_rows(display))
+    # The one summary-shape dispatch (#95, C210-8/27): the same rows the CSV
+    # below is written from, so the screen and the export cannot print one
+    # data set two ways. SELECT renders one line per case with its per-case
+    # SF (the owner directive); WTENV one row per weight/station point;
+    # everything else the data-shaped generic table.
+    rows = summary_rows(name, display)
     artifacts = (
         Artifact(f"{title} (CSV)", f"{name}.csv", "text/csv",
                  sloads_io.load_cases_csv(result,
@@ -228,7 +237,8 @@ def _module_block(project: Project, name: str, system: UnitSystem) -> ResultBloc
     )
     advisory = MODULE_ADVISORIES.get(name)
     return ResultBlock(name, title, ULTIMATE, tuple(rows), artifacts,
-                       advisory=advisory(project, system) if advisory else "")
+                       advisory=advisory(project, system) if advisory else "",
+                       group_by=SUMMARY_GROUP_BY.get(name, ""))
 
 
 def _station_block(project: Project, name: str, system: UnitSystem) -> ResultBlock:
@@ -322,11 +332,53 @@ def weight_estimate_advisory(project: Project, system: UnitSystem) -> str:
     return f"{_ESTIMATE_ADVISORY} " + "; ".join(parts) + "."
 
 
+def select_inertia_advisory(project: Project, _system: UnitSystem) -> str:
+    """SELECT's block caption: which inertias are estimates (#95, C210-25).
+
+    The checked-maneuver Iyy and the side-gust default IZZ are SELECT.BAS's
+    statistical rod estimates -- faithful to the original, and measured +34 %
+    / +49 % over WTONECG's database values on the C210 (about 10 % on the
+    checked-man tail load, conservative direction) with nothing on the page
+    saying an estimate was in play. Said as a caption, not a warning: the
+    numbers are behaving exactly as designed (the C210-9 argument). The IZZ
+    override's own field carries the rod default beside it on the Geometry
+    page (``field_registry``); the rod numbers here are quoted from the same
+    resolvers the calc uses, and the database comparison from ``Project.mass``
+    when WTONECG has run. Inertias are quoted in slug-ft^2 in either unit
+    system -- neither channel converts them.
+    """
+    from sloads.constants import LBIN2_PER_SLUGFT2
+    from sloads.modules.select import default_side_gust_izz
+
+    text = ("Inertias: the checked-maneuver pitch inertia Iyy "
+            "(0.44\u00b7W\u00b7L\u00b2/12g) and the side-gust yaw inertia IZZ "
+            "(wing + fuselage slender rods; overridable on the Geometry page's "
+            "v-tail IZZ field) are SELECT.BAS **statistical rod estimates**, "
+            "not the item data base.")
+    vt = project.vtail_loads
+    if vt is not None and vt.izz_slugft2:
+        text += (f" IZZ here is the typed override, {vt.izz_slugft2:,.0f} "
+                 "slug-ft\u00b2.")
+    else:
+        izz_rod = default_side_gust_izz(project)
+        if izz_rod is not None:
+            text += f" The rod IZZ in use is {izz_rod:,.0f} slug-ft\u00b2."
+    mass = project.mass
+    if mass is not None and mass.cases:
+        heaviest = max(mass.cases, key=lambda c: c.weight_lb)
+        text += (" For comparison, WTONECG's item-database inertias at the "
+                 f"heaviest loading ({heaviest.name}): Iyy "
+                 f"{heaviest.iyy / LBIN2_PER_SLUGFT2:,.0f}, IZZ "
+                 f"{heaviest.izz / LBIN2_PER_SLUGFT2:,.0f} slug-ft\u00b2.")
+    return text
+
+
 #: Per-module block captions, keyed the same way :data:`STATION_WARNINGS` is:
 #: what a program *is* belongs to the program, so the page looks it up rather
 #: than naming WTESTIMA in a renderer (gate G2).
 MODULE_ADVISORIES: Dict[str, Callable[[Project, UnitSystem], str]] = {
     "weight_estimate": weight_estimate_advisory,
+    "select": select_inertia_advisory,
 }
 
 
@@ -374,6 +426,27 @@ def page_artifacts(project: Project, key: str,
 # --------------------------------------------------------------------------- #
 # Rendering
 # --------------------------------------------------------------------------- #
+def _block_frames(block: ResultBlock) -> List[Tuple[str, pd.DataFrame]]:
+    """The dataframes one block renders: the whole table, or one per
+    ``group_by`` value (#95, C210-27).
+
+    A grouped block (SELECT) renders one sub-table per component, each with
+    the quantity columns that component actually fills -- the union columns a
+    group leaves entirely at "\u2014" are dropped, and the grouping column
+    itself becomes the sub-table's title. Same rows as the CSV artifact either
+    way; this is presentation, not a second shape.
+    """
+    frame = pd.DataFrame(list(block.rows))
+    if not block.group_by or block.group_by not in frame.columns:
+        return [("", frame)]
+    out: List[Tuple[str, pd.DataFrame]] = []
+    for value in dict.fromkeys(frame[block.group_by]):
+        sub = frame[frame[block.group_by] == value].drop(columns=[block.group_by])
+        keep = [c for c in sub.columns if not (sub[c] == "\u2014").all()]
+        out.append((str(value), sub[keep]))
+    return out
+
+
 def render_results(project: Project, key: str, system: UnitSystem) -> None:
     """Render one oracle page's results, downloads included."""
     blocks = step_results(project, key, system)
@@ -398,8 +471,10 @@ def render_results(project: Project, key: str, system: UnitSystem) -> None:
             st.caption(block.advisory)
         for warning in block.warnings:
             st.warning(warning)
-        st.dataframe(pd.DataFrame(list(block.rows)), hide_index=True,
-                     width="stretch")
+        for subtitle, frame in _block_frames(block):
+            if subtitle:
+                st.markdown(f"**{subtitle}**")
+            st.dataframe(frame, hide_index=True, width="stretch")
         # ``st.columns(0)`` raises, so a block with rows and no download would
         # take the whole page down with it -- a real mechanism with no live
         # trigger today, every result block that reaches here happening to carry
@@ -418,5 +493,5 @@ def render_results(project: Project, key: str, system: UnitSystem) -> None:
 __all__ = [
     "LIMIT", "MODULE_ADVISORIES", "STATION_TABLES", "STATION_WARNINGS", "ULTIMATE",
     "Artifact", "ResultBlock", "StationTable", "page_artifacts", "render_results",
-    "step_results", "weight_estimate_advisory",
+    "select_inertia_advisory", "step_results", "weight_estimate_advisory",
 ]

@@ -115,7 +115,7 @@ from .models import (
     WingStationLoad,
     default_fuselage_outline,
 )
-from .report import has_load_case_data, load_cases_to_rows, results_to_rows
+from .report import summary_rows
 from .units import UnitSystem, convert_results, unit_system_from
 from .validation import safety_factor_valid
 
@@ -1557,8 +1557,11 @@ def load_cases_csv(
 
     Load-producing modules emit one row per structural load case; modules that
     emit a property table instead (e.g. the mass-properties modules, whose
-    ``ConditionResult``s carry no load-case labels) fall back to the generic
-    quantity-per-row table so they still export a useful CSV.
+    ``ConditionResult``s carry no load-case labels) render their
+    **data-shaped** summary table (#95, C210-8/27): a registered
+    ``report.SUMMARY_SHAPES`` shape (SELECT one line per case, WTENV one row
+    per weight/station point), else the generic quantity-per-row table with
+    its all-empty columns dropped.
 
     ``header_comment`` (Step G8.3) is prepended verbatim -- pass
     ``report.csv_comment_block(project)`` so a CSV forwarded on its own still
@@ -1577,7 +1580,11 @@ def load_cases_csv(
     ``N`` has no SI mapping, but not something to rely on).
     """
     conditions = convert_results(_as_conditions(results), system)
-    rows = load_cases_to_rows(conditions) if has_load_case_data(conditions) else results_to_rows(conditions)
+    # The one summary-shape dispatch (#95, C210-8/27): the same rows the
+    # on-screen table shows -- re-shaping one channel alone would print the
+    # same data two ways. A bare list carries no module name and gets the
+    # generic shapes.
+    rows = summary_rows(getattr(results, "module", ""), conditions)
     if not rows:
         return ""
     import io as _io

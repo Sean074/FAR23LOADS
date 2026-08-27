@@ -144,6 +144,34 @@ def wing_layout_from_surface(surf: SurfaceInput) -> Dict[str, float]:
     }
 
 
+def parametric_wing_seed(project, _record: object = None) -> Dict[str, float]:
+    """The parametric-wing scalars a seed button would write, or ``{}`` (#95).
+
+    C210-1 / the GR-GEOM-3 ruling: a project that already carries an
+    integrable ``wing`` planform (imported, or built surface-first) should
+    seed the five scalars the polylines determine -- area, AR, taper, LE
+    sweep, LE root station -- instead of asking for them from blank. Answers
+    only while the parametric wing is **not entered** (area or AR still 0,
+    the :func:`wing_planform` gate): once the block is typed, the typed block
+    governs whole and the seed offer is withdrawn. Empty when there is no
+    usable ``wing`` surface either. Consumed by the oracle Geometry page
+    through ``field_registry.RECORD_SEEDS`` (the same
+    :func:`wing_layout_from_surface` the main GUI's seed button calls), so
+    the two front-ends offer one behaviour (the C210-1 OG-4/G8 class).
+    """
+    geom = project.geometry
+    layout = geom.parametric if geom is not None else None
+    surf = geom.by_name("wing") if geom is not None else None
+    if layout is None or surf is None:
+        return {}
+    if layout.wing_area_sqft > 0 and layout.aspect_ratio > 0:
+        return {}
+    try:
+        return wing_layout_from_surface(surf)
+    except (ValueError, ZeroDivisionError, IndexError):
+        return {}
+
+
 # V-tail panels have no dedicated dihedral field (Step: tail-type usability pass);
 # a fixed typical value keeps the sketch simple. Documented so a refinement is a
 # one-line change, same convention as the neutral-point assumptions above.

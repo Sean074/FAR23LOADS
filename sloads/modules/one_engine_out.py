@@ -388,7 +388,12 @@ def _load_cases(project: Project, oeo: OneEngineOutInput) -> List[_LoadCase]:
 def _case_inputs(project: Project, v_kt: float) -> CaseInputs:
     """Assemble the scalar simulation inputs for one speed from the project slices."""
     oeo = project.one_engine_out
-    vt: Optional[VTailLoadsInput] = project.vtail_loads
+    # Through SELECT's effective v-tail inputs (#95, C210-5): a blank rudder
+    # area SR derives from its hinge halves there, and the 23.367 simulation
+    # must size the same rudder SELECT does.
+    from .select import effective_vtail_inputs
+
+    vt: Optional[VTailLoadsInput] = effective_vtail_inputs(project)
     if oeo is None:
         raise MissingInputError("one_engine_out needs the 'one_engine_out' input slice")
     if vt is None:

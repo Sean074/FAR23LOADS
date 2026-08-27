@@ -1023,6 +1023,31 @@ def render_field(record: Any, path: str, *, key: str, container: Any = None,
 _COLUMNS = 3
 
 
+def _offer_record_seed(project: Project, prefix: str, record: Any) -> None:
+    """The registry's record-seed button, when it has something to offer (#95).
+
+    ``field_registry.RECORD_SEEDS`` (C210-1 / GR-GEOM-3): a record whose blank
+    block can be filled from values the project already holds -- the
+    parametric wing from a typed ``wing`` planform -- offers those values
+    behind a button naming each one. A button, not a derive: a page visit
+    must not dirty a project (OG-F), and the seeded values land through the
+    normal entry path, editable like anything typed. Withdrawn (the seed
+    answers ``{}``) once the block is typed or the source is absent.
+    """
+    seed = fr.RECORD_SEEDS.get(prefix)
+    if seed is None:
+        return
+    values = seed(project, record)
+    if not values:
+        return
+    shown = ", ".join(f"{_field_label(f'{prefix}.{name}')} {_shown(f'{prefix}.{name}', value)}"
+                      for name, value in values.items())
+    if st.button(f"Seed from the wing planform \u2192 {shown}",
+                 key=widget_key(f"_seed.{prefix}")):
+        for name, value in values.items():
+            _set_entered(record, name, float(value))
+
+
 def render_record(project: Project, prefix: str, paths: Sequence[str]) -> None:
     """One non-list record: its scalars in a grid, its composites underneath."""
     record = record_at(project, prefix)
@@ -1030,6 +1055,7 @@ def render_record(project: Project, prefix: str, paths: Sequence[str]) -> None:
         st.warning(f"`{prefix}` cannot be created on this project.")
         return
 
+    _offer_record_seed(project, prefix, record)
     scalars = [p for p in paths if not is_composite(fr.field_type(p))]
     composites = [p for p in paths if is_composite(fr.field_type(p))]
 
@@ -1305,12 +1331,17 @@ def page_groups(key: str) -> List[Tuple[str, List[str]]]:
     field on a page the registry does not put there.
     """
     keep = fr.oracle_input_paths()
-    groups: Dict[str, List[str]] = {}
+    groups: Dict[Tuple[str, str], List[str]] = {}
     for row in fr.REGISTRY:
         if row.page != key or row.path not in keep:
             continue
-        groups.setdefault(fr.record_of(row.path), []).append(row.path)
-    return list(groups.items())
+        # Grouped by record prefix *and* display-group title (#95, C210-6):
+        # a titled path renders in its own section even beside untitled
+        # fields of the same record, so a wing quantity that lives on a tail
+        # record for SELECT's convenience stops rendering as tail data.
+        title = fr.DISPLAY_GROUPS.get(row.path, "")
+        groups.setdefault((fr.record_of(row.path), title), []).append(row.path)
+    return [(prefix, paths) for (prefix, _title), paths in groups.items()]
 
 
 def _page_has_grid(groups: Sequence[Tuple[str, Sequence[str]]]) -> bool:
@@ -1388,7 +1419,11 @@ def render_step(key: str) -> None:
                 "count back down and delete it."
             )
         for prefix, paths in groups:
-            st.subheader(pretty(prefix.rstrip(fr.LIST_MARKER).rsplit(".", 1)[-1] or "Project"))
+            # The display-group title wins over the record name (#95, C210-6):
+            # page_groups splits titled paths into their own group, so one
+            # lookup on the group's first path names the whole section.
+            st.subheader(fr.DISPLAY_GROUPS.get(paths[0])
+                         or pretty(prefix.rstrip(fr.LIST_MARKER).rsplit(".", 1)[-1] or "Project"))
             # The caption is the schema path, as code. The root group has no
             # path, so it says what it is instead of rendering ``(project)`` in
             # backticks -- which reads as a path, and there is no such path

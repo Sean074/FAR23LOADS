@@ -567,6 +567,53 @@ def _limnz(project: Project, _record: object = None) -> Optional[float]:
         return None
 
 
+def _fuselage_length(project: Project, _record: object = None) -> Optional[float]:
+    """The outline's own length -- what ``sync_geometry_derived`` overwrites the
+    ``fuselage_length`` scalar with on every run (#95, C210-2)."""
+    from sloads.derived_geometry import fuselage_summary
+
+    fus = project.geometry.fuselage if project.geometry is not None else None
+    if fus is None:
+        return None
+    summary = fuselage_summary(fus)
+    return summary[0] if summary else None
+
+
+def _elevator_area(project: Project, _record: object = None) -> Optional[float]:
+    ti = project.tail_loads
+    if ti is None:
+        return None
+    total = ti.elevator_fwd_hinge_sqft + ti.elevator_aft_hinge_sqft
+    return total or None
+
+
+def _rudder_area(project: Project, _record: object = None) -> Optional[float]:
+    vt = project.vtail_loads
+    if vt is None:
+        return None
+    total = vt.rudder_fwd_hinge_sqft + vt.rudder_aft_hinge_sqft
+    return total or None
+
+
+def _wing_span(project: Project, _record: object = None) -> Optional[float]:
+    from sloads.derived_geometry import wing_span_in
+
+    return wing_span_in(project)
+
+
+def _side_gust_izz(project: Project, _record: object = None) -> Optional[float]:
+    from sloads.modules.select import default_side_gust_izz
+
+    return default_side_gust_izz(project)
+
+
+def _select_wing_weight(project: Project, _record: object = None) -> Optional[float]:
+    from sloads.cg_cases import max_takeoff_weight
+
+    mtow = max_takeoff_weight(project, required=False)
+    return 0.09 * mtow if mtow else None
+
+
 def _mass_row(project: Project, record: object, selector_attr: str):
     from sloads.models import same_name
 
@@ -610,14 +657,30 @@ EXTERNAL_VALUES: Dict[str, "typing.Callable[..., object]"] = {
     "engines[].engine_cg": _mass_row_value("engine_mass_item", lambda r: (r.x, r.y, r.z)),
     "engines[].prop_weight_lb": _mass_row_value("prop_mass_item", lambda r: r.weight_lb),
     "engines[].prop_cg": _mass_row_value("prop_mass_item", lambda r: (r.x, r.y, r.z)),
+    # The #95 additions (C210-2/3/5/22/25): the SELECT copies and derivable
+    # geometry the C210 build was asked to type by hand.
+    "geometry.parametric.fuselage_length": _fuselage_length,
+    "geometry.empennage.htail.elevator_area_sqft": _elevator_area,
+    "geometry.empennage.vtail.rudder_area_sqft": _rudder_area,
+    "geometry.empennage.vtail.wing_span_in": _wing_span,
+    "geometry.empennage.vtail.izz_slugft2": _side_gust_izz,
+    "select_input.wing_weight_lb": _select_wing_weight,
 }
 
 #: The paths whose calc contract is note 36's **falsy-means-derive /
 #: typed-means-override** (OV-1). Enumerated once, here, and guarded by
 #: OV-11's drift test: every member carries a non-empty ``derived_from`` and a
 #: resolver above, and the GUI renders the resolver's value beside the field.
+#: Two resolver-backed rows are **not** overrides and stand outside the set:
+#: ``speeds.wing_area_sqft`` (the consumer resolves the planform; the widget
+#: goes live only when there is none) and ``geometry.parametric.fuselage_length``
+#: (a derived outline summary ``sync_geometry_derived`` overwrites -- #95,
+#: C210-2 -- so it renders disabled once an outline exists, never as an
+#: override).
+_NOT_COLLAPSED: Tuple[str, ...] = (
+    "speeds.wing_area_sqft", "geometry.parametric.fuselage_length")
 COLLAPSED_OVERRIDES: Tuple[str, ...] = tuple(
-    path for path in EXTERNAL_VALUES if path != "speeds.wing_area_sqft")
+    path for path in EXTERNAL_VALUES if path not in _NOT_COLLAPSED)
 
 
 def external_value(path: str, project: Project, record: object = None):
@@ -628,6 +691,51 @@ def external_value(path: str, project: Project, record: object = None):
     """
     resolver = EXTERNAL_VALUES.get(path)
     return None if resolver is None else resolver(project, record)
+
+
+#: Page-section titles that follow the **quantity**, not the dataclass (#95,
+#: C210-6/22). The oracle form groups widgets by record prefix, so a wing
+#: quantity that *lives* on a tail record for SELECT's convenience rendered
+#: under a "Htail" heading -- and the owner read it as tail data. A path here
+#: renders in its own titled section (still on its record: the caption keeps
+#: the schema path) on whatever page its registry row names; paths sharing one
+#: (page, record) must share one title (guarded in
+#: ``tests/test_field_registry.py``).
+DISPLAY_GROUPS: Dict[str, str] = {
+    "geometry.empennage.htail.aspect_ratio_wing":
+        "Wing aerodynamics (SELECT tail balance)",
+    "geometry.empennage.htail.wing_lift_slope_per_rad":
+        "Wing aerodynamics (SELECT tail balance)",
+    "geometry.empennage.htail.wing_zero_lift_cruise_deg":
+        "Wing aerodynamics (SELECT tail balance)",
+    "geometry.empennage.htail.wing_zero_lift_enroute_deg":
+        "Wing aerodynamics (SELECT tail balance)",
+    "geometry.empennage.htail.wing_zero_lift_landing_deg":
+        "Wing aerodynamics (SELECT tail balance)",
+    "select_input.basic_airfoil_cm":
+        "Wing section pitching moment (SELECT roll torsion)",
+    "select_input.full_down_aileron_deg":
+        "SELECT steady-roll torsion",
+    "select_input.wing_weight_lb":
+        "Wing weight (SELECT fuselage conditions)",
+}
+
+
+def _parametric_seed(project: Project, record: object = None) -> Dict[str, float]:
+    from sloads.modules.configuration import parametric_wing_seed
+
+    return parametric_wing_seed(project, record)
+
+
+#: ``{record prefix: seed}`` -- records whose blank form can be filled from
+#: values the project already holds, behind an explicit button (#95, C210-1 /
+#: GR-GEOM-3). The seed answers ``{}`` when there is nothing to offer (the
+#: block is already typed, or the source is absent), and the button writes the
+#: returned fields through the normal entry path -- a page visit alone must
+#: not dirty a project (OG-F), which is why this is a button and not a derive.
+RECORD_SEEDS: Dict[str, "typing.Callable[..., Dict[str, float]]"] = {
+    "geometry.parametric": _parametric_seed,
+}
 
 
 #: When a ``SLOADS`` field may be marked :attr:`FieldEntry.supplied` (G5).
@@ -753,6 +861,9 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("geometry.surfaces[].tip_cap_width_in", _GEO, _SLDS,
        "rounded tip-cap width, note 36 OV-4 (C210-31): the planform rounding the polylines "
        "cannot carry; aero.surfaces[].tip_ratio falsy-derives from it / semi-span"),
+    # The five scalars a typed ``wing`` planform determines are seedable from
+    # it behind a button (#95, C210-1 / GR-GEOM-3): RECORD_SEEDS above offers
+    # ``configuration.parametric_wing_seed`` while the block is not yet typed.
     _E("geometry.parametric.wing_area_sqft", _GEO, _ORIG, "WINGGEOM reference area S", "wing reference area"),
     _E("geometry.parametric.aspect_ratio", _GEO, _ORIG, "WINGGEOM AR = b^2/S"),
     _E("geometry.parametric.taper_ratio", _GEO, _ORIG, "WINGGEOM tip/root chord"),
@@ -770,7 +881,14 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     # are not held equal on any fixture. Declaring it would assert a defect that
     # has not been demonstrated; it is raised in the OG-C closure instead.
     _E("geometry.parametric.fuselage_length", _GEO, _ORIG,
-       "overall length; summarised from geometry.fuselage.sections[].x when entered (Step M2-6)"),
+       "overall length; summarised from geometry.fuselage.sections[].x when entered "
+       "(Step M2-6; #95, C210-2: rendered disabled once an outline exists -- "
+       "sync_geometry_derived overwrites it on every run)",
+       derived_from=EXTERNAL + "the fuselage outline (derived_geometry."
+       "fuselage_summary; sync_geometry_derived keeps this scalar equal to it)",
+       resolves="With no fuselage outline entered yet, a typed length stands "
+       "(and seeds the outline when an older file loads); once outline "
+       "sections exist, the outline governs and this is its read-only summary."),
     _E("geometry.parametric.fuselage_width", _GEO, _SLDS, "derived outline summary, Step M2-6"),
     _E("geometry.parametric.fuselage_height", _GEO, _SLDS, "derived outline summary, Step M2-6"),
     # The outline itself is sloads (Step G1), but a section cannot be constructed
@@ -789,28 +907,39 @@ REGISTRY: Tuple[FieldEntry, ...] = (
 
     # geometry.empennage.htail -- SELECT's rational h-tail inputs (Ch 9)
     _E("geometry.empennage.htail.aspect_ratio_htail", _GEO, _ORIG, "SELECT ARHT"),
-    _E("geometry.empennage.htail.aspect_ratio_wing", _GEO, _ORIG, "SELECT ARW (downwash)",
+    _E("geometry.empennage.htail.aspect_ratio_wing", _AERO, _ORIG, "SELECT ARW (downwash); "
+       "a wing quantity, edited with the wing aero data (#95, C210-6 display group)",
        "wing planform aspect ratio",
        EXTERNAL + "the wing planform AR (derived_geometry.wing_aspect_ratio, the OV-5 "
        "consolidated owner; note 36 OV-2, C210-36)",
        governs=True),
     _E("geometry.empennage.htail.htail_area_sqft", _GEO, _ORIG, "SELECT ST"),
     _E("geometry.empennage.htail.htail_semispan_in", _GEO, _ORIG, "SELECT BLHTAIL"),
-    _E("geometry.empennage.htail.elevator_area_sqft", _GEO, _ORIG, "SELECT SE"),
+    _E("geometry.empennage.htail.elevator_area_sqft", _GEO, _ORIG,
+       "SELECT SE; blank derives as SEFWDHL + SEAFTHL -- one owner for the "
+       "elevator-area triple (#95, C210-5)",
+       derived_from=EXTERNAL + "its own hinge halves, SEFWDHL + SEAFTHL "
+       "(select.derived_elevator_area; a typed SE that disagrees warns, "
+       "validation.elevator_area_mismatch)",
+       governs=True),
     _E("geometry.empennage.htail.elevator_aft_hinge_sqft", _GEO, _ORIG, "SELECT SEAFTHL"),
     _E("geometry.empennage.htail.elevator_fwd_hinge_sqft", _GEO, _ORIG, "SELECT SEFWDHL"),
     _E("geometry.empennage.htail.elevator_te_down_deg", _GEO, _ORIG, "SELECT EDN"),
     _E("geometry.empennage.htail.elevator_te_up_deg", _GEO, _ORIG, "SELECT EUP"),
     _E("geometry.empennage.htail.elevator_effectiveness", _GEO, _ORIG, "SELECT dalpha/ddelta_e"),
     _E("geometry.empennage.htail.tail_incidence_deg", _GEO, _ORIG, "SELECT IT"),
-    _E("geometry.empennage.htail.wing_lift_slope_per_rad", _GEO, _ORIG, "SELECT AW",
+    _E("geometry.empennage.htail.wing_lift_slope_per_rad", _AERO, _ORIG, "SELECT AW; "
+       "a wing quantity, edited with the wing aero data (#95, C210-6 display group)",
        "wing lift-curve slope",
        EXTERNAL + "the cruise aero set's C1 x 57.3 (select.wing_lift_slope_per_rad; "
        "note 36 OV-2, C210-36)",
        governs=True),
-    _E("geometry.empennage.htail.wing_zero_lift_cruise_deg", _GEO, _ORIG, "SELECT IW (cruise)"),
-    _E("geometry.empennage.htail.wing_zero_lift_enroute_deg", _GEO, _ORIG, "SELECT IW (enroute)"),
-    _E("geometry.empennage.htail.wing_zero_lift_landing_deg", _GEO, _ORIG, "SELECT IW (landing)"),
+    _E("geometry.empennage.htail.wing_zero_lift_cruise_deg", _AERO, _ORIG,
+       "SELECT IW (cruise); wing aero, #95 C210-6 display group"),
+    _E("geometry.empennage.htail.wing_zero_lift_enroute_deg", _AERO, _ORIG,
+       "SELECT IW (enroute); wing aero, #95 C210-6 display group"),
+    _E("geometry.empennage.htail.wing_zero_lift_landing_deg", _AERO, _ORIG,
+       "SELECT IW (landing); wing aero, #95 C210-6 display group"),
     _E("geometry.empennage.htail.xt25", _GEO, _ORIG, "SELECT 25% tail MAC station"),
     _E("geometry.empennage.htail.xt50", _GEO, _ORIG, "SELECT 50% tail MAC station"),
 
@@ -819,16 +948,36 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("geometry.empennage.vtail.vtail_area_sqft", _GEO, _ORIG, "SELECT SV"),
     _E("geometry.empennage.vtail.vtail_mac_in", _GEO, _ORIG, "SELECT VMAC"),
     _E("geometry.empennage.vtail.vtail_span_in", _GEO, _ORIG, "SELECT BLHTAIL (v-tail span)"),
-    _E("geometry.empennage.vtail.rudder_area_sqft", _GEO, _ORIG, "SELECT SR"),
+    _E("geometry.empennage.vtail.rudder_area_sqft", _GEO, _ORIG,
+       "SELECT SR; blank derives as SRFWDHL + SRAFTHL -- one owner for the "
+       "rudder-area triple (#95, C210-5)",
+       derived_from=EXTERNAL + "its own hinge halves, SRFWDHL + SRAFTHL "
+       "(select.derived_rudder_area; a typed SR that disagrees warns, "
+       "validation.rudder_area_mismatch)",
+       governs=True),
     _E("geometry.empennage.vtail.rudder_aft_hinge_sqft", _GEO, _ORIG, "SELECT SRAFTHL"),
     _E("geometry.empennage.vtail.rudder_fwd_hinge_sqft", _GEO, _ORIG, "SELECT SRFWDHL"),
     _E("geometry.empennage.vtail.rudder_deflection_deg", _GEO, _ORIG, "SELECT RD"),
     _E("geometry.empennage.vtail.rudder_large_deflection_factor", _GEO, _ORIG, "SELECT EFV (subr 10000)"),
-    _E("geometry.empennage.vtail.wing_span_in", _GEO, _ORIG, "SELECT B"),
+    _E("geometry.empennage.vtail.wing_span_in", _GEO, _ORIG,
+       "SELECT B; blank derives from the WINGGEOM wing planform's own span "
+       "(#95, C210-3 -- the C210 build typed 440 in against the integrator's 441)",
+       "wing planform span",
+       EXTERNAL + "the wing planform span (derived_geometry.wing_span_in, the "
+       "WINGGEOM strip integral's span; select.effective_vtail_inputs)",
+       governs=True),
     _E("geometry.empennage.vtail.gross_weight_lb", _GEO, _ORIG, "SELECT GW", "max take-off weight",
        "weight.max_takeoff_weight_lb (MTOW SSOT G-14; review N1 instance 1)",
        governs=True),
-    _E("geometry.empennage.vtail.izz_slugft2", _GEO, _ORIG, "SELECT IZZ (0 -> computed)"),
+    _E("geometry.empennage.vtail.izz_slugft2", _GEO, _ORIG,
+       "SELECT IZZ; 0 -> the SELECT.BAS rod estimate, now disclosed (#95, "
+       "C210-25: it measured +49 % over WTONECG's database IZZ on the C210 "
+       "with nothing saying an estimate was in play)",
+       derived_from=EXTERNAL + "the rod-estimate default IZZ, two slender "
+       "rods over the span and airplane length (select.default_side_gust_izz, "
+       "SELECT.BAS 8884; WTONECG's database IZZ is disclosed beside the "
+       "results, not consumed)",
+       governs=True),
     _E("geometry.empennage.vtail.xv25", _GEO, _ORIG, "SELECT 25% v-tail MAC station"),
     _E("geometry.empennage.vtail.xv50", _GEO, _ORIG, "ONENGOUT camber-load station"),
     _E("geometry.empennage.vtail.vtail_root_waterline_z", _GEO, _SLDS, "v-tail root waterline, plan 09 (tail_span)"),
@@ -1099,14 +1248,26 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("flight_loads.xtc", _VN, _ORIG, "FLTLOADS tail CP, cruise"),
     _E("flight_loads.xtf", _VN, _ORIG, "FLTLOADS tail CP, flapped"),
 
-    # select_input -- SELECT beyond the V-n matrix (flight_envelope)
-    _E("select_input.basic_airfoil_cm", _VN, _ORIG, "SELECT basic airfoil CM, Ch 9"),
-    _E("select_input.full_down_aileron_deg", _VN, _ORIG, "SELECT full-down aileron, Ch 9",
+    # select_input -- SELECT beyond the V-n matrix. All three rows moved off
+    # the V-n page to the page their *quantity* belongs to (#95, C210-22
+    # display groups): the section cm with the aero data, the aileron travel
+    # with the aileron record, the wing weight with the weight data.
+    _E("select_input.basic_airfoil_cm", _AERO, _ORIG, "SELECT basic airfoil CM, Ch 9 "
+       "(the bare section cm at zero aileron for the 23.349(b) roll torsion -- "
+       "not the airplane-less-tail M0 beside it; #95, C210-22)"),
+    _E("select_input.full_down_aileron_deg", _AIL, _ORIG, "SELECT full-down aileron, "
+       "Ch 9; control geometry, edited with the aileron record (#95, C210-22)",
        "full-down aileron deflection",
        "aileron_loads.down_deflection_deg (blank derives from the AILERON travel; "
        "note 36 OV-2, C210-38 -- a typed disagreement warns, aileron_deflection_mismatch)",
        governs=True),
-    _E("select_input.wing_weight_lb", _VN, _ORIG, "SELECT wing weight, Ch 9"),
+    _E("select_input.wing_weight_lb", _WT, _ORIG, "SELECT wing weight, Ch 9; a weight "
+       "quantity, edited with the weight data (#95, C210-22 -- the 0 -> 0.09*MTOW "
+       "fallback was undisclosed on the page)",
+       derived_from=EXTERNAL + "the Ch 9 statistical stand-in 0.09 x MTOW "
+       "(select.select_fuselage; the items table's wing-component sum is the "
+       "better number to type -- both-sides total wing group weight)",
+       governs=True),
 
     # ----------------------------------------------------------------- #
     # aero -- AIRLOADS/AIRLOAD4/TAU per-surface inputs (wing_loads)

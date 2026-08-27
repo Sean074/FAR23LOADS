@@ -602,17 +602,30 @@ def control_load_parts(project: Project, cond: CriticalCondition,
     that is the part the control surface's deflection produces and there is
     nothing in a derived scalar to split.
     """
-    from .select import elevator_load_parts, rudder_load_parts
+    from dataclasses import replace
+
+    from .select import (
+        derived_elevator_area,
+        effective_vtail_inputs,
+        elevator_load_parts,
+        rudder_load_parts,
+    )
 
     published = _value(cond, "elevator_load" if component == HTAIL
                        else "load_on_rudder")
     if published is not None:
+        # With the derived SE/SR, not the raw slice (#95, C210-5): a blank
+        # SE/SR derives from its hinge halves for SELECT, so the split read
+        # back out here must see the same areas SELECT computed with.
         if component == HTAIL and project.tail_loads is not None:
-            cam, att = elevator_load_parts(cond.lt50 or 0.0, cond.lt25 or 0.0,
-                                           project.tail_loads)
+            ti = project.tail_loads
+            cam, att = elevator_load_parts(
+                cond.lt50 or 0.0, cond.lt25 or 0.0,
+                replace(ti, elevator_area_sqft=derived_elevator_area(ti)))
         elif component == VTAIL and project.vtail_loads is not None:
-            cam, att = rudder_load_parts(cond.lt50 or 0.0, cond.lt25 or 0.0,
-                                         project.vtail_loads)
+            vt = effective_vtail_inputs(project)
+            assert vt is not None  # guarded by the elif above
+            cam, att = rudder_load_parts(cond.lt50 or 0.0, cond.lt25 or 0.0, vt)
         else:                                     # pragma: no cover - guarded above
             cam, att = published, 0.0
         return cam, att, (

@@ -14,7 +14,7 @@ text output (see CLAUDE.md's ultimate-load contract).
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from ..case_ids import NO_LOAD_ID, deck_load_id
 from ..constants import ULTIMATE_FACTOR
@@ -152,6 +152,13 @@ def results_to_rows(results: List[ConditionResult]) -> List[Dict[str, str]]:
     the case ``safety_factor``, carry the ``-ULT`` marker in their units string and
     that factor in the ``SF`` column; non-load quantities (weights, positions,
     inertias, load factors) pass through unscaled with plain units and a blank ``SF``.
+
+    **Data-shaped floor (#95, C210-8, owner directive):** a column that is
+    empty in every row is dropped, so a property-table module (geometry, mass
+    properties) renders as Condition / FAR / Quantity / Value / Units instead
+    of carrying the load-case table's blank ID / Component / CG / Speed /
+    Altitude / SF columns -- and a module whose conditions do carry case
+    identity keeps exactly the columns its data fills.
     """
     rows: List[Dict[str, str]] = []
     for r in results:
@@ -174,7 +181,10 @@ def results_to_rows(results: List[ConditionResult]) -> List[Dict[str, str]]:
                     "SF": format_value(r.safety_factor) if is_load else "",
                 }
             )
-    return rows
+    empty = {col for col in (rows[0] if rows else {})
+             if all(not row[col] for row in rows)}
+    return [{col: cell for col, cell in row.items() if col not in empty}
+            for row in rows]
 
 
 # --------------------------------------------------------------------------- #
@@ -249,6 +259,19 @@ def governing_loads_table(
             row[header] = format_value(to_ultimate(lv.value, lv.units, lv.quantity, sf))
         partial.append(row)
 
+    return _union_rows(partial, base_cols, load_cols)
+
+
+def _union_rows(partial: List[Dict[str, object]], base_cols: List[str],
+                load_cols: List[str]) -> List[Dict[str, object]]:
+    """Square per-condition dicts up over the union of quantity columns.
+
+    The one-line-per-case core shared by :func:`governing_loads_table` and
+    :func:`critical_rows` (#95, C210-27 -- M2-4's "cannot diverge" argument,
+    kept structural): conditions carry different label sets, so every row gets
+    every column, absent cells as ``"—"``, and the per-row ``SF`` closes the
+    row.
+    """
     rows: List[Dict[str, object]] = []
     for row in partial:
         full: Dict[str, object] = {col: row.get(col, "—") for col in base_cols}
@@ -257,6 +280,156 @@ def governing_loads_table(
         full["SF"] = row["SF"]
         rows.append(full)
     return rows
+
+
+def critical_rows(results: List[ConditionResult]) -> List[Dict[str, object]]:
+    """One row per critical condition -- SELECT's summary shape (#95, C210-27).
+
+    The owner directive ("the SELECT table should be one line per case") for
+    the channels that hold :class:`ConditionResult`\\ s rather than
+    :class:`CriticalCondition`\\ s -- the module CSV and the oracle results
+    page. Same semantics as :func:`governing_loads_table` through the same
+    helpers (``to_ultimate`` / ``ultimate_units`` / ``deck_load_id`` /
+    :func:`_union_rows`): every *load* cell is ULTIMATE by **that row's own**
+    ``safety_factor``, stated in the trailing ``SF`` column; dimensionless and
+    speed quantities pass through unscaled. Values are rendered in whatever
+    units the results already carry -- convert first, as every rows caller
+    does. The stacked one-row-per-quantity shape this replaces put SELECT's 27
+    conditions on ~150 rows with the per-case SF invisible wherever a wing
+    case's quantities were all non-loads.
+    """
+    base_cols = ["ID", "LOAD", "Component", "Condition", "FAR"]
+    load_cols: List[str] = []
+    seen = set()
+    partial: List[Dict[str, object]] = []
+    for r in results:
+        ref = r.case_ref
+        row: Dict[str, object] = {
+            "ID": ref.case_id if ref else "—",
+            "LOAD": (deck_load_id(ref.case_id) or NO_LOAD_ID) if ref else NO_LOAD_ID,
+            "Component": ref.component if ref else "—",
+            "Condition": r.title,
+            "FAR": r.far_reference,
+            "SF": format_value(r.safety_factor),
+        }
+        for lv in r.values:
+            u = _ult_units(lv.units, lv.quantity)
+            header = f"{lv.label} ({u})" if u else lv.label
+            if header not in seen:
+                seen.add(header)
+                load_cols.append(header)
+            row[header] = format_value(
+                _ult(lv.value, lv.units, lv.quantity, r.safety_factor))
+        partial.append(row)
+    return _union_rows(partial, base_cols, load_cols)
+
+
+#: Weight/station pair-folding key suffixes (:func:`weight_station_rows`).
+_PAIR_SUFFIXES = ("_weight", "_station", "_point")
+
+
+def _pair_stem(key: str) -> str:
+    """The shared stem of a ``*_weight`` / ``*_station`` key pair.
+
+    Not a bounded search (test_convergence's #33 class): every pass strips
+    what it finds and the loop ends when a pass strips nothing.
+    """
+    stripped = True
+    while stripped:
+        stripped = False
+        for suffix in _PAIR_SUFFIXES:
+            if key.endswith(suffix):
+                key = key[: -len(suffix)]
+                stripped = True
+    return key
+
+
+def _pair_label(label: str) -> str:
+    """The folded row's name: the value label minus its weight/station word."""
+    words = label.split()
+    if words and words[-1].lower() in ("weight", "station"):
+        words = words[:-1]
+    if words and words[-1].lower() == "point":
+        words = words[:-1]
+    return " ".join(words) or label
+
+
+def weight_station_rows(results: List[ConditionResult]) -> List[Dict[str, object]]:
+    """WTENV's summary shape: one row per (weight, station) point (#95, C210-8).
+
+    The owner's Weight & Mass extension: the loading envelope as (weight,
+    station) rows rather than "Point N weight" / "Point N station" stacked
+    values, the CG-limit block as corner x (station, weight), and every paired
+    "X weight / X station" folded into one row per point. Pairing is by the
+    machine ``LoadValue.key`` (M4-9 -- labels are display text and free to
+    reword): keys reduce to a stem by stripping ``_weight`` / ``_station`` /
+    ``_point`` suffixes, and a stem holding both a weight and a station folds.
+    An unpaired value (a ballast "none" marker) keeps its full label and
+    leaves the other cell ``"—"``. Everything here is mass/geometry -- no load
+    quantity, no SF column (M4-8: the factor is stated where it is applied).
+    Units come from the values themselves, so a converted result set renders
+    its own system's headers.
+    """
+    weight_units = next((v.units for r in results for v in r.values
+                         if v.quantity == "mass"), "lb")
+    station_units = next((v.units for r in results for v in r.values
+                          if v.quantity != "mass"), "in")
+    weight_col = f"Weight ({weight_units})"
+    station_col = f"Station ({station_units})"
+    rows: List[Dict[str, object]] = []
+    for r in results:
+        by_stem: Dict[str, Dict[str, object]] = {}
+        for v in r.values:
+            stem = _pair_stem(v.key or v.label)
+            row = by_stem.get(stem)
+            if row is None:
+                row = by_stem[stem] = {
+                    "Condition": r.title, "FAR": r.far_reference,
+                    "Point": _pair_label(v.label),
+                    weight_col: "—", station_col: "—",
+                }
+                rows.append(row)
+            row[weight_col if v.quantity == "mass" else station_col] = \
+                format_value(v.value)
+            if v.quantity == "mass":
+                # The weight label names the point; a station-first pair
+                # (the CG-limit block lists stations before weights) still
+                # ends up named by its weight value's label.
+                row["Point"] = _pair_label(v.label)
+    return rows
+
+
+#: Module-specific summary shapes (#95, C210-8/27): ``{module: rows builder}``.
+#: :func:`summary_rows` is the **one dispatch** both the on-screen table and
+#: the module CSV render through -- re-shaping one channel alone would print
+#: the same data two ways, which is exactly what the owner's CSV ruling
+#: (2026-08-26) forbids. Guarded in ``tests/test_summary_shapes.py``.
+SUMMARY_SHAPES: Dict[str, Callable[[List[ConditionResult]], List[Dict[str, object]]]] = {
+    "select": critical_rows,
+    "weight_envelope": weight_station_rows,
+}
+
+#: For a one-line-per-case shape, the column the on-screen renderer may group
+#: the rows by (one sub-table per component, M2-4's Results Review layout);
+#: the CSV keeps the rows flat under the same columns.
+SUMMARY_GROUP_BY: Dict[str, str] = {"select": "Component"}
+
+
+def summary_rows(module: str, results: List[ConditionResult]) -> List[Dict[str, object]]:
+    """The one summary-table shape for a module's conditions (#95, C210-8/27).
+
+    Load-case data renders through :func:`load_cases_to_rows` unchanged; a
+    module with a registered :data:`SUMMARY_SHAPES` entry gets its data-shaped
+    table; everything else gets the pruned :func:`results_to_rows` floor.
+    Convert the conditions to the deliverable system first -- every shape here
+    renders the units the values carry.
+    """
+    if has_load_case_data(results):
+        return load_cases_to_rows(results)
+    shaper = SUMMARY_SHAPES.get(module)
+    if shaper is not None:
+        return shaper(results)
+    return [dict(row) for row in results_to_rows(results)]
 
 
 # --------------------------------------------------------------------------- #

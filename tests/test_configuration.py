@@ -345,6 +345,54 @@ def test_match_component_station_prefers_specific_over_lumped():
     assert match_component_station("Nacelle", stations) is None
 
 
+# --------------------------------------------------------------------------- #
+# #95 (C210-1): the parametric-wing seed from a typed planform
+# --------------------------------------------------------------------------- #
+def test_the_seed_offers_the_planforms_own_scalars_only_while_untyped():
+    from sloads import io as sloads_io
+    from sloads.modules.configuration import (
+        parametric_wing_seed,
+        wing_layout_from_surface,
+    )
+
+    ga = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                      "examples", "ga6_normal.project.json")
+    p = sloads_io.load_project(ga)
+    # ga6 has the parametric block typed: nothing to offer, the typed block
+    # governs whole (GR-GEOM-3 -- seeded *and overridable*, never overwritten).
+    assert parametric_wing_seed(p) == {}
+    p.geometry.parametric.wing_area_sqft = 0.0
+    p.geometry.parametric.aspect_ratio = 0.0
+    seed = parametric_wing_seed(p)
+    assert seed == wing_layout_from_surface(p.geometry.by_name("wing"))
+    assert set(seed) == {"wing_area_sqft", "aspect_ratio", "taper_ratio",
+                         "le_sweep_deg", "le_root_x"}
+    assert seed["wing_area_sqft"] > 0 and seed["aspect_ratio"] > 0
+
+
+def test_the_seed_is_registered_for_the_oracle_geometry_page():
+    """Rule 3: the seed reaches the GUI through the registry, not a page-coded
+    button -- RECORD_SEEDS names the record, and the resolver is the module's
+    own (the same wing_layout_from_surface the main GUI's button calls)."""
+    from sloads import field_registry as fr
+
+    seed = fr.RECORD_SEEDS["geometry.parametric"]
+    prefix_paths = [e.path for e in fr.REGISTRY
+                    if e.path.startswith("geometry.parametric.")]
+    assert prefix_paths, "the seeded record has no registered fields"
+    from sloads import io as sloads_io
+
+    ga = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                      "examples", "ga6_normal.project.json")
+    p = sloads_io.load_project(ga)
+    p.geometry.parametric.wing_area_sqft = 0.0
+    p.geometry.parametric.aspect_ratio = 0.0
+    values = seed(p)
+    leaves = {path.rsplit(".", 1)[-1] for path in prefix_paths}
+    assert values and set(values) <= leaves, (
+        "the seed writes a field the registry does not put on the page")
+
+
 if __name__ == "__main__":
     import traceback
 
