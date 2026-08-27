@@ -87,6 +87,7 @@ TOL = 1e-3
 EXACT: Tuple[str, ...] = (
     "ga6_normal.project.json",       # the Appendix A GA-6 airplane; G5 as worded
     "cessna_210.project.json",
+    "baron_58.project.json",         # the guide's light twin (note 34 UG-9)
     "atr42_100.project.json",
     "dhc8_dash8.project.json",
     "concept_heavy.project.json",

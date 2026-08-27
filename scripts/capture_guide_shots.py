@@ -45,6 +45,9 @@ VIEWPORT = {"width": 1440, "height": 900}
 #: shots and the gate asserts the refusal instead of a pass.
 GUIDE_EXAMPLES: Dict[str, Dict[str, object]] = {
     "ga6_normal": {"channel": "Imperial", "not_reached": ("one_engine_out",)},
+    # UG-9/UG-12: the light twin, entered and read in SI. Sources register:
+    # examples/baron_58.sources.md.
+    "baron_58": {"channel": "SI", "not_reached": ()},
 }
 
 

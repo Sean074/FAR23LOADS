@@ -1,0 +1,1204 @@
+{
+  "schema_version": 56,
+  "name": "Beechcraft Baron 58 \u2014 two Continental IO-550-C",
+  "description": "Guide worked example (design note 34 UG-9): FAA Aircraft Spec 3A16 Rev 82, Model 58 S/N TH-1396\u2013TH-2124. Certified data cited, everything else estimated \u2014 sources: examples/baron_58.sources.md",
+  "engines": [
+    {
+      "engine_designation": "CONTINENTAL IO-550-C",
+      "prop_designation": "MCCAULEY 3AF32C512/82NEA-5",
+      "engine_type": "R",
+      "limit_load_factor": 4.2,
+      "engine_weight_lb": 433.0,
+      "engine_cg": [
+        50.0,
+        -66.0,
+        97.0
+      ],
+      "prop_weight_lb": 82.5,
+      "prop_diameter_in": 77.0,
+      "prop_inertia": null,
+      "prop_blades": 3,
+      "takeoff_rpm": 2700,
+      "max_cont_rpm": 2700,
+      "prop_cg": [
+        30.0,
+        -66.0,
+        97.0
+      ],
+      "takeoff_hp": 300,
+      "max_cont_hp": 300,
+      "cylinders": 6,
+      "max_engine_torque": null,
+      "cruise_torque": null,
+      "hub_weight_lb": null,
+      "stop_time_s": null,
+      "rotors": [],
+      "max_accel_torque": null,
+      "thrust_lb": null,
+      "design_yaw_rate_rad_s": null,
+      "design_pitch_rate_rad_s": null,
+      "engine_mass_item": "",
+      "prop_mass_item": "",
+      "mounted_on": "wing"
+    },
+    {
+      "engine_designation": "CONTINENTAL IO-550-C",
+      "prop_designation": "MCCAULEY 3AF32C512/82NEA-5",
+      "engine_type": "R",
+      "limit_load_factor": 4.2,
+      "engine_weight_lb": 433.0,
+      "engine_cg": [
+        50.0,
+        66.0,
+        97.0
+      ],
+      "prop_weight_lb": 82.5,
+      "prop_diameter_in": 77.0,
+      "prop_inertia": null,
+      "prop_blades": 3,
+      "takeoff_rpm": 2700,
+      "max_cont_rpm": 2700,
+      "prop_cg": [
+        30.0,
+        66.0,
+        97.0
+      ],
+      "takeoff_hp": 300,
+      "max_cont_hp": 300,
+      "cylinders": 6,
+      "max_engine_torque": null,
+      "cruise_torque": null,
+      "hub_weight_lb": null,
+      "stop_time_s": null,
+      "rotors": [],
+      "max_accel_torque": null,
+      "thrust_lb": null,
+      "design_yaw_rate_rad_s": null,
+      "design_pitch_rate_rad_s": null,
+      "engine_mass_item": "",
+      "prop_mass_item": "",
+      "mounted_on": "wing"
+    }
+  ],
+  "engine_layout": "2W",
+  "weight": {
+    "estimation": {
+      "airplane": "BEECH BARON 58 (6-PLACE TWIN, RETRACTABLE)",
+      "max_continuous_hp": 300,
+      "override_max_continuous_hp": false,
+      "engines": 2,
+      "seats": 6,
+      "crew": 1,
+      "cruise_hours": 5,
+      "baggage_lb": 400,
+      "pressurized": false,
+      "engine_weight_type": "RF"
+    },
+    "items": [
+      {
+        "name": "Wing structure",
+        "weight_lb": 560,
+        "x": 92,
+        "y": 0,
+        "z": 92,
+        "ixx": 7800000.0,
+        "iyy": 350000.0,
+        "izz": 7800000.0,
+        "kind": "empty",
+        "component": "wing",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Horizontal tail",
+        "weight_lb": 60,
+        "x": 320,
+        "y": 0,
+        "z": 105,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "htail",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Vertical tail",
+        "weight_lb": 40,
+        "x": 310,
+        "y": 0,
+        "z": 130,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "vtail",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Fuselage shell",
+        "weight_lb": 600,
+        "x": 90,
+        "y": 0,
+        "z": 100,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Main gear, left",
+        "weight_lb": 75,
+        "x": 97,
+        "y": -57.5,
+        "z": 70,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "wing",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Main gear, right",
+        "weight_lb": 75,
+        "x": 97,
+        "y": 57.5,
+        "z": 70,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "wing",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Nose gear",
+        "weight_lb": 55,
+        "x": 7,
+        "y": 0,
+        "z": 75,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Engine, left",
+        "weight_lb": 433.0,
+        "x": 50,
+        "y": -66.0,
+        "z": 97,
+        "ixx": 45000,
+        "iyy": 81000,
+        "izz": 81000,
+        "kind": "empty",
+        "component": "wing",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Engine, right",
+        "weight_lb": 433.0,
+        "x": 50,
+        "y": 66.0,
+        "z": 97,
+        "ixx": 45000,
+        "iyy": 81000,
+        "izz": 81000,
+        "kind": "empty",
+        "component": "wing",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Propeller, left",
+        "weight_lb": 82.5,
+        "x": 30,
+        "y": -66.0,
+        "z": 97,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "wing",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Propeller, right",
+        "weight_lb": 82.5,
+        "x": 30,
+        "y": 66.0,
+        "z": 97,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "wing",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Nacelle, left",
+        "weight_lb": 60,
+        "x": 55,
+        "y": -66.0,
+        "z": 95,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "wing",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Nacelle, right",
+        "weight_lb": 60,
+        "x": 55,
+        "y": 66.0,
+        "z": 95,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "wing",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Engine accessories, left",
+        "weight_lb": 60,
+        "x": 55,
+        "y": -66.0,
+        "z": 95,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "wing",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Engine accessories, right",
+        "weight_lb": 60,
+        "x": 55,
+        "y": 66.0,
+        "z": 95,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "wing",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Fuel system",
+        "weight_lb": 70,
+        "x": 100,
+        "y": 0,
+        "z": 92,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "wing",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Flight controls",
+        "weight_lb": 90,
+        "x": 110,
+        "y": 0,
+        "z": 100,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Instruments & avionics",
+        "weight_lb": 240,
+        "x": 20,
+        "y": 0,
+        "z": 105,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Electrical",
+        "weight_lb": 130,
+        "x": 45,
+        "y": 0,
+        "z": 95,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Furnishings (6 seats)",
+        "weight_lb": 370,
+        "x": 112,
+        "y": 0,
+        "z": 98,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Air conditioning",
+        "weight_lb": 60,
+        "x": 120,
+        "y": 0,
+        "z": 95,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "De-ice & misc systems",
+        "weight_lb": 94,
+        "x": 60,
+        "y": 0,
+        "z": 95,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Hydraulics (gear actuation)",
+        "weight_lb": 50,
+        "x": 85,
+        "y": 0,
+        "z": 85,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Exhaust & engine controls, left",
+        "weight_lb": 40,
+        "x": 55,
+        "y": -66.0,
+        "z": 93,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "wing",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Exhaust & engine controls, right",
+        "weight_lb": 40,
+        "x": 55,
+        "y": 66.0,
+        "z": 93,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "wing",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Paint & sealant",
+        "weight_lb": 90,
+        "x": 110,
+        "y": 0,
+        "z": 98,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "empty",
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Unusable fuel & oil, left",
+        "weight_lb": 45,
+        "x": 82,
+        "y": -95,
+        "z": 92,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "minimum",
+        "component": "wing",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Unusable fuel & oil, right",
+        "weight_lb": 45,
+        "x": 82,
+        "y": 95,
+        "z": 92,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "minimum",
+        "component": "wing",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Fuel, left wing",
+        "weight_lb": 360,
+        "x": 82,
+        "y": -95,
+        "z": 92,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "discretionary",
+        "component": "wing",
+        "consumable": true,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Fuel, right wing",
+        "weight_lb": 360,
+        "x": 82,
+        "y": 95,
+        "z": 92,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "discretionary",
+        "component": "wing",
+        "consumable": true,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Pilot & front passenger",
+        "weight_lb": 340,
+        "x": 75,
+        "y": 0,
+        "z": 100,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "discretionary",
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Mid passengers",
+        "weight_lb": 340,
+        "x": 117,
+        "y": 0,
+        "z": 100,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "discretionary",
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Aft passengers",
+        "weight_lb": 340,
+        "x": 150,
+        "y": 0,
+        "z": 100,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "discretionary",
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
+      },
+      {
+        "name": "Nose baggage",
+        "weight_lb": 150,
+        "x": 15,
+        "y": 0,
+        "z": 95,
+        "ixx": 0.0,
+        "iyy": 0.0,
+        "izz": 0.0,
+        "kind": "discretionary",
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
+      }
+    ],
+    "envelope": {
+      "gross_weight": 5500.0,
+      "aft_gross_pct_mac": 29.6,
+      "fwd_gross_pct_mac": 17.8,
+      "fwd_regardless_pct_mac": 11.2,
+      "fwd_regardless_weight": 4200,
+      "wing_surface": "wing",
+      "xlemac": null,
+      "mac": null,
+      "fuselage_nose_x": null,
+      "fuselage_tail_x": null
+    },
+    "cg_cases": [
+      {
+        "name": "aft gross",
+        "weight_lb": 5500.0,
+        "xcg": 86.0,
+        "zcg": 100.0,
+        "analyses": [
+          "flight"
+        ]
+      },
+      {
+        "name": "fwd gross",
+        "weight_lb": 5500.0,
+        "xcg": 78.3,
+        "zcg": 100.0,
+        "analyses": [
+          "flight"
+        ]
+      },
+      {
+        "name": "fwd regardless",
+        "weight_lb": 4200,
+        "xcg": 74.0,
+        "zcg": 99.0,
+        "analyses": [
+          "flight"
+        ]
+      },
+      {
+        "name": "aft max landing",
+        "weight_lb": 5400.0,
+        "xcg": 85.72,
+        "zcg": 95.96,
+        "analyses": [
+          "ground"
+        ],
+        "role": "aft_max_landing",
+        "loading": {
+          "aboard": [
+            "Mid passengers",
+            "Aft passengers",
+            "Fuel, left wing",
+            "Fuel, right wing"
+          ],
+          "fractions": {
+            "Fuel, left wing": 0.8611111111111112,
+            "Fuel, right wing": 0.8611111111111112
+          }
+        }
+      },
+      {
+        "name": "fwd max landing",
+        "weight_lb": 5400.0,
+        "xcg": 79.14,
+        "zcg": 96.04,
+        "analyses": [
+          "ground"
+        ],
+        "role": "fwd_max_landing",
+        "loading": {
+          "aboard": [
+            "Pilot & front passenger",
+            "Nose baggage",
+            "Mid passengers",
+            "Fuel, left wing",
+            "Fuel, right wing"
+          ],
+          "fractions": {
+            "Fuel, left wing": 0.6527777777777778,
+            "Fuel, right wing": 0.6527777777777778
+          }
+        }
+      },
+      {
+        "name": "fwd light",
+        "weight_lb": 4440.0,
+        "xcg": 78.1,
+        "zcg": 96.2,
+        "analyses": [
+          "ground"
+        ],
+        "role": "fwd_light",
+        "loading": {
+          "aboard": [
+            "Pilot & front passenger"
+          ]
+        }
+      }
+    ],
+    "max_landing_weight_lb": 5400.0,
+    "max_takeoff_weight_lb": 5500.0
+  },
+  "geometry": {
+    "surfaces": [
+      {
+        "name": "wing",
+        "leading_edge": [
+          [
+            62.0,
+            0
+          ],
+          [
+            72.5,
+            227.0
+          ]
+        ],
+        "trailing_edge": [
+          [
+            146.0,
+            0
+          ],
+          [
+            114.5,
+            227.0
+          ]
+        ],
+        "symmetric": true,
+        "elements": 20,
+        "tip_cap_width_in": 0.0,
+        "ref_axis_pct": 0.4,
+        "front_spar_pct": null,
+        "rear_spar_pct": null,
+        "sob_y_in": null
+      },
+      {
+        "name": "aileron",
+        "leading_edge": [
+          [
+            113.0,
+            130
+          ],
+          [
+            105.6,
+            210
+          ]
+        ],
+        "trailing_edge": [
+          [
+            128.0,
+            130
+          ],
+          [
+            116.9,
+            210
+          ]
+        ],
+        "symmetric": false,
+        "elements": 20,
+        "tip_cap_width_in": 0.0,
+        "ref_axis_pct": null,
+        "front_spar_pct": null,
+        "rear_spar_pct": null,
+        "sob_y_in": null
+      },
+      {
+        "name": "htail",
+        "leading_edge": [
+          [
+            300.0,
+            0.0
+          ],
+          [
+            314.0,
+            95.5
+          ]
+        ],
+        "trailing_edge": [
+          [
+            348.0,
+            0.0
+          ],
+          [
+            346.0,
+            95.5
+          ]
+        ],
+        "symmetric": true,
+        "elements": 10,
+        "tip_cap_width_in": 0.0,
+        "ref_axis_pct": 0.4,
+        "front_spar_pct": null,
+        "rear_spar_pct": null,
+        "sob_y_in": null
+      },
+      {
+        "name": "vtail",
+        "leading_edge": [
+          [
+            272.0,
+            0.0
+          ],
+          [
+            302.0,
+            66.0
+          ]
+        ],
+        "trailing_edge": [
+          [
+            338.0,
+            0.0
+          ],
+          [
+            342.0,
+            66.0
+          ]
+        ],
+        "symmetric": true,
+        "elements": 10,
+        "tip_cap_width_in": 0.0,
+        "ref_axis_pct": 0.4,
+        "front_spar_pct": null,
+        "rear_spar_pct": null,
+        "sob_y_in": null
+      }
+    ],
+    "parametric": {
+      "datum_x": 0.0,
+      "wing_area_sqft": 199.2,
+      "aspect_ratio": 7.185547746541722,
+      "taper_ratio": 0.5,
+      "dihedral_deg": 6.0,
+      "le_sweep_deg": 2.65,
+      "le_root_x": 62.0,
+      "root_waterline_z": 92.0,
+      "body_drag_waterline_z": 0.0,
+      "tail_type": "conventional",
+      "h_tail_z": 0.0
+    },
+    "fuselage": {
+      "sections": [
+        {
+          "x": -10.0,
+          "width": 0.0,
+          "height": 0.0,
+          "z_centre": null
+        },
+        {
+          "x": 100.0,
+          "width": 42.0,
+          "height": 50.0,
+          "z_centre": null
+        },
+        {
+          "x": 348.0,
+          "width": 5.0,
+          "height": 8.0,
+          "z_centre": null
+        }
+      ]
+    },
+    "empennage": {
+      "htail": {
+        "tail_incidence_deg": 0.0,
+        "wing_zero_lift_cruise_deg": 4.2,
+        "wing_zero_lift_enroute_deg": 0.0,
+        "wing_zero_lift_landing_deg": 0.0,
+        "aspect_ratio_wing": 7.19,
+        "aspect_ratio_htail": 4.78,
+        "htail_area_sqft": 53.0,
+        "elevator_effectiveness": 0.6,
+        "xt25": 316.66,
+        "xt50": 326.79,
+        "elevator_te_up_deg": 25.0,
+        "elevator_te_down_deg": 15.0,
+        "elevator_area_sqft": 21.0,
+        "elevator_fwd_hinge_sqft": 2.1,
+        "elevator_aft_hinge_sqft": 18.9,
+        "wing_lift_slope_per_rad": 4.92,
+        "htail_semispan_in": 95.5
+      },
+      "vtail": {
+        "rudder_deflection_deg": 25.0,
+        "vtail_area_sqft": 24.3,
+        "rudder_area_sqft": 9.0,
+        "rudder_fwd_hinge_sqft": 0.9,
+        "rudder_aft_hinge_sqft": 8.1,
+        "aspect_ratio_vtail": 1.26,
+        "vtail_mac_in": 54.05,
+        "xv25": 299.28,
+        "xv50": 312.79,
+        "wing_span_in": 454.0,
+        "gross_weight_lb": 5500.0,
+        "rudder_large_deflection_factor": 1.0,
+        "izz_slugft2": 0.0,
+        "vtail_span_in": 66.0,
+        "vtail_root_waterline_z": 110.0
+      },
+      "airplane_length_in": 358.0
+    },
+    "landing_gear": {
+      "main_gear": {
+        "axle_compressed": [
+          98.0,
+          64.0
+        ],
+        "axle_static": [
+          97.0,
+          60.0
+        ],
+        "axle_extended": [
+          96.0,
+          55.0
+        ],
+        "rolling_radius_in": 9.0,
+        "strut": "O",
+        "carrier": "wing",
+        "attach": [
+          97.0,
+          57.5,
+          80.0
+        ],
+        "weight_lb": 150.0
+      },
+      "nose_gear": {
+        "axle_compressed": [
+          8.0,
+          65.0
+        ],
+        "axle_static": [
+          7.0,
+          61.0
+        ],
+        "axle_extended": [
+          6.0,
+          56.0
+        ],
+        "rolling_radius_in": 7.0,
+        "strut": "O",
+        "carrier": "body",
+        "attach": [
+          7.0,
+          0.0,
+          85.0
+        ],
+        "weight_lb": 55.0
+      },
+      "tread_in": 115.0
+    }
+  },
+  "speeds": {
+    "category": "N",
+    "weight_lb": 5500.0,
+    "occupants": null,
+    "wing_area_sqft": 199.2,
+    "vh_kt": 202,
+    "shoulder_altitude_ft": 12000,
+    "wing_surface": "wing",
+    "chosen_vc": 195.0,
+    "chosen_vd": 248.0,
+    "chosen_va": null,
+    "chosen_vf": null,
+    "chosen_n": null,
+    "chosen_nneg": null,
+    "mach_limit": {
+      "max_operating_altitude_ft": 20000,
+      "increment_ft": 1000
+    },
+    "vd_basis": "speed_ratio",
+    "mach_margin_min": null,
+    "mach_margin_basis": null,
+    "vb_kt": null,
+    "no_yellow_arc": false,
+    "target_vne": null,
+    "target_vno": null,
+    "target_vmo": null,
+    "target_mmo": null,
+    "target_vfe": null
+  },
+  "aero": {
+    "surfaces": [
+      {
+        "name": "wing",
+        "section_slope": 0.107,
+        "taper_ratio": 0.5,
+        "tip_ratio": 0.0,
+        "tau": 0.05,
+        "twist": [
+          [
+            0,
+            3.0
+          ],
+          [
+            227.0,
+            0.0
+          ]
+        ],
+        "target_cl": 1.0,
+        "profile_drag": [
+          [
+            0,
+            0.009
+          ],
+          [
+            227.0,
+            0.009
+          ]
+        ],
+        "section_cm": [
+          [
+            0,
+            -0.008
+          ],
+          [
+            227.0,
+            -0.008
+          ]
+        ],
+        "sweep_deg": 0.0,
+        "design_mach": 0.0
+      }
+    ]
+  },
+  "aero_coeffs": {
+    "clmax_clean": 1.15,
+    "clmax_clean_neg": -0.6,
+    "clmax_flap": 1.53,
+    "cruise": {
+      "name": "CRUISE",
+      "stall_cl": 1.15,
+      "neg_stall_cl": -0.6,
+      "lift": [
+        0.3,
+        0.08,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "drag": [
+        0.028,
+        0.0,
+        0.0553,
+        0.0,
+        0.0
+      ],
+      "moment": [
+        -0.02,
+        0.004,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "flaps_down": false
+    }
+  },
+  "flight_loads": {
+    "xtc": 308.0,
+    "xtf": 316.66,
+    "mn": 0.1,
+    "altitudes_ft": [
+      0.0,
+      10000.0,
+      20000.0
+    ]
+  },
+  "mass": {
+    "cases": [
+      {
+        "name": "itemized loading",
+        "weight_lb": 5990.0,
+        "cg_x": 83.2779632721202,
+        "cg_y": 0.0,
+        "cg_z": 96.09549248747913,
+        "ixx": 21837998.87829716,
+        "iyy": 12649407.569449082,
+        "izz": 33533695.69115192,
+        "ixz": 481380.0050083473,
+        "gear_down": true
+      }
+    ]
+  },
+  "wing_mass": {
+    "panel_weight_lb": 280,
+    "tip_root_density_ratio": 0.9,
+    "inboard_rib_y": 21,
+    "surface": "wing",
+    "concentrated": [
+      {
+        "name": "Engine+prop+nacelle",
+        "weight_lb": 575.5,
+        "x": 48.0,
+        "y": 66.0,
+        "z": 97.0
+      },
+      {
+        "name": "Main gear",
+        "weight_lb": 75.0,
+        "x": 97.0,
+        "y": 57.5,
+        "z": 70.0
+      },
+      {
+        "name": "Fuel",
+        "weight_lb": 360.0,
+        "x": 82.0,
+        "y": 95.0,
+        "z": 92.0
+      },
+      {
+        "name": "Systems & unusable fuel",
+        "weight_lb": 180.0,
+        "x": 82.0,
+        "y": 80.0,
+        "z": 92.0
+      }
+    ],
+    "cases": [
+      {
+        "name": "PHAA",
+        "case": null,
+        "nz": -4.05,
+        "nx": 0.6,
+        "unbal_moment": 0,
+        "cl": 1.15,
+        "v_eas_kt": 169.0
+      },
+      {
+        "name": "TORS",
+        "case": null,
+        "nz": -2.7,
+        "nx": -0.13,
+        "unbal_moment": 0,
+        "cl": 0.45,
+        "v_eas_kt": 195.0
+      }
+    ]
+  },
+  "fuselage_mass": {
+    "stations": [
+      {
+        "x": 7.0,
+        "weight_lb": 300
+      },
+      {
+        "x": 30.0,
+        "weight_lb": 350
+      },
+      {
+        "x": 75.0,
+        "weight_lb": 520
+      },
+      {
+        "x": 117.0,
+        "weight_lb": 560
+      },
+      {
+        "x": 150.0,
+        "weight_lb": 600
+      },
+      {
+        "x": 320.0,
+        "weight_lb": 180
+      }
+    ],
+    "ref_waterline": 100.0,
+    "stations_are_override": false
+  },
+  "select_input": {
+    "full_down_aileron_deg": 14.0,
+    "basic_airfoil_cm": -0.008,
+    "wing_weight_lb": 560.0
+  },
+  "aileron_loads": {
+    "down_deflection_deg": 14.0,
+    "up_deflection_deg": 20.0,
+    "area_fwd_hinge_sqft": 1.6,
+    "area_aft_hinge_sqft": 6.0,
+    "surface": "aileron",
+    "inboard_y_in": null,
+    "outboard_y_in": null,
+    "hinges_span_in": [],
+    "actuator_span_in": 0.0
+  },
+  "flap_loads": {
+    "gust_load_factor": 1.9,
+    "flap_area_one_side_sqft": 12.0,
+    "flap_deflection_deg": 30.0,
+    "flap_chord_ratio": 0.25,
+    "nacelle_frontal_area_sqft": 12.0,
+    "engine_butt_line_in": 66.0,
+    "surface": "flap",
+    "inboard_y_in": null,
+    "outboard_y_in": null,
+    "hinges_span_in": [],
+    "actuator_span_in": 0.0
+  },
+  "tab_loads": {
+    "tabs": [
+      {
+        "surface": "htail",
+        "mac_in": 8.0,
+        "area_sqft": 1.6,
+        "station_in": 30.0,
+        "airfoil_chord_in": 44.0,
+        "deflection_deg": 15.0
+      }
+    ]
+  },
+  "one_engine_out": {
+    "thrust_decay_time_s": 0.5,
+    "windmill_drag_time_s": 2.0,
+    "rudder_travel_time_s": 0.3,
+    "time_step_s": 0.05,
+    "failed_engine_index": 0,
+    "use_takeoff_power": true,
+    "altitude_ft": null,
+    "speeds_kt": [],
+    "izz_slugft2": 0.0,
+    "xcg_in": 0.0
+  },
+  "landing": {
+    "strut_stroke_in": 8.0,
+    "tire_od_in": 20.0,
+    "hub_diameter_in": 10.0,
+    "lift_factor": 0.667,
+    "tail_down_angle_deg": 12.0,
+    "gear_load_factor": 0.0
+  }
+}

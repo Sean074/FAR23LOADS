@@ -548,7 +548,7 @@ def test_a_file_that_never_chose_a_system_reads_as_imperial():
 
 
 def test_v38_adds_no_key_to_the_shipped_examples():
-    """None of the six examples chose a system, so none gains a ``unit_system``
+    """None of the seven examples chose a system, so none gains a ``unit_system``
     key and each still round-trips to a stable dict.
 
     (The round-trip is asserted as *idempotence*, not equality with the file on
@@ -558,7 +558,7 @@ def test_v38_adds_no_key_to_the_shipped_examples():
     """
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     paths = sorted(glob.glob(os.path.join(here, "examples", "*.project.json")))
-    assert len(paths) == 6, paths
+    assert len(paths) == 7, paths
     for path in paths:
         with open(path) as fh:
             on_disk = json.load(fh)
