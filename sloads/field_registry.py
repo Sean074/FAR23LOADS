@@ -413,7 +413,7 @@ class FieldEntry:
 EXTERNAL = "external: "
 
 
-def _speeds_wing_area(project: Project) -> Optional[float]:
+def _speeds_wing_area(project: Project, _record: object = None) -> Optional[float]:
     """The planform area STRSPEED resolves for ``speeds.wing_area_sqft``."""
     from sloads.derived_geometry import planform_area_sqft
 
@@ -440,15 +440,153 @@ def _speeds_wing_area(project: Project) -> Optional[float]:
 #: function the calc calls, so the two cannot drift; a row with no resolver stays
 #: caption-only and editable. Guarded by
 #: ``tests/test_field_registry.py::test_every_external_resolver_names_a_registry_row``.
-EXTERNAL_VALUES: Dict[str, "typing.Callable[[Project], Optional[float]]"] = {
+def _mtow(project: Project, _record: object = None) -> Optional[float]:
+    from sloads.cg_cases import max_takeoff_weight
+
+    return max_takeoff_weight(project, required=False) or None
+
+
+def _wing_ref_value(attr: str):
+    def resolver(project: Project, _record: object = None) -> Optional[float]:
+        from sloads.derived_geometry import wing_reference
+
+        ref = wing_reference(project)
+        return None if ref is None else getattr(ref, attr)
+    return resolver
+
+
+def _fuselage_bound(pick) -> "typing.Callable[..., Optional[float]]":
+    def resolver(project: Project, _record: object = None) -> Optional[float]:
+        fus = project.geometry.fuselage if project.geometry is not None else None
+        if fus is None or not fus.sections:
+            return None
+        return pick([s.x for s in fus.sections])
+    return resolver
+
+
+def _clmax(attr: str):
+    def resolver(project: Project, _record: object = None) -> Optional[float]:
+        aero = project.aero_coeffs
+        return (getattr(aero, attr) or None) if aero is not None else None
+    return resolver
+
+
+def _paired_surface(project: Project, record: object):
+    name = getattr(record, "name", "") if record is not None else ""
+    geom = project.geometry
+    return geom.by_name(name) if geom is not None and name else None
+
+
+def _planform_taper(project: Project, record: object = None) -> Optional[float]:
+    from sloads.derived_geometry import taper_ratio_from_planform
+
+    surf = _paired_surface(project, record)
+    return None if surf is None else taper_ratio_from_planform(surf)
+
+
+def _planform_tip(project: Project, record: object = None) -> Optional[float]:
+    from sloads.derived_geometry import tip_ratio_from_planform
+
+    surf = _paired_surface(project, record)
+    return None if surf is None else tip_ratio_from_planform(surf)
+
+
+def _wing_ar(project: Project, _record: object = None) -> Optional[float]:
+    from sloads.derived_geometry import wing_aspect_ratio
+
+    return wing_aspect_ratio(project)
+
+
+def _wing_lift_slope(project: Project, _record: object = None) -> Optional[float]:
+    from sloads.modules.select import wing_lift_slope_per_rad
+
+    return wing_lift_slope_per_rad(project)
+
+
+def _aileron_down(project: Project, _record: object = None) -> Optional[float]:
+    ail = project.aileron_loads
+    return (ail.down_deflection_deg or None) if ail is not None else None
+
+
+def _gust_at_vf(project: Project, _record: object = None) -> Optional[float]:
+    from sloads.modules.flight_envelope import gust_at_vf
+
+    return gust_at_vf(project)
+
+
+def _limnz(project: Project, _record: object = None) -> Optional[float]:
+    from sloads.models import MissingInputError
+    from sloads.modules.structural_speeds import design_speed_values
+
+    if project.speeds is None:
+        return None
+    try:
+        return design_speed_values(project, project.speeds).n or None
+    except (MissingInputError, ValueError):
+        return None
+
+
+def _mass_row(project: Project, record: object, selector_attr: str):
+    from sloads.models import same_name
+
+    selector = getattr(record, selector_attr, "") if record is not None else ""
+    weight = project.weight
+    if not selector or weight is None:
+        return None
+    return next((r for r in weight.items if same_name(r.name, selector)), None)
+
+
+def _mass_row_value(selector_attr: str, pick):
+    def resolver(project: Project, record: object = None):
+        row = _mass_row(project, record, selector_attr)
+        return None if row is None else pick(row)
+    return resolver
+
+
+EXTERNAL_VALUES: Dict[str, "typing.Callable[..., object]"] = {
     "speeds.wing_area_sqft": _speeds_wing_area,
+    # The note 36 collapsed set (OV-9/OV-11): each resolver is the same
+    # derivation the calc's ``value or derive(project)`` calls, so the number
+    # the caption shows is the number a blank field uses. A resolver may take
+    # the row instance as ``record`` when the path is a ``[]`` row.
+    "weight.envelope.gross_weight": _mtow,
+    "geometry.empennage.vtail.gross_weight_lb": _mtow,
+    "weight.envelope.mac": _wing_ref_value("mac"),
+    "weight.envelope.xlemac": _wing_ref_value("xlemac"),
+    "weight.envelope.fuselage_nose_x": _fuselage_bound(min),
+    "weight.envelope.fuselage_tail_x": _fuselage_bound(max),
+    "aero_coeffs.cruise.stall_cl": _clmax("clmax_clean"),
+    "aero_coeffs.cruise.neg_stall_cl": _clmax("clmax_clean_neg"),
+    "aero_coeffs.flaps_down.stall_cl": _clmax("clmax_flap"),
+    "aero.surfaces[].taper_ratio": _planform_taper,
+    "aero.surfaces[].tip_ratio": _planform_tip,
+    "geometry.empennage.htail.aspect_ratio_wing": _wing_ar,
+    "geometry.empennage.htail.wing_lift_slope_per_rad": _wing_lift_slope,
+    "select_input.full_down_aileron_deg": _aileron_down,
+    "flap_loads.gust_load_factor": _gust_at_vf,
+    "engines[].limit_load_factor": _limnz,
+    "engines[].engine_weight_lb": _mass_row_value("engine_mass_item", lambda r: r.weight_lb),
+    "engines[].engine_cg": _mass_row_value("engine_mass_item", lambda r: (r.x, r.y, r.z)),
+    "engines[].prop_weight_lb": _mass_row_value("prop_mass_item", lambda r: r.weight_lb),
+    "engines[].prop_cg": _mass_row_value("prop_mass_item", lambda r: (r.x, r.y, r.z)),
 }
 
+#: The paths whose calc contract is note 36's **falsy-means-derive /
+#: typed-means-override** (OV-1). Enumerated once, here, and guarded by
+#: OV-11's drift test: every member carries a non-empty ``derived_from`` and a
+#: resolver above, and the GUI renders the resolver's value beside the field.
+COLLAPSED_OVERRIDES: Tuple[str, ...] = tuple(
+    path for path in EXTERNAL_VALUES if path != "speeds.wing_area_sqft")
 
-def external_value(path: str, project: Project) -> Optional[float]:
-    """The governing value behind an external copy, or ``None`` if there is none."""
+
+def external_value(path: str, project: Project, record: object = None):
+    """The governing value behind an external copy, or ``None`` if there is none.
+
+    ``record`` is the row instance for a ``[]`` path (which engine, which aero
+    surface); scalar-path resolvers ignore it.
+    """
     resolver = EXTERNAL_VALUES.get(path)
-    return None if resolver is None else resolver(project)
+    return None if resolver is None else resolver(project, record)
 
 
 #: When a ``SLOADS`` field may be marked :attr:`FieldEntry.supplied` (G5).
@@ -564,6 +702,9 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("geometry.surfaces[].rear_spar_pct", _GEO, _SLDS, "spar fractions, sbeam box model (Step C4)"),
     _E("geometry.surfaces[].ref_axis_pct", _GEO, _SLDS, "loads reference axis, R-7c"),
     _E("geometry.surfaces[].sob_y_in", _GEO, _SLDS, "side-of-body station, BM-1"),
+    _E("geometry.surfaces[].tip_cap_width_in", _GEO, _SLDS,
+       "rounded tip-cap width, note 36 OV-4 (C210-31): the planform rounding the polylines "
+       "cannot carry; aero.surfaces[].tip_ratio falsy-derives from it / semi-span"),
     _E("geometry.parametric.wing_area_sqft", _GEO, _ORIG, "WINGGEOM reference area S", "wing reference area"),
     _E("geometry.parametric.aspect_ratio", _GEO, _ORIG, "WINGGEOM AR = b^2/S"),
     _E("geometry.parametric.taper_ratio", _GEO, _ORIG, "WINGGEOM tip/root chord"),
@@ -600,7 +741,11 @@ REGISTRY: Tuple[FieldEntry, ...] = (
 
     # geometry.empennage.htail -- SELECT's rational h-tail inputs (Ch 9)
     _E("geometry.empennage.htail.aspect_ratio_htail", _GEO, _ORIG, "SELECT ARHT"),
-    _E("geometry.empennage.htail.aspect_ratio_wing", _GEO, _ORIG, "SELECT ARW (downwash)"),
+    _E("geometry.empennage.htail.aspect_ratio_wing", _GEO, _ORIG, "SELECT ARW (downwash)",
+       "wing planform aspect ratio",
+       EXTERNAL + "the wing planform AR (derived_geometry.wing_aspect_ratio, the OV-5 "
+       "consolidated owner; note 36 OV-2, C210-36)",
+       governs=True),
     _E("geometry.empennage.htail.htail_area_sqft", _GEO, _ORIG, "SELECT ST"),
     _E("geometry.empennage.htail.htail_semispan_in", _GEO, _ORIG, "SELECT BLHTAIL"),
     _E("geometry.empennage.htail.elevator_area_sqft", _GEO, _ORIG, "SELECT SE"),
@@ -610,7 +755,11 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("geometry.empennage.htail.elevator_te_up_deg", _GEO, _ORIG, "SELECT EUP"),
     _E("geometry.empennage.htail.elevator_effectiveness", _GEO, _ORIG, "SELECT dalpha/ddelta_e"),
     _E("geometry.empennage.htail.tail_incidence_deg", _GEO, _ORIG, "SELECT IT"),
-    _E("geometry.empennage.htail.wing_lift_slope_per_rad", _GEO, _ORIG, "SELECT AW"),
+    _E("geometry.empennage.htail.wing_lift_slope_per_rad", _GEO, _ORIG, "SELECT AW",
+       "wing lift-curve slope",
+       EXTERNAL + "the cruise aero set's C1 x 57.3 (select.wing_lift_slope_per_rad; "
+       "note 36 OV-2, C210-36)",
+       governs=True),
     _E("geometry.empennage.htail.wing_zero_lift_cruise_deg", _GEO, _ORIG, "SELECT IW (cruise)"),
     _E("geometry.empennage.htail.wing_zero_lift_enroute_deg", _GEO, _ORIG, "SELECT IW (enroute)"),
     _E("geometry.empennage.htail.wing_zero_lift_landing_deg", _GEO, _ORIG, "SELECT IW (landing)"),
@@ -646,7 +795,8 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("aileron_loads.area_aft_hinge_sqft", _GEO, _ORIG, "AILERON SAAFT"),
     _E("aileron_loads.area_fwd_hinge_sqft", _GEO, _ORIG, "AILERON SAFWD"),
     _E("aileron_loads.up_deflection_deg", _GEO, _ORIG, "AILERON AUPDEG"),
-    _E("aileron_loads.down_deflection_deg", _GEO, _ORIG, "AILERON ADEG"),
+    _E("aileron_loads.down_deflection_deg", _GEO, _ORIG, "AILERON ADEG",
+       "full-down aileron deflection"),
     _E("flap_loads.flap_area_one_side_sqft", _GEO, _ORIG, "FLAPLOAD SF"),
     _E("flap_loads.flap_chord_ratio", _GEO, _ORIG, "FLAPLOAD E"),
     _E("flap_loads.flap_deflection_deg", _GEO, _ORIG, "FLAPLOAD DELTA"),
@@ -721,17 +871,28 @@ REGISTRY: Tuple[FieldEntry, ...] = (
        "same which-beam question BODYLOAD asked by position. Load-bearing (G5, #62): the "
        "DHC-8 fuel row is 86 % wing, and dropped it rides the fuselage beam whole",
        supplied=True),
-    _E("weight.envelope.gross_weight", _WT, _ORIG, "WTENV gross weight"),
+    _E("weight.envelope.gross_weight", _WT, _ORIG, "WTENV gross weight", "max take-off weight",
+       "weight.max_takeoff_weight_lb (blank derives from the MTOW SSOT, note 36 OV-2; C210-13)",
+       governs=True),
     _E("weight.envelope.mac", _WT, _ORIG, "WTENV MAC", "wing MAC",
        EXTERNAL + "derived_geometry from the planform (Optional override here)",
        governs=True),
-    _E("weight.envelope.xlemac", _WT, _ORIG, "WTENV LEMAC station"),
+    _E("weight.envelope.xlemac", _WT, _ORIG, "WTENV LEMAC station", "wing XLEMAC",
+       EXTERNAL + "derived_geometry from the planform (Optional override here; the mac_reference "
+       "pair, note 36 / C210-13)",
+       governs=True),
     _E("weight.envelope.fwd_gross_pct_mac", _WT, _ORIG, "WTENV forward gross CG limit"),
     _E("weight.envelope.aft_gross_pct_mac", _WT, _ORIG, "WTENV aft gross CG limit"),
     _E("weight.envelope.fwd_regardless_pct_mac", _WT, _ORIG, "WTENV forward-regardless CG limit"),
     _E("weight.envelope.fwd_regardless_weight", _WT, _ORIG, "WTENV forward-regardless weight"),
-    _E("weight.envelope.fuselage_nose_x", _WT, _ORIG, "WTENV nose station"),
-    _E("weight.envelope.fuselage_tail_x", _WT, _ORIG, "WTENV tail station"),
+    _E("weight.envelope.fuselage_nose_x", _WT, _ORIG, "WTENV nose station", "fuselage nose station",
+       EXTERNAL + "the fuselage outline (all-or-nothing pair with tail_x, weight_envelope."
+       "_fuselage_extent; note 36 / C210-13)",
+       governs=True),
+    _E("weight.envelope.fuselage_tail_x", _WT, _ORIG, "WTENV tail station", "fuselage tail station",
+       EXTERNAL + "the fuselage outline (all-or-nothing pair with nose_x, weight_envelope."
+       "_fuselage_extent; note 36 / C210-13)",
+       governs=True),
     _E("weight.envelope.wing_surface", _WT, _SLDS, "surface selector (standing ruling)"),
     # The *grid* is Step D5's consolidation, but the cases themselves are not:
     # "the four corners of the WTENV weight-cg envelope (FLTLOADS.BAS prompts for
@@ -813,23 +974,42 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     # ----------------------------------------------------------------- #
     # aero_coeffs -- FLTLOADS coefficient sets (aero_coefficients)
     # ----------------------------------------------------------------- #
-    _E("aero_coeffs.clmax_clean", _AERO, _ORIG, "STRSPEED/FLTLOADS CLmax, UG p7-5"),
-    _E("aero_coeffs.clmax_clean_neg", _AERO, _ORIG, "FLTLOADS negative stall line"),
-    _E("aero_coeffs.clmax_flap", _AERO, _ORIG, "STRSPEED/FLTLOADS flapped CLmax, UG p7-5"),
+    _E("aero_coeffs.clmax_clean", _AERO, _ORIG, "STRSPEED/FLTLOADS CLmax, UG p7-5",
+       "clean positive stall CL"),
+    _E("aero_coeffs.clmax_clean_neg", _AERO, _ORIG, "FLTLOADS negative stall line",
+       "clean negative stall CL"),
+    _E("aero_coeffs.clmax_flap", _AERO, _ORIG, "STRSPEED/FLTLOADS flapped CLmax, UG p7-5",
+       "flapped positive stall CL"),
     _E("aero_coeffs.cruise.name", _AERO, _SLDS,
        "set selector (standing ruling); structurally required", supplied=True),
     _E("aero_coeffs.cruise.lift", _AERO, _ORIG, "FLTLOADS C0..C4"),
     _E("aero_coeffs.cruise.drag", _AERO, _ORIG, "FLTLOADS D0..D4"),
     _E("aero_coeffs.cruise.moment", _AERO, _ORIG, "FLTLOADS M0..M4"),
-    _E("aero_coeffs.cruise.stall_cl", _AERO, _ORIG, "FLTLOADS set stall CL"),
-    _E("aero_coeffs.cruise.neg_stall_cl", _AERO, _ORIG, "FLTLOADS set negative stall CL"),
+    # The per-set stall CLs are the FLTLOADS balance clamp; blank inherits the
+    # CLmax trio through ``normalize()``'s fill-through -- shipped mechanism,
+    # registered here (note 36, OV-3; the C210-15 ruling). Enter one only to
+    # reproduce a deck that clamps at a different value (ga6: 1.41 vs 1.4068).
+    _E("aero_coeffs.cruise.stall_cl", _AERO, _ORIG, "FLTLOADS set stall CL",
+       "clean positive stall CL",
+       "aero_coeffs.clmax_clean (blank inherits via normalize(); note 36 OV-3, C210-15)",
+       governs=True),
+    _E("aero_coeffs.cruise.neg_stall_cl", _AERO, _ORIG, "FLTLOADS set negative stall CL",
+       "clean negative stall CL",
+       "aero_coeffs.clmax_clean_neg (blank inherits via normalize(); note 36 OV-3, C210-15)",
+       governs=True),
     _E("aero_coeffs.cruise.flaps_down", _AERO, _ORIG, "FLTLOADS configuration flag"),
     _E("aero_coeffs.flaps_down.name", _AERO, _SLDS,
        "set selector (standing ruling); structurally required", supplied=True),
     _E("aero_coeffs.flaps_down.lift", _AERO, _ORIG, "FLTLOADS C0..C4"),
     _E("aero_coeffs.flaps_down.drag", _AERO, _ORIG, "FLTLOADS D0..D4"),
     _E("aero_coeffs.flaps_down.moment", _AERO, _ORIG, "FLTLOADS M0..M4"),
-    _E("aero_coeffs.flaps_down.stall_cl", _AERO, _ORIG, "FLTLOADS set stall CL"),
+    _E("aero_coeffs.flaps_down.stall_cl", _AERO, _ORIG, "FLTLOADS set stall CL",
+       "flapped positive stall CL",
+       "aero_coeffs.clmax_flap (blank inherits via normalize(); note 36 OV-3, C210-15)",
+       governs=True),
+    # flaps_down.neg_stall_cl stays a plain row (note 36 OV-3): there is no
+    # clmax_flap_neg for it to inherit from -- the documented #81 gap, which
+    # validation warns about rather than guessing.
     _E("aero_coeffs.flaps_down.neg_stall_cl", _AERO, _ORIG, "FLTLOADS set negative stall CL"),
     _E("aero_coeffs.flaps_down.flaps_down", _AERO, _ORIG, "FLTLOADS configuration flag"),
     _E("aero_coeffs.fuselage_moment.enabled", _AERO, _SLDS, "Munk slender-body increment, Step G4"),
@@ -855,7 +1035,11 @@ REGISTRY: Tuple[FieldEntry, ...] = (
 
     # select_input -- SELECT beyond the V-n matrix (flight_envelope)
     _E("select_input.basic_airfoil_cm", _VN, _ORIG, "SELECT basic airfoil CM, Ch 9"),
-    _E("select_input.full_down_aileron_deg", _VN, _ORIG, "SELECT full-down aileron, Ch 9"),
+    _E("select_input.full_down_aileron_deg", _VN, _ORIG, "SELECT full-down aileron, Ch 9",
+       "full-down aileron deflection",
+       "aileron_loads.down_deflection_deg (blank derives from the AILERON travel; "
+       "note 36 OV-2, C210-38 -- a typed disagreement warns, aileron_deflection_mismatch)",
+       governs=True),
     _E("select_input.wing_weight_lb", _VN, _ORIG, "SELECT wing weight, Ch 9"),
 
     # ----------------------------------------------------------------- #
@@ -866,8 +1050,14 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("aero.surfaces[].profile_drag", _WING, _ORIG, "AIRLOADS CDO(Y)"),
     _E("aero.surfaces[].section_cm", _WING, _ORIG, "AIRLOADS CM(Y)"),
     _E("aero.surfaces[].twist", _WING, _ORIG, "AIRLOADS zero-lift angle(Y)"),
-    _E("aero.surfaces[].taper_ratio", _WING, _ORIG, "TAU taper ratio"),
-    _E("aero.surfaces[].tip_ratio", _WING, _ORIG, "TAU rounded-tip ratio"),
+    _E("aero.surfaces[].taper_ratio", _WING, _ORIG, "TAU taper ratio", "surface taper ratio",
+       EXTERNAL + "the paired planform's tip/centreline chord (derived_geometry."
+       "taper_ratio_from_planform; note 36 OV-2, C210-31 owner directive)",
+       governs=True),
+    _E("aero.surfaces[].tip_ratio", _WING, _ORIG, "TAU rounded-tip ratio", "surface rounded-tip ratio",
+       EXTERNAL + "the paired surface's tip_cap_width_in / semi-span (derived_geometry."
+       "tip_ratio_from_planform; note 36 OV-4)",
+       governs=True),
     _E("aero.surfaces[].tau", _WING, _ORIG, "TAU output, enterable as an override"),
     _E("aero.surfaces[].target_cl", _WING, _ORIG, "AIRLOADS evaluation CL"),
     _E("aero.surfaces[].sweep_deg", _WING, _ORIG, "AIRLOAD4 sweepback"),
@@ -908,7 +1098,11 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("aileron_loads.hinges_span_in", _AIL, _SLDS, "sbeam control-surface bridge station"),
     _E("aileron_loads.actuator_span_in", _AIL, _SLDS, "sbeam control-surface bridge station"),
     _E("flap_loads.surface", _FLAP, _SLDS, "surface selector (standing ruling)"),
-    _E("flap_loads.gust_load_factor", _FLAP, _ORIG, "FLAPLOAD NG"),
+    _E("flap_loads.gust_load_factor", _FLAP, _ORIG, "FLAPLOAD NG",
+       "flaps-extended gust load factor",
+       EXTERNAL + "the flight envelope's GUST VF corner factor (flight_envelope.gust_at_vf, "
+       "bit-for-bit the envelope's own number; note 36 OV-6, C210-39 owner directive)",
+       governs=True),
     # Both place the 23.457(b) slipstream band; the term that uses the band is
     # driven by the engine record, so the basis says so where it is entered (#83).
     _E("flap_loads.nacelle_frontal_area_sqft", _FLAP, _ORIG,
@@ -943,8 +1137,17 @@ REGISTRY: Tuple[FieldEntry, ...] = (
        EXTERNAL + "the weight database (decision D-25 mass SSOT; review N1 instance 5: regional jet 130 in apart)",
        governs=True),
     _E("engines[].hub_weight_lb", _ENG, _ORIG, "ENGLOADS HUBWT"),
-    _E("engines[].prop_weight_lb", _ENG, _ORIG, "ENGLOADS PROPWT"),
-    _E("engines[].prop_cg", _ENG, _ORIG, "ENGLOADS XPROP/YPROP/ZPROP"),
+    _E("engines[].prop_weight_lb", _ENG, _ORIG, "ENGLOADS PROPWT", "propeller mass",
+       EXTERNAL + "the weight database (the prop_mass_item row; note 36 OV-7, C210-41)",
+       governs=True),
+    _E("engines[].prop_cg", _ENG, _ORIG, "ENGLOADS XPROP/YPROP/ZPROP", "propeller station",
+       EXTERNAL + "the weight database (the prop_mass_item row; note 36 OV-7, C210-41)",
+       governs=True),
+    _E("engines[].engine_mass_item", _ENG, _SLDS,
+       "weight-database row selector, note 36 OV-7 (the D-25 mass SSOT linkage, stated where "
+       "it is consumed; blank = no derivation, a name matching no row is refused)"),
+    _E("engines[].prop_mass_item", _ENG, _SLDS,
+       "weight-database row selector, note 36 OV-7 (the propeller half of the linkage)"),
     _E("engines[].prop_designation", _ENG, _ORIG, "ENGLOADS propeller designation"),
     _E("engines[].prop_diameter_in", _ENG, _ORIG, "ENGLOADS PROPDIA"),
     _E("engines[].prop_blades", _ENG, _ORIG, "ENGLOADS NOBLADES"),

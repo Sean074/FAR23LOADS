@@ -1,11 +1,11 @@
 """The schema gate (#93), and the migration machinery kept behind it.
 
-Pre-production a project file is read at the current ``SCHEMA_VERSION`` or not at
-all: `sloads.migrations.migrate` admits the current version and raises
-`SchemaVersionError` for anything else — older, newer, or unversioned. This file
-pins that gate, and pins that the hop chain it replaced still *works*, empty:
-the machinery is kept so the first post-production shape change registers a hop
-and lowers the floor with no rebuild (`migrations.py` module docstring).
+Pre-production a project file is read at the current ``SCHEMA_VERSION`` or a
+version the hop chain reaches it from — since note 36 (OV-10, #97) that is v55,
+through the additive-identity 55→56 hop — and `sloads.migrations.migrate`
+raises `SchemaVersionError` for anything else: older than the floor, newer, or
+unversioned. This file pins that gate, and pins that the hop chain works
+(`migrations.py` module docstring).
 
 Until #93 this file tested twelve hops against eleven frozen legacy fixtures
 (M4-10). Those hops and fixtures went out together; what remains of that
@@ -37,7 +37,7 @@ from sloads.models import SCHEMA_VERSION
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _FIXTURES = os.path.join(_HERE, "fixtures_schema")
 _EXAMPLES = os.path.join(os.path.dirname(_HERE), "examples")
-_CURRENT = "v55_current.json"
+_CURRENT = "v56_current.json"
 
 
 def _load(name=_CURRENT):
@@ -48,10 +48,11 @@ def _load(name=_CURRENT):
 # --------------------------------------------------------------------------- #
 # 1. The gate
 # --------------------------------------------------------------------------- #
-def test_the_floor_is_the_current_version():
-    """The whole of #93 in one assertion: nothing below current is supported."""
-    assert SUPPORTED_FLOOR == SCHEMA_VERSION
-    assert MIGRATIONS == {}
+def test_the_floor_is_the_oldest_hop():
+    """#93's gate with note 36's one live hop: the floor is where the chain
+    starts, and every version from there to current is a registered hop."""
+    assert SUPPORTED_FLOOR == min(MIGRATIONS) == 55
+    assert sorted(MIGRATIONS) == list(range(SUPPORTED_FLOOR, SCHEMA_VERSION))
 
 
 def test_a_current_file_passes_through_untouched():
@@ -60,13 +61,13 @@ def test_a_current_file_passes_through_untouched():
     assert migrate(current) == current
 
 
-@pytest.mark.parametrize("version", [SCHEMA_VERSION - 1, SCHEMA_VERSION - 14, 18, 0])
+@pytest.mark.parametrize("version", [SUPPORTED_FLOOR - 1, SCHEMA_VERSION - 14, 18, 0])
 def test_an_older_file_is_refused_and_says_both_versions(version):
     d = {**_load(), "schema_version": version}
     with pytest.raises(SchemaVersionError) as exc:
         migrate(d)
     assert f"schema {version}" in str(exc.value)
-    assert f"schema {SCHEMA_VERSION}" in str(exc.value)
+    assert str(SCHEMA_VERSION) in str(exc.value)
 
 
 def test_a_newer_file_is_refused_too():
@@ -114,8 +115,7 @@ def test_source_schema_version_reads_the_file_not_the_default():
 # 2. The machinery, kept
 # --------------------------------------------------------------------------- #
 def test_a_registered_hop_still_runs():
-    """The chain is empty, not decorative. This is what a post-production
-    migration will look like: register the hop, lower the floor."""
+    """This is what a migration looks like: register the hop, lower the floor."""
     def _hop(d):
         d["migrated"] = True
         return d
@@ -133,6 +133,21 @@ def test_a_registered_hop_still_runs():
     assert applied_hops(SCHEMA_VERSION) == [], "the chain did not reset"
 
 
+def test_a_v55_file_loads_through_the_identity_hop_unchanged():
+    """Gate G-OV-5 (note 36, OV-10): the 55->56 hop is an identity -- a v55
+    file loads with nothing but its stamp moved, ``applied_hops(55)`` names the
+    hop, and the loaded ``Project`` equals the same file loaded at v56."""
+    v55 = _load("v55_current.json")
+    assert v55["schema_version"] == 55
+    out = migrate(v55)
+    assert out["schema_version"] == SCHEMA_VERSION
+    assert {k: v for k, v in out.items() if k != "schema_version"} == \
+           {k: v for k, v in v55.items() if k != "schema_version"}
+    assert applied_hops(55) == [55]
+    assert io.project_to_dict(io.project_from_dict(v55)) == \
+           io.project_to_dict(io.project_from_dict(_load()))
+
+
 def test_migrate_does_not_mutate_the_callers_dict():
     """The GUI hands the same dict to the JSON editor after loading it."""
     original = _load()
@@ -146,9 +161,9 @@ def test_migrate_is_idempotent():
     assert migrate(once) == once
 
 
-def test_applied_hops_is_empty_while_the_chain_is():
-    assert applied_hops(SCHEMA_VERSION) == []
-    assert applied_hops(SUPPORTED_FLOOR) == sorted(MIGRATIONS) == []
+def test_applied_hops_matches_the_chain():
+    assert applied_hops(SCHEMA_VERSION) == []            # nothing at/above current
+    assert applied_hops(SUPPORTED_FLOOR) == sorted(MIGRATIONS) == [55]
 
 
 # --------------------------------------------------------------------------- #

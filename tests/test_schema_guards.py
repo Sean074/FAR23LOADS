@@ -292,7 +292,12 @@ def fields_hash() -> str:
 #: it as an argument), ``TailLoadsInput``/``VTailLoadsInput.airplane_length_in``
 #: removed for one ``EmpennageInput.airplane_length_in``. A shape change, so
 #: ``SCHEMA_VERSION`` bumps to 55 with hop ``54`` reconciling each pair.
-EXPECTED_FIELDS_HASH = "101499f1a49bb7e7"
+#: v56 (note 36 OV-10, #97): additive derive-by-default fields --
+#: ``SurfaceInput.tip_cap_width_in`` (the rounded tip cap the polylines cannot
+#: carry, OV-4) and the ``EngineInput.engine_mass_item``/``prop_mass_item``
+#: weight-row selectors (OV-7). No default changes, no removals; the 55->56 hop
+#: is an identity and the floor stays at 55.
+EXPECTED_FIELDS_HASH = "ca76108c6a049c0f"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():
@@ -303,8 +308,9 @@ def test_persisted_dataclass_shapes_are_unchanged():
         "Bump SCHEMA_VERSION -- required for any persisted-shape change, "
         "additive or not -- and re-stamp the bundled examples at the new "
         "version, which the guard below requires and the Imperial digests then "
-        "prove changed no delivered number. Pre-production there is no "
-        "migration hop to write (#93): the floor is the current version. "
+        "prove changed no delivered number. Register the hop in "
+        "sloads/migrations.py (an additive change gets an identity hop -- "
+        "note 36 OV-10 is the precedent). "
         f"Then update EXPECTED_FIELDS_HASH in {os.path.basename(__file__)} "
         "to the value above."
     )

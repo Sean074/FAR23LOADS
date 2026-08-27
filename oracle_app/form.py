@@ -222,7 +222,50 @@ def _external_note(row: Any, project: Any, where: Any) -> bool:
     return False
 
 
-def _copy_note(path: str, value: Any, project: Any, where: Any) -> bool:
+def _collapsed_note(row: Any, value: Any, project: Any, where: Any,
+                    record: Any = None) -> bool:
+    """The note 36 collapsed-override caption (OV-9) -- never disabled.
+
+    A path in ``field_registry.COLLAPSED_OVERRIDES`` carries the OV-1 calc
+    contract: blank falsy-derives from the owner, a typed value overrides. So
+    the widget stays live both ways, and what the caption says tracks the
+    stored value: blank shows the derived number the calc will use (the same
+    resolver the calc calls -- ``EXTERNAL_VALUES``); typed shows the override
+    with the owner's number beside it, and a > 1e-9 disagreement warns (the
+    ``_copy_note`` pattern). ``record`` is the row instance for a ``[]`` path
+    (which engine, which aero surface).
+    """
+    governing = fr.external_value(row.path, project, record) if project is not None else None
+    owner = (f"**{row.external_owner}**" if row.owner_is_external
+             else f"`{row.owner_path}`")
+    blank = (not any(value) if isinstance(value, (tuple, list))
+             else value is None or not value)
+    if blank:
+        if governing is not None:
+            where.caption(
+                f"Blank — derives from {owner} (currently {_shown(row.path, governing)}). "
+                "Enter a value only to override.")
+        else:
+            where.caption(
+                f"Blank — derives from {owner}, which cannot answer yet; "
+                "0/empty stands until it can, or a value is entered.")
+        return False
+    where.caption(
+        f"Overrides {owner}"
+        + (f" (currently {_shown(row.path, governing)})" if governing is not None else "")
+        + " — the value entered here is what the analysis uses. Clear it to derive.")
+    if (isinstance(governing, (int, float)) and isinstance(value, (int, float))
+            and not isinstance(governing, bool) and not isinstance(value, bool)
+            and abs(float(governing) - float(value)) > 1e-9):
+        where.warning(
+            f"This is {_shown(row.path, value)} but {owner} says "
+            f"{_shown(row.path, governing)}. The typed value governs — confirm "
+            "the disagreement is intended.")
+    return False
+
+
+def _copy_note(path: str, value: Any, project: Any, where: Any,
+               record: Any = None) -> bool:
     """Mark a non-owner copy; return ``True`` if it must render **disabled**.
 
     The registry has always known which field owns each shared quantity; until
@@ -242,6 +285,8 @@ def _copy_note(path: str, value: Any, project: Any, where: Any) -> bool:
     row = fr.entry(path)
     if row is None or row.is_owner:
         return False
+    if row.governs and path in fr.COLLAPSED_OVERRIDES:
+        return _collapsed_note(row, value, project, where, record)
     if row.owner_is_external:
         return _external_note(row, project, where)
     owner = row.owner_path
@@ -271,7 +316,8 @@ def _copy_note(path: str, value: Any, project: Any, where: Any) -> bool:
     return False
 
 
-def _mark_composite(path: str, project: Any, where: Any) -> None:
+def _mark_composite(path: str, project: Any, where: Any,
+                    record: Any = None) -> None:
     """The non-owner mark for a composite field (#89, code review 2026-08-24 §4.3).
 
     ``_copy_note`` was reachable from :func:`render_scalar` alone, so the first
@@ -288,7 +334,8 @@ def _mark_composite(path: str, project: Any, where: Any) -> None:
     """
     if project is None:
         return
-    _copy_note(path, None, project, where)
+    value = getattr(record, _leaf(path), None) if record is not None else None
+    _copy_note(path, value, project, where, record)
 
 
 # --------------------------------------------------------------------------- #
@@ -640,12 +687,13 @@ def render_scalar(record: Any, path: str, *, key: str, container: Any = None,
     # value that actually governs. It is never *persisted* from here: rendering a
     # page must not write to the project (OG-F), so the stored copy keeps whatever
     # it held and only the display tells the truth.
-    disabled = _copy_note(path, value, project, where) if project is not None else False
+    disabled = (_copy_note(path, value, project, where, record)
+                if project is not None else False)
     if disabled:
         row = fr.entry(path)
         governing = None
         if row is not None:
-            governing = (fr.external_value(path, project) if row.owner_is_external
+            governing = (fr.external_value(path, project, record) if row.owner_is_external
                          else _owner_value(project, row.owner_path))
         if governing is not None:
             value = governing
@@ -756,7 +804,7 @@ def render_tuple(record: Any, path: str, *, key: str, container: Any = None,
                  project: Any = None) -> None:
     """A fixed-length numeric tuple as one labelled input per member."""
     where = container if container is not None else st
-    _mark_composite(path, project, where)
+    _mark_composite(path, project, where, record)
     name = _leaf(path)
     arity = _tuple_arity(fr.field_type(path))
     current = list(getattr(record, name) or [0.0] * arity)
@@ -777,7 +825,7 @@ def render_curve(record: Any, path: str, *, key: str, container: Any = None,
                  project: Any = None) -> None:
     """A ``List[XYPoint]`` / ``List[float]`` as an editable table of its members."""
     where = container if container is not None else st
-    _mark_composite(path, project, where)
+    _mark_composite(path, project, where, record)
     name = _leaf(path)
     element = _list_element(fr.field_type(path))
     arity = _tuple_arity(element) or 1
@@ -837,7 +885,7 @@ def render_enum_set(record: Any, path: str, *, key: str, container: Any = None,
                     project: Any = None) -> None:
     """A ``Set[Enum]`` as a multiselect."""
     where = container if container is not None else st
-    _mark_composite(path, project, where)
+    _mark_composite(path, project, where, record)
     name = _leaf(path)
     enum = _list_element(fr.field_type(path))
     assert isinstance(enum, type) and issubclass(enum, Enum)

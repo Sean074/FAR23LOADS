@@ -50,6 +50,7 @@ from __future__ import annotations
 import math
 from typing import List, Optional, Tuple
 
+from ..cg_cases import max_takeoff_weight
 from ..derived_geometry import pct_mac_to_station, require_mac_reference
 from ..models import (
     ConditionResult,
@@ -168,6 +169,13 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
     # typed override else the planform (C210-13), and X = XLEMAC + pct/100*MAC.
     mac_ref = require_mac_reference(project, inp)
 
+    # The gross-weight corner falsy-derives from the MTOW SSOT (note 36,
+    # OV-1/OV-2; C210-13): a blank envelope.gross_weight used to put the gross
+    # corners at 0 lb, silently. Safe against the reverse G-14 fallback --
+    # max_takeoff_weight reads this same raw field only when it is non-zero,
+    # which is exactly when this branch does not run.
+    gross_weight = inp.gross_weight or max_takeoff_weight(project, required=False)
+
     aft_s = pct_mac_to_station(inp.aft_gross_pct_mac, mac_ref)
     fwd_s = pct_mac_to_station(inp.fwd_gross_pct_mac, mac_ref)
     reg_s = pct_mac_to_station(inp.fwd_regardless_pct_mac, mac_ref)
@@ -195,8 +203,8 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
             LoadValue("Aft gross station", aft_s, _IN, key="aft_gross_station"),
             LoadValue("Forward gross station", fwd_s, _IN, key="forward_gross_station"),
             LoadValue("Forward regardless station", reg_s, _IN, key="forward_regardless_station"),
-            LoadValue("Aft gross point weight", inp.gross_weight, _LB, quantity="mass", key="aft_gross_point_weight"),
-            LoadValue("Forward gross point weight", inp.gross_weight, _LB, quantity="mass",
+            LoadValue("Aft gross point weight", gross_weight, _LB, quantity="mass", key="aft_gross_point_weight"),
+            LoadValue("Forward gross point weight", gross_weight, _LB, quantity="mass",
                 key="forward_gross_point_weight"),
             LoadValue("Forward regardless point weight", inp.fwd_regardless_weight, _LB, quantity="mass",
                 key="forward_regardless_point_weight"),
@@ -264,7 +272,7 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
     # p22 reference). Equals the full loading when that is itself at/under gross
     # (as on the GA6 -> 78 lb); M1-7 fixed the prior code, which used the full
     # loading unconditionally and returned 0 ballast whenever it exceeded gross.
-    aft_cands = [p for p in fwd_seq if p[0] <= inp.gross_weight]
+    aft_cands = [p for p in fwd_seq if p[0] <= gross_weight]
     aft_ref = extreme(aft_cands, lambda p: p[0]) if aft_cands else None
     aft_reason = "no loading at/below gross weight"
     if aft_ref is not None and aft_ref[1] >= aft_s:
@@ -274,11 +282,11 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
         # degeneracy explicitly rather than a wild moment-balance station (M1-7).
         aft_ref = None
         aft_reason = "loading already at/aft of the aft-gross limit"
-    add_ballast("Aft gross", "aft_gross", inp.gross_weight, aft_s, aft_ref, aft_reason)
+    add_ballast("Aft gross", "aft_gross", gross_weight, aft_s, aft_ref, aft_reason)
     # Forward gross: heaviest forward-loading point at/forward of the fwd-gross station.
     fwd_cands = [p for p in fwd_seq if p[1] <= fwd_s]
     fwd_ref = extreme(fwd_cands, lambda p: p[0]) if fwd_cands else None
-    add_ballast("Forward gross", "forward_gross", inp.gross_weight, fwd_s, fwd_ref,
+    add_ballast("Forward gross", "forward_gross", gross_weight, fwd_s, fwd_ref,
                 "no loading forward of the fwd-gross station")
     # Forward regardless: heaviest forward-loading point at/below the reduced weight.
     reg_cands = [p for p in fwd_seq if p[0] <= inp.fwd_regardless_weight]

@@ -36,17 +36,92 @@ from ..models import (
     ConditionResult,
     EngineInput,
     LoadValue,
+    MassItem,
     MissingInputError,
     ModuleResult,
     Project,
     Rotor,
     Vec3,
+    same_name,
 )
 from ..registry import register
 
 # --------------------------------------------------------------------------- #
 # Derived / shared quantities
 # --------------------------------------------------------------------------- #
+
+def selected_mass_row(project: Project, selector: str, engine_label: str,
+                      which: str) -> MassItem:
+    """The ``weight.items`` row an engine mass selector names (note 36, OV-7).
+
+    Matched by ``name`` with ``same_name`` (identity stays an input, never
+    inferred). A selector naming no row is **refused by name** -- the C210-21
+    load-bearing-blank pattern: an engine that claims a database linkage which
+    does not resolve must not fall back silently to whatever is typed beside it.
+    """
+    weight = project.weight
+    rows = weight.items if weight is not None else []
+    for row in rows:
+        if same_name(row.name, selector):
+            return row
+    raise ValueError(
+        f"{engine_label}: {which} names the weight-database row {selector!r}, "
+        "and no weight.items row has that name. Fix the selector on the Engine "
+        "Mount page, or add the row on the Weight & Mass page.")
+
+
+def effective_engine(project: Project, eng: EngineInput,
+                     engine_label: str = "engine") -> EngineInput:
+    """The engine input with the note 36 falsy-derives resolved (OV-1/OV-7).
+
+    A local copy, never written back (the ``landing.build_landing``
+    effective-input pattern). With a mass selector set, the engine/prop weight
+    falsy-derives from the selected row and the CG derives from the row when
+    left ``(0, 0, 0)``; a typed value overrides (``validation`` warns on a
+    > 1e-6 disagreement, ``engine_mass_row_mismatch``). A blank
+    ``limit_load_factor`` derives from the FAR 23.337 limit the design speeds
+    already own (``design_speed_values(project).n``, selector-independent): a 0
+    LIMNZ silently zeroed every mount load (C210-41). Every typed fixture
+    passes through unchanged, field for field.
+    """
+    from dataclasses import replace
+
+    updates: dict = {}
+    if eng.engine_mass_item:
+        row = selected_mass_row(project, eng.engine_mass_item, engine_label,
+                                "engine_mass_item")
+        if not eng.engine_weight_lb:
+            updates["engine_weight_lb"] = row.weight_lb
+        if not any(eng.engine_cg):
+            updates["engine_cg"] = (row.x, row.y, row.z)
+    if eng.prop_mass_item:
+        row = selected_mass_row(project, eng.prop_mass_item, engine_label,
+                                "prop_mass_item")
+        if not eng.prop_weight_lb:
+            updates["prop_weight_lb"] = row.weight_lb
+        if not any(eng.prop_cg):
+            updates["prop_cg"] = (row.x, row.y, row.z)
+    if not eng.limit_load_factor and project.speeds is not None:
+        import contextlib
+
+        from .structural_speeds import design_speed_values
+
+        # Underivable (incomplete speeds): the blank stands, validation flags it.
+        with contextlib.suppress(MissingInputError, ValueError):
+            updates["limit_load_factor"] = design_speed_values(project, project.speeds).n
+    return replace(eng, **updates) if updates else eng
+
+
+def resolved_engines(project: Project) -> List[EngineInput]:
+    """Every engine, through :func:`effective_engine` -- what consumers read.
+
+    The one accessor for the resolved engine list, so the mount loads, the LRA
+    beam model, the nacelle geometry and the OEI chain all see the same engine
+    (rule 3: the resolver is the single source, not a per-consumer respelling).
+    """
+    return [effective_engine(project, eng, eng.engine_designation or f"engine {i}")
+            for i, eng in enumerate(project.engines, start=1)]
+
 
 def combined_weight(inp: EngineInput) -> float:
     """PPWT -- combined propeller + engine weight, lb."""
@@ -620,7 +695,7 @@ def run(project: Project) -> ModuleResult:
     single = len(project.engines) == 1
     allocator = CaseIdAllocator()
     conditions: List[ConditionResult] = []
-    for i, eng in enumerate(project.engines, start=1):
+    for i, eng in enumerate(resolved_engines(project), start=1):
         for cond in run_all(eng, include_far25=project.include_far25):
             # The 23.371(b)/25.371 gyro condition packs 4 sign-combination
             # sub-cases into one ConditionResult (report.py's _gyro_subcases

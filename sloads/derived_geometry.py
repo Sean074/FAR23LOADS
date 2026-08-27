@@ -231,6 +231,98 @@ def planform_area_sqft(project: Project, surface_name: str = "wing") -> Optional
     return total_in2 / IN2_PER_FT2
 
 
+def planform_aspect_ratio(yroot: float, ytip: float, area_per_side: float,
+                          symmetric: bool) -> float:
+    """``AR = b^2 / S`` from a planform strip integral — **the one spelling** (OV-5).
+
+    ``b`` is the full span (``2*ytip`` for a symmetric surface, ``ytip - yroot``
+    for a single-sided one) and ``S`` the matching area (both sides for a
+    symmetric surface). Until note 36 this formula lived independently in
+    ``wing_geometry.surface_properties`` and ``airloads.schrenk_distribution``;
+    both now call here, and the h-tail's ``aspect_ratio_wing`` falsy-derives
+    through :func:`wing_aspect_ratio` rather than growing a third spelling.
+    """
+    if symmetric:
+        return (2.0 * ytip) ** 2 / (2.0 * area_per_side)
+    return (ytip - yroot) ** 2 / area_per_side
+
+
+def wing_aspect_ratio(project: Project, surface_name: str = "wing") -> Optional[float]:
+    """The project wing's planform aspect ratio, or ``None`` when absent (OV-5).
+
+    The derivation owner ``geometry.empennage.htail.aspect_ratio_wing``
+    falsy-derives from (note 36, OV-2): the WINGGEOM strip integral's own AR,
+    read from :func:`~sloads.modules.wing_geometry.surface_properties` so it is
+    the number the wing analysis itself reports. ``None`` when there is no
+    geometry slice, no such surface, or the planform cannot be integrated —
+    the consumer then refuses on the still-blank input rather than dividing
+    by zero (``select.py``'s downwash divides by ARW).
+    """
+    geom = project.geometry
+    surf = geom.by_name(surface_name) if geom is not None else None
+    if surf is None:
+        return None
+    from .modules.wing_geometry import surface_properties
+    try:
+        return next(v.value for v in surface_properties(surf).values
+                    if v.key == "aspect_ratio")
+    except (ValueError, ZeroDivisionError):
+        return None
+
+
+def _edge_chord(surf: SurfaceInput, y: float) -> float:
+    """Local chord (in) at butt line ``y`` from the edge polylines."""
+    from .modules.wing_geometry import interp_x
+    return interp_x(surf.trailing_edge, y) - interp_x(surf.leading_edge, y)
+
+
+def taper_ratio_from_planform(surf: SurfaceInput) -> Optional[float]:
+    """TAU's taper ratio — tip chord / centreline (root) chord — from the
+    surface's own edge polylines (note 36, OV-2; C210-31).
+
+    The derivation owner ``aero.surfaces[].taper_ratio`` falsy-derives from: the
+    chords at the polylines' shared inboard-most and outboard-most butt lines.
+    ``None`` when the planform is not integrable or the root chord is
+    degenerate — the consumer's ``value or derive`` then leaves the typed 0.0
+    in place, which is today's (pointed-wing) behaviour on a planform that
+    cannot answer. A genuinely pointed wing derives 0.0 from its own polylines,
+    so a blank is never load-bearing (OV-1).
+    """
+    try:
+        require_integrable_planform(surf)
+    except ValueError:
+        return None
+    y_root = max(surf.leading_edge[0][1], surf.trailing_edge[0][1])
+    y_tip = min(surf.leading_edge[-1][1], surf.trailing_edge[-1][1])
+    if y_tip <= y_root:
+        return None
+    c_root = _edge_chord(surf, y_root)
+    c_tip = _edge_chord(surf, y_tip)
+    if c_root <= 0.0 or c_tip < 0.0:
+        return None
+    return c_tip / c_root
+
+
+def tip_ratio_from_planform(surf: SurfaceInput) -> Optional[float]:
+    """TAU's rounded-tip ratio — tip-cap width / semi-span — from geometry
+    (note 36, OV-4).
+
+    The polylines end square by construction, so the rounding is carried by the
+    surface's own ``tip_cap_width_in`` (entered once with the wing, 0 = square
+    tip) and ``aero.surfaces[].tip_ratio`` falsy-derives as that width over the
+    semi-span. ``None`` only when the planform has no span to divide by; a
+    square tip derives 0.0, which is exactly the blank field's old meaning.
+    """
+    if len(surf.leading_edge) < 2 or len(surf.trailing_edge) < 2:
+        return None
+    y_root = max(surf.leading_edge[0][1], surf.trailing_edge[0][1])
+    y_tip = min(surf.leading_edge[-1][1], surf.trailing_edge[-1][1])
+    semi_span = y_tip if surf.symmetric else y_tip - y_root
+    if semi_span <= 0.0:
+        return None
+    return float(surf.tip_cap_width_in) / semi_span
+
+
 def require_wing_reference(project: Project, surface_name: str = "wing") -> WingReference:
     """:func:`wing_reference`, or a refusal naming the page — note 33, DS-2/DS-3.
 

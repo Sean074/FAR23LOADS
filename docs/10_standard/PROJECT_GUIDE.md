@@ -356,11 +356,13 @@ So that every module is copy-of-the-pattern, these are fixed once:
   **Apply**; the oracle GUI's generic renderer persists live but writes only
   what changed, and attaches a record it created only if the pass put something
   in it.
-- **A project file is read at the current schema, or refused** (`sloads/migrations.py`,
-  #93). This project is pre-production: no analysis made with an earlier build has
-  to stay readable, so `SUPPORTED_FLOOR` **is** `SCHEMA_VERSION` and
-  `migrations.migrate` raises `SchemaVersionError` — a `ValueError`, so it lands
-  in the documented error contract — for anything older, newer or unversioned.
+- **A project file is read at the current schema — or a version the hop chain
+  reaches it from — or refused** (`sloads/migrations.py`, #93). This project is
+  pre-production: no analysis made with an earlier build has to stay readable,
+  so `SUPPORTED_FLOOR` is the oldest version a registered hop starts from
+  (v55, note 36's additive-identity hop) and `migrations.migrate` raises
+  `SchemaVersionError` — a `ValueError`, so it lands in the documented error
+  contract — for anything below the floor, newer, or unversioned.
   The gate sits inside `io.project_from_dict`, the funnel every front-end loads
   through, so no GUI classifies versions for itself
   (guard: `tests/test_app_shell.py::test_no_gui_decides_whether_a_file_is_readable`).
@@ -372,11 +374,13 @@ So that every module is copy-of-the-pattern, these are fixed once:
   Imperial digests then prove changed no delivered number. Never add legacy
   handling *inside* a reader: that is the five-shims-in-five-places pattern the
   chain replaced.
-  **The migration chain is kept, empty.** `MIGRATIONS` is still a
-  `{from_version: hop}` map applied in ascending order; at production the floor
-  drops to the shipped version and hops register from there forward, one per
-  version that changes the file's *shape*, with a frozen fixture per shape under
-  `tests/fixtures_schema/`. The twelve hops that covered v18–v55 and the v0
+  **The migration chain is live again.** `MIGRATIONS` is a
+  `{from_version: hop}` map applied in ascending order; its one hop today is
+  the v55→v56 identity of note 36's additive fields (#97), with the frozen
+  per-shape fixtures under `tests/fixtures_schema/`. The schema ledger — which
+  version added what — is the annotated `EXPECTED_FIELDS_HASH` block in
+  `tests/test_schema_guards.py` plus the comment above `SCHEMA_VERSION` in
+  `sloads/models/project.py`. The twelve hops that covered v18–v55 and the v0
   bare-`EngineInput` branch retired with #93; they are recorded in
   `docs/40_history/11_completed_development_to_0.5.0.md` (M4-10).
 - **Numbers in, numbers stored (the load boundary's typing contract, #76).** A

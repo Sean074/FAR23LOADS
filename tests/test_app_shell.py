@@ -412,7 +412,8 @@ def test_opening_an_older_file_is_refused_and_adopts_nothing():
     at.run()
     assert not at.exception, [e.message for e in at.exception]
     errors = [e.value for e in at.error]
-    assert any("schema 41" in e and "schema 55" in e for e in errors), errors
+    assert any(f"schema {SCHEMA_VERSION - 14}" in e and f"{SCHEMA_VERSION}" in e
+               for e in errors), errors
     assert at.session_state["project"].name != "from-upload", (
         "a file this build cannot read was adopted anyway")
 

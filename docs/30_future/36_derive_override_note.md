@@ -2,10 +2,11 @@
 
 **Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6)*
 
-**Status: AGREED 2026-08-26 (owner, in session — `CLAUDE.md` rule 1's
-working-alone path). Milestone: 0.8.0, issue #97 (tier L — the tip-cap and
-engine-selector schema fields make it a schema change). Agreed as drafted;
-nothing below is built yet.** Owner rulings
+**Status: SHIPPED 2026-08-27 (#97, schema v56; `changes/derive-by-default-
+override.*`). Agreed 2026-08-26 (owner, in session — `CLAUDE.md` rule 1's
+working-alone path); implemented as drafted, gates G-OV-1…G-OV-6 in
+`tests/test_derive_override.py`. Rolls to `40_history/` at the 0.8.0 cut.**
+Owner rulings
 already taken (in session, 2026-08-26): the derivation lives at **calc
 level** (a blank field in any project file derives, CLI and GUI alike); the
 engine↔mass linkage is an **explicit row selector on `EngineInput`**, not a
