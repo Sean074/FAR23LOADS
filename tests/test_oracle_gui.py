@@ -295,6 +295,46 @@ def test_every_oracle_page_renders(key):
     assert not at.exception, [e.message for e in at.exception]
 
 
+def test_a_widget_that_flips_disabled_is_pinned_to_the_governing_value():
+    """A display-only widget shows the value that governs, not stale state.
+
+    The #95 fuselage-length CI find (0b38c8a): the Geometry page renders
+    ``fuselage_length`` live while no outline exists and disabled -- showing
+    the outline's own length -- once one does. Streamlit keeps a keyed
+    widget's state across reruns and lets that state outvote ``value=``, so
+    the live->disabled flip left the stale typed number on the disabled
+    widget: the page said one length while the analysis read another.
+    ``app_shell.components._seeded_number`` pins a disabled widget's state to
+    its governing seed; this walks the exact flip within one session.
+    """
+    from dataclasses import replace
+
+    from app_shell.widget_keys import unstamped
+
+    full = io.load_project(_EXAMPLE)
+    derived = fr.external_value("geometry.parametric.fuselage_length", full)
+    assert derived == pytest.approx(318.26)
+    with_stale = replace(full.geometry.parametric, fuselage_length=999.0)
+    no_outline = replace(full, geometry=replace(
+        full.geometry, fuselage=None, parametric=with_stale))
+    at = _render("configuration_layout", no_outline)
+    assert not at.exception, [e.message for e in at.exception]
+    key = "geometry.parametric.fuselage_length_imperial"
+
+    def shown():
+        for w in at.number_input:
+            if unstamped(w.key) == key:
+                return w.value
+        raise AssertionError(f"{key} not rendered")
+
+    assert shown() == pytest.approx(999.0)   # live: the stored (stale) copy
+    at.session_state["project"] = replace(full, geometry=replace(
+        full.geometry, parametric=with_stale))
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    assert shown() == pytest.approx(derived)  # disabled: the outline's length
+
+
 @pytest.mark.parametrize("key", sorted(wf.oracle_step_keys()))
 def test_every_oracle_page_renders_on_an_empty_project(key):
     """The state the GUI is *for*: a blank project, every slice absent. The
