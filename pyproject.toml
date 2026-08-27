@@ -59,6 +59,11 @@ dev = [
     #   .venv/bin/radon cc -s -n C app/views/
     #   .venv/bin/radon mi -s app/views/
     "radon",
+    # Guide screenshot capture (design note 34 UG-4, `scripts/
+    # capture_guide_shots.py`): drives the oracle GUI headless and writes the
+    # user guide's PNGs. Dev-only tooling, never imported at runtime; the
+    # browser itself is a one-time `.venv/bin/playwright install chromium`.
+    "playwright>=1.45",
 ]
 # The sbeam round-trip gate's solver (decision S-1, design note
 # docs/40_history/17_sbeam_roundtrip_ci_harness_plan.md). Deliberately NOT in
