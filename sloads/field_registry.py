@@ -104,6 +104,47 @@ CODED_FIELDS: Dict[str, Mapping[str, str]] = {
     "geometry.landing_gear.nose_gear.strut": _models.STRUT_TYPES,
 }
 
+#: Fixed-vocabulary **row selectors** (#98, C210-46): ``str`` fields on list
+#: records that pick which surface a row belongs to, offered as a choice like
+#: :data:`CODED_FIELDS` -- but the values are surface *names*, stored lowercase
+#: and refused by name by the consumers (``models.inputs.require_surface``),
+#: not codes. The vocabularies are owned in ``models/inputs.py`` beside the
+#: dataclasses; guarded in ``tests/test_selectors.py``.
+ROW_SELECTOR_CHOICES: Dict[str, Tuple[str, ...]] = {
+    "tab_loads.tabs[].surface": _models.TAB_SURFACES,
+    "tail_mass[].surface": _models.TAIL_SURFACES,
+}
+
+#: Fields whose **declared default is a sentinel, not a value** (#98, C210-49):
+#: the consumers refuse, assume-with-a-note or leave the free body open on the
+#: default rather than compute with it, so "leave it at its default" -- the
+#: whole basis of the OG-2/OG-5 reduction -- is not available for them. Each
+#: entry cites the consumer that says so. The guard
+#: ``tests/test_field_registry.py::test_a_sentinel_default_field_is_always_asked``
+#: fails the build if one of these is ever filtered off its oracle page, which
+#: is exactly how the gear block shipped hidden: an oracle-built project could
+#: not export ground cases and the page did not say so.
+SENTINEL_DEFAULTS: Dict[str, str] = {
+    "geometry.landing_gear.main_gear.carrier":
+        "None = not stated; export/lra_model.py assumes with a note and "
+        "validation.py warns gear_carrier_unset (G-2)",
+    "geometry.landing_gear.nose_gear.carrier":
+        "None = not stated; export/lra_model.py assumes with a note and "
+        "validation.py warns gear_carrier_unset (G-2)",
+    "geometry.landing_gear.main_gear.attach":
+        "(0,0,0) = not entered; export/lra_model.py omits the leg's node -- "
+        "no ground case is deliverable (Step 10)",
+    "geometry.landing_gear.nose_gear.attach":
+        "(0,0,0) = not entered; export/lra_model.py omits the leg's node -- "
+        "no ground case is deliverable (Step 10)",
+    "geometry.landing_gear.main_gear.weight_lb":
+        "0 = not stated; gear_loads.leg_weight returns None and the report "
+        "prints the inertia term blank (G-12a)",
+    "geometry.landing_gear.nose_gear.weight_lb":
+        "0 = not stated; gear_loads.leg_weight returns None and the report "
+        "prints the inertia term blank (G-12a)",
+}
+
 #: ``Project`` attributes that are read-through **properties**, not stored
 #: slices, mapped to the path their fields actually live at. ``workflow.py``
 #: names them in ``requires`` (a step needs the rational h-tail inputs), and
@@ -655,13 +696,20 @@ _LAND = "landing_loads"
 # Two standing rulings cover classes rather than rows:
 #
 #  * **Surface / set selectors are `sloads`** — `aileron_loads.surface`,
-#    `speeds.wing_surface`, `aero.surfaces[].name`, `aero_coeffs.*.name`,
-#    `tail_mass[].surface` and friends exist because this model carries N
-#    surfaces where the original carried a fixed one. The oracle GUI resolves
-#    them positionally and never asks. The ones it must still *write* to make a
-#    well-formed model carry ``supplied=True`` (see :data:`SUPPLIED_RULE`) —
-#    building G5 showed "never asks" and "never sets" are not the same claim,
-#    and the table was only making the first one.
+#    `speeds.wing_surface`, `aero_coeffs.*.name` and friends exist because this
+#    model carries N surfaces where the original carried a fixed one. A **page
+#    scalar** the oracle GUI resolves positionally and never asks (the flap page
+#    means the flap). The ones it must still *write* to make a well-formed model
+#    carry ``supplied=True`` (see :data:`SUPPLIED_RULE`) — building G5 showed
+#    "never asks" and "never sets" are not the same claim, and the table was
+#    only making the first one. The ruling stops at a **list row** (#98,
+#    C210-46): a page cannot resolve which surface *each row* of
+#    `tab_loads.tabs[]`, `tail_mass[]` or `aero.surfaces[]` belongs to, so
+#    hiding the row's selector hardcodes it — every tab silently became an
+#    h-tail tab. Row selectors are rendered (``supplied=True``, demonstrated
+#    load-bearing in ``tests/test_oracle_inputs.py``), and the guard
+#    ``tests/test_field_registry.py::test_a_list_row_selector_is_always_asked``
+#    keeps the boundary.
 #    The ruling covers selectors this model **created**; it does not cover a mode
 #    the original program itself branched on. `engines[].engine_type` looks like
 #    a selector and is not one: ENGLOADS ran a reciprocating and a turbine
@@ -803,22 +851,40 @@ REGISTRY: Tuple[FieldEntry, ...] = (
 
     # geometry.landing_gear -- the G6b single source
     _E("geometry.landing_gear.tread_in", _GEO, _ORIG, "LANDLOAD TREAD"),
-    _E("geometry.landing_gear.main_gear.attach", _GEO, _SLDS, "trunnion node, gear free body Step 10"),
+    _E("geometry.landing_gear.main_gear.attach", _GEO, _SLDS,
+       "trunnion node, gear free body Step 10; load-bearing (G5, #98, C210-49): without it "
+       "the leg's node is omitted from the free-free model and no ground case is delivered",
+       supplied=True),
     _E("geometry.landing_gear.main_gear.axle_static", _GEO, _ORIG, "LANDLOAD static axle station"),
     _E("geometry.landing_gear.main_gear.axle_compressed", _GEO, _ORIG, "LANDLOAD compressed axle station"),
     _E("geometry.landing_gear.main_gear.axle_extended", _GEO, _ORIG, "LANDLOAD extended axle reference"),
     _E("geometry.landing_gear.main_gear.rolling_radius_in", _GEO, _ORIG, "LANDLOAD RM"),
     _E("geometry.landing_gear.main_gear.strut", _GEO, _ORIG, "LGFACTOR oleo/spring selector"),
-    _E("geometry.landing_gear.main_gear.carrier", _GEO, _SLDS, "BODY|WING carrier, decision G-2"),
-    _E("geometry.landing_gear.main_gear.weight_lb", _GEO, _SLDS, "leg weight, decision G-12a"),
-    _E("geometry.landing_gear.nose_gear.attach", _GEO, _SLDS, "trunnion node, gear free body Step 10"),
+    _E("geometry.landing_gear.main_gear.carrier", _GEO, _SLDS,
+       "BODY|WING carrier, decision G-2; load-bearing (G5, #98, C210-49): None = not stated, "
+       "the export assumes and warns rather than routes",
+       supplied=True),
+    _E("geometry.landing_gear.main_gear.weight_lb", _GEO, _SLDS,
+       "leg weight, decision G-12a; load-bearing (G5, #98, C210-49): 0 = not stated, the "
+       "gear report's free body stays open (no inertia term)",
+       supplied=True),
+    _E("geometry.landing_gear.nose_gear.attach", _GEO, _SLDS,
+       "trunnion node, gear free body Step 10; load-bearing (G5, #98, C210-49): without it "
+       "the leg's node is omitted from the free-free model and no ground case is delivered",
+       supplied=True),
     _E("geometry.landing_gear.nose_gear.axle_static", _GEO, _ORIG, "LANDLOAD static axle station"),
     _E("geometry.landing_gear.nose_gear.axle_compressed", _GEO, _ORIG, "LANDLOAD compressed axle station"),
     _E("geometry.landing_gear.nose_gear.axle_extended", _GEO, _ORIG, "LANDLOAD extended axle reference"),
     _E("geometry.landing_gear.nose_gear.rolling_radius_in", _GEO, _ORIG, "LANDLOAD RN"),
     _E("geometry.landing_gear.nose_gear.strut", _GEO, _ORIG, "LGFACTOR oleo/spring selector"),
-    _E("geometry.landing_gear.nose_gear.carrier", _GEO, _SLDS, "BODY|WING carrier, decision G-2"),
-    _E("geometry.landing_gear.nose_gear.weight_lb", _GEO, _SLDS, "leg weight, decision G-12a"),
+    _E("geometry.landing_gear.nose_gear.carrier", _GEO, _SLDS,
+       "BODY|WING carrier, decision G-2; load-bearing (G5, #98, C210-49): None = not stated, "
+       "the export assumes and warns rather than routes",
+       supplied=True),
+    _E("geometry.landing_gear.nose_gear.weight_lb", _GEO, _SLDS,
+       "leg weight, decision G-12a; load-bearing (G5, #98, C210-49): 0 = not stated, the "
+       "gear report's free body stays open (no inertia term)",
+       supplied=True),
 
     # ----------------------------------------------------------------- #
     # weight -- WTESTIMA / WTONECG / WTENV (weight_mass)
@@ -1045,7 +1111,10 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     # ----------------------------------------------------------------- #
     # aero -- AIRLOADS/AIRLOAD4/TAU per-surface inputs (wing_loads)
     # ----------------------------------------------------------------- #
-    _E("aero.surfaces[].name", _WING, _SLDS, "surface selector (standing ruling)"),
+    _E("aero.surfaces[].name", _WING, _SLDS,
+       "row selector -- pairs the row with its geometry planform; load-bearing (G5, #98): "
+       "an unmatched name leaves the surface on its seeded defaults (note 36 OV-8)",
+       supplied=True),
     _E("aero.surfaces[].section_slope", _WING, _ORIG, "AIRLOADS mo"),
     _E("aero.surfaces[].profile_drag", _WING, _ORIG, "AIRLOADS CDO(Y)"),
     _E("aero.surfaces[].section_cm", _WING, _ORIG, "AIRLOADS CM(Y)"),
@@ -1115,7 +1184,10 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("flap_loads.outboard_y_in", _FLAP, _SLDS, "sbeam control-surface bridge station"),
     _E("flap_loads.hinges_span_in", _FLAP, _SLDS, "sbeam control-surface bridge station"),
     _E("flap_loads.actuator_span_in", _FLAP, _SLDS, "sbeam control-surface bridge station"),
-    _E("tab_loads.tabs[].surface", _TAB, _SLDS, "surface selector (standing ruling)"),
+    _E("tab_loads.tabs[].surface", _TAB, _SLDS,
+       "row selector -- host surface; load-bearing (G5, #98, C210-46): picks the case-ID "
+       "band, the exported component tag and the BL-vs-WL reading of station_in",
+       supplied=True),
     _E("tab_loads.tabs[].area_sqft", _TAB, _ORIG, "TABLOADS STAB"),
     _E("tab_loads.tabs[].mac_in", _TAB, _ORIG, "TABLOADS MACTAB"),
     _E("tab_loads.tabs[].airfoil_chord_in", _TAB, _ORIG, "TABLOADS CAIRFOIL"),
@@ -1212,7 +1284,10 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("landing.tail_down_angle_deg", _LAND, _ORIG, "LANDLOAD GRA(3)"),
 
     # tail_mass -- the empennage surface-mass override (plan 09 T-3)
-    _E("tail_mass[].surface", _WT, _SLDS, "surface selector (standing ruling)"),
+    _E("tail_mass[].surface", _WT, _SLDS,
+       "row selector -- which tail surface the row describes; load-bearing (G5, #98): an "
+       "unmatched row is refused by name where it used to be silently inert",
+       supplied=True),
     _E("tail_mass[].panel_weight_lb", _WT, _SLDS, "empennage distributed inertia, plan 09 T-3"),
     _E("tail_mass[].weight_is_override", _WT, _SLDS, "empennage distributed inertia, plan 09 T-3"),
     _E("tail_mass[].control_load_mode", _WT, _SLDS, "empennage distributed inertia, plan 09 T-3"),

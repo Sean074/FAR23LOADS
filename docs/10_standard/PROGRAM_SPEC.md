@@ -339,7 +339,7 @@ approved-corrections register [`../20_theory/02_approved_corrections.md`](../20_
 - **Reads:** `Project.speeds` (VC), `Project.tab_loads` (`TabLoadsInput.tabs`, each a `TabSpec`: host surface, tab MAC, area sq ft, station, host-airfoil chord at the tab MAC, deflection).
 - **Writes:** per-tab chord ratio E, tab load, LE/TE pressures → one `ConditionResult` per tab; `ControlSurfaceLoadResult` (trapezoid LE = 2× TE) for the loads slice + sbeam bridge.
 - **Validation:** Appendix A "Tab Loads" p202 (h-tail tab: E 0.17735, LTAB 84.62 lb, LE 0.4992 / TE 0.2496) within ±0.1% — `tests/test_tab.py`.
-- **Notes:** Full deflection at VC (the shoulder point); host-surface CL lift on the tab neglected (chord ratio ~0.12). `TabSpec.area_sqft` is the tab area in **square feet** (canonical display unit since Phase G0, schema v24; older files with the legacy `area_sqin` key migrate `/144`). The calc restores the original program's square inches internally (`STAB = area_sqft × 144`) so `LTAB = M·δ·Q·STAB/144` is unchanged.
+- **Notes:** Full deflection at VC (the shoulder point); host-surface CL lift on the tab neglected (chord ratio ~0.12). `TabSpec.area_sqft` is the tab area in **square feet** (canonical display unit since Phase G0, schema v24; older files with the legacy `area_sqin` key migrate `/144`). The calc restores the original program's square inches internally (`STAB = area_sqft × 144`) so `LTAB = M·δ·Q·STAB/144` is unchanged. **Host-surface routing (#98, C210-46):** `TabSpec.surface` is a `TAB_SURFACES` name (`wing`/`htail`/`vtail`, lowercased at construction) and picks the case-ID band, the exported component tag and the BL-vs-WL reading of `station_in`; an unknown surface is refused by name (`models.inputs.require_surface`), never silently filed under a default — and the oracle GUI renders the selector (it was filtered off the page, pinning every tab to the h-tail).
 
 ### TAILDIST — Chordwise tail load distribution (built, Step C7)
 - **FAR §:** 23.421+ tail loads, chordwise distribution.
@@ -575,7 +575,9 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   authoritative area/span as a rectangle); the surface weight from the
   `htail`/`vtail`-tagged rows of `Project.weight.items` via
   `mass_distribution.tail_surface_weight` (an entered
-  `TailMassInput.panel_weight_lb` survives as an explicit override); and
+  `TailMassInput.panel_weight_lb` survives as an explicit override — a row whose
+  `surface` is not a `TAIL_SURFACES` name is **refused by name** there rather
+  than left silently inert, #98); and
   TAILDIST's aft-of-hinge pressure block in discrete mode.
 - **Writes:** one `TailSpanResult` per condition per surface — a station table
   of `WingStationLoad` (**LIMIT**) that is **full span, tip to tip** for the

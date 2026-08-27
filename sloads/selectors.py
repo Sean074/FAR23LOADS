@@ -41,6 +41,9 @@ T = TypeVar("T")
 #: field registry has an entry here, so a new selector cannot seed blank.
 NAME_SEEDS: Dict[str, Callable[[int], str]] = {
     "geometry.surfaces[].name": lambda i: "wing" if i == 0 else f"surface{i + 1}",
+    # Mirrors the geometry seed: an aero row pairs with the planform of the
+    # same name (#98; note 36 OV-8 derives rows for unpaired planforms).
+    "aero.surfaces[].name": lambda i: "wing" if i == 0 else f"surface{i + 1}",
     "weight.cg_cases[].name": lambda i: f"CG{i + 1}",
     "aero_coeffs.cruise.name": lambda _i: "CRUISE",
     "aero_coeffs.flaps_down.name": lambda _i: "LANDING",

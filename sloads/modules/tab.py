@@ -41,6 +41,7 @@ from ..models import (
     Project,
     TabSpec,
 )
+from ..models.inputs import TAB_SURFACES, require_surface
 from ..registry import register
 
 _TAB_COMPONENT = {"wing": "wing", "htail": "htail", "vtail": "vtail"}
@@ -96,7 +97,10 @@ def build_tabs(project: Project) -> List[ControlSurfaceLoadResult]:
     for spec in project.tab_loads.tabs:
         r = tab_load(vc, spec.mac_in, spec.area_sqft * IN2_PER_FT2, spec.airfoil_chord_in,
                      spec.deflection_deg)
-        component = _TAB_COMPONENT.get(spec.surface, "wing")
+        # Refused by name, never filed under a default component: the surface
+        # picks the case-ID band, the exported component tag and the BL-vs-WL
+        # reading of station_in (#98, C210-46).
+        component = _TAB_COMPONENT[require_surface(spec.surface, TAB_SURFACES, "tab surface")]
         if component not in seeded:
             allocator.seed(component, _TAB_BAND[component])
             seeded.add(component)

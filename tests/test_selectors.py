@@ -24,10 +24,13 @@ from sloads.field_registry import CODED_FIELDS, reduce_to_oracle_inputs
 from sloads.models import (
     CATEGORIES,
     STRUT_TYPES,
+    TAB_SURFACES,
+    TAIL_SURFACES,
     CgCase,
     GeometryInput,
     SurfaceInput,
     normalise_code,
+    require_surface,
     same_name,
 )
 from sloads.modules.structural_speeds import maneuver_load_factors
@@ -61,6 +64,68 @@ def test_every_coded_field_is_a_registered_str_field():
         assert fr.field_type(path) is str, path
         assert codes and all(len(c) == 1 and c.isupper() for c in codes), path
     assert CODED_FIELDS["speeds.category"] is CATEGORIES
+
+
+# --- #98: row selectors -- fixed-vocabulary surface names ------------------- #
+
+
+def test_every_row_selector_choice_is_a_registered_str_field():
+    """The `CODED_FIELDS` contract for the surface-name row selectors (#98):
+    each path is a registered ``str`` field and its vocabulary is lowercase
+    names, matched by the consumers and refused by name when unknown."""
+    for path, choices in fr.ROW_SELECTOR_CHOICES.items():
+        assert fr.entry(path) is not None, path
+        assert fr.field_type(path) is str, path
+        assert choices and all(n == n.strip().lower() for n in choices), path
+    assert fr.ROW_SELECTOR_CHOICES["tab_loads.tabs[].surface"] is TAB_SURFACES
+    assert fr.ROW_SELECTOR_CHOICES["tail_mass[].surface"] is TAIL_SURFACES
+
+
+def test_require_surface_forgives_case_and_names_the_choices():
+    assert require_surface(" HTAIL ", TAB_SURFACES, "tab surface") == "htail"
+    with pytest.raises(ValueError, match="'rudder' is not one of wing, htail, vtail"):
+        require_surface("rudder", TAB_SURFACES, "tab surface")
+
+
+def test_the_tab_component_map_matches_the_vocabulary():
+    """`_TAB_COMPONENT` (the case-ID/component routing) and `TAB_SURFACES` (the
+    offered vocabulary) must be the same set, or the widget could offer a
+    surface the router silently defaults -- the very C210-46 defect (#98)."""
+    from sloads.modules.tab import _TAB_BAND, _TAB_COMPONENT
+    assert tuple(_TAB_COMPONENT) == TAB_SURFACES
+    assert set(_TAB_BAND) == set(_TAB_COMPONENT.values())
+
+
+def test_an_unknown_tab_surface_is_refused_not_filed_under_wing():
+    """Before #98 an unknown surface fell through `_TAB_COMPONENT.get(...,
+    "wing")` -- the tab was silently filed as a *wing* case with a wing case-ID
+    band and a wing export tag."""
+    from sloads.modules.tab import build_tabs
+    project = io.load_project(_GA6)
+    project.tab_loads.tabs[0].surface = "rudder"
+    with pytest.raises(ValueError, match="tab surface 'rudder' is not one of"):
+        build_tabs(project)
+
+
+def test_an_unknown_tail_mass_surface_is_refused_not_silently_inert():
+    """Before #98 a `tail_mass` row whose surface matched nothing was simply
+    never read: the surface kept its derived weight and nothing said the
+    override had gone nowhere."""
+    from sloads.mass_distribution import tail_surface_weight
+    from sloads.models import TailMassInput
+    project = io.load_project(_GA6)
+    project.tail_mass = [TailMassInput(surface="stabilator", panel_weight_lb=50.0,
+                                       weight_is_override=True)]
+    with pytest.raises(ValueError, match="tail_mass surface 'stabilator' is not one of"):
+        tail_surface_weight(project, "htail")
+
+
+def test_row_selector_case_normalises_at_construction():
+    """`TabSpec` / `TailMassInput` lowercase their surface at construction, the
+    `speeds.category` pattern -- so `==` matching downstream is safe."""
+    from sloads.models import TabSpec, TailMassInput
+    assert TabSpec(surface=" VTAIL ").surface == "vtail"
+    assert TailMassInput(surface="Htail").surface == "htail"
 
 
 def test_the_owners_normalise_case_at_construction():
