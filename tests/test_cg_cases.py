@@ -249,6 +249,7 @@ def test_ground_coverage_matches_what_the_plan_measured():
             sum(1 for ld in loadings if ld.derivable), len(loadings))
     assert got == {
         "ga6_normal": (3, 3),
+        "baron_58": (3, 3),
         "concept_regional_jet": (3, 3),
         "cessna_210": (3, 3),
         "atr42_100": (3, 3),
