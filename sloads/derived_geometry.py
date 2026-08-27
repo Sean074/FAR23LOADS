@@ -746,3 +746,26 @@ def sync_geometry_derived(project: Project) -> None:
         if summary is not None:
             geom.parametric.fuselage_length, geom.parametric.fuselage_width, \
                 geom.parametric.fuselage_height = summary
+
+
+def tail_cp_suggestion(project: Project) -> Optional[Tuple[float, float]]:
+    """Suggested ``(xtc, xtf)`` tail-CP stations from the empennage record (#94).
+
+    The FLTLOADS tail-CP convention (C210-20 owner directive): flaps up the
+    h-tail centre of pressure sits well forward, ~5% of tail MAC; flaps down it
+    moves aft to ~25%. The empennage record already holds the 25%-MAC station
+    ``xt25``, so ``Xtf = xt25`` and ``Xtc = xt25 - 0.20*MAC`` with the tail MAC
+    approximated as the average chord, ``ST/span``. A *suggestion* only -- the
+    user still types the value (owner chose this over blank-derives), so
+    nothing here writes to the project and no calc reads it.
+
+    ``None`` when the empennage record cannot answer (no ``xt25``, or no
+    area/semi-span to make a MAC from).
+    """
+    ti = project.tail_loads
+    if ti is None or ti.xt25 <= 0.0:
+        return None
+    if ti.htail_area_sqft <= 0.0 or ti.htail_semispan_in <= 0.0:
+        return None
+    mac_in = ti.htail_area_sqft * IN2_PER_FT2 / (2.0 * ti.htail_semispan_in)
+    return ti.xt25 - 0.20 * mac_in, ti.xt25

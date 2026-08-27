@@ -1,7 +1,7 @@
 """Quantitative fleet comparison -- pure, unit-testable placement of one airplane
 against a reference fleet.
 
-A companion to the visual W/S-vs-W/P, MTOW-vs-OEW and geometric scatters on the
+A companion to the visual W/S-vs-W/P, MTOW-vs-empty-weight and geometric scatters on the
 Aircraft Comparison page: those show *where* the design sits; this module reports it
 numerically -- the nearest-N similar aircraft, the wing-loading / power-loading
 percentile band, and outlier flags. It is pure (no pandas, no file

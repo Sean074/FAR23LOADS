@@ -281,7 +281,7 @@ class WeightInput:
     through :func:`sloads.cg_cases.max_landing_weight` /
     :func:`sloads.cg_cases.max_takeoff_weight`, never off a case list: the
     fallback that field replaced took ``max(landing cg_cases)``, which yields
-    **MLW, not MTOW**. The ordering chain ``OEW <= MLW <= MTOW <= sum(items)``
+    **MLW, not MTOW**. The ordering chain ``empty weight <= MLW <= MTOW <= sum(items)``
     is checked in one place by :mod:`sloads.validation`.
 
     ``0`` means "not entered": the calc **refuses** rather than falling back
@@ -297,20 +297,22 @@ class WeightInput:
                                          # scalar, constant between the fwd/aft CG limits
 
     def database_totals(self) -> Tuple[float, float, float]:
-        """``(database total, OEW, useful)`` summed directly from ``items``.
+        """``(database total, empty weight, useful)`` summed directly from ``items``.
 
         The concept-mode "direct-weight path": instead of WTESTIMA's GA-calibrated
         statistical estimate, derive the weights straight from the itemized data
-        base -- OEW the empty-weight items, useful load the minimum + discretionary
-        items. Returns ``(0, 0, 0)`` for an empty data base.
+        base -- the EMPTY rows' sum is the manufacturer's *empty weight* (it was
+        named and displayed "OEW" until #94/C210-12, but OEW adds the MINIMUM
+        crew), useful load the minimum + discretionary items. Returns
+        ``(0, 0, 0)`` for an empty data base.
 
         **The first element is not MTOW** (decision G-14). It is the sum of every
         row, and a database can hold full fuel *and* full payload at once, which no
         real loading can: measured 2026-08-14 it exceeds the entered design weight
         by 964 lb on ``atr42_100`` and 1,800 lb on ``concept_regional_jet``. It is
         an upper bound, and the ordering chain treats it as the **ceiling** of
-        ``OEW <= MLW <= MTOW <= sum(items)``. For the design take-off weight read
-        :func:`sloads.cg_cases.max_takeoff_weight`.
+        ``empty weight <= MLW <= MTOW <= sum(items)``. For the design take-off
+        weight read :func:`sloads.cg_cases.max_takeoff_weight`.
 
         Named ``direct_totals`` until 2026-08-15, when the FAR 23 gate was
         re-pointed: that name said where the numbers come from and not what they
@@ -319,8 +321,8 @@ class WeightInput:
         ceiling is.
         """
         database_total = math.fsum(it.weight_lb for it in self.items)
-        oew = math.fsum(it.weight_lb for it in self.items if it.kind == MassItemKind.EMPTY)
-        return database_total, oew, database_total - oew
+        empty = math.fsum(it.weight_lb for it in self.items if it.kind == MassItemKind.EMPTY)
+        return database_total, empty, database_total - empty
 
 
 # --------------------------------------------------------------------------- #

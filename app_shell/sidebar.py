@@ -222,6 +222,17 @@ def _render_project_file(project: Project, examples_dir: str) -> None:
         file_name=sloads_io.project_filename(project.name), mime="application/json",
         use_container_width=True, key="_download_btn",
     )
+    # Two complementary routes, said *before* the click (#94, C210-48): a
+    # browser page cannot open an OS save dialog for a server-side write, so
+    # Save offers no location choice -- and until this caption, its fixed
+    # target appeared only in the success toast after the fact, so the pair
+    # read as one mislabeled button.
+    st.caption(
+        f"**Save to disk** writes `{os.path.join(projects_dir, sloads_io.project_filename(project.name))}` "
+        "beside the app — no location dialog; files there are listed by **Open**. "
+        "**Download** hands the same file to your browser, which chooses the "
+        "location; dropped into that folder, it is listed by Open too."
+    )
 
     # The whole-project results zip (C210-45, backlog 19c): every registered
     # module run against the current project, rendered by the same owners the

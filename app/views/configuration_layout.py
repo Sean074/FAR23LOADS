@@ -4,7 +4,7 @@ The geometric source of truth for an initial concept: edit the parametric
 fuselage / wing / tail / gear geometry, see a three-view with the CG and neutral
 point marked, read the derived MAC / XLEMAC / static-margin / tip-back / overturn
 assessment, and place the design against a reference fleet (W/S-vs-W/P and
-MTOW-vs-OEW). Seed buttons push the geometry downstream (WINGGEOM polylines, which
+MTOW-vs-empty-weight). Seed buttons push the geometry downstream (WINGGEOM polylines, which
 in turn feed WTENV / STRSPEED).
 
 There is no manual oracle for this page; concept results are first-order estimates

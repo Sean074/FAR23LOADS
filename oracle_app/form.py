@@ -49,6 +49,7 @@ import pandas as pd
 import streamlit as st
 
 from app_shell.components import (
+    EMPTY_NUMBER_PLACEHOLDER,
     GRID_COMMIT_NOTE,
     active_system,
     clear_number_input,
@@ -62,6 +63,7 @@ from sloads import field_registry as fr
 from sloads import workflow as wf
 from sloads.applicability import step_not_applicable
 from sloads.derived import refresh_derived
+from sloads.derived_geometry import tail_cp_suggestion
 from sloads.models import Project, same_name
 from sloads.selectors import duplicate_selectors, seed_name
 from sloads.units import (
@@ -177,6 +179,43 @@ def _shown(path: str, value: Any) -> str:
     number = to_display(float(value), unit.kind, system) if unit.kind else float(value)
     label = _unit_label(unit, system)
     return f"{number:,.4g}{' ' + label if label else ''}"
+
+
+def _tail_cp_group_note(project: Any) -> str:
+    """The flight_loads group's caption: the tail-CP convention + a suggestion.
+
+    C210-20's owner directive (#94): the page carries the Xtc/Xtf convention
+    and a **computed suggestion** from the empennage record already entered --
+    tail MAC from ST/span, Xtf = xt25, Xtc = xt25 - 0.20*MAC. The user still
+    types the value; nothing here writes to the project.
+    """
+    text = ("Tail CP stations: **Xtc** — flaps up (cruise/clean), the h-tail CP "
+            "sits well forward, ≈ 5 % of tail MAC; **Xtf** — flaps down "
+            "(VF/landing), the CP moves aft, ≈ 25 % of tail MAC.")
+    suggestion = tail_cp_suggestion(project)
+    if suggestion is not None:
+        xtc, xtf = suggestion
+        text += (f" From your tail geometry: Xtc ≈ {_shown('flight_loads.xtc', xtc)}, "
+                 f"Xtf ≈ {_shown('flight_loads.xtf', xtf)} — a suggestion only; "
+                 "the values typed below are what the analysis uses.")
+    return text
+
+
+#: Hand-written captions rendered under a display group's schema path (#94):
+#: the group-level sentences the per-field registry ``basis`` cannot carry -- a
+#: computed suggestion (C210-20) and a whole-table contract (C210-30). Keyed by
+#: the group prefix :func:`page_groups` yields; the callable gets the project
+#: and returns the caption ("" says nothing). Guarded in
+#: ``tests/test_oracle_gui.py``: every key must be a group some oracle page
+#: actually renders, so a renamed slice cannot leave a note pointing at nothing.
+GROUP_NOTES: Dict[str, Callable[[Any], str]] = {
+    "flight_loads": _tail_cp_group_note,
+    "wing_mass.cases[]": lambda _project: (
+        "0 rows = WINGINER runs the SELECT governing set (the derived critical "
+        "wing conditions). Typed rows REPLACE that set entirely — adding one "
+        "case drops every derived condition from WINGINER/NETLOADS and the "
+        "export (C210-30)."),
+}
 
 
 def _external_note(row: Any, project: Any, where: Any) -> bool:
@@ -772,7 +811,9 @@ def render_scalar(record: Any, path: str, *, key: str, container: Any = None,
         entered = where.number_input(
             f"{label} ({_unit_label(unit, active_system())})".replace(" ()", ""),
             value=None if (optional and value is None) else int(value or 0),
-            step=1, key=widget_key(key), help=help_text, disabled=disabled)
+            step=1, key=widget_key(key), help=help_text, disabled=disabled,
+            placeholder=(EMPTY_NUMBER_PLACEHOLDER
+                         if optional and value is None and not disabled else None))
         if disabled:
             return
         if entered is None:
@@ -1430,6 +1471,11 @@ def render_step(key: str) -> None:
             # (PB-22).
             st.caption(f"`{prefix}`" if prefix
                        else "Fields held on the project itself, not in a slice")
+            group_note = GROUP_NOTES.get(prefix)
+            if group_note is not None:
+                note_text = group_note(ctx.project)
+                if note_text:
+                    st.caption(note_text)
             if prefix.endswith(fr.LIST_MARKER):
                 render_table(ctx.project, prefix, paths)
             else:
@@ -1482,7 +1528,7 @@ def _step_caption(step: wf.WorkflowStep) -> str:
 
 
 __all__ = [
-    "MEMBER_LABELS", "blank", "commit_pending", "is_composite", "page_groups", "record_at",
+    "GROUP_NOTES", "MEMBER_LABELS", "blank", "commit_pending", "is_composite", "page_groups", "record_at",
     "render_field", "render_record", "render_scalar", "render_step",
     "render_table", "row_class", "rows_at", "seeded",
 ]
