@@ -116,14 +116,14 @@ STEPS: Tuple[WorkflowStep, ...] = (
     # empennage form -- required downstream (Tail Loads, Tail Span Loads, One
     # Engine Out) but nobody's ``produces``. #52's v55 hop retires the proxies;
     # the rot companion in tests/test_workflow.py fails when it does.
-    # reads: WINGGEOM's engine stations come from ``engines``/``engine_layout``
-    # and the CG-envelope block from ``weight`` -- all entered on later pages
-    # (#69). ``engine_layout`` moves onto this page under C210-44 (#73), which
-    # removes one of the three.
+    # reads: WINGGEOM's engine stations come from ``engines`` and the
+    # CG-envelope block from ``weight`` -- entered on later pages (#69).
+    # ``engine_layout`` itself moved onto this page at C210-44 (#99), so it is
+    # no longer a later-page read.
     WorkflowStep("configuration_layout", "Geometry", DEVELOP_VN,
                  module="configuration", produces="geometry",
                  edits=("tail_loads", "vtail_loads"),
-                 reads=("engines", "engine_layout", "weight"), bas="WINGGEOM",
+                 reads=("engines", "weight"), bas="WINGGEOM",
                  summary="Single geometry source of truth: parametric fuselage/wing/"
                          "tail/gear, fuselage outline, and WINGGEOM surface planforms."),
     # 1b. Weight & mass properties -- Step G3 merged Weight Estimate (WTESTIMA),

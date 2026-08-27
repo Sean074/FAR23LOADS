@@ -113,6 +113,9 @@ def _seeded():
 _ALLOWED_IMPORTS = {
     "sloads", "app_shell", "oracle_app", "streamlit", "pandas",
     "dataclasses", "typing", "enum", "__future__",
+    # stdlib formatting for the C210-24 not-ready traceback (#99) -- display
+    # of an exception the calc already raised, nothing to compute with.
+    "traceback",
 }
 
 def test_the_oracle_gui_imports_only_owners_and_presentation():
@@ -787,6 +790,24 @@ def test_a_blank_cg_case_does_not_read_as_not_ready():
     said = " ".join(w.message for w in consistency_warnings(live)
                     if w.code == "cg_case_without_weight")
     assert "divides by the case weight" in said, said
+
+
+def test_a_not_ready_note_carries_the_type_and_a_traceback():
+    """C210-24 (#99, the display half of #71): "cannot run yet — float division
+    by zero" gave no type, no module:line, no traceback -- root-causing meant
+    leaving the GUI. The friendly one-liner stays; the exception type joins it
+    and the block carries the traceback, module:line first, for the expander."""
+    from oracle_app import results as oracle_results
+    from sloads import UnitSystem
+    from sloads.models import Project
+
+    block = oracle_results._module_block(Project(name="t"), "flight_envelope",
+                                         UnitSystem.IMPERIAL)
+    assert "MissingInputError" in block.note, block.note
+    assert block.traceback, "the not-ready block must carry the traceback"
+    first = block.traceback.splitlines()[0]
+    assert ".py:" in first and " in " in first, first
+    assert "Traceback" in block.traceback, "the full traceback follows the frame line"
 
 
 def test_no_oracle_page_can_reach_the_concept_switch():

@@ -524,6 +524,28 @@ def build_envelope(project: Project) -> EnvelopeResult:
             + " carry no weight, and every balance divides by it. Enter the "
             "weight and CG on the Weight & Mass page, or delete the case."
         )
+    # A tail CP at the datum is never a real airplane -- xtc/xtf feed the tail
+    # arm (xt - xcg) directly, so the field's 0.0 default puts the tail CP tens
+    # of inches *ahead* of the CG, sign-flips the arm, and balances cleanly to a
+    # plausible-looking, silently wrong matrix (C210-21). Refused by name here,
+    # at the point that consumes it, for every writer; warned pre-run by
+    # ``validation._check_tail_cp_stations``. Only stations a config in play
+    # will actually read are required: xtf matters only when a flaps-down set
+    # exists and a sea-level altitude admits it (FLTLOADS.BAS line 3000).
+    unset = []
+    if any(not c.flaps_down for c in configs) and fl.xtc <= 0.0:
+        unset.append("xtc (flaps up)")
+    if (any(c.flaps_down for c in configs)
+            and any(alt <= 0.0 for alt in fl.altitudes_ft) and fl.xtf <= 0.0):
+        unset.append("xtf (flaps down)")
+    if unset:
+        raise MissingInputError(
+            "flight_envelope: tail centre-of-pressure station(s) "
+            + " and ".join(unset)
+            + " are 0 / unset. A tail CP at the datum sign-flips the tail arm "
+            "and balances silently wrong -- enter the station(s) on the Flight "
+            "Envelope page."
+        )
 
     di = design_inputs(project)
     vn: List[VnPoint] = []

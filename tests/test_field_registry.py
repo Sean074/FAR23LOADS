@@ -111,6 +111,26 @@ def test_every_page_is_a_real_workflow_step():
     assert not unknown, f"registry rows name pages that are not workflow steps: {unknown}"
 
 
+def test_control_surface_planform_geometry_renders_on_the_geometry_page():
+    """C210-37 / C210-44 (#99, owner directives): aileron/flap planform geometry
+    and the engine layout are configuration, entered beside the empennage forms.
+    The rows keep their slices (no schema move); the placement is the page tag,
+    so this is the drift guard for the decision."""
+    from sloads.field_registry import entry
+
+    on_geometry = [
+        "aileron_loads.area_aft_hinge_sqft", "aileron_loads.area_fwd_hinge_sqft",
+        "aileron_loads.up_deflection_deg", "aileron_loads.down_deflection_deg",
+        "flap_loads.flap_area_one_side_sqft", "flap_loads.flap_chord_ratio",
+        "flap_loads.flap_deflection_deg", "engine_layout",
+    ]
+    wrong = {p: entry(p).page for p in on_geometry
+             if entry(p).page != "configuration_layout"}
+    assert not wrong, f"planform/configuration rows off the Geometry page: {wrong}"
+    # The per-page condition inputs stay where they are entered.
+    assert entry("flap_loads.gust_load_factor").page == "flap_loads"
+
+
 # --- G5's precondition: the original set is reachable in the oracle GUI ------ #
 
 

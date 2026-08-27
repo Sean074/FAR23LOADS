@@ -41,6 +41,7 @@ never seen, which ``tests/test_oracle_gui.py`` fails on.
 
 from __future__ import annotations
 
+import traceback as tb
 from typing import Any, Callable, Dict, List, NamedTuple, Tuple
 
 import pandas as pd
@@ -93,8 +94,24 @@ LIMIT = "LIMIT"
 #: That case now refuses by name upstream (``build_envelope``); any other
 #: division by zero is a defect and surfaces as one. The remaining half of #71 —
 #: showing the exception type and an expandable traceback rather than ``str(e)``
-#: alone (C210-24) — stays with #73.
+#: alone (C210-24) — shipped at #99: ``_not_ready_traceback`` below.
 _NOT_READY = (ValueError,)
+
+
+def _not_ready_traceback(exc: BaseException) -> str:
+    """The traceback behind a not-ready note, module:line first (C210-24).
+
+    The first line names the frame that raised -- the one thing a bug report
+    needs -- so the reader is not made to walk the whole stack to find it; the
+    full traceback follows for the report itself.
+    """
+    frames = tb.extract_tb(exc.__traceback__)
+    where = ""
+    if frames:
+        last = frames[-1]
+        where = f"{last.filename}:{last.lineno} in {last.name}\n\n"
+    return where + "".join(
+        tb.format_exception(type(exc), exc, exc.__traceback__))
 
 _ULT_NOTE = ("ULTIMATE loads (= limit x the case safety factor); the factor is "
              "in the SF column and the `-ULT` marker is part of the units.")
@@ -132,6 +149,12 @@ class ResultBlock(NamedTuple):
     rows: Tuple[Dict[str, Any], ...] = ()
     artifacts: Tuple[Artifact, ...] = ()
     note: str = ""
+    #: The traceback behind a not-ready ``note``, module:line first (C210-24 /
+    #: the display half of #71): the friendly one-liner stays, but a from-blank
+    #: user must be able to report *where* it died without leaving the GUI.
+    #: Rendered as an expander beside the note; empty when the note is not an
+    #: exception ("no conditions", "no stations").
+    traceback: str = ""
     #: What the block *is*, said before the numbers rather than about them: a
     #: statistical estimate that feeds nothing downstream reads as an input to
     #: everything below it unless the page says otherwise (C210-9, #78). Shown
@@ -184,7 +207,10 @@ def _module_block(project: Project, name: str, system: UnitSystem) -> ResultBloc
     try:
         result = registry.get(name)(project)
     except _NOT_READY as exc:
-        return ResultBlock(name, title, note=f"{title} cannot run yet — {exc}")
+        return ResultBlock(
+            name, title,
+            note=f"{title} cannot run yet — {type(exc).__name__}: {exc}",
+            traceback=_not_ready_traceback(exc))
 
     display = convert_results(result.conditions, system)
     if not display:
@@ -211,8 +237,10 @@ def _station_block(project: Project, name: str, system: UnitSystem) -> ResultBlo
     try:
         built = spec.build(project)
     except _NOT_READY as exc:
-        return ResultBlock(name, spec.title, LIMIT,
-                           note=f"{spec.title} cannot be built yet — {exc}")
+        return ResultBlock(
+            name, spec.title, LIMIT,
+            note=f"{spec.title} cannot be built yet — {type(exc).__name__}: {exc}",
+            traceback=_not_ready_traceback(exc))
     rows = spec.rows(built, system)
     if not rows:
         return ResultBlock(name, spec.title, LIMIT,
@@ -359,6 +387,9 @@ def render_results(project: Project, key: str, system: UnitSystem) -> None:
             st.caption(f"`{block.module}`")
         if block.note:
             st.info(block.note)
+            if block.traceback:
+                with st.expander("Traceback (for a bug report)"):
+                    st.code(block.traceback)
             st.divider()
             continue
 

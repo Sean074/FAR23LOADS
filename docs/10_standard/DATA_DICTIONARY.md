@@ -19,7 +19,7 @@ The top-level `Project` fields. `name`/`engineer`/`date` are free-text metadata;
 | Slice | Type | Owning page | Consumed by | Role |
 | --- | --- | --- | --- | --- |
 | `engines` | `List[EngineInput]` | Engine Mount Loads | `balance`, `engine`, `flap`, `one_engine_out`, `weight_estimate`, `wing_geometry` | Engine-mount inputs (one per engine) |
-| `engine_layout` | `EngineLayout (enum)` | Engine Mount Loads | `wing_geometry` | Engine layout constraint (enum) |
+| `engine_layout` | `EngineLayout (enum)` | Geometry | `wing_geometry` | Engine layout constraint (enum) |
 | `weight` | `?` | Weight & Mass Properties | `configuration`, `weight_envelope`, `weight_estimate`, `weight_onecg` | Weight database (WTESTIMA / WTONECG / WTENV) |
 | `geometry` | `?` | Geometry | `airloads`, `balance`, `configuration`, `flap`, `landing`, `net_loads`, `tail_span`, `weight_envelope`, `wing_geometry`, `wing_inertia` | Geometry single-source (WINGGEOM + fuselage + empennage) |
 | `speeds` | `?` | Structural Speeds | `aileron`, `flap`, `flight_envelope`, `mach_limit`, `one_engine_out`, `structural_speeds`, `tab` | Structural design speeds & load factors (STRSPEED) |
@@ -32,8 +32,8 @@ The top-level `Project` fields. `name`/`engineer`/`date` are free-text metadata;
 | `select_input` | `?` | Flight Envelope (V-n) | `select` | Critical-load selection inputs (SELECT) |
 | `tail_loads` | `TailLoadsInput` | Geometry | `balloads`, `body_loads`, `select`, `tail_span`, `taildist` | Rational horizontal-tail inputs (via geometry.empennage) |
 | `vtail_loads` | `VTailLoadsInput` | Geometry | `balance`, `one_engine_out`, `select`, `tail_span`, `taildist` | Rational vertical-tail inputs (via geometry.empennage) |
-| `aileron_loads` | `?` | Aileron Loads | `aileron` | Aileron simplified loads (AILERON) |
-| `flap_loads` | `?` | Flap Loads | `flap` | Flap simplified loads (FLAPLOAD) |
+| `aileron_loads` | `?` | Aileron Loads / Geometry | `aileron` | Aileron simplified loads (AILERON) |
+| `flap_loads` | `?` | Flap Loads / Geometry | `flap` | Flap simplified loads (FLAPLOAD) |
 | `tab_loads` | `?` | Tab Loads | `tab` | Tab simplified loads (TABLOADS) |
 | `one_engine_out` | `?` | One Engine Out | `one_engine_out` | One-engine-out v-tail loads (ONENGOUT) |
 | `landing` | `?` | Landing Loads | `balance`, `landing` | Landing loads (LANDLOAD / GEARLOAD) |

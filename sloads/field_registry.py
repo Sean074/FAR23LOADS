@@ -636,6 +636,21 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("geometry.empennage.vtail.xv50", _GEO, _ORIG, "ONENGOUT camber-load station"),
     _E("geometry.empennage.vtail.vtail_root_waterline_z", _GEO, _SLDS, "v-tail root waterline, plan 09 (tail_span)"),
 
+    # Aileron/flap planform geometry -- C210-37 (owner: "very similar
+    # information" to the empennage forms). The rows keep their slices
+    # (``aileron_loads``/``flap_loads`` -- the single-consumer pattern, no
+    # schema move) but render on the Geometry page beside the empennage forms;
+    # the load pages keep their per-page condition inputs (flap NG and the
+    # slipstream band). Placed here so the sections sit with the other
+    # planform forms in registry order.
+    _E("aileron_loads.area_aft_hinge_sqft", _GEO, _ORIG, "AILERON SAAFT"),
+    _E("aileron_loads.area_fwd_hinge_sqft", _GEO, _ORIG, "AILERON SAFWD"),
+    _E("aileron_loads.up_deflection_deg", _GEO, _ORIG, "AILERON AUPDEG"),
+    _E("aileron_loads.down_deflection_deg", _GEO, _ORIG, "AILERON ADEG"),
+    _E("flap_loads.flap_area_one_side_sqft", _GEO, _ORIG, "FLAPLOAD SF"),
+    _E("flap_loads.flap_chord_ratio", _GEO, _ORIG, "FLAPLOAD E"),
+    _E("flap_loads.flap_deflection_deg", _GEO, _ORIG, "FLAPLOAD DELTA"),
+
     # geometry.landing_gear -- the G6b single source
     _E("geometry.landing_gear.tread_in", _GEO, _ORIG, "LANDLOAD TREAD"),
     _E("geometry.landing_gear.main_gear.attach", _GEO, _SLDS, "trunnion node, gear free body Step 10"),
@@ -888,18 +903,11 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     # deflections + areas; the stations feed the sbeam control-surface bridge.
     # ----------------------------------------------------------------- #
     _E("aileron_loads.surface", _AIL, _SLDS, "surface selector (standing ruling)"),
-    _E("aileron_loads.area_aft_hinge_sqft", _AIL, _ORIG, "AILERON SAAFT"),
-    _E("aileron_loads.area_fwd_hinge_sqft", _AIL, _ORIG, "AILERON SAFWD"),
-    _E("aileron_loads.up_deflection_deg", _AIL, _ORIG, "AILERON AUPDEG"),
-    _E("aileron_loads.down_deflection_deg", _AIL, _ORIG, "AILERON ADEG"),
     _E("aileron_loads.inboard_y_in", _AIL, _SLDS, "sbeam control-surface bridge station"),
     _E("aileron_loads.outboard_y_in", _AIL, _SLDS, "sbeam control-surface bridge station"),
     _E("aileron_loads.hinges_span_in", _AIL, _SLDS, "sbeam control-surface bridge station"),
     _E("aileron_loads.actuator_span_in", _AIL, _SLDS, "sbeam control-surface bridge station"),
     _E("flap_loads.surface", _FLAP, _SLDS, "surface selector (standing ruling)"),
-    _E("flap_loads.flap_area_one_side_sqft", _FLAP, _ORIG, "FLAPLOAD SF"),
-    _E("flap_loads.flap_chord_ratio", _FLAP, _ORIG, "FLAPLOAD E"),
-    _E("flap_loads.flap_deflection_deg", _FLAP, _ORIG, "FLAPLOAD DELTA"),
     _E("flap_loads.gust_load_factor", _FLAP, _ORIG, "FLAPLOAD NG"),
     # Both place the 23.457(b) slipstream band; the term that uses the band is
     # driven by the engine record, so the basis says so where it is entered (#83).
@@ -962,7 +970,12 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("engines[].rotors[].inertia", _ENG, _SLDS, "turbine rotor model, Step C9"),
     _E("engines[].rotors[].max_rpm", _ENG, _SLDS, "turbine rotor model, Step C9"),
     _E("engines[].rotors[].direction", _ENG, _SLDS, "turbine rotor model, Step C9"),
-    _E("engine_layout", _ENG, _SLDS,
+    # C210-44 (owner directive): layout is Step C5 *configuration*, not a
+    # mount-load input -- its one calc consumer is WINGGEOM's engine stations --
+    # so it renders on the Geometry page. The page set is registry-derived, so
+    # the move is this tag; the Engine Mount page's layout-consistency message
+    # resolves the owning page from this entry and follows automatically.
+    _E("engine_layout", _GEO, _SLDS,
        "multi-engine layout constraint, Step C5 -- the arrangement the entered engines already "
        "describe, where the original ran one program per fixed layout. Load-bearing (G5): "
        "omitting it moves the twins' nacelle geometry", supplied=True),
