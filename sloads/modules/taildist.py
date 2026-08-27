@@ -47,7 +47,7 @@ LT25 +907.62 / LT50 -387.77 -> PSI 0.682 / 0.095 / 0 / 0.015 / -0.030).
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from ..constants import IN2_PER_FT2
 from ..models import (
@@ -62,10 +62,115 @@ from ..models import (
     TailChordStation,
 )
 from ..registry import register
-from .select import default_critical
+from ._vtail import lift_curve_slope, rudder_effectiveness
+from .select import default_critical, effective_tail_inputs, effective_vtail_inputs
 
 MODULE_NAME = "taildist"
 
+# The note 35 AS-4 statements: a condition that cannot supply a quantity states
+# why, in these words, never a guess. The "predates" statement is the
+# stale-persisted-set case (G-AS-4); the others are quantities the source
+# method itself never defines.
+STALE_STATE_NOTE = ("Aero state not recorded -- critical set predates these "
+                    "fields; re-run SELECT.")
+CHECKED_DELTA_NOTE = ("Elevator deflection: not defined by the method -- the "
+                      "23.423(b) increment is the pitching-acceleration "
+                      "inertia term.")
+SIDE_GUST_Q_NOTE = "Dynamic pressure: 23.443(b) is linear in V -- no q term."
+HTAIL_BETA_NOTE = ("Sideslip: not defined by the method -- a symmetric "
+                   "pitch-plane condition has no sideslip.")
+
+
+def aero_state_values(r: TailChordResult) -> Tuple[List[LoadValue], List[str]]:
+    """``(values, reasons)`` stating the aero state of one distributed case.
+
+    Note 35 G-AS-3: every condition states each of AoA / beta / delta / q
+    **or** its AS-4 reason -- no silent blank. The values are the source
+    condition's published state copied onto the :class:`TailChordResult`
+    (never re-derived); angles and q are non-load units, so the render
+    boundary leaves them unscaled (CONVENTIONS section 3). ``alpha_tail_deg``
+    is published by every condition family, so its absence *is* the stale-set
+    marker (G-AS-4), and beta may still be present on an L-7-era vtail set.
+    """
+    values: List[LoadValue] = []
+    reasons: List[str] = []
+    alpha = r.alpha_tail_deg
+    stale = alpha is None
+    if stale:
+        reasons.append(STALE_STATE_NOTE)
+    if r.component == "htail":
+        if alpha is not None:
+            values.append(LoadValue("Tail angle of attack AT", alpha,
+                                    "deg", key="tail_angle_of_attack_at"))
+            if r.delta_deg is not None:
+                values.append(LoadValue("Elevator deflection (TE dn +)", r.delta_deg,
+                                        "deg", key="elevator_deflection_te_dn"))
+            else:
+                reasons.append(CHECKED_DELTA_NOTE)
+        reasons.append(HTAIL_BETA_NOTE)
+    else:
+        if alpha is not None:
+            values.append(LoadValue("Fin angle of attack", alpha,
+                                    "deg", key="fin_angle_of_attack"))
+            if r.delta_deg is not None:
+                values.append(LoadValue("Rudder deflection (TE port +)", r.delta_deg,
+                                        "deg", key="rudder_deflection_te_port"))
+        if r.beta_deg is not None:
+            values.append(LoadValue("Sideslip beta (SC-1)", r.beta_deg, "deg",
+                                    key="sideslip_beta"))
+    if not stale:
+        if r.q_psf is not None:
+            values.append(LoadValue("Dynamic pressure Q", r.q_psf, "lb/ft^2",
+                                    key="dynamic_pressure_q"))
+        elif r.component == "vtail":
+            reasons.append(SIDE_GUST_Q_NOTE)
+    return values, reasons
+
+
+def component_constants(project: Project, component: str) -> Optional[ConditionResult]:
+    """The slope/effectiveness intermediates, once per component (note 35, AS-5).
+
+    AHT (htail) or AVT + EFFECTV (vtail), computed by calling the same
+    single-source owners SELECT's loads are built from
+    (:func:`.._vtail.lift_curve_slope`, :func:`.._vtail.rudder_effectiveness`)
+    on the same effective inputs -- the ``surface_geom`` precedent: reading the
+    owner is not recomputing another module's quantity, and it is what makes
+    the printed intermediate arithmetically the one inside the loads. Not
+    persisted; reference constants only (no load quantities, so nothing here
+    is SF-scaled and the classifier files them as reference data). ``None``
+    when the inputs are absent.
+    """
+    if component == "htail":
+        try:
+            ti = effective_tail_inputs(project)
+        except ValueError:
+            ti = project.tail_loads      # display only: no ARW refusal here
+        if ti is None or ti.aspect_ratio_htail <= 0:
+            return None
+        return ConditionResult(
+            title="Chordwise htail constants",
+            far_reference="",
+            values=[LoadValue("Tail lift-curve slope AHT",
+                              lift_curve_slope(ti.aspect_ratio_htail), "/rad",
+                              key="tail_lift_curve_slope_aht")],
+            note="The slope inside every htail load in this table (SELECT's "
+                 "own owner, note 35 AS-5). Reference constants -- no load "
+                 "quantities.")
+    vt = effective_vtail_inputs(project)
+    if vt is None or vt.aspect_ratio_vtail <= 0 or vt.vtail_area_sqft <= 0:
+        return None
+    return ConditionResult(
+        title="Chordwise vtail constants",
+        far_reference="",
+        values=[LoadValue("Vtail lift-curve slope AVT",
+                          lift_curve_slope(vt.aspect_ratio_vtail), "/rad",
+                          key="vtail_lift_curve_slope_avt"),
+                LoadValue("Rudder effectiveness EFFECTV",
+                          rudder_effectiveness(vt.rudder_area_sqft / vt.vtail_area_sqft),
+                          key="rudder_effectiveness_effectv")],
+        note="The slope and effectiveness inside every vtail load in this "
+             "table (SELECT's own owners, note 35 AS-5). Reference constants "
+             "-- no load quantities.")
 
 
 def chordwise_pressures(lt25: float, lt50: float, area_sqin: float,
@@ -153,7 +258,11 @@ def build_tail_chordwise(project: Project) -> List[TailChordResult]:
             case=cond.label, component=cond.component,
             lt25=cond.lt25, lt50=cond.lt50, stations=stations,
             case_ref=cond.case_ref, far_reference=cond.far_reference,
-            safety_factor=cond.safety_factor))
+            safety_factor=cond.safety_factor,
+            # The source condition's published aero state, copied across (note
+            # 35, AS-6) -- never re-derived here.
+            alpha_tail_deg=cond.alpha_tail_deg, beta_deg=cond.beta_deg,
+            delta_deg=cond.delta_deg, q_psf=cond.q_psf))
     return results
 
 
@@ -162,8 +271,20 @@ def run(project: Project) -> ModuleResult:
     if project.tail_loads is None and project.vtail_loads is None:
         raise MissingInputError("taildist needs 'tail_loads' and/or 'vtail_loads' inputs")
     conditions: List[ConditionResult] = []
+    seen_components: List[str] = []
     for r in build_tail_chordwise(project):
+        if r.component not in seen_components:
+            # AHT / AVT + EFFECTV once per component, ahead of its conditions
+            # (note 35, AS-5/AS-6).
+            seen_components.append(r.component)
+            header = component_constants(project, r.component)
+            if header is not None:
+                conditions.append(header)
+        state_values, state_reasons = aero_state_values(r)
+        # The aero state ahead of the stations (AS-6): the state that made the
+        # load, on the page that distributes it.
         values: List[LoadValue] = [
+            *state_values,
             LoadValue("AoA load LT25 (cp 25%)", r.lt25, "lb", key="aoa_load_lt25_cp_25_pct"),
             LoadValue("Camber load LT50 (cp 50%)", r.lt50, "lb", key="camber_load_lt50_cp_50_pct"),
         ]
@@ -178,7 +299,9 @@ def run(project: Project) -> ModuleResult:
             # gust/unsymmetrical h-tail, 23.441/443 v-tail), not just balancing loads.
             far_reference=r.far_reference or "23.421",
             values=values,
-            note="Additive (25% chord) + camber (50% chord) distribution (Ref 1 Ch 10)."
+            note=" ".join([
+                "Additive (25% chord) + camber (50% chord) distribution (Ref 1 Ch 10).",
+                *state_reasons])
             + (" Concept mode -- unverified extrapolation past the FAR23 band."
                if project.is_concept else ""),
             case_ref=r.case_ref,

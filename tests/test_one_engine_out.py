@@ -35,7 +35,7 @@ from sloads.modules import select as sel
 from sloads.modules._vtail import (
     large_deflection_factor,
     rudder_effectiveness,
-    vtail_lift_slope,
+    lift_curve_slope,
 )
 
 REL = 1e-3  # ±0.1%
@@ -79,7 +79,7 @@ def test_thrust_and_windmill_drag_formula():
 
 def test_vtail_lift_slope_formula():
     """AVT = 2*pi/(1 + 2/ARVT)."""
-    assert math.isclose(vtail_lift_slope(1.5), 2.0 * math.pi / (1.0 + 2.0 / 1.5), rel_tol=1e-12)
+    assert math.isclose(lift_curve_slope(1.5), 2.0 * math.pi / (1.0 + 2.0 / 1.5), rel_tol=1e-12)
 
 
 def test_rudder_effectiveness_cubic():
@@ -95,7 +95,7 @@ def test_rudder_effectiveness_cubic():
 def test_shared_helpers_match_select():
     p = io.load_project(_GA)
     vt = p.vtail_loads
-    assert math.isclose(sel._avt(vt), vtail_lift_slope(vt.aspect_ratio_vtail), rel_tol=1e-12)
+    assert math.isclose(sel._avt(vt), lift_curve_slope(vt.aspect_ratio_vtail), rel_tol=1e-12)
     assert math.isclose(sel._effectv(vt),
                         rudder_effectiveness(vt.rudder_area_sqft / vt.vtail_area_sqft), rel_tol=1e-12)
     for defl in (0.0, 5.0, 12.0, 25.0):

@@ -222,7 +222,22 @@ class CriticalCondition:
     degree, suite sign, about the wing 25 %-MAC station ``xw``**, built from the
     same ``AVT``, ``S_v`` and arm that made the load -- so ``balance`` reads the
     body and fin derivatives from their owners and re-derives neither.
-    ``None`` on other components and on a persisted set that predates them."""
+    ``None`` on other components and on a persisted set that predates them.
+
+    **Every tail condition publishes the aero state that made its load**
+    (note 35, AS-1/AS-2): ``alpha_tail_deg`` is the h-tail AT (CONVENTIONS
+    §1.1, ``AT = alpha_wl + IT - E``, +AT up tail load) or the fin angle of
+    attack the method fed its lift slope (the yaw cases' entered ``-19.5`` /
+    ``-15``: opposite sign to ``beta_deg``); ``delta_deg`` the elevator
+    (TE-down +) or rudder (SC-2, TE-port +) deflection the method used --
+    balancing's moment-balance value, the unchecked full throw, the trim value
+    on the gust cases; ``q_psf`` the dynamic pressure at the governing point.
+    The published state is the state the method actually used, never a derived
+    "total effective" one -- a quantity a method never defines stays ``None``
+    with its reason stated at the point of display (AS-4: the checked
+    23.423(b) increment is an inertia term with no delta; 23.443(b) is linear
+    in V with no q term). Tail-scoped like ``lt25``/``lt50``: ``None`` on
+    wing/fuselage conditions, and on a persisted set that predates them."""
     component: str
     label: str
     far_reference: str = ""
@@ -236,6 +251,9 @@ class CriticalCondition:
     beta_deg: Optional[float] = None         # v-tail: sideslip of the case (SC-1)
     cy_beta_fin: Optional[float] = None      # v-tail: fin Cy_beta, per deg
     cn_beta_fin: Optional[float] = None      # v-tail: fin Cn_beta about xw, per deg
+    alpha_tail_deg: Optional[float] = None   # tail: AT / fin AoA of the case (deg)
+    delta_deg: Optional[float] = None        # tail: elevator/rudder deflection (deg)
+    q_psf: Optional[float] = None            # tail: q at the governing point (lb/ft^2)
 
 
 @dataclass
@@ -857,7 +875,13 @@ class TailChordResult:
     ``lt25``/``lt50`` and the station pressures are **LIMIT**; ``safety_factor`` is
     the per-case factor the render/export boundary scales them by to deliver
     ULTIMATE (see :class:`ConditionResult`), copied from the source
-    :class:`CriticalCondition`."""
+    :class:`CriticalCondition`.
+
+    ``alpha_tail_deg`` / ``beta_deg`` / ``delta_deg`` / ``q_psf`` carry the
+    source condition's published aero state across (note 35, AS-6), so the
+    page that distributes a case can state the state that made it without
+    re-deriving anything -- semantics per :class:`CriticalCondition`. Angles
+    and q are never SF-scaled (CONVENTIONS §3: loads only)."""
     case: str
     component: str
     lt25: float
@@ -866,6 +890,10 @@ class TailChordResult:
     case_ref: Optional[CaseRef] = None
     far_reference: str = ""
     safety_factor: float = ULTIMATE_FACTOR   # limit -> ultimate factor for this case
+    alpha_tail_deg: Optional[float] = None   # source condition's AT / fin AoA (deg)
+    beta_deg: Optional[float] = None         # source condition's sideslip (SC-1, deg)
+    delta_deg: Optional[float] = None        # source elevator/rudder deflection (deg)
+    q_psf: Optional[float] = None            # source dynamic pressure (lb/ft^2)
 
 
 @dataclass

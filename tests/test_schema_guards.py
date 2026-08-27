@@ -297,7 +297,15 @@ def fields_hash() -> str:
 #: carry, OV-4) and the ``EngineInput.engine_mass_item``/``prop_mass_item``
 #: weight-row selectors (OV-7). No default changes, no removals; the 55->56 hop
 #: is an identity and the floor stays at 55.
-EXPECTED_FIELDS_HASH = "ca76108c6a049c0f"
+#: Note 35 (#100, TAILDIST aero state): ``CriticalCondition`` gains
+#: ``alpha_tail_deg`` / ``delta_deg`` / ``q_psf`` and ``TailChordResult``
+#: carries the four state fields across (``alpha_tail_deg`` / ``beta_deg`` /
+#: ``delta_deg`` / ``q_psf``) -- **result** fields, all additive with ``None``
+#: defaults (the ``beta_deg`` / ``body_axial_clamped`` class, AS-7), so a
+#: persisted set from an older file loads them as ``None`` and TAILDIST states
+#: the AS-4 "re-run SELECT" reason. No input dataclass changed, no migration
+#: hop, ``SCHEMA_VERSION`` unchanged.
+EXPECTED_FIELDS_HASH = "8524f8d8c86fae6f"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():
