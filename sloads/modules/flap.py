@@ -71,6 +71,7 @@ from ..models import (
     Project,
 )
 from ..registry import register
+from .flight_envelope import gust_at_vf
 from .structural_speeds import _wing_area_sqft, design_speed_values
 
 # Upper bound on the slipstream-velocity search, and the trip count it implies at
@@ -225,6 +226,26 @@ def slipstream_is_available(project: Project) -> bool:
     return hp > 0 and dia > 0
 
 
+def resolved_ng(project: Project) -> "tuple[float, bool]":
+    """``(NG, derived)`` -- the flaps-extended gust factor FLAPLOAD uses
+    (note 36, OV-6; C210-39, owner directive).
+
+    The typed ``flap_loads.gust_load_factor`` overrides; blank falsy-derives
+    from the envelope's own GUST VF corner factor
+    (:func:`~sloads.modules.flight_envelope.gust_at_vf` -- the single source,
+    bit-for-bit the envelope's number). When neither answers, 0 stands -- the
+    pre-note behaviour, which makes the gust condition non-critical and which
+    ``validation`` flags rather than guesses. ``derived`` is True only when the
+    envelope supplied the value, so the result can state which it used.
+    """
+    inp = project.flap_loads
+    typed = inp.gust_load_factor if inp is not None else 0.0
+    if typed:
+        return typed, False
+    ng = gust_at_vf(project)
+    return (ng, True) if ng is not None else (0.0, False)
+
+
 def _compute(project: Project) -> FlapResult:
     if project.flap_loads is None:
         raise MissingInputError("flap needs the 'flap_loads' input slice")
@@ -235,9 +256,10 @@ def _compute(project: Project) -> FlapResult:
     sv = design_speed_values(project, sp)
     sw = _wing_area_sqft(project, sp)
     maxhp, pdia = _engine_power(project)
+    ng, _ = resolved_ng(project)
     return flap_loads(
         vs=sv.vs, vsf=sv.vsf, vf=sv.vf, weight=sp.weight_lb,
-        ng=inp.gust_load_factor, sf=inp.flap_area_one_side_sqft, sw=sw,
+        ng=ng, sf=inp.flap_area_one_side_sqft, sw=sw,
         delta_deg=inp.flap_deflection_deg, e=inp.flap_chord_ratio,
         maxhp=maxhp, pdia_in=pdia, blprop=inp.engine_butt_line_in,
         af_sqft=inp.nacelle_frontal_area_sqft,
@@ -314,6 +336,10 @@ def run(project: Project) -> ModuleResult:
     ]
     note = ("Critical flaps-extended load (Abbott & von Doenhoff Fig 98); chordwise "
             "taper LE -> half at TE. Slipstream FAR 23.457(b), gust FAR 23.345(c)(1).")
+    ng_used, ng_derived = resolved_ng(project)
+    if ng_derived:
+        note += (f" NG {ng_used:.3f} derived from the flight envelope's GUST VF "
+                 "corner (blank gust_load_factor, note 36 OV-6).")
     if project.is_concept:
         note += " Concept mode -- unverified extrapolation past the FAR23 band."
     built = build_flap(project)

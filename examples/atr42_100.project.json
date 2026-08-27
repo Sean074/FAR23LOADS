@@ -1,5 +1,5 @@
 {
-  "schema_version": 55,
+  "schema_version": 56,
   "name": "ATR 42-300 (\"ATR 42-100\" prototype designation never entered production; -300 is the closest PW120-powered production analog) \u2014 2x PW120 (concept, category C)",
   "engines": [
     {
@@ -42,8 +42,11 @@
         }
       ],
       "max_accel_torque": null,
+      "thrust_lb": null,
       "design_yaw_rate_rad_s": null,
       "design_pitch_rate_rad_s": null,
+      "engine_mass_item": "",
+      "prop_mass_item": "",
       "mounted_on": "wing"
     },
     {
@@ -86,8 +89,11 @@
         }
       ],
       "max_accel_torque": null,
+      "thrust_lb": null,
       "design_yaw_rate_rad_s": null,
       "design_pitch_rate_rad_s": null,
+      "engine_mass_item": "",
+      "prop_mass_item": "",
       "mounted_on": "wing"
     }
   ],
@@ -116,7 +122,9 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "empty",
-        "component": "wing"
+        "component": "wing",
+        "consumable": false,
+        "wing_fraction": 0.0
       },
       {
         "name": "Fuselage structure",
@@ -128,7 +136,9 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "empty",
-        "component": "fuselage"
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
       },
       {
         "name": "Horiz tail",
@@ -140,7 +150,9 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "empty",
-        "component": "htail"
+        "component": "htail",
+        "consumable": false,
+        "wing_fraction": 0.0
       },
       {
         "name": "Vert tail",
@@ -152,7 +164,9 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "empty",
-        "component": "vtail"
+        "component": "vtail",
+        "consumable": false,
+        "wing_fraction": 0.0
       },
       {
         "name": "Main gear",
@@ -164,7 +178,9 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "empty",
-        "component": "fuselage"
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
       },
       {
         "name": "Nose gear",
@@ -176,7 +192,9 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "empty",
-        "component": "fuselage"
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
       },
       {
         "name": "Engines (2)",
@@ -188,7 +206,9 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "empty",
-        "component": "wing"
+        "component": "wing",
+        "consumable": false,
+        "wing_fraction": 0.0
       },
       {
         "name": "Propellers (2)",
@@ -200,7 +220,9 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "empty",
-        "component": "fuselage"
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
       },
       {
         "name": "Nacelles (2)",
@@ -212,7 +234,9 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "empty",
-        "component": "wing"
+        "component": "wing",
+        "consumable": false,
+        "wing_fraction": 0.0
       },
       {
         "name": "Systems",
@@ -224,7 +248,9 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "empty",
-        "component": "fuselage"
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
       },
       {
         "name": "Furnishings",
@@ -236,7 +262,9 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "empty",
-        "component": "fuselage"
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
       },
       {
         "name": "Avionics",
@@ -248,7 +276,9 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "empty",
-        "component": "fuselage"
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
       },
       {
         "name": "Air conditioning / pressurization",
@@ -260,7 +290,9 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "empty",
-        "component": "fuselage"
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
       },
       {
         "name": "Unusable fuel",
@@ -272,7 +304,9 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "empty",
-        "component": "fuselage"
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
       },
       {
         "name": "Captain + First officer",
@@ -284,7 +318,9 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "minimum",
-        "component": "fuselage"
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
       },
       {
         "name": "Reserve fuel",
@@ -296,7 +332,9 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "minimum",
-        "component": "fuselage"
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
       },
       {
         "name": "Passengers, fwd cabin (24)",
@@ -308,7 +346,9 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "discretionary",
-        "component": "fuselage"
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
       },
       {
         "name": "Passengers, aft cabin (24)",
@@ -320,7 +360,9 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "discretionary",
-        "component": "fuselage"
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
       },
       {
         "name": "Cargo, fwd hold",
@@ -332,7 +374,9 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "discretionary",
-        "component": "fuselage"
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
       },
       {
         "name": "Cargo, aft hold",
@@ -344,7 +388,9 @@
         "iyy": 0.0,
         "izz": 0.0,
         "kind": "discretionary",
-        "component": "fuselage"
+        "component": "fuselage",
+        "consumable": false,
+        "wing_fraction": 0.0
       },
       {
         "name": "Fuel to gross",
@@ -357,8 +403,8 @@
         "izz": 0.0,
         "kind": "discretionary",
         "component": "fuselage",
-        "wing_fraction": 0.4142140833,
-        "consumable": true
+        "consumable": true,
+        "wing_fraction": 0.4142140833
       }
     ],
     "envelope": {
@@ -451,23 +497,7 @@
       }
     ],
     "max_landing_weight_lb": 35000.0,
-    "max_takeoff_weight_lb": 36817
-  },
-  "mass": {
-    "cases": [
-      {
-        "name": "itemized loading",
-        "weight_lb": 37781.0,
-        "cg_x": 401.37738545829916,
-        "cg_y": 0.0,
-        "cg_z": 135.74005452476112,
-        "ixx": 30457858.07548768,
-        "iyy": 339006829.7136232,
-        "izz": 308548971.63813555,
-        "ixz": 17095578.302585952,
-        "gear_down": true
-      }
-    ]
+    "max_takeoff_weight_lb": 36817.0
   },
   "geometry": {
     "surfaces": [
@@ -495,7 +525,11 @@
         ],
         "symmetric": true,
         "elements": 20,
-        "ref_axis_pct": 0.4
+        "tip_cap_width_in": 0.0,
+        "ref_axis_pct": 0.4,
+        "front_spar_pct": null,
+        "rear_spar_pct": null,
+        "sob_y_in": null
       },
       {
         "name": "htail",
@@ -521,7 +555,11 @@
         ],
         "symmetric": true,
         "elements": 10,
-        "ref_axis_pct": 0.4
+        "tip_cap_width_in": 0.0,
+        "ref_axis_pct": 0.4,
+        "front_spar_pct": null,
+        "rear_spar_pct": null,
+        "sob_y_in": null
       },
       {
         "name": "vtail",
@@ -547,7 +585,11 @@
         ],
         "symmetric": true,
         "elements": 10,
-        "ref_axis_pct": 0.4
+        "tip_cap_width_in": 0.0,
+        "ref_axis_pct": 0.4,
+        "front_spar_pct": null,
+        "rear_spar_pct": null,
+        "sob_y_in": null
       }
     ],
     "parametric": {
@@ -559,6 +601,7 @@
       "le_sweep_deg": 2.9568649521964603,
       "le_root_x": 365,
       "root_waterline_z": 170.0,
+      "body_drag_waterline_z": 0.0,
       "tail_type": "t_tail",
       "h_tail_z": 0.0
     },
@@ -567,17 +610,20 @@
         {
           "x": 0.0,
           "width": 0.0,
-          "height": 0.0
+          "height": 0.0,
+          "z_centre": null
         },
         {
           "x": 312.47999999999996,
           "width": 106.3,
-          "height": 106.3
+          "height": 106.3,
+          "z_centre": null
         },
         {
           "x": 892.8,
           "width": 10.63,
-          "height": 15.944999999999999
+          "height": 15.944999999999999,
+          "z_centre": null
         }
       ]
     },
@@ -615,7 +661,8 @@
         "gross_weight_lb": 36817.0,
         "rudder_large_deflection_factor": 1.0,
         "izz_slugft2": 0.0,
-        "vtail_span_in": 125.0
+        "vtail_span_in": 125.0,
+        "vtail_root_waterline_z": 0.0
       },
       "airplane_length_in": 892.8000000000001
     },
@@ -686,7 +733,17 @@
     "mach_limit": {
       "max_operating_altitude_ft": 25000,
       "increment_ft": 1000
-    }
+    },
+    "vd_basis": "speed_ratio",
+    "mach_margin_min": null,
+    "mach_margin_basis": null,
+    "vb_kt": null,
+    "no_yellow_arc": false,
+    "target_vne": null,
+    "target_vno": null,
+    "target_vmo": null,
+    "target_mmo": null,
+    "target_vfe": null
   },
   "aero": {
     "surfaces": [
@@ -772,6 +829,22 @@
       0.0,
       12000.0,
       25000.0
+    ]
+  },
+  "mass": {
+    "cases": [
+      {
+        "name": "itemized loading",
+        "weight_lb": 37781.0,
+        "cg_x": 401.37738545829916,
+        "cg_y": 0.0,
+        "cg_z": 135.74005452476112,
+        "ixx": 30457858.07548768,
+        "iyy": 339006829.7136232,
+        "izz": 308548971.63813555,
+        "ixz": 17095578.302585952,
+        "gear_down": true
+      }
     ]
   },
   "wing_mass": {

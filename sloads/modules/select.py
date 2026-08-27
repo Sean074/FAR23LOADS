@@ -67,7 +67,12 @@ from ..constants import (
     dynamic_pressure_psf,
     gust_alleviation_factor,
 )
-from ..derived_geometry import airplane_length_in, sync_geometry_derived, wing_reference
+from ..derived_geometry import (
+    airplane_length_in,
+    sync_geometry_derived,
+    wing_aspect_ratio,
+    wing_reference,
+)
 from ..models import (
     CaseRef,
     CgCase,
@@ -306,7 +311,7 @@ def select_wing(project: Project, envelope: Optional[EnvelopeResult] = None) -> 
     vn = _resolve_envelope(project, envelope).vn
     weights = _cg_weights(project)
     si = project.select_input
-    aileron_deg = si.full_down_aileron_deg if si else 0.0
+    aileron_deg = resolved_full_down_aileron_deg(project)   # OV-2: blank derives
     cm = si.basic_airfoil_cm if si else 0.0
 
     picks = [
@@ -394,6 +399,70 @@ def flaps_by_config_name(project: Project) -> Dict[str, bool]:
             in keyed(sets, lambda t: t[0].name, "Coefficient set").items()}
 
 
+def wing_lift_slope_per_rad(project: Project) -> Optional[float]:
+    """SELECT's AW derived from the cruise aero set (note 36, OV-2; C210-36).
+
+    McMaster's AW is the uncorrected wing lift-curve slope per **radian**; the
+    cruise polynomial's C1 is the same slope per degree (FLTLOADS), so the
+    derivation is ``C1 * 57.3`` -- and :func:`select_htail_gust` divides it
+    back by 57.3 at the point of use, exactly as it does the typed value.
+    ``None`` when there is no cruise set or its C1 is 0.
+    """
+    aero = project.aero_coeffs
+    cs = aero.cruise if aero is not None else None
+    if cs is None or len(cs.lift) < 2 or not cs.lift[1]:
+        return None
+    return cs.lift[1] * DEG_PER_RAD
+
+
+def effective_tail_inputs(project: Project) -> Optional[TailLoadsInput]:
+    """The h-tail inputs with the note 36 falsy-derives resolved (OV-1/OV-5).
+
+    A blank ``aspect_ratio_wing`` derives from the consolidated planform AR
+    (:func:`~sloads.derived_geometry.wing_aspect_ratio`); a blank
+    ``wing_lift_slope_per_rad`` from :func:`wing_lift_slope_per_rad`. Typed
+    values pass through untouched, and so does the stored slice -- the resolved
+    values live on a local copy (the ``landing.build_landing`` effective-input
+    pattern), never written back. An ARW that resolves to 0 -- blank and
+    underivable -- is refused by name here rather than reaching the downwash
+    term, which divides by it unguarded (C210-36; the pre-note failure was a
+    bare ``ZeroDivisionError``).
+    """
+    ti = project.tail_loads
+    if ti is None:
+        return None
+    arw = ti.aspect_ratio_wing or (wing_aspect_ratio(project) or 0.0)
+    aw = ti.wing_lift_slope_per_rad or (wing_lift_slope_per_rad(project) or 0.0)
+    if arw <= 0.0:
+        raise ValueError(
+            "the rational h-tail loads need the wing aspect ratio (ARW): "
+            "geometry.empennage.htail.aspect_ratio_wing is 0/unset and there is "
+            "no integrable wing planform to derive it from -- the downwash "
+            "E = 114.6*CL/(pi*ARW) divides by it. Enter it on the Geometry "
+            "page, or add the wing planform.")
+    if arw == ti.aspect_ratio_wing and aw == ti.wing_lift_slope_per_rad:
+        return ti
+    from dataclasses import replace
+    return replace(ti, aspect_ratio_wing=arw, wing_lift_slope_per_rad=aw)
+
+
+def resolved_full_down_aileron_deg(project: Project) -> float:
+    """SELECT's DN, falsy-deriving from the aileron's own deflection limit
+    (note 36, OV-2; C210-38): the 23.349(b) steady-roll torsion and the aileron
+    loads used to ask for the same full-down deflection on two pages with no
+    cross-check. A typed ``select_input.full_down_aileron_deg`` overrides
+    (``aileron_deflection_mismatch`` warns when the two disagree); blank reads
+    ``aileron_loads.down_deflection_deg`` -- the owner, since AILERON is where
+    the surface's travel is entered.
+    """
+    si = project.select_input
+    typed = si.full_down_aileron_deg if si is not None else 0.0
+    if typed:
+        return typed
+    ail = project.aileron_loads
+    return ail.down_deflection_deg if ail is not None else 0.0
+
+
 def _cg_map(project: Project) -> Dict[str, CgCase]:
     """CG-case name -> case, for every lookup a V-n row makes; a duplicate name
     is refused here rather than collapsed (``sloads.selectors.keyed``)."""
@@ -410,6 +479,8 @@ def select_htail_balancing(project: Project,
     wr = wing_reference(project)
     if ti is None or fl is None or wr is None:
         return []
+    ti = effective_tail_inputs(project)   # OV-1: blank ARW/AW derive
+    assert ti is not None
     cg_map = _cg_map(project)
     flaps: Dict[str, bool] = flaps_by_config_name(project)
 
@@ -495,6 +566,8 @@ def select_htail_maneuver(project: Project,
     wr = wing_reference(project)
     if ti is None or fl is None or wr is None:
         return []
+    ti = effective_tail_inputs(project)   # OV-1: blank ARW/AW derive
+    assert ti is not None
     cg_map = _cg_map(project)
     np_ = design_inputs(project).n_pos
     lf_in = airplane_length_in(project)
@@ -575,6 +648,8 @@ def select_htail_gust(project: Project,
     wr = wing_reference(project)
     if ti is None or fl is None or wr is None:
         return []
+    ti = effective_tail_inputs(project)   # OV-1: blank ARW/AW derive
+    assert ti is not None
     cg_map = _cg_map(project)
     aht = 2.0 * math.pi / (1.0 + 2.0 / ti.aspect_ratio_htail)
     aw, arw = ti.wing_lift_slope_per_rad, ti.aspect_ratio_wing

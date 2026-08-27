@@ -406,7 +406,8 @@ def _case_inputs(project: Project, v_kt: float) -> CaseInputs:
         raise MissingInputError(f"one_engine_out: {na}")
     if not (0 <= oeo.failed_engine_index < len(project.engines)):
         raise ValueError(f"failed_engine_index {oeo.failed_engine_index} out of range")
-    eng = project.engines[oeo.failed_engine_index]
+    from .engine import effective_engine
+    eng = effective_engine(project, project.engines[oeo.failed_engine_index])
     if not eng.prop_diameter_in or eng.prop_diameter_in <= 0:
         raise MissingInputError(
             f"one_engine_out: engine {oeo.failed_engine_index} "

@@ -258,7 +258,12 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # favour of one EmpennageInput.airplane_length_in. The v54 hop reconciles each
 # pair, keeping the value that governed the shipped output and warning on
 # disagreement.
-SCHEMA_VERSION = 55
+# v56 (note 36 OV-10, #97): additive fields for the derive-by-default override
+# mechanism -- SurfaceInput.tip_cap_width_in (OV-4) and the EngineInput
+# engine_mass_item/prop_mass_item weight-row selectors (OV-7). No default
+# changes, no removals; the 55->56 hop is an identity (the readers take the
+# defaults), so a v55 file loads bit-identical.
+SCHEMA_VERSION = 56
 
 
 @dataclass

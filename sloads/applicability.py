@@ -131,7 +131,15 @@ def engine_failure_not_applicable(project: Project) -> Optional[str]:
                 "moment to react.")
     oeo = project.one_engine_out
     index = oeo.failed_engine_index if oeo is not None else 0
-    if 0 <= index < len(engines) and engines[index].engine_cg[1] == 0.0:
+    from .modules.engine import effective_engine
+    try:
+        resolved = (effective_engine(project, engines[index])
+                    if 0 <= index < len(engines) else None)
+    except ValueError:
+        # A mass selector naming no row: the engine module's own refusal says
+        # it; an applicability note must not be the thing that crashes first.
+        resolved = engines[index] if 0 <= index < len(engines) else None
+    if resolved is not None and resolved.engine_cg[1] == 0.0:
         eng = engines[index]
         return (f"{ENGINE_FAILURE_NA_LEAD} — single/centreline engine: the failed "
                 f"engine ({eng.engine_designation or f'index {index}'}) sits on the "

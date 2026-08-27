@@ -118,6 +118,7 @@ PAGE_LANDING = "landing_loads"
 PAGE_AERO_COEFFS = "aero_coefficients"
 PAGE_FLAP = "flap_loads"
 PAGE_FLIGHT = "flight_envelope"
+PAGE_ENGINE = "engine_mount"
 
 # The three canonical LANDLOAD loadings, in the order LANDLOAD consumes them (UG
 # fig 18.2). Since decision G-3a the *contract* is ``CgCase.role``, not the name --
@@ -1297,6 +1298,71 @@ def _check_flap_slipstream(project: Project) -> List[ConsistencyWarning]:
         PAGE_FLAP)]
 
 
+def _check_derive_overrides(project: Project) -> List[ConsistencyWarning]:
+    """Typed-and-disagreeing collapsed-override pairs (note 36, gate G-OV-6).
+
+    The OV-1 contract is blank-derives / typed-overrides, so a typed value that
+    disagrees with its owner is *legal* -- these warn, they never correct:
+
+    * ``aileron_deflection_mismatch`` -- ``select_input.full_down_aileron_deg``
+      vs ``aileron_loads.down_deflection_deg`` (C210-38: the 23.349(b) torsion
+      and the aileron loads each read their own copy).
+    * ``engine_mass_row_mismatch`` -- a typed engine/prop weight or CG against
+      the weight-database row its ``*_mass_item`` selector names (OV-7; the
+      > 1e-6 disagreement channel). A selector naming **no** row is refused by
+      name in the calc (``engine.selected_mass_row``), not warned here -- the
+      C210-21 split between a wrong linkage and a disagreeing override.
+
+    ``gross_weight`` vs MTOW keeps its existing ``mtow_representation_drift``
+    warning (:func:`_check_weight_case_model`).
+    """
+    from .models import same_name
+
+    out: List[ConsistencyWarning] = []
+    si, ail = project.select_input, project.aileron_loads
+    if (si is not None and ail is not None and si.full_down_aileron_deg
+            and ail.down_deflection_deg
+            and abs(si.full_down_aileron_deg - ail.down_deflection_deg) > 1e-6):
+        out.append(ConsistencyWarning(
+            "aileron_deflection_mismatch",
+            f"SELECT's full-down aileron is {si.full_down_aileron_deg:g} deg but the "
+            f"aileron's own down-deflection limit is {ail.down_deflection_deg:g} deg. "
+            "Both reach the calc -- the 23.349(b) steady-roll torsion scores the "
+            "first, the aileron loads the second. Blank the SELECT field to derive "
+            "it from the aileron (note 36), or confirm the difference is intended.",
+            PAGE_FLIGHT))
+
+    for i, eng in enumerate(project.engines, start=1):
+        label = eng.engine_designation or f"engine {i}"
+        for which, selector, weight_lb, cg in (
+            ("engine", eng.engine_mass_item, eng.engine_weight_lb, eng.engine_cg),
+            ("prop", eng.prop_mass_item, eng.prop_weight_lb, eng.prop_cg),
+        ):
+            if not selector or project.weight is None:
+                continue
+            row = next((r for r in project.weight.items
+                        if same_name(r.name, selector)), None)
+            if row is None:
+                continue  # the calc refuses this by name; nothing to compare
+            drift = []
+            if weight_lb and abs(weight_lb - row.weight_lb) > 1e-6:
+                drift.append(f"weight {weight_lb:,.6g} lb vs the row's "
+                             f"{row.weight_lb:,.6g} lb")
+            if any(cg) and any(abs(a - b) > 1e-6
+                               for a, b in zip(cg, (row.x, row.y, row.z))):
+                drift.append(f"CG {tuple(cg)} vs the row's "
+                             f"({row.x:g}, {row.y:g}, {row.z:g})")
+            if drift:
+                out.append(ConsistencyWarning(
+                    "engine_mass_row_mismatch",
+                    f"{label}: the typed {which} " + " and ".join(drift)
+                    + f" disagree with weight-database row '{row.name}' named by "
+                    f"{which}_mass_item. The typed value governs -- blank it to "
+                    "derive from the row (note 36 OV-7), or fix the row.",
+                    PAGE_ENGINE))
+    return out
+
+
 def consistency_warnings(project: Project) -> List[ConsistencyWarning]:
     """All input-consistency warnings for ``project`` (each tagged with its page).
 
@@ -1326,4 +1392,5 @@ def consistency_warnings(project: Project) -> List[ConsistencyWarning]:
     out += _check_wing_mass_tie(project)
     out += _check_aero_coefficients(project)
     out += _check_flap_slipstream(project)
+    out += _check_derive_overrides(project)
     return out

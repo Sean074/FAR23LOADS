@@ -391,6 +391,7 @@ _PROJECT_FIELD_KIND = {
     "actuator_span_in": "length_in", "hinges_span_in": "length_in",
     "inboard_y_in": "length_in", "outboard_y_in": "length_in",
     "sob_y_in": "length_in",
+    "tip_cap_width_in": "length_in",
     # Bare ``[x, y, z]`` inch arrays rather than keyed dicts (io.py's
     # ``engine_to_dict``/``engine_from_dict``) -- ordinary rows since the
     # converter handles a numeric list under any classified key. ``attach`` and

@@ -461,6 +461,7 @@ def _surface_from_dict(d: Dict[str, Any]) -> SurfaceInput:
         trailing_edge=_points(d.get("trailing_edge"), "SurfaceInput.trailing_edge"),
         symmetric=d.get("symmetric", True),
         elements=d.get("elements", 20),
+        tip_cap_width_in=d.get("tip_cap_width_in", 0.0),
         # v52: None = "not entered" (R-7c). The pre-v52 writer emitted the field
         # unconditionally, so a stored 0.25 carries no entered-ness information
         # -- it is read back as unset (any deliberately-entered non-default
@@ -565,6 +566,7 @@ def geometry_to_dict(inp: GeometryInput) -> Dict[str, Any]:
                 "trailing_edge": [list(p) for p in s.trailing_edge],
                 "symmetric": s.symmetric,
                 "elements": s.elements,
+                "tip_cap_width_in": s.tip_cap_width_in,
                 "ref_axis_pct": s.ref_axis_pct,
                 # Written even when None so "not entered" round-trips explicitly
                 # (the assumed-default provenance, M4-1).

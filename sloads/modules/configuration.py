@@ -568,7 +568,9 @@ def _gear_condition(project: Project, layout: LayoutInput, geom: dict) -> Option
         values.append(LoadValue("Overturn (turnover) angle", overturn, _DEG, key="overturn_turnover_angle"))
 
     # Prop ground clearance: nose engine prop tip vs ground (needs engine + prop).
+    from .engine import effective_engine
     eng = project.engine
+    eng = effective_engine(project, eng) if eng is not None else None
     if eng is not None and eng.prop_diameter_in:
         prop_tip_z = eng.prop_cg[2] - eng.prop_diameter_in / 2.0
         values.append(LoadValue("Prop ground clearance", prop_tip_z - ground_z, _IN, key="prop_ground_clearance"))

@@ -76,6 +76,7 @@ from ..derived_geometry import (
     WingReference,
     require_wing_reference,
     sync_geometry_derived,
+    wing_reference,
 )
 from ..models import (
     CATEGORIES,
@@ -292,6 +293,50 @@ def _gust_load_factor(ng: int, v: float, mach_cap: float, ref: str, config: Aero
     ug = 2.0 * ws / (rho * wr.mac / IN_PER_FT * c1 * DEG_PER_RAD * G)
     kg = gust_alleviation_factor(ug)
     return 1.0 + ng * kg * ude * v * c1 * DEG_PER_RAD / (GUST_LOAD_FACTOR_DIVISOR * ws)
+
+
+def gust_at_vf(project: Project) -> Optional[float]:
+    """The flaps-extended gust load factor NG the envelope itself computes at
+    its GUST VF corner, or ``None`` when the envelope cannot answer (note 36,
+    OV-6; C210-39, owner directive).
+
+    **The derivation owner** ``flap_loads.gust_load_factor`` falsy-derives
+    from: the maximum positive GUST VF load factor over exactly the corner set
+    :func:`build_envelope` runs -- the same :func:`_gust_load_factor` /
+    :func:`_gust_ude` internals ("F" reference, Ude 25 fps), the same
+    flaps-down configuration(s) x FLIGHT CG cases, under the same
+    flaps-at-sea-level-only rule (FLTLOADS.BAS line 3000) -- so the derived NG
+    is **bit-for-bit** the factor of the envelope's own GUST VF case (gate
+    G-OV-2). Deliberately not a re-spelling via ``vn_diagram`` (whose
+    ``GustInputs`` has no "F" branch): a second chain would be the drift this
+    note cures. ``None`` -- and the consumer's blank field then stays 0, the
+    pre-note behaviour -- when there is no flaps-down coefficient set, no
+    sea-level altitude in play, or the inputs the balance itself needs are
+    absent.
+    """
+    fl = project.flight_loads
+    wr = wing_reference(project)
+    if fl is None or wr is None or project.speeds is None:
+        return None
+    flapped = [c for c in balance_configs(project.aero_coeffs) if c.flaps_down]
+    cgs = flight_cases(project)
+    alts = [a for a in fl.altitudes_ft if a <= 0.0]
+    if not flapped or not cgs or not alts:
+        return None
+    try:
+        di = design_inputs(project)
+    except (MissingInputError, ValueError):
+        return None
+    best: Optional[float] = None
+    for alt in alts:
+        for config in flapped:
+            for cg in cgs:
+                if cg.weight_lb <= 0.0:
+                    continue
+                n = _gust_load_factor(1, di.vf, di.mc, "F", config, cg, fl, wr, alt)
+                if best is None or n > best:
+                    best = n
+    return best
 
 
 # --------------------------------------------------------------------------- #

@@ -50,7 +50,13 @@ from dataclasses import dataclass, field
 from typing import List
 
 from ..constants import DEG_PER_RAD, IN2_PER_FT2, dynamic_pressure_psf
-from ..derived_geometry import require_integrable_planform, require_positive_planform_area
+from ..derived_geometry import (
+    planform_aspect_ratio,
+    require_integrable_planform,
+    require_positive_planform_area,
+    taper_ratio_from_planform,
+    tip_ratio_from_planform,
+)
 from ..models import (
     AeroSurfaceInput,
     ConditionResult,
@@ -61,6 +67,7 @@ from ..models import (
     SurfaceInput,
     WingLoadResult,
     WingStationLoad,
+    same_name,
 )
 from ..registry import register
 from .wing_geometry import interp_x
@@ -122,6 +129,26 @@ def _tau(taper_ratio: float, tip_ratio: float) -> float:
             thi = _poly(_TAU_FIT[hi], taper_ratio)
             return tlo + (tip_ratio - lo) * (thi - tlo) / (hi - lo)
     return _poly(_TAU_FIT[knots[-1]], taper_ratio)  # pragma: no cover
+
+
+def resolved_tau(geom: SurfaceInput, aero: AeroSurfaceInput) -> float:
+    """The TAU correction this surface actually uses -- **the one resolution**
+    (note 36, OV-1/OV-2; C210-31, owner directive).
+
+    An entered ``aero.tau`` overrides outright (TAU.BAS's own escape hatch,
+    unchanged). Otherwise the taper and rounded-tip ratios falsy-derive from
+    the paired geometry surface -- the polyline chord ratio and the OV-4
+    ``tip_cap_width_in / semi-span`` -- before the TAU fit runs, so a blank
+    ``taper_ratio`` on a tapered planform no longer lands on the fit's
+    pointed-wing knot (tau = 0.206209, the maximum correction, silently). A
+    typed ratio wins; a planform that cannot answer leaves the typed 0.0 in
+    place, which is the pre-note behaviour.
+    """
+    if aero.tau is not None:
+        return aero.tau
+    taper = aero.taper_ratio or (taper_ratio_from_planform(geom) or 0.0)
+    tip = aero.tip_ratio or (tip_ratio_from_planform(geom) or 0.0)
+    return _tau(taper, tip)
 
 
 # --------------------------------------------------------------------------- #
@@ -208,17 +235,17 @@ def schrenk_distribution(geom: SurfaceInput, aero: AeroSurfaceInput) -> Spanwise
     span = 2 * ytip if geom.symmetric else (ytip - yroot)
     mo_wing = sum_mocdy / area_side                  # Mo = SUM(mo*c*dy)/(S/2)
     awo = sum_mocac / sum_mocdy if sum_mocdy else 0.0
-    aspect_ratio = (2 * ytip) ** 2 / (2 * area_side) if geom.symmetric else (ytip - yroot) ** 2 / area_side
+    aspect_ratio = planform_aspect_ratio(yroot, ytip, area_side, geom.symmetric)  # OV-5, the one spelling
     mo_rad = mo * DEG_PER_RAD                          # section slope per radian
-    m_wing = mo / (1 + mo_rad / (math.pi * aspect_ratio) * (1 + aero.tau if aero.tau is not None
-                                                       else 1 + _tau(aero.taper_ratio, aero.tip_ratio)))
+    tau = resolved_tau(geom, aero)                     # OV-1: blank ratios derive
+    m_wing = mo / (1 + mo_rad / (math.pi * aspect_ratio) * (1 + tau))
 
     mac = sum_c2dy / area_side if area_side else 0.0   # MAC = SUM(c^2*dy)/SUM(c*dy)
     airload4 = use_airload4(aero)
     table = SpanwiseTable(
         mo_wing=mo_wing, awo=awo, area_total=area_total, span=span, mac=mac,
         aspect_ratio=aspect_ratio, m_wing=m_wing, target_cl=aero.target_cl,
-        tau=aero.tau if aero.tau is not None else _tau(aero.taper_ratio, aero.tip_ratio),
+        tau=tau,
         sweep_deg=aero.sweep_deg if airload4 else 0.0, airload4=airload4,
     )
 
@@ -441,15 +468,41 @@ def spanwise_distribution(geom: SurfaceInput, aero: AeroSurfaceInput) -> Conditi
 MODULE_NAME = "airloads"
 
 
+def resolve_aero_surfaces(project: Project) -> List[AeroSurfaceInput]:
+    """The aero rows the analysis runs over: typed rows, plus a schema-default
+    row per lifting surface that has none (note 36, OV-8; C210-29 seed half).
+
+    Typed rows are kept exactly as typed. Every **symmetric** geometry surface
+    (wing/tail -- a single-sided aileron or flap planform is placement geometry,
+    not a lifting surface AIRLOADS analyses) with no same-name aero row gets a
+    default ``AeroSurfaceInput(name=<surface>)`` whose taper/tip then
+    falsy-derive from the planform (:func:`resolved_tau`) and whose other
+    fields are the schema defaults -- geometry values only (owner ruling);
+    ``section_slope`` 0.1075 and ``target_cl`` 1.0 are real defaults, and #98's
+    caption makes their absence visible. Per-name, so a typed wing row never
+    suppresses a derivable second surface. Nothing is written to the project:
+    this is derive-from-an-owner, not a seed button (OG-1 untouched).
+    """
+    typed = list(project.aero.surfaces) if project.aero is not None else []
+    out = list(typed)
+    geom = project.geometry
+    if geom is not None:
+        for surf in geom.surfaces:
+            if surf.symmetric and not any(same_name(a.name, surf.name) for a in typed):
+                out.append(AeroSurfaceInput(name=surf.name))
+    return out
+
+
 def run(project: Project) -> ModuleResult:
     """Run AIRLOADS over every aero surface that has a matching planform."""
-    if project.aero is None or not project.aero.surfaces:
-        raise MissingInputError("Project has no 'aero' surfaces for the airloads module")
     if project.geometry is None or not project.geometry.surfaces:
         raise MissingInputError("airloads needs 'geometry' surfaces for the wing planform")
+    resolved = resolve_aero_surfaces(project)
+    if not resolved:
+        raise MissingInputError("Project has no 'aero' surfaces for the airloads module")
 
     conditions: List[ConditionResult] = []
-    for aero in project.aero.surfaces:
+    for aero in resolved:
         geom = project.geometry.by_name(aero.name)
         if geom is None:
             raise ValueError(f"aero surface '{aero.name}' has no matching geometry surface")

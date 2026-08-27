@@ -1158,7 +1158,8 @@ def hub_thrust_set(project: Project, cg: CgCase
     """
     loads: List[BalancedLoad] = []
     applied: List[str] = []
-    for i, eng in enumerate(project.engines or []):
+    from .engine import resolved_engines
+    for i, eng in enumerate(resolved_engines(project) if project.engines else []):
         thrust = eng.thrust_lb
         if not thrust:
             continue

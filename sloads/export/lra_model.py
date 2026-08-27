@@ -486,7 +486,8 @@ def build_lra_model(project: Project) -> LraModel:
 
     # ---------------------------------------------------------------- engines
     engine_nodes: List[LraNode] = []
-    for i, eng in enumerate(project.engines or []):
+    from ..modules.engine import resolved_engines
+    for i, eng in enumerate(resolved_engines(project) if project.engines else []):
         mount_pos: Tuple[float, float, float] = (eng.engine_cg[0], eng.engine_cg[1], eng.engine_cg[2])
         hub_pos: Tuple[float, float, float] = (eng.prop_cg[0], eng.prop_cg[1], eng.prop_cg[2])
         if not any(mount_pos) and not any(hub_pos):

@@ -113,6 +113,16 @@ class EngineInput:
     # math). Blank -> no guard, fixed stand-in unchanged.
     design_yaw_rate_rad_s: Optional[float] = None    # concept real yaw rate (25.371)
     design_pitch_rate_rad_s: Optional[float] = None  # concept real pitch rate (25.371)
+    # Weight-database row selectors (v56, note 36 OV-7 -- the D-25 mass SSOT
+    # linkage, stated where it is consumed). Each names a ``weight.items`` row
+    # by ``name`` (matched with ``same_name``); with a selector set the engine/
+    # prop weight falsy-derives from the row's ``weight_lb`` and the CG derives
+    # from the row's ``(x, y, z)`` when left ``(0, 0, 0)``; a typed value
+    # overrides, and a disagreement warns (``engine_mass_row_mismatch``). Blank
+    # = no derivation (today's behaviour); a selector naming no row is refused
+    # by name (the C210-21 pattern). Identity stays an input, never inferred.
+    engine_mass_item: str = ""
+    prop_mass_item: str = ""
     # What the engine mount reacts into (v52, decision BM-4 / note 24 R-9):
     # "fuselage" or "wing". The LRA beam model ties the engine's mount + hub
     # nodes rigidly to this parent's beam. None -> inferred from the engine CG
@@ -359,12 +369,21 @@ class SurfaceInput:
     (:func:`sloads.derived_geometry.sob_station`) then falls back to half the
     fuselage width **marked assumed**, and never to ``wing_mass.inboard_rib_y``,
     which is the WINGINER mass-panel start, not a body dimension.
+
+    ``tip_cap_width_in`` (v56, note 36 OV-4) is the **rounded tip cap's width**
+    (in) -- the planform rounding the edge polylines cannot carry, because they
+    end square by construction. It is geometry, entered once with the surface
+    (GR-INPUT-2); the TAU rounded-tip ratio falsy-derives from it as
+    ``tip_cap_width_in / semi-span``
+    (:func:`sloads.derived_geometry.tip_ratio_from_planform`). ``0.0`` means a
+    square tip, which is today's meaning of a blank ``tip_ratio``.
     """
     name: str
     leading_edge: List[XYPoint]
     trailing_edge: List[XYPoint]
     symmetric: bool = True
     elements: int = 20
+    tip_cap_width_in: float = 0.0            # rounded tip-cap width, in; 0 = square tip (OV-4)
     ref_axis_pct: Optional[float] = None     # fraction of chord; None -> not entered (R-7c)
     front_spar_pct: Optional[float] = None   # fraction of chord; None -> assumed default
     rear_spar_pct: Optional[float] = None    # fraction of chord; None -> assumed default

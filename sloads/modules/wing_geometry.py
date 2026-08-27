@@ -32,7 +32,11 @@ from __future__ import annotations
 
 from typing import List, Optional, Sequence, Tuple
 
-from ..derived_geometry import require_integrable_planform, require_positive_planform_area
+from ..derived_geometry import (
+    planform_aspect_ratio,
+    require_integrable_planform,
+    require_positive_planform_area,
+)
 from ..models import (
     ConditionResult,
     GeometryInput,
@@ -131,12 +135,12 @@ def surface_properties(surf: SurfaceInput) -> ConditionResult:
     mac = sc2 / area
     xlemac = xbar - mac / 2
 
+    # AR from the one spelling (note 36, OV-5); span/area stay local.
+    aspect_ratio = planform_aspect_ratio(yroot, ytip, area, surf.symmetric)
     if surf.symmetric:
-        aspect_ratio = (2 * ytip) ** 2 / (2 * area)
         span = 2 * ytip
         total_area = 2 * area
     else:
-        aspect_ratio = (ytip - yroot) ** 2 / area
         span = ytip - yroot
         total_area = area
 
@@ -176,7 +180,8 @@ def _engine_stations(project: Project, geometry: GeometryInput) -> Optional[Cond
         raise ValueError(problem)
 
     values: List[LoadValue] = []
-    for i, eng in enumerate(project.engines, start=1):
+    from .engine import resolved_engines
+    for i, eng in enumerate(resolved_engines(project), start=1):
         y = eng.engine_cg[1]
         xf = interp_x(wing.leading_edge, abs(y))
         xa = interp_x(wing.trailing_edge, abs(y))

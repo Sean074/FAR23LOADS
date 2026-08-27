@@ -2,7 +2,8 @@
 
 **The rule (#93, 2026-08-25).** This project is pre-production. No analysis
 performed with an earlier build has to stay readable, so a file is accepted only
-when its ``schema_version`` *is* :data:`~sloads.models.SCHEMA_VERSION`; anything
+when its ``schema_version`` is :data:`~sloads.models.SCHEMA_VERSION` or a
+version the hop chain reaches it from (:data:`SUPPORTED_FLOOR`); anything
 older, newer or unversioned raises :class:`SchemaVersionError` naming both
 versions. Refusing is the honest answer — an old file's numbers were produced by
 a different tool, and silently reshaping them into the current schema presents
@@ -20,10 +21,10 @@ chain applied in ascending order, each hop turning a file of version *n* into
 
     v_file --hop--> v_file+1 --hop--> ... --> SCHEMA_VERSION --> one tolerant reader
 
-Today it is empty and :data:`SUPPORTED_FLOOR` equals ``SCHEMA_VERSION``, so no
-hop runs. At production the floor drops to whatever version ships and hops
-register from there forward — the shape of that work is unchanged, which is why
-the chain stays rather than being deleted and rebuilt from history.
+The chain holds one live hop today — the v55→v56 identity of note 36's additive
+fields (OV-10, #97) — so :data:`SUPPORTED_FLOOR` is 55. At production the floor
+drops to whatever version ships and hops register from there forward — the
+shape of that work is unchanged.
 
 **The twelve retired hops** (v18–v54, plus the v0 bare-``EngineInput`` branch
 from the Phase-0 ``engloads`` era) covered every shape change from v18 to v55.
@@ -59,16 +60,30 @@ class SchemaVersionError(ValueError):
     """
 
 
-#: ``{from_version: hop}`` -- applied in ascending order, each turning a file of
-#: version *n* into version *n+1* shape. Empty while the floor sits at the
-#: current version (#93); a version that changes shape after production adds its
-#: hop here and lowers :data:`SUPPORTED_FLOOR`.
-MIGRATIONS: Dict[int, Callable[[Dict[str, Any]], Dict[str, Any]]] = {}
+def _hop_55(d: Dict[str, Any]) -> Dict[str, Any]:
+    """v55 -> v56 (note 36 OV-10, #97): **identity**.
 
-#: The oldest project version this build reads. Pre-production this **is**
-#: ``SCHEMA_VERSION``: there is nothing older worth reading, and saying so is
-#: what lets the readers describe exactly one schema.
-SUPPORTED_FLOOR = SCHEMA_VERSION
+    v56 adds three input fields with backward-benign defaults --
+    ``SurfaceInput.tip_cap_width_in`` (0.0 = square tip, the v55 meaning) and
+    the ``EngineInput.engine_mass_item``/``prop_mass_item`` selectors ("" = no
+    derivation, the v55 behaviour). The readers take the defaults for absent
+    keys, so the hop changes nothing; it exists because the gate refuses any
+    version it has no hop for, and an additive field is still a shape change.
+    """
+    return d
+
+
+#: ``{from_version: hop}`` -- applied in ascending order, each turning a file of
+#: version *n* into version *n+1* shape. A version that changes shape adds its
+#: hop here; :data:`SUPPORTED_FLOOR` names the oldest version the chain starts
+#: from.
+MIGRATIONS: Dict[int, Callable[[Dict[str, Any]], Dict[str, Any]]] = {55: _hop_55}
+
+#: The oldest project version this build reads. It sat at ``SCHEMA_VERSION``
+#: while the chain was empty (#93: pre-production, nothing older worth
+#: reading); the v56 additive bump (note 36 OV-10) keeps v55 readable through
+#: the identity hop, so the floor is the oldest version a hop starts from.
+SUPPORTED_FLOOR = min(MIGRATIONS) if MIGRATIONS else SCHEMA_VERSION
 
 
 def source_schema_version(d: Mapping[str, Any]) -> int:
@@ -89,12 +104,14 @@ def migrate(d: Dict[str, Any]) -> Dict[str, Any]:
     because the GUI hands the same dict to the JSON editor.
     """
     version = source_schema_version(d)
-    if version != SCHEMA_VERSION:
+    if version < SUPPORTED_FLOOR or version > SCHEMA_VERSION:
         found = "no schema_version" if version < 0 else f"schema {version}"
+        supported = (f"schema {SCHEMA_VERSION} only" if SUPPORTED_FLOOR == SCHEMA_VERSION
+                     else f"schemas {SUPPORTED_FLOOR}-{SCHEMA_VERSION}")
         raise SchemaVersionError(
             f"This file is not readable by this build: {found}; this build reads "
-            f"schema {SCHEMA_VERSION} only. Pre-production, projects are not "
-            "migrated -- rebuild the project on the current version."
+            f"{supported}. Older projects are not migrated -- rebuild the "
+            "project on the current version."
         )
 
     out = copy.deepcopy(d)

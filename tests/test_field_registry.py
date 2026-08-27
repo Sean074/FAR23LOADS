@@ -376,6 +376,14 @@ STILL_DUPLICATED = {
     "wing reference area",
     # Class C (DS-7) -- "airplane length" and "shoulder altitude" were here
     # until the v55 hop (#52, note 33 §8) left each one field. DG-2 shrunk.
+    # Note 36 (OV-1, #97) -- collapsed overrides: the copy stays a field
+    # because the oracle deck can legitimately clamp/score at a different
+    # value, but blank now derives from the owner and a typed disagreement is
+    # marked (the C210-15 ruling for the stall CLs, C210-38 for the aileron).
+    "clean positive stall CL",
+    "clean negative stall CL",
+    "flapped positive stall CL",
+    "full-down aileron deflection",
 }
 
 
