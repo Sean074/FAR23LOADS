@@ -1,6 +1,6 @@
 # sloads Documentation — Index
 
-This directory is organised into five numbered sections by **document type**.
+This directory is organised into six numbered sections by **document type**.
 Lower numbers are the day-to-day references; higher numbers are planning and
 historical record.
 
@@ -11,6 +11,7 @@ historical record.
 | `30_future/` | **Future development** | The mission-tagged backlog, the parked-items file, and the live plan documents for **open** work. Plans whose work has shipped move to `40_history/`. |
 | `40_history/` | **Historic record** | What has shipped — completed modules/phases, key decisions, and resolved defects. |
 | `50_reviews/` | **Process reviews** | Periodic development-process assessments and the recommendations driving process changes. |
+| `60_guide/` | **Oracle GUI user guide** | Page-by-page illustrated guide to the oracle GUI (design note 34): front matter, one generated-and-authored chapter per oracle page in workflow order, worked-example appendices. Field tables and the chapter list are generated (`docs/generate_data_dict.py`); screenshots by `scripts/capture_guide_shots.py`. |
 
 ---
 
@@ -123,6 +124,35 @@ historical record.
 | [`2026-08-05_development_process_review.md`](50_reviews/2026-08-05_development_process_review.md) | Full-depth development-process audit (Jun–Aug 2026): findings F1–F7, recommendations R1–R11 behind the 2026-08-05 process changes, and the sbeam cross-project comparison |
 | [`CODE_REVIEW_2026-07-21.md`](50_reviews/CODE_REVIEW_2026-07-21.md) | Point-in-time code review (moved here from the repository root at 0.5.0) |
 | [`PROJECT_REVIEW_2026-07-19.md`](50_reviews/PROJECT_REVIEW_2026-07-19.md) | Point-in-time project review (moved here from the repository root at 0.5.0) |
+
+## 60_guide — Oracle GUI user guide
+
+Structure per design note 34 ([`30_future/34_oracle_user_guide_note.md`](30_future/34_oracle_user_guide_note.md), decisions UG-1…UG-12): chapters follow `sloads.workflow.oracle_steps()` order; per-page field tables and the chapter list live under `60_guide/_generated/` (written by `docs/generate_data_dict.py`, never hand-edited); screenshots in `60_guide/img/` come from `scripts/capture_guide_shots.py`. Gates G-UG-1…G-UG-6: `tests/test_guide.py`.
+
+| File | Scope |
+|------|-------|
+| [`00_index.md`](60_guide/00_index.md) | Guide front page — what the oracle GUI is and is not, how to read a chapter, the two worked examples, the generated chapter list |
+| [`01_getting_started.md`](60_guide/01_getting_started.md) | Install, launching the oracle GUI, the sidebar in full (units, open/save/download, the dirty indicator) |
+| [`02_before_you_start.md`](60_guide/02_before_you_start.md) | The data to collect before opening the tool, as a checklist keyed to the chapters that consume each item |
+| [`03_conventions.md`](60_guide/03_conventions.md) | Axes/signs (pointing at `CONVENTIONS.md`), stations and datum, the unit boundary, the one LIMIT-vs-ULTIMATE statement (UG-8) |
+| [`01_configuration_layout.md`](60_guide/01_configuration_layout.md) | Chapter 1 — Geometry (`WINGGEOM`) |
+| [`02_weight_mass.md`](60_guide/02_weight_mass.md) | Chapter 2 — Weight & Mass Properties (`WTESTIMA`+`WTONECG`+`WTENV`) |
+| [`03_aero_coefficients.md`](60_guide/03_aero_coefficients.md) | Chapter 3 — Aerodynamic Data (modern page; sourcing ladder per UG-11) |
+| [`04_structural_speeds.md`](60_guide/04_structural_speeds.md) | Chapter 4 — Structural Speeds (`STRSPEED`+`MACHLIM`) |
+| [`05_flight_envelope.md`](60_guide/05_flight_envelope.md) | Chapter 5 — Flight Envelope V-n (`FLTLOADS`+`SELECT`) |
+| [`06_wing_loads.md`](60_guide/06_wing_loads.md) | Chapter 6 — Wing Loads (`AIRLOADS`+`WINGINER`+`NETLOADS`) |
+| [`07_fuselage_loads.md`](60_guide/07_fuselage_loads.md) | Chapter 7 — Fuselage Loads (`NETLOADS`) |
+| [`08_tail_loads.md`](60_guide/08_tail_loads.md) | Chapter 8 — Tail Loads (`TAILDIST`+`BALLOADS`) |
+| [`09_aileron_loads.md`](60_guide/09_aileron_loads.md) | Chapter 9 — Aileron Loads (`AILERON`) |
+| [`10_flap_loads.md`](60_guide/10_flap_loads.md) | Chapter 10 — Flap Loads (`FLAPLOAD`) |
+| [`11_tab_loads.md`](60_guide/11_tab_loads.md) | Chapter 11 — Tab Loads (`TABLOADS`) |
+| [`12_engine_mount.md`](60_guide/12_engine_mount.md) | Chapter 12 — Engine Mount Loads (`ENGLOADS`) |
+| [`13_one_engine_out.md`](60_guide/13_one_engine_out.md) | Chapter 13 — One Engine Out (`ONENGOUT`) |
+| [`14_landing_loads.md`](60_guide/14_landing_loads.md) | Chapter 14 — Landing Loads (`LGFACTOR`+`LANDLOAD`) |
+| [`A_worked_single.md`](60_guide/A_worked_single.md) | Appendix A — `ga6_normal` end to end (Imperial), against its Appendix A printed figures |
+| [`B_worked_twin.md`](60_guide/B_worked_twin.md) | Appendix B — the light twin end to end (SI), closing on the unit channel (UG-12) |
+| [`C_troubleshooting.md`](60_guide/C_troubleshooting.md) | Appendix C — run-order messages, "cannot run yet" notes, unit-toggle surprises, the dirty flag |
+| [`D_where_next.md`](60_guide/D_where_next.md) | Appendix D — what the full `app/` GUI adds and when to move over |
 
 ---
 
