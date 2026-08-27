@@ -5,7 +5,7 @@ compare to similar aircraft?" in one place, the concept-mode charter (``CLAUDE.m
 "assesses a configuration against similar airplanes"). It carries the quantitative
 placement (nearest-N similar aircraft, W/S & W/P percentile band, outlier flags),
 a parameter table (subject + nearest-N / full fleet), and six scatter tabs: the two
-loading/weight scatters (W/S-vs-W/P, MTOW-vs-OEW) plus four geometric scatters
+loading/weight scatters (W/S-vs-W/P, MTOW-vs-empty-weight) plus four geometric scatters
 (wingspan / wing area / aspect ratio / seats vs. MTOW).
 
 Presentation only. The reference fleet is nominal published specs (Imperial) — never
@@ -105,7 +105,7 @@ def _subject_from_project(project: Project) -> Optional[Subject]:
 
     Priority per metric (backlog F2 step 2; surface fallback added in M2-5):
       MTOW  -- cg_cases.max_takeoff_weight (G-14 SSOT + chain) -> WTESTIMA
-      OEW   -- weight.database_totals()[1] -> WTESTIMA
+      Empty weight -- weight.database_totals()[1] (EMPTY rows; #94, C210-12) -> WTESTIMA
       area  -- parametric.wing_area_sqft -> WINGGEOM wing surface -> speeds.wing_area_sqft
       power -- Sum engines[].max_cont_hp -> weight.estimation.max_continuous_hp
       AR    -- parametric.aspect_ratio -> WINGGEOM wing surface
@@ -196,7 +196,7 @@ def _subject_row(subject: Subject) -> dict:
     return {
         "Aircraft": subject.name,
         "MTOW (lb)": _fmt(subject.mtow_lb),
-        "OEW (lb)": _fmt(subject.oew_lb),
+        "Empty weight (lb)": _fmt(subject.oew_lb),
         "Power (hp)": _fmt(subject.power_hp),
         "W/S (lb/ft²)": _fmt(subject.w_s, 1),
         "W/P (lb/hp)": _fmt(subject.w_p, 1),
@@ -211,7 +211,7 @@ def _point_row(p: FleetPoint) -> dict:
     return {
         "Aircraft": p.name,
         "MTOW (lb)": _fmt(p.mtow_lb),
-        "OEW (lb)": _fmt(p.oew_lb),
+        "Empty weight (lb)": _fmt(p.oew_lb),
         "Power (hp)": _fmt(p.max_hp),
         "W/S (lb/ft²)": _fmt(p.w_s, 1),
         "W/P (lb/hp)": _fmt(p.w_p, 1),
@@ -323,7 +323,7 @@ else:
     plot_df = fleet
 
 tabs = st.tabs([
-    "Wing loading vs power loading", "MTOW vs OEW", "Wingspan vs MTOW",
+    "Wing loading vs power loading", "MTOW vs empty weight", "Wingspan vs MTOW",
     "Wing area vs MTOW", "Aspect ratio vs MTOW", "Seats vs MTOW",
 ])
 with tabs[0]:
@@ -332,7 +332,7 @@ with tabs[0]:
     st.caption("Jets (max_hp = 0) are excluded from this plot.")
 with tabs[1]:
     _scatter(plot_df, "oew_lb", "mtow_lb",
-             {"oew_lb": "Empty weight OEW (lb)", "mtow_lb": "MTOW (lb)"},
+             {"oew_lb": "Empty weight (lb)", "mtow_lb": "MTOW (lb)"},
              log_x=True, log_y=True)
 with tabs[2]:
     _scatter(plot_df, "mtow_lb", "wingspan_ft",

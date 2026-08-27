@@ -243,11 +243,15 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
         vc = unit_number_input(
             "Chosen cruise VC", float(existing.chosen_vc) if existing and existing.chosen_vc else 0.0,
             fixed_unit=KEAS, key="ss_vc", min_value=0.0,
-            help="Design cruising speed VC (KEAS); leave 0 to use the FAR 23.335(a) minimum.")
+            help="Design cruising speed VC (KEAS). Enter a value if you have one; "
+                 "0/blank uses the computed FAR 23.335(a) minimum, and a value "
+                 "below the minimum is overridden (raised) to it.")
         vd = unit_number_input(
             "Chosen dive VD", float(existing.chosen_vd) if existing and existing.chosen_vd else 0.0,
             fixed_unit=KEAS, key="ss_vd", min_value=0.0,
-            help="Design dive speed VD (KEAS); leave 0 to use the FAR 23.335(b) minimum.")
+            help="Design dive speed VD (KEAS). Enter a value if you have one; "
+                 "0/blank uses the computed FAR 23.335(b) minimum, and a value "
+                 "below the minimum is overridden (raised) to it.")
 
         # --- Dive-speed basis (F25-2). Concept category only (decision D-1); the
         # widgets always render because a form cannot react live to the category

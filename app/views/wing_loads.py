@@ -275,7 +275,10 @@ with st.form("net_wing_loads_form"):
 
     st.subheader("Critical load cases")
     st.caption("Nz / Nx are the inertia load factors (negative of the air-load factor); "
-               "CL / V are the air-load condition. Reference a V-n case to auto-fill from FLTLOADS.")
+               "CL / V are the air-load condition. Reference a V-n case to auto-fill from FLTLOADS. "
+               "**0 rows = the SELECT governing set** is used at run time; typed rows "
+               "**replace that set entirely** — adding one case drops every derived "
+               "condition from WINGINER/NETLOADS and the export (C210-30).")
     case_default = pd.DataFrame(
         [[c.name, c.case, c.nz, c.nx, c.unbal_moment, c.cl, c.v_eas_kt] for c in wm.cases]
         or [["", None, 0.0, 0.0, 0.0, 0.0, 0.0]],

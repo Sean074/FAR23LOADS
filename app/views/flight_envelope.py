@@ -44,7 +44,7 @@ from sloads import (
 from sloads.case_ids import case_label
 from sloads.cg_cases import flight_cases
 from sloads.constants import IN_PER_FT
-from sloads.derived_geometry import MacReference, station_to_pct_mac, wing_reference
+from sloads.derived_geometry import MacReference, station_to_pct_mac, tail_cp_suggestion, wing_reference
 from sloads.models import MissingInputError
 from sloads.modules.configuration import run as configuration_run
 from sloads.modules.flight_envelope import build_envelope, trim_sweep
@@ -103,11 +103,12 @@ xw = _wr.xw if _wr is not None else 80.953
 zw = _wr.zw if (_wr is not None and _has_parametric) else 87.725
 
 
-def _num(label: str, value: float, key: str, kind: str, fmt: str = "%.3f", min_value: Optional[float] = None) -> float:
+def _num(label: str, value: float, key: str, kind: str, fmt: str = "%.3f",
+         min_value: Optional[float] = None, help: Optional[str] = None) -> float:
     display_value = float(round(to_display(value, kind, system), 4))
     kwargs = {} if min_value is None else {"min_value": min_value}
     return float(st.number_input(f"{label} ({U[kind]})", value=display_value, format=fmt,
-                                 key=widget_key(f"{key}_{system.value}"), **kwargs))
+                                 key=widget_key(f"{key}_{system.value}"), help=help, **kwargs))
 
 
 with st.sidebar:
@@ -132,11 +133,31 @@ with st.sidebar:
     with st.form("flight_geometry_form"):
         st.subheader(f"Tail CP stations & reference Mach ({U['length']})")
         st.caption("The only FLTLOADS geometry this page owns. **Apply** to save.")
-        xtc = _num("Tail CP X, flaps up XTC", fl.xtc or 253.364, "xtc", "length")
-        xtf = _num("Tail CP X, flaps down XTF", fl.xtf or 261.027, "xtf", "length")
+        xtc = _num("Tail CP X, flaps up XTC", fl.xtc or 253.364, "xtc", "length",
+                   help="H-tail centre-of-pressure fuselage station, flaps up "
+                        "(cruise/clean): the CP sits well forward on the tail, "
+                        "≈ 5 % of tail MAC (C210-20).")
+        xtf = _num("Tail CP X, flaps down XTF", fl.xtf or 261.027, "xtf", "length",
+                   help="H-tail centre-of-pressure fuselage station, flaps down "
+                        "(VF/landing): the CP moves aft, ≈ 25 % of tail MAC "
+                        "(C210-20).")
+        _cp_suggestion = tail_cp_suggestion(project)
+        if _cp_suggestion is not None:
+            _sug_xtc, _sug_xtf = _cp_suggestion
+            st.caption(
+                "From your tail geometry (tail MAC ≈ ST/span; Xtf = xt25, "
+                f"Xtc = xt25 − 0.20·MAC): Xtc ≈ "
+                f"**{to_display(_sug_xtc, 'length', system):.1f} {U['length']}**, Xtf ≈ "
+                f"**{to_display(_sug_xtf, 'length', system):.1f} {U['length']}** — a "
+                "suggestion only; the values typed above are what FLTLOADS uses."
+            )
         mn = st.number_input("Reference Mach (coeffs obtained at)", min_value=0.01,
                              value=float(fl.mn) or 0.1, format="%.3f",
-                             key=widget_key("fl_ref_mach"))
+                             key=widget_key("fl_ref_mach"),
+                             help="The Mach number the aero-coefficient sets were "
+                                  "obtained at (typically ≈ 0.1) — not a design "
+                                  "Mach: entering MC here would wrongly shrink "
+                                  "every compressibility correction (C210-20).")
         applied = st.form_submit_button("Apply geometry & altitudes", type="primary")
 
 st.caption(
@@ -146,6 +167,8 @@ st.caption(
 
 alt_default = pd.DataFrame({"altitude_ft": fl.altitudes_ft or [0.0]})
 st.subheader("Altitudes (V-n balanced at each)")
+st.caption("The cruise set balances at every altitude listed; the flaps-down "
+           "envelope runs at sea level only (FLTLOADS.BAS line 3000).")
 alt_df = st.data_editor(alt_default, num_rows="dynamic", hide_index=True,
                         use_container_width=True, key=widget_key("altitudes_editor"))
 altitudes_ft = sorted({float(v) for v in alt_df["altitude_ft"] if pd.notna(v)}) or [0.0]

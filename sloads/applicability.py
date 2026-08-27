@@ -73,7 +73,7 @@ def design_weight_lb(project: Project) -> float:
     high on ``atr42_100``, 1,800 lb on ``concept_regional_jet``). Latent on every
     shipped fixture, which all set ``speeds.weight_lb``, but a project caught
     mid-entry took the certification gate off the wrong number. The database total
-    is the *ceiling* of ``OEW <= MLW <= MTOW <= sum(items)``, owned by
+    is the *ceiling* of ``empty weight <= MLW <= MTOW <= sum(items)``, owned by
     :func:`sloads.cg_cases.database_total` and checked in
     :mod:`sloads.validation`; it is not a design weight and no longer reachable
     from here.

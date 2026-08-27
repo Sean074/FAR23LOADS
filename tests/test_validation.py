@@ -373,7 +373,7 @@ def test_a_malformed_loading_is_reported_rather_than_raised_at_the_page():
 
 
 def test_the_design_weight_ordering_chain_fires_on_an_inverted_pair():
-    """G-14: OEW <= MLW <= MTOW <= sum(items), one check where four were scattered."""
+    """G-14: empty weight <= MLW <= MTOW <= sum(items), one check where four were scattered."""
     project = sloads_io.load_project(_GA)
     project.weight.max_landing_weight_lb = project.weight.max_takeoff_weight_lb + 100.0
     assert "weight_order_chain" in _codes(project, page="weight_mass")

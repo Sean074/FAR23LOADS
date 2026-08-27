@@ -333,7 +333,15 @@ def weight_estimate_advisory(project: Project, system: UnitSystem) -> str:
 
 
 def select_inertia_advisory(project: Project, _system: UnitSystem) -> str:
-    """SELECT's block caption: which inertias are estimates (#95, C210-25).
+    """SELECT's block caption: the search scope, and which inertias are estimates.
+
+    The scope sentence is C210-26's GUI half (#94): the candidate pool per
+    category is the entire V-n matrix, filtered only by condition label, and no
+    single sentence on the page said so -- "PHAA (case 118)" gave the user no
+    way to know the other loadings were considered rather than skipped. The
+    theory half landed in ``00_theory_sources.md``'s select row in-session.
+
+    Inertia half (#95, C210-25):
 
     The checked-maneuver Iyy and the side-gust default IZZ are SELECT.BAS's
     statistical rod estimates -- faithful to the original, and measured +34 %
@@ -350,7 +358,9 @@ def select_inertia_advisory(project: Project, _system: UnitSystem) -> str:
     from sloads.constants import LBIN2_PER_SLUGFT2
     from sloads.modules.select import default_side_gust_izz
 
-    text = ("Inertias: the checked-maneuver pitch inertia Iyy "
+    text = ("Each critical condition is the governing case searched over the "
+            "full V-n matrix — all loadings, CGs and altitudes. "
+            "Inertias: the checked-maneuver pitch inertia Iyy "
             "(0.44\u00b7W\u00b7L\u00b2/12g) and the side-gust yaw inertia IZZ "
             "(wing + fuselage slender rods; overridable on the Geometry page's "
             "v-tail IZZ field) are SELECT.BAS **statistical rod estimates**, "
@@ -376,9 +386,26 @@ def select_inertia_advisory(project: Project, _system: UnitSystem) -> str:
 #: Per-module block captions, keyed the same way :data:`STATION_WARNINGS` is:
 #: what a program *is* belongs to the program, so the page looks it up rather
 #: than naming WTESTIMA in a renderer (gate G2).
+def taildist_spanwise_advisory(_project: Project, _system: UnitSystem) -> str:
+    """TAILDIST's block caption: where the spanwise deliverable lives (#94).
+
+    C210-33: the spanwise empennage table (per-station shear/bending/torsion on
+    the load reference axis) is deliberately not an oracle page -- OG-2 derives
+    the oracle set as the .BAS-backed steps plus their input producers, and
+    ``tail_span_loads`` has ``bas=None`` (a modern deliverable, not a McMaster
+    program). The scope rule is right, but nothing here said the deliverable
+    exists elsewhere, so the owner searched this GUI for it.
+    """
+    return ("Chordwise distributions only. The spanwise station table -- "
+            "per-station shear, bending and torsion on the load reference "
+            "axis -- is the main GUI's **Tail Span Loads** page and the export "
+            "decks; it is not a McMaster program, so it has no oracle page.")
+
+
 MODULE_ADVISORIES: Dict[str, Callable[[Project, UnitSystem], str]] = {
     "weight_estimate": weight_estimate_advisory,
     "select": select_inertia_advisory,
+    "taildist": taildist_spanwise_advisory,
 }
 
 
@@ -493,5 +520,6 @@ def render_results(project: Project, key: str, system: UnitSystem) -> None:
 __all__ = [
     "LIMIT", "MODULE_ADVISORIES", "STATION_TABLES", "STATION_WARNINGS", "ULTIMATE",
     "Artifact", "ResultBlock", "StationTable", "page_artifacts", "render_results",
-    "select_inertia_advisory", "step_results", "weight_estimate_advisory",
+    "select_inertia_advisory", "step_results", "taildist_spanwise_advisory",
+    "weight_estimate_advisory",
 ]

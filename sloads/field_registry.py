@@ -1117,7 +1117,10 @@ REGISTRY: Tuple[FieldEntry, ...] = (
        "case selector, Step D5; structurally required", supplied=True),
     _E("weight.cg_cases[].role", _WT, _SLDS,
        "LANDLOAD's three loadings (UG fig 18.2), positional in the original, a column here (G-3a). "
-       "Load-bearing (G5): without it LANDLOAD has no GROUND cases and does not run", supplied=True),
+       "Load-bearing (G5): without it LANDLOAD has no GROUND cases and does not run. "
+       "The role only assigns the case to its slot -- nothing checks the numbers "
+       "against the tag, so a heavy-aft case tagged fwd_light is consumed in the "
+       "light-forward slot without complaint (#94, C210-14)", supplied=True),
     _E("weight.cg_cases[].weight_lb", _WT, _ORIG, "FLTLOADS.BAS prompts for four CG cases"),
     _E("weight.cg_cases[].xcg", _WT, _ORIG, "FLTLOADS.BAS CG station of the case"),
     _E("weight.cg_cases[].zcg", _WT, _ORIG, "FLTLOADS.BAS CG waterline of the case"),
@@ -1166,10 +1169,23 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("speeds.vh_kt", _SPD, _ORIG, "STRSPEED VH, max level speed"),
     _E("speeds.shoulder_altitude_ft", _SPD, _ORIG,
        "STRSPEED MC/MD altitude; MACHLIM first row (one home since v55, #52)"),
-    _E("speeds.chosen_vc", _SPD, _ORIG, "STRSPEED chosen VC, Appendix A p156"),
-    _E("speeds.chosen_vd", _SPD, _ORIG, "STRSPEED chosen VD, Appendix A p156"),
-    _E("speeds.chosen_va", _SPD, _ORIG, "STRSPEED chosen VA, Appendix A p156"),
-    _E("speeds.chosen_vf", _SPD, _ORIG, "STRSPEED chosen VF, Appendix A p156"),
+    # The chosen speeds are optional overrides of computed regulatory minimums
+    # (#94, C210-16): enter a value if you have one; blank uses the computed
+    # minimum, and a value below the minimum is overridden (raised) to it.
+    _E("speeds.chosen_vc", _SPD, _ORIG,
+       "STRSPEED chosen VC, Appendix A p156 -- blank uses the computed 23.335(a) "
+       "minimum; a value below the minimum is raised to it"),
+    _E("speeds.chosen_vd", _SPD, _ORIG,
+       "STRSPEED chosen VD, Appendix A p156 -- blank uses the computed 23.335(b) "
+       "minimum; a value below the minimum is raised to it"),
+    _E("speeds.chosen_va", _SPD, _ORIG,
+       "STRSPEED chosen VA, Appendix A p156 -- blank uses the computed 23.335(c) "
+       "minimum (VS*sqrt(n)); a value below the minimum is raised to it"),
+    _E("speeds.chosen_vf", _SPD, _ORIG,
+       "STRSPEED chosen VF, Appendix A p156 -- the 23.345 *design* wing-flap speed "
+       "(>= max(1.4*VS, 1.8*VSF)), the structural speed for flaps-extended cases, "
+       "not the operating placard VFE (which must be <= VF). Blank uses the "
+       "computed minimum; a value below it is raised"),
     _E("speeds.chosen_n", _SPD, _ORIG, "STRSPEED chosen n, Appendix A p156"),
     _E("speeds.chosen_nneg", _SPD, _ORIG, "STRSPEED chosen negative n, Appendix A p156"),
     _E("speeds.mach_limit.max_operating_altitude_ft", _SPD, _ORIG, "MACHLIM ceiling"),
@@ -1236,7 +1252,9 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     # ----------------------------------------------------------------- #
     # flight_loads -- FLTLOADS (flight_envelope); the M2-6 derived copies
     # ----------------------------------------------------------------- #
-    _E("flight_loads.altitudes_ft", _VN, _ORIG, "FLTLOADS envelope altitudes"),
+    _E("flight_loads.altitudes_ft", _VN, _ORIG,
+       "FLTLOADS envelope altitudes -- the cruise set balances at every entry; "
+       "the flaps-down envelope runs at sea level only (FLTLOADS.BAS line 3000)"),
     # Not "the gust/manoeuvre matrix", which is what this row said until PB-22:
     # ``mn`` is the Mach number the aero coefficients were *measured* at (~0.1;
     # FLTLOADS.BAS line 138, ``FlightLoadsInput``), and the help tooltip is
@@ -1245,8 +1263,16 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("flight_loads.mn", _VN, _ORIG,
        "FLTLOADS coefficient Mach number — the Mach the aero-coefficient sets "
        "were obtained at (typically ~0.1), not a design Mach"),
-    _E("flight_loads.xtc", _VN, _ORIG, "FLTLOADS tail CP, cruise"),
-    _E("flight_loads.xtf", _VN, _ORIG, "FLTLOADS tail CP, flapped"),
+    # The h-tail centre-of-pressure fuselage stations (#94, C210-20): flaps up
+    # the CP sits well forward on the tail, flaps down it moves aft. The page
+    # shows a computed suggestion from the empennage record beside the fields
+    # (oracle_app.form.GROUP_NOTES); the user still types the value.
+    _E("flight_loads.xtc", _VN, _ORIG,
+       "FLTLOADS tail CP, cruise -- h-tail centre-of-pressure fuselage station, "
+       "flaps up (cruise/clean): CP well forward on the tail, ~5% of tail MAC"),
+    _E("flight_loads.xtf", _VN, _ORIG,
+       "FLTLOADS tail CP, flapped -- h-tail centre-of-pressure fuselage station, "
+       "flaps down (VF/landing): CP moves aft, ~25% of tail MAC"),
 
     # select_input -- SELECT beyond the V-n matrix. All three rows moved off
     # the V-n page to the page their *quantity* belongs to (#95, C210-22
@@ -1276,7 +1302,11 @@ REGISTRY: Tuple[FieldEntry, ...] = (
        "row selector -- pairs the row with its geometry planform; load-bearing (G5, #98): "
        "an unmatched name leaves the surface on its seeded defaults (note 36 OV-8)",
        supplied=True),
-    _E("aero.surfaces[].section_slope", _WING, _ORIG, "AIRLOADS mo"),
+    _E("aero.surfaces[].section_slope", _WING, _ORIG,
+       "AIRLOADS mo -- the 2-D airfoil *section* lift-curve slope per degree "
+       "(typical 0.105-0.110), NOT the aero page's C1: C1 is the 3-D "
+       "airplane-less-tail slope, already reduced for finite AR, so entering it "
+       "here double-counts the aspect-ratio reduction (#94, C210-28)"),
     _E("aero.surfaces[].profile_drag", _WING, _ORIG, "AIRLOADS CDO(Y)"),
     _E("aero.surfaces[].section_cm", _WING, _ORIG, "AIRLOADS CM(Y)"),
     _E("aero.surfaces[].twist", _WING, _ORIG, "AIRLOADS zero-lift angle(Y)"),
@@ -1303,7 +1333,9 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("wing_mass.concentrated[].x", _WING, _ORIG, "WINGINER concentrated item"),
     _E("wing_mass.concentrated[].y", _WING, _ORIG, "WINGINER concentrated item"),
     _E("wing_mass.concentrated[].z", _WING, _ORIG, "WINGINER concentrated item"),
-    _E("wing_mass.cases[].name", _WING, _ORIG, "WINGINER.BAS 1660-1710 case name"),
+    _E("wing_mass.cases[].name", _WING, _ORIG,
+       "WINGINER.BAS 1660-1710 case name. 0 rows = the SELECT governing set; "
+       "typed rows REPLACE that set entirely (#94, C210-30)"),
     _E("wing_mass.cases[].case", _WING, _ORIG, "WINGINER.BAS 1660-1710 case id"),
     _E("wing_mass.cases[].nz", _WING, _ORIG, "WINGINER.BAS 1660-1710 nz"),
     _E("wing_mass.cases[].nx", _WING, _ORIG, "WINGINER.BAS 1660-1710 nx"),
@@ -1312,7 +1344,11 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     _E("wing_mass.cases[].unbal_moment", _WING, _ORIG, "WINGINER.BAS 1660-1710 unbalanced moment"),
 
     # fuselage_mass -- NETLOADS / Ch 15 (fuselage_loads)
-    _E("fuselage_mass.ref_waterline", _FUS, _ORIG, "Ch 15 reference waterline"),
+    _E("fuselage_mass.ref_waterline", _FUS, _ORIG,
+       "Ch 15 reference waterline -- reserved: stored and round-tripped, but "
+       "consumed by no current calculation (the Ch 15 beam ignores it; pending "
+       "M4-19/M4-21), so any value, 0 included, is currently equivalent "
+       "(#94, C210-34 owner ruling)"),
     _E("fuselage_mass.stations[].x", _FUS, _ORIG, "Ch 15 station"),
     _E("fuselage_mass.stations[].weight_lb", _FUS, _ORIG, "Ch 15 station weight"),
     _E("fuselage_mass.stations_are_override", _FUS, _SLDS, "override switch for the weight-DB derivation"),

@@ -525,7 +525,10 @@ def _tab_payload_cases(project: Project, system: UnitSystem, U: dict) -> None:
                 "Landing role", options=[_NO_ROLE] + [r.value for r in GROUND_CASE_ROLE_ORDER],
                 help="LANDLOAD consumes exactly one case per role, in role order "
                      "(UG fig 18.2). A GROUND case with no role is assembled and "
-                     "distributed but never fed to LANDLOAD."),
+                     "distributed but never fed to LANDLOAD. The role only "
+                     "assigns the slot — nothing checks the numbers against the "
+                     "tag, so a heavy-aft case tagged fwd_light is consumed in "
+                     "the light-forward slot without complaint (C210-14)."),
         }
         rows = st.data_editor(
             default_rows, column_config=payload_cols, num_rows="dynamic", hide_index=True,
@@ -627,7 +630,7 @@ def _tab_envelope(project: Project, system: UnitSystem, U: dict) -> None:
         "MTOW and MLW are **single inputs** and the sole owners of those two "
         "numbers: LANDLOAD's WR = MTOW/MLW, the max-landing loadings' weight and "
         "the FAR 23 12,500 lb applicability gate all read them from here. The "
-        "ordering chain OEW ≤ MLW ≤ MTOW ≤ Σ items is checked below."
+        "ordering chain empty weight ≤ MLW ≤ MTOW ≤ Σ items is checked below."
     )
     dw1, dw2 = st.columns(2)
     mtow_ssot = unit_number_input(

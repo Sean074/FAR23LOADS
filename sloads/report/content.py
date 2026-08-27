@@ -573,11 +573,11 @@ def _weights_section(project: Project, u: Units) -> Section:
         return Section("Weights and CG",
                        absent_reason="this project has no weight slice")
     rows: List[Tuple[str, str, str, str]] = []
-    # The item sum is the CEILING of OEW <= MLW <= MTOW <= sum(items), not the
+    # The item sum is the CEILING of empty weight <= MLW <= MTOW <= sum(items), not the
     # design take-off weight (decision G-14) -- it was labelled "Maximum takeoff
     # weight (item sum)" until 2026-08-15, which is the conflation that item
     # closed. MTOW itself comes from its single owner and is stated beside it.
-    database_total, oew, _ = weight.database_totals() if weight.items else (0.0, 0.0, 0.0)
+    database_total, empty, _ = weight.database_totals() if weight.items else (0.0, 0.0, 0.0)
     mtow = cg_cases.max_takeoff_weight(project, required=False)
     if mtow:
         rows.append(("Maximum takeoff weight (MTOW)", u.plain(mtow, "mass"), W,
@@ -586,7 +586,7 @@ def _weights_section(project: Project, u: Units) -> Section:
         rows += [
             ("Item database total (ceiling, not MTOW)", u.plain(database_total, "mass"), W,
              "Weight & Mass Properties"),
-            ("Empty weight (item sum)", u.plain(oew, "mass"), W, "Weight & Mass Properties"),
+            ("Empty weight (item sum)", u.plain(empty, "mass"), W, "Weight & Mass Properties"),
         ]
     env = weight.envelope
     if env is not None:

@@ -367,6 +367,15 @@ def unit_number_input(
     return None if entered is None else float(entered)
 
 
+#: What an empty Optional number input says while it awaits a value (#94,
+#: C210-42): Streamlit's +/- steppers are inert on an empty field -- there is
+#: no value to step from -- so a blank widget *looks* locked until the user
+#: types. The placeholder makes blank read as "awaiting entry", with the #35
+#: blank-render contract (an unfilled Optional renders empty, never a fake 0)
+#: unchanged. One string for both GUIs and every widget path.
+EMPTY_NUMBER_PLACEHOLDER = "empty — type a value"
+
+
 def _seeded_number(where, label: str, seed: Optional[float],
                    name: Optional[str], **kwargs) -> Optional[float]:
     """``st.number_input`` seeded with ``seed`` -- pinned to it when disabled.
@@ -384,6 +393,8 @@ def _seeded_number(where, label: str, seed: Optional[float],
     both-were-given warning stays out of the page.
     """
     if not kwargs.get("disabled") or name is None:
+        if seed is None and not kwargs.get("disabled"):
+            kwargs.setdefault("placeholder", EMPTY_NUMBER_PLACEHOLDER)
         return where.number_input(label, value=seed, key=widget_key(name), **kwargs)
     if seed is None:
         st.session_state.pop(widget_key(name), None)

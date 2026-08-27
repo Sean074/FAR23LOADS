@@ -941,7 +941,7 @@ def _check_weight_case_model(project: Project) -> List[ConsistencyWarning]:
     * ``ground_role_incomplete`` -- the ``GROUND`` cases do not carry exactly one of
       each role, so the landing module cannot run. Stated here as a page finding
       rather than only as the exception ``landing_role_cases`` raises.
-    * ``weight_order_chain`` -- ``OEW <= MLW <= MTOW <= sum(items)``, the one place
+    * ``weight_order_chain`` -- ``empty weight <= MLW <= MTOW <= sum(items)``, the one place
       four scattered checks became. The floor half is G-4's ("you must be able to
       land with reserves") and the ceiling half G-14's ("you cannot weigh more than
       everything you have"); violations are the fixture-data class this project
@@ -1029,8 +1029,11 @@ def _check_weight_case_model(project: Project) -> List[ConsistencyWarning]:
 
     mlw = cg_cases.max_landing_weight(project, required=False)
     mtow = cg_cases.max_takeoff_weight(project, required=False)
-    total, oew, _ = weight.database_totals()
-    chain = [("OEW", oew), ("max landing weight", mlw),
+    # ``database_totals``' second element sums the EMPTY rows only -- the
+    # manufacturer's *empty weight*, not OEW, which adds the MINIMUM crew
+    # (#94, C210-12): the chain says what the figure is.
+    total, empty, _ = weight.database_totals()
+    chain = [("empty weight", empty), ("max landing weight", mlw),
              ("max take-off weight", mtow), ("the item database total", total)]
     stated = [(label, value) for label, value in chain if value > 0]
     breaks = [(stated[i], stated[i + 1]) for i in range(len(stated) - 1)
@@ -1039,7 +1042,7 @@ def _check_weight_case_model(project: Project) -> List[ConsistencyWarning]:
         out.append(ConsistencyWarning(
             "weight_order_chain",
             f"{lo_label} {lo:,.0f} lb exceeds {hi_label} {hi:,.0f} lb. The design "
-            "weights must satisfy OEW <= MLW <= MTOW <= math.fsum(items) -- you must be "
+            "weights must satisfy empty weight <= MLW <= MTOW <= math.fsum(items) -- you must be "
             "able to land with reserves, and you cannot weigh more than everything "
             "you have (decisions G-4 / G-14).",
             PAGE_WEIGHT_CG))

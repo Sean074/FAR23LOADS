@@ -1909,3 +1909,100 @@ def test_the_estimate_comparison_is_shown_in_the_page_unit_system():
     assert "lb" in weight_estimate_advisory(project, UnitSystem.IMPERIAL)
     si = weight_estimate_advisory(project, UnitSystem.SI)
     assert "kg" in si and " lb" not in si
+
+
+# --------------------------------------------------------------------------- #
+# #94 -- the C210 text-only residue: captions, helps and the group notes
+# --------------------------------------------------------------------------- #
+def test_a_group_note_names_a_group_an_oracle_page_renders():
+    """``GROUP_NOTES`` is hand-written presentation keyed by group prefix, so it
+    rots exactly like ``FIELD_LABELS`` does: a note for a group nobody renders
+    simply never appears (#94, C210-20/30)."""
+    from oracle_app.form import GROUP_NOTES, page_groups
+
+    rendered = {prefix
+                for step in wf.oracle_steps()
+                for prefix, _paths in page_groups(step.key)}
+    unknown = sorted(set(GROUP_NOTES) - rendered)
+    assert not unknown, f"group notes for groups no oracle page renders: {unknown}"
+
+
+def test_the_tail_cp_suggestion_is_the_empennage_record_arithmetic():
+    """C210-20's owner directive: tail MAC from ST/span, Xtf = xt25,
+    Xtc = xt25 - 0.20*MAC -- a suggestion computed from the record already
+    entered, never written to the project."""
+    from sloads.derived_geometry import tail_cp_suggestion
+
+    project = io.load_project(_EXAMPLE)
+    ti = project.tail_loads
+    got = tail_cp_suggestion(project)
+    assert got is not None
+    mac_in = ti.htail_area_sqft * 144.0 / (2.0 * ti.htail_semispan_in)
+    assert got[1] == ti.xt25
+    assert got[0] == pytest.approx(ti.xt25 - 0.20 * mac_in)
+
+    project.geometry.empennage = None
+    assert tail_cp_suggestion(project) is None
+
+
+def test_the_flight_loads_group_note_quotes_the_suggestion():
+    """The V-n page's group note carries the convention always, and the
+    computed suggestion whenever the empennage record can answer (#94,
+    C210-20). The wing-cases note states the all-or-nothing override
+    contract (C210-30)."""
+    from oracle_app.form import GROUP_NOTES
+
+    project = io.load_project(_EXAMPLE)
+    with_record = GROUP_NOTES["flight_loads"](project)
+    assert "5 %" in with_record and "25 %" in with_record
+    assert "From your tail geometry" in with_record
+
+    project.geometry.empennage = None
+    without = GROUP_NOTES["flight_loads"](project)
+    assert "5 %" in without and "From your tail geometry" not in without
+
+    cases_note = GROUP_NOTES["wing_mass.cases[]"](project)
+    assert "REPLACE" in cases_note and "0 rows" in cases_note
+
+
+def test_an_empty_number_widget_says_it_awaits_a_value():
+    """C210-42: Streamlit's +/- steppers are inert on an empty field, so a
+    blank Optional read as a locked widget. The placeholder says "awaiting
+    entry"; a seeded widget gets none, and the #35 blank-render contract
+    (None in, None back until the user types) is untouched."""
+    from app_shell.components import EMPTY_NUMBER_PLACEHOLDER, _seeded_number
+
+    class _Capture:
+        def number_input(self, label, **kwargs):
+            self.kwargs = kwargs
+            return None
+
+    blank = _Capture()
+    assert _seeded_number(blank, "x", None, "some.field") is None
+    assert blank.kwargs["placeholder"] == EMPTY_NUMBER_PLACEHOLDER
+
+    seeded_w = _Capture()
+    _seeded_number(seeded_w, "x", 3.0, "some.field")
+    assert "placeholder" not in seeded_w.kwargs
+
+
+def test_the_select_advisory_states_the_search_scope():
+    """C210-26's GUI half: the one sentence that says the other loadings were
+    considered rather than skipped, on the SELECT block itself."""
+    from oracle_app.results import select_inertia_advisory
+
+    text = select_inertia_advisory(io.load_project(_EXAMPLE), UnitSystem.IMPERIAL)
+    assert "full V-n matrix" in text
+    assert "all loadings, CGs and altitudes" in text
+
+
+def test_the_taildist_advisory_points_at_the_spanwise_home():
+    """C210-33: ``tail_span_loads`` is rightly not an oracle page (OG-2,
+    ``bas=None``); the Tail Loads page now says where the spanwise deliverable
+    lives instead of leaving the owner to search this GUI for it."""
+    from oracle_app.results import MODULE_ADVISORIES, taildist_spanwise_advisory
+
+    assert MODULE_ADVISORIES["taildist"] is taildist_spanwise_advisory
+    text = taildist_spanwise_advisory(io.load_project(_EXAMPLE), UnitSystem.IMPERIAL)
+    assert "Tail Span Loads" in text and "export" in text
+    assert wf.BY_KEY["tail_span_loads"].bas is None

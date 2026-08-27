@@ -1,7 +1,7 @@
 """Sanity-check the bundled reference-aircraft data set.
 
 ``app/data/reference_aircraft.csv`` feeds the fleet-comparison plots (the
-Aircraft Comparison page: MTOW-vs-OEW, W/S-vs-W/P, and the geometric span / area /
+Aircraft Comparison page: MTOW-vs-empty-weight, W/S-vs-W/P, and the geometric span / area /
 AR scatters). It is reference data only (never enters a FAR computation), but a
 malformed row would break the chart, so this test guards its shape and basic
 physical plausibility without importing Streamlit or plotly.
