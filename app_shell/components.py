@@ -348,8 +348,8 @@ def unit_number_input(
         for bound in ("min_value", "max_value"):
             if kwargs.get(bound) is not None:
                 kwargs[bound] = float(to_display(float(kwargs[bound]), kind, system))
-        entered = where.number_input(
-            shown, value=seed, key=widget_key(number_input_name(key, kind)), **kwargs)
+        entered = _seeded_number(where, shown, seed,
+                                 number_input_name(key, kind), **kwargs)
         if entered is None:
             return None
         if seed is not None and float(entered) == seed:
@@ -362,10 +362,34 @@ def unit_number_input(
         return float(to_imperial_scalar(float(entered), kind, system))
 
     shown = f"{label} ({fixed_unit})" if fixed_unit else label
-    entered = where.number_input(
-        shown, value=None if value is None else float(value),
-        key=widget_key(number_input_name(key)), **kwargs)
+    entered = _seeded_number(where, shown, None if value is None else float(value),
+                             number_input_name(key), **kwargs)
     return None if entered is None else float(entered)
+
+
+def _seeded_number(where, label: str, seed: Optional[float],
+                   name: Optional[str], **kwargs) -> Optional[float]:
+    """``st.number_input`` seeded with ``seed`` -- pinned to it when disabled.
+
+    A live widget's session state rightly outlives its seed. A **disabled** one
+    is display-only (its return value is never persisted), so the seed -- the
+    governing value the caller resolved -- is the only truthful thing it can
+    show. Left keyed, a widget that rendered live and then flipped disabled in
+    the same session (its owner appeared: an outline typed on the same page, a
+    planform added on another) keeps the stale typed state instead, and newer
+    Streamlit lets that state outvote ``value=`` -- the field said 0.0 while
+    the analysis read the outline's own length (the #95 fuselage-length CI
+    find). Pinning writes the seed into the widget's state before
+    instantiation; ``value=`` is then left unset so Streamlit's
+    both-were-given warning stays out of the page.
+    """
+    if not kwargs.get("disabled") or name is None:
+        return where.number_input(label, value=seed, key=widget_key(name), **kwargs)
+    if seed is None:
+        st.session_state.pop(widget_key(name), None)
+        return where.number_input(label, value=None, key=widget_key(name), **kwargs)
+    st.session_state[widget_key(name)] = seed
+    return where.number_input(label, key=widget_key(name), **kwargs)
 
 
 # --------------------------------------------------------------------------- #
