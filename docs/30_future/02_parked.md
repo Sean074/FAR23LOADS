@@ -149,7 +149,11 @@ strings (no internal slice names); move the Geometry parametric form and the
 Flight-Envelope altitude Apply out of the sidebar (or visually anchor them);
 first-run Loads Plots info should use the linked `gate()`; the OEO "define ≥2
 engines" warning needs a page link; save-filename sanitization; `st.spinner` on
-heavy recomputes; migrate off the deprecated `use_container_width`.
+heavy recomputes. *(The `use_container_width` migration left this bullet on
+2026-08-28: its shared-`app_shell/` half is band-B row #129 by the 2026-08-24
+rule-2 fix-site placement — production-release review §3.7, owner ruling §5.4 —
+and #129 carries the whole migration, `app/views/` included, because a
+deprecated parameter removed upstream breaks both front-ends at once.)*
 
 ### L-8f — Display-only and numerically-inert nits **[lowest priority]**
 None of these change a load. V-n plot negative closure should show −1.0 at VD for

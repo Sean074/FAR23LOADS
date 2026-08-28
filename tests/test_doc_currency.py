@@ -113,5 +113,80 @@ def test_every_index_row_points_at_a_file():
     assert not dangling, f"docs/00_INDEX.md rows whose file does not exist: {dangling}"
 
 
+# --------------------------------------------------------------------------- #
+# The release-state statement has one owner (owner ruling 2026-08-28,
+# production-release review §3.5/§5.3)
+# --------------------------------------------------------------------------- #
+#: The documents that must carry the release-state sentence verbatim. Markdown
+#: cannot import a symbol, so "one owner" is enforced the only way prose allows:
+#: the owner's exact string has to appear, and a second spelling of it must not.
+_RELEASE_STATE_DOCS = ("README.md", "CAPABILITIES.md")
+
+#: Files allowed to hold the sentence *as a literal* -- the owner itself, this
+#: guard, and the two documents above. Anywhere else is a second copy.
+_RELEASE_STATE_OWNER = os.path.join("app_shell", "components.py")
+
+
+def test_the_release_state_is_stated_by_one_owner():
+    """`README.md`, `CAPABILITIES.md` and both GUIs' About panel say the same
+    thing about what this release is, because they all trace to one string.
+
+    The claim is mixed by nature -- an oracle GUI that is finished beside an
+    `app/` that is not -- and `Development Status` takes a single trove value,
+    so `pyproject.toml` carries `4 - Beta` and the sentence carries the rest.
+    Four hand-written copies of that sentence would disagree by the second cut,
+    which is the documentation-currency failure this whole file exists for; the
+    two markdown files cannot import the constant, so their copies are pinned
+    to it here instead.
+    """
+    from app_shell.components import RELEASE_STATE
+
+    for rel in _RELEASE_STATE_DOCS:
+        with open(os.path.join(_ROOT, rel), encoding="utf-8") as fh:
+            assert RELEASE_STATE in fh.read(), (
+                f"{rel} does not carry app_shell.components.RELEASE_STATE verbatim -- "
+                "update the document in the same change as the constant")
+
+    # The About panel consumes the symbol rather than re-typing the sentence, so
+    # a user in the beta front-end is told so by the same owner (#129's sibling
+    # concern: the classifier is read by pip, not by them).
+    with open(os.path.join(_ROOT, "app_shell", "sidebar.py"), encoding="utf-8") as fh:
+        assert "RELEASE_STATE" in fh.read(), "the About panel must consume the owner"
+
+
+def test_no_second_spelling_of_the_release_state():
+    """A literal copy anywhere outside the owner and the two documents it pins.
+
+    The `LANDING_L_FAR_CAPTION` posture (`tests/test_landing.py`): stating the
+    string once is only half of one owner -- the other half is that nobody
+    spells it again somewhere the guard above would never look.
+    """
+    from app_shell.components import RELEASE_STATE
+
+    # A distinctive fragment rather than the whole sentence: a second copy that
+    # drifted by a word is exactly the case this must still catch.
+    fragment = RELEASE_STATE.split(";")[0].strip()
+    allowed = {os.path.normpath(p) for p in
+               (_RELEASE_STATE_OWNER, os.path.join("tests", "test_doc_currency.py"))
+               } | {os.path.normpath(d) for d in _RELEASE_STATE_DOCS}
+    offenders = []
+    for base, dirs, files in os.walk(_ROOT):
+        dirs[:] = [d for d in dirs if d not in
+                   {".git", ".venv", "__pycache__", ".pytest_cache", "reference",
+                    "sloads.egg-info", "_to_delete", "_staging_tmp2", "projects"}]
+        for name in files:
+            if not name.endswith((".py", ".md", ".toml")):
+                continue
+            rel = os.path.normpath(os.path.relpath(os.path.join(base, name), _ROOT))
+            if rel in allowed:
+                continue
+            with open(os.path.join(base, name), encoding="utf-8", errors="ignore") as fh:
+                if fragment in fh.read():
+                    offenders.append(rel)
+    assert not offenders, (
+        "the release-state sentence is spelled a second time in "
+        f"{offenders} -- import app_shell.components.RELEASE_STATE instead")
+
+
 if __name__ == "__main__":  # zero-dependency self-runner
     sys.exit(pytest.main([__file__, "-p", "no:xdist", "-q"]))
