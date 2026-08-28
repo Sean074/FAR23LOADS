@@ -11,17 +11,16 @@ McMaster, Aero Science Software): 22 GW/QBasic programs that compute the structu
 design loads a small aircraft must sustain under FAR Part 23 Subpart C, ported into one
 shared calc package + a multi-page UI.
 
-**Mission (Phase C, re-stated 2026-08-05):** a demonstrated **concept-loads → sbeam
-sizing loop** — a concept configuration (which may exceed the FAR23 caps) goes in,
-per-component distributed ULTIMATE loads come out as `FORCE`/`MOMENT` bulk-data cards,
-and the exported deck solves in sbeam with verified global equilibrium, continuously in
-CI. **Extended 2026-08-08:** the primary deliverable is the **full-span balanced
-free-free airplane model** (aero + inertia together, left and right cases, CONM2 mass
-export; sequence table in the backlog) — per-component decks remain analysis views.
-The FAR23 replication core stays **oracle-locked** (Appendix A ±0.1%; twin cases
-closure-locked); concept mode is a superset that reduces exactly to it on GA inputs.
-Plan: `docs/30_future/01_concept_loads_plan.md` (shipped); working backlog:
-`docs/30_future/00_backlog.md` (open items only, mission-tagged; off-mission items in
+**Mission (Phase C):** a demonstrated **concept-loads → sbeam sizing loop** — a
+concept configuration (which may exceed the FAR23 caps) goes in, per-component
+distributed ULTIMATE loads come out as `FORCE`/`MOMENT` bulk-data cards, and the
+exported deck solves in sbeam with verified global equilibrium, continuously in CI.
+The primary deliverable is the **full-span balanced free-free airplane model** (aero +
+inertia together, left and right cases, CONM2 mass export) — per-component decks
+remain analysis views. The FAR23 replication core stays **oracle-locked** (Appendix A
+±0.1%; twin cases closure-locked); concept mode is a superset that reduces exactly to
+it on GA inputs. Plan of record: `docs/30_future/01_concept_loads_plan.md`; working
+backlog: `docs/30_future/00_backlog.md` (open items only; off-mission items in
 `02_parked.md`).
 
 **Reference sources (consult when writing/modifying analysis code — never derive load
@@ -50,7 +49,7 @@ equations from memory; cite the page in the test):**
   generator, never the file)
 - `docs/00_INDEX.md` maps the whole tree.
 
-## Step Completion Requirement (tiered, 2026-08-05)
+## Step Completion Requirement (tiered)
 
 **HARD REQUIREMENT — when any backlog item, defect, or step is closed, its closure tier
 must be completed in the same session — and, with branches, in the same PR
@@ -66,8 +65,7 @@ Never batch or defer closure.**
 `CHANGELOG.md` `[Unreleased]` and the top of the history file are never hand-edited:
 `scripts/build_changelog.py` assembles both at release cut (`RELEASE_PROCESS.md` §4).
 
-Additional rules (2026-08-05 process review, rule 6 from the 2026-08-16 scope review —
-rationale in `docs/50_reviews/`):
+Additional rules (rationale in `docs/50_reviews/`):
 
 1. **Design note before code (physics/L steps):** theory reference,
    `CONVENTIONS.md` citations, oracle or closure target with expected numbers, and
@@ -92,7 +90,7 @@ rationale in `docs/50_reviews/`):
    number that parks it**. A defect with first-order effect on shipped content outranks
    every fidelity item regardless of mission trace.
 
-## Required practices (unchanged)
+## Required practices
 
 - **Standard docs point at owners, never copy their values.** No schema number, test
   count, coverage %, or "currently N" in `README.md`/`CLAUDE.md`/`10_standard/`/`20_theory/`
@@ -102,11 +100,19 @@ rationale in `docs/50_reviews/`):
   are the merge gate. **CI is asymmetric — `ci.yml` is the authority** (guard
   `tests/test_ci_conformance.py`): PRs and `dev/**` pushes run the fast gate (3.12,
   `typecheck`, `sbeam-roundtrip (3.12)`); 3.9/3.11 and coverage run on the push to `main`.
-- **Git is the user's to run.** ANY and ALL git usage — `commit`, `add`, `push`,
-  `branch`, `merge`, `checkout`, `tag`, `rebase`, `reset`, etc. — SHALL be performed by
-  the user, NOT by Claude, UNLESS the user explicitly requests that specific git
-  action. Make the file changes and tell the user the exact command to run. The AI never
-  pushes, opens or merges a PR; the developer is the author of record.
+- **The git workflow is REQUIRED for all development work** — no change lands outside
+  it. The operative mode is the **solo profile** (`DEVELOPMENT_PROCESS.md` §0) unless
+  collaboration is explicitly in play: `scripts/solo_start.sh dev/vX.Y.Z` opens the
+  milestone branch; every item closes with `scripts/solo_close.sh` (gate → commit →
+  push → issue close → verify) — never by hand-run equivalents.
+- **Git is the user's to run.** ANY and ALL git and `gh` usage — `commit`, `add`,
+  `push`, `branch`, `merge`, `checkout`, `tag`, `rebase`, `reset`, etc., and the
+  solo scripts (they run git/gh internally) — SHALL be performed by the user, NOT by
+  Claude, UNLESS the user explicitly requests that specific action. Make the file
+  changes and present the exact command **ONE AT A TIME**: give one command, stop the
+  turn, and wait for the user's pasted output before offering the next — never a
+  batched list. The AI never pushes, opens or merges a PR; the developer is the
+  author of record.
 
 ## Commands
 
@@ -141,7 +147,7 @@ are interchangeable front-ends. Data flow: `project.json` → `io.load_project` 
   `tests/test_app_shell.py`). `cli.py` — argparse; `tests/` — pytest, each file
   with a zero-dependency `__main__` self-runner.
 
-**Module contract** (all 22 suite programs ported; applies to new concept modules):
+**Module contract** (every suite and concept module):
 pure calc, no I/O; read upstream values from the `Project` slice — never recompute
 another module's quantity; emit `LoadValue`/`ConditionResult` (set
 `safety_factor` on every case); self-register; constants in `constants.py`; one
