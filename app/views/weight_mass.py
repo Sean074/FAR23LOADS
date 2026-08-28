@@ -52,7 +52,12 @@ from sloads.export import mass_cards
 from sloads.models import MassComponent
 from sloads.modules.weight_envelope import envelope as compute_envelope
 from sloads.modules.weight_envelope import loading_envelope_points
-from sloads.modules.weight_estimate import estimate, estimate_to_mass_items
+from sloads.modules.weight_estimate import (
+    engine_list_max_continuous_hp,
+    estimate,
+    estimate_to_mass_items,
+    resolve_max_continuous_hp_for,
+)
 from sloads.modules.weight_onecg import refresh_mass, weights_and_inertia
 from sloads.report import module_text_report
 from sloads.report.methods import bdf_comment_block
@@ -115,7 +120,7 @@ def _tab_estimate(project: Project, system: UnitSystem, U: dict) -> None:
         # (or when no engine carries a max-continuous rating). The two power concepts stay
         # distinct: per-engine ratings on the Engine Mount page (torque/slipstream loads)
         # vs. this combined total the weight estimate correlates against.
-        _engine_hp_sum = sum((e.max_cont_hp or 0.0) for e in project.engines)
+        _engine_hp_sum = engine_list_max_continuous_hp(project.engines)
         st.caption(
             f"Engine list total (Engine Mount page): **{to_display(_engine_hp_sum, 'power', system):.1f} "
             f"{U['power']}** — the weight estimate uses this unless you override it below."
@@ -201,11 +206,11 @@ def _tab_estimate(project: Project, system: UnitSystem, U: dict) -> None:
         return
     inp = existing
 
-    # Resolve the max-continuous power the estimate correlates against the same way the
-    # module does (Step M2-6): the engine-list total unless this estimate overrides it.
-    _resolved_hp = (inp.max_continuous_hp if inp.override_max_continuous_hp
-                    else (_engine_hp_sum or inp.max_continuous_hp))
-    inp = replace(inp, max_continuous_hp=_resolved_hp)
+    # Resolve the max-continuous power the estimate correlates against by asking the
+    # owner of the Step M2-6 precedence, not by spelling it again here (#124). The
+    # input-level entry point is what this page needs: `inp` is the form's values,
+    # which before Apply are not yet the project's.
+    inp = replace(inp, max_continuous_hp=resolve_max_continuous_hp_for(inp, project.engines))
 
     try:
         results = estimate(inp)
