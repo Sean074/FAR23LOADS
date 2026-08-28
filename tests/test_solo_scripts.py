@@ -223,7 +223,7 @@ def test_the_full_matrix_is_reserved_for_the_push_to_main():
     """Three conditionals — the interpreter matrix, the coverage `include`, and
     the round-trip matrix — must all key on *push to main*, not on `pull_request`.
     Keyed the old way, a `dev/**` push would take the `||` arm and run the
-    coverage-instrumented 3.9/3.11/3.12 matrix: the ~27-minute leg that the
+    coverage-instrumented 3.10/3.11/3.12 matrix: the ~27-minute leg that the
     2026-08-22 change moved off the fast gate in the first place."""
     ci = _read(_CI)
     sentinel = "github.event_name == 'push' && github.ref == 'refs/heads/main'"

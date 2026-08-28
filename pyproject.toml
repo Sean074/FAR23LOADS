@@ -7,7 +7,12 @@ name = "sloads"
 version = "0.8.0"
 description = "Modern Python/Streamlit replication of the FAR 23 LOADS suite (McMaster) — FAR Part 23 Subpart C structural design loads."
 readme = "README.md"
-requires-python = ">=3.9"
+# 3.10 floor: streamlit>=1.51 (the width= layout API, #129) declares
+# Requires-Python >=3.10, and Python 3.9 is EOL (2025-10). The 0.8.0 cut
+# shipped a >=3.9 claim the resolver refused on 3.9 (#132) -- the classifier
+# list below and the ci.yml matrix mirror this floor, guarded by
+# tests/test_ci_conformance.py.
+requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "Sean O'Meara", email = "sean.c.omeara74@gmail.com"},
@@ -25,7 +30,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     # Mirrors the CI matrix in .github/workflows/ci.yml -- a classifier claiming
     # less than CI tests understates support; claiming more asserts an untested one.
-    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering",
@@ -62,9 +67,8 @@ dev = [
     # Static type checking of `sloads/` (design note 27, 2026-08-16). A CI gate
     # in default mode at zero errors; strictness ratchets per package through
     # the [[tool.mypy.overrides]] list below. `app/` and `tests/` are not checked.
-    # mypy 2.x has no 3.9 wheel; the type gate runs on 3.12 only, so the 3.9
-    # leg simply does not install it.
-    "mypy==2.3.1; python_version >= '3.10'",
+    # The type gate runs on 3.12 only (its own CI job).
+    "mypy==2.3.1",
     # Git hooks (item 8): `pre-commit install --hook-type pre-commit --hook-type
     # pre-push` once per clone; ruff + mypy on commit, the suite on push. Opt-in
     # convenience -- CI is the gate.
@@ -123,8 +127,9 @@ line-length = 120
 
 [tool.ruff.lint]
 # Widened 2026-08-16 (design note 27): pattern-level defect classes beyond the
-# pycodestyle/pyflakes floor. `UP` (pyupgrade) is deliberately absent while 3.9
-# is in the CI matrix -- its findings are 3.10+ syntax, not defects. `N` stays
+# pycodestyle/pyflakes floor. `UP` (pyupgrade) stays absent as a deliberate
+# churn decision (the 3.9 leg that once forced it is gone, #132) -- enabling it
+# is its own one-line PR whose CI run reviews the rewrites. `N` stays
 # off: single-letter FAR variable names are the porting convention (E741 below).
 # `PERF` is off: performance-only, and its two hit classes here are the intentional
 # per-module try/except in the registry and loop-vs-comprehension nits.
@@ -136,6 +141,14 @@ ignore = [
     "RUF003",
     "RUF005",  # list-literal concatenation reads better than unpacking for the multi-line deck/card builders
     "C408",    # `dict(width=3)` is the plotly/Streamlit keyword idiom throughout app/; not a defect
+    # The two rules below arrived with the py310 target (requires-python >= 3.10,
+    # #132) and are the same churn class as `UP` above -- 3.10+ spellings of
+    # working code, not defects. Enabling either is its own deliberate PR: B905
+    # in particular is not a blind sweep (`strict=True` turns a silent truncation
+    # into a raise, which is a behavior choice per site, and several zips here
+    # truncate by design, e.g. `zip(pts, pts[1:])`).
+    "B905",    # zip() without strict= -- see above
+    "RUF007",  # itertools.pairwise over zip(x, x[1:]) -- see above
 ]
 
 [tool.mypy]
@@ -143,7 +156,7 @@ ignore = [
 # `sloads/`; the overrides below ratchet strictness per package, SSOT owners
 # first. Never widen an override to silence an error -- narrow the type.
 # No python_version pin: mypy 2.x targets the running interpreter (the CI job
-# runs it on 3.12; the code stays 3.9-compatible by the test matrix, not by mypy).
+# runs it on 3.12; the code stays 3.10-compatible by the test matrix, not by mypy).
 files = ["sloads"]
 ignore_missing_imports = true      # streamlit / plotly / openpyxl / sbeam ship no stubs
 warn_unused_ignores = true

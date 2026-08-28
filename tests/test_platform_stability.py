@@ -79,7 +79,7 @@ def test_every_float_summation_in_sloads_is_fsum():
                     hits.append(f"{os.path.relpath(path, _PKG)}:{n}: {text.strip()}")
     assert not hits, (
         "built-in sum() over floats is not platform-stable (Python 3.12 compensates "
-        "it, 3.9/3.11 do not) -- use math.fsum, or `sum(1 for ...)` for a count:\n  "
+        "it, 3.10/3.11 do not) -- use math.fsum, or `sum(1 for ...)` for a count:\n  "
         + "\n  ".join(hits))
 
 

@@ -96,7 +96,7 @@ gh pr create --base main --head dev/v<X.Y.Z> --title "Release <X.Y.Z>" --body "â
 gh pr checks --watch
 gh pr merge --rebase
 
-# 4. The merge push to main runs the full matrix (3.9/3.11 + coverage-
+# 4. The merge push to main runs the full matrix (3.10/3.11 + coverage-
 #    instrumented 3.12). This is the gate of record for the milestone; it is
 #    fixed forward â€” red means the fix is the next item, not a revert.
 git checkout main && git pull

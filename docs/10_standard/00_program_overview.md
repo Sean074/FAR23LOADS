@@ -63,7 +63,7 @@ stale.
 
 ## Coding standards
 
-- **Python 3.9+**, with `from __future__ import annotations` at the top of each
+- **Python 3.10+**, with `from __future__ import annotations` at the top of each
   module.
 - **Type hints** on all function signatures.
 - **`@dataclass`** for every input and result object (`EngineInput`, `Rotor`,
@@ -309,9 +309,9 @@ floor against the layout parameter both front-ends pass).
   authority** (guard: `tests/test_ci_conformance.py`): every pull request and every
   push to a `dev/**` milestone branch runs ruff + pytest on **3.12 only**, with `mypy`
   and `sbeam-roundtrip (3.12)` in their own jobs — that trio is the required-check set
-  on `main`. The **3.9 / 3.11 compatibility legs, `sbeam-roundtrip (3.11)` and the
+  on `main`. The **3.10 / 3.11 compatibility legs, `sbeam-roundtrip (3.11)` and the
   coverage-instrumented leg run on the push to `main` only**, i.e. on the milestone
-  merge, and are fixed forward (`DEVELOPMENT_PROCESS.md` §0): a change that breaks 3.9
+  merge, and are fixed forward (`DEVELOPMENT_PROCESS.md` §0): a change that breaks 3.10
   merges green by design. See §Static typing & lint below for what each checks.
 - **Parallel by default (CH-1).** `addopts` in `pyproject.toml` carries
   `-n auto` (`pytest-xdist`), so every `pytest` invocation — local and CI —
@@ -324,7 +324,7 @@ floor against the layout parameter both front-ends pass).
   (the 3.12 leg, via the matrix `include`; item 8, 2026-08-16; moved off the PR
   leg 2026-08-22, where instrumentation had grown the run past 27 minutes): the floor is one number and needs
   measuring once, and branch instrumentation was what made every leg a
-  ten-minute job — the 3.9/3.11 legs are the compatibility claim and run
+  ten-minute job — the 3.10/3.11 legs are the compatibility claim and run
   uninstrumented. Opt in locally with `--cov=sloads`; the `[tool.coverage.*]`
   tables in `pyproject.toml` still configure branch mode and reporting. This
   floor is a **ratchet**: raise it toward 85% as `report.py` and `constants.py`
@@ -401,7 +401,7 @@ uses it; nothing fails if you do not.
 
 **ruff** runs `E F W B SIM PLE PLW ARG RUF I C4` (`pyproject.toml [tool.ruff.lint]`
 is the owner, with each ignore explained in place). `UP` (pyupgrade) stays off
-while 3.9 is in the matrix -- its findings are 3.10+ syntax, not defects; `N`
+as a deliberate churn decision -- its findings are style, not defects; `N`
 stays off for the ported single-letter FAR names (`E741`); `PERF` is off as
 performance-only. A `# noqa` carries its rule and a reason (`-- ...`); an
 unused-argument `noqa` marks a *signature contract* (callback protocol, uniform
