@@ -359,5 +359,34 @@ def test_the_smoke_gate_runs_the_oracle_launcher_rather_than_resolving_it():
         assert "sloads-oracle" in fh.read(), "the console script is not declared"
 
 
+def test_the_dependency_ceiling_policy_rests_on_an_unpinned_install():
+    """`pyproject.toml` states a runtime floor and deliberately **no** upper
+    bound (#129). That decision is only safe because CI installs the runtime
+    dependencies unpinned on every run, so an upstream release that removes a
+    deprecated API -- `use_container_width` is documented for removal -- fails
+    the GUI tests here before it reaches anyone's fresh install. A constraints
+    file or a `streamlit==` in a workflow step would retire that early warning
+    silently, leaving the "no ceiling" decision resting on nothing."""
+    ci = _read(_CI)
+    installs = [line.strip() for line in ci.splitlines()
+                if "pip install" in line and "--upgrade pip" not in line
+                and not line.lstrip().startswith("#")]
+    assert installs, "no dependency install step found in ci.yml"
+    for line in installs:
+        assert re.search(r"-e '?\.", line), (
+            f"ci.yml installs something other than this project: {line!r} -- the "
+            "unpinned-install policy is stated in pyproject.toml's dependencies"
+        )
+        assert "-c " not in line and "--constraint" not in line, (
+            f"ci.yml constrains the install ({line!r}); the ceiling policy in "
+            "pyproject.toml assumes CI meets the newest releases first"
+        )
+    for pinned in ("streamlit==", "streamlit<", "pandas==", "plotly=="):
+        assert pinned not in ci, (
+            f"ci.yml pins {pinned!r}; a pinned CI is a CI that cannot warn about "
+            "the upstream removal pyproject.toml's ceiling policy relies on it for"
+        )
+
+
 if __name__ == "__main__":  # zero-dependency self-runner
     sys.exit(pytest.main([__file__, "-p", "no:xdist", "-q"]))

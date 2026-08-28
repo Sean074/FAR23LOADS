@@ -258,7 +258,7 @@ def _render_readout(subject: Subject, points: list[FleetPoint]) -> None:
                "aircraft (normalized distance over MTOW / W/S / W/P):")
     rows = [{"": "→", **_subject_row(subject)}]
     rows += [{"": "", **_point_row(p)} for p, _dist in stats.nearest]
-    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
 
 
 def _scatter(df: pd.DataFrame, x: str, y: str, labels: dict, *,
@@ -271,7 +271,7 @@ def _scatter(df: pd.DataFrame, x: str, y: str, labels: dict, *,
         color_discrete_map=_SERIES_COLOR, labels={**labels, "series": ""},
     )
     fig.update_layout(legend={"orientation": "h", "y": 1.1, "x": 0})
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 # --------------------------------------------------------------------------- #
@@ -350,4 +350,4 @@ with tabs[5]:
 
 with st.expander("Reference fleet data"):
     st.dataframe(fleet.drop(columns=["series", "w_s", "w_p"]),
-                 hide_index=True, use_container_width=True)
+                 hide_index=True, width="stretch")

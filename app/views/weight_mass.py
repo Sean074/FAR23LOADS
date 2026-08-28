@@ -222,7 +222,7 @@ def _tab_estimate(project: Project, system: UnitSystem, U: dict) -> None:
     for r in display_results:
         with st.expander(f"FAR {r.far_reference} — {r.title}", expanded=True):
             rows = [{"Quantity": v.label, "Value": v.value, "Units": v.units} for v in r.values]
-            st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
 
     st.subheader("Seed the weight data base")
     st.caption(
@@ -342,7 +342,7 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
     }
     with st.form("weight_items_form"):
         edited = st.data_editor(
-            default_df, num_rows="dynamic", use_container_width=True, hide_index=True,
+            default_df, num_rows="dynamic", width="stretch", hide_index=True,
             column_config=_COLUMN_CONFIG, key=widget_key(f"weight_items_{system.value}"),
         )
         applied = st.form_submit_button("Apply weight items", type="primary")
@@ -413,7 +413,7 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
     result = convert_results([raw_result], system)[0]
     st.subheader(f"FAR {result.far_reference} — {result.title}")
     rows = [{"Quantity": v.label, "Value": v.value, "Units": v.units} for v in result.values]
-    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
     if result.note:
         st.caption(result.note)
 
@@ -447,7 +447,7 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
         fig.update_layout(barmode="overlay", height=380, legend={"orientation": "h"},
                           xaxis_title=f"Fuselage station x ({U['length']})",
                           yaxis_title=f"Item weight ({U['weight']})")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     st.download_button(
         "Download weight/CG/inertia (CSV)",
@@ -537,7 +537,7 @@ def _tab_payload_cases(project: Project, system: UnitSystem, U: dict) -> None:
         }
         rows = st.data_editor(
             default_rows, column_config=payload_cols, num_rows="dynamic", hide_index=True,
-            use_container_width=True, key=widget_key(f"payload_cases_editor_{system.value}"),
+            width="stretch", key=widget_key(f"payload_cases_editor_{system.value}"),
         )
         applied = st.form_submit_button("Apply", type="primary")
 
@@ -604,7 +604,7 @@ def _tab_payload_cases(project: Project, system: UnitSystem, U: dict) -> None:
              "Landing role": c.role.value if c.role else ""}
             for c in existing
         ]),
-        hide_index=True, use_container_width=True,
+        hide_index=True, width="stretch",
     )
 
 
@@ -741,7 +741,7 @@ def _tab_envelope(project: Project, system: UnitSystem, U: dict) -> None:
         ))
     fig.update_layout(title="Weight / CG envelope", xaxis_title="Fuselage station (in)",
                       yaxis_title="Weight (lb)", legend={"orientation": "h"}, height=440)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
     if not project.weight.cg_cases:
         st.caption(
             "No loading scenarios yet — define them on the **Payload Cases** tab to "
@@ -752,7 +752,7 @@ def _tab_envelope(project: Project, system: UnitSystem, U: dict) -> None:
     for r in results:
         with st.expander(f"FAR {r.far_reference} — {r.title}", expanded=True):
             rows = [{"Quantity": v.label, "Value": v.value, "Units": v.units} for v in r.values]
-            st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
             if r.note:
                 st.caption(r.note)
 
@@ -800,7 +800,7 @@ def _tab_mass_export(project, system, U) -> None:
             "Note": ld.note,
         })
     if rows:
-        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
     if any(not ld.derivable for ld in loadings):
         st.info(
             "A payload case is exported only when the weight database can "

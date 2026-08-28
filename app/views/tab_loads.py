@@ -61,7 +61,7 @@ existing = [
 with st.form("tab_loads_form"):
     st.subheader("Tabs")
     edited = st.data_editor(
-        pd.DataFrame(existing), num_rows="dynamic", use_container_width=True,
+        pd.DataFrame(existing), num_rows="dynamic", width="stretch",
         key=widget_key(f"tab_loads_editor_{system.value}"),
         column_config={
             "surface": st.column_config.SelectboxColumn(options=["wing", "htail", "vtail"]),

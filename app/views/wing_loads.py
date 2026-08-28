@@ -115,7 +115,7 @@ with st.form("wing_airloads_form"):
                  "Angle": st.column_config.NumberColumn("Angle (deg)")}
     twist_df = st.data_editor(
         pd.DataFrame(twist_display, columns=["Y", "Angle"]), column_config=twist_cols,
-        num_rows="dynamic", hide_index=True, use_container_width=True, key=widget_key(f"twist_{system.value}"))
+        num_rows="dynamic", hide_index=True, width="stretch", key=widget_key(f"twist_{system.value}"))
 
     aero_applied = st.form_submit_button("Apply", type="primary")
 
@@ -169,7 +169,7 @@ fig.add_trace(go.Scatter(x=_ye_disp, y=[to_si_scalar(v, "in", system) for v in t
 fig.update_layout(
     title="Spanwise span load c·cl", xaxis_title=f"Butt line Y ({si_scalar_label('in', system)})",
     yaxis_title=f"c·cl ({si_scalar_label('in', system)})", legend={"orientation": "h"}, height=420)
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 st.subheader("Per-strip distribution")
 _len_lbl = si_scalar_label("in", system)
@@ -183,7 +183,7 @@ st.dataframe(pd.DataFrame({
     f"c·cl basic ({_len_lbl})": [to_si_scalar(v, "in", system) for v in table.ccl_basic],
     f"c·cl total ({_len_lbl})": [to_si_scalar(v, "in", system) for v in table.ccl_total],
     "cl total": table.cl_total,
-}), hide_index=True, use_container_width=True)
+}), hide_index=True, width="stretch")
 
 st.download_button(
     "Download airloads (CSV)",
@@ -271,7 +271,7 @@ with st.form("net_wing_loads_form"):
     cw_df = st.data_editor(
         pd.DataFrame(cw_display, columns=["name", "weight_lb", "x", "y", "z"]),
         column_config=cw_cols, num_rows="dynamic", hide_index=True,
-        use_container_width=True, key=widget_key(f"cw_{system.value}"))
+        width="stretch", key=widget_key(f"cw_{system.value}"))
 
     st.subheader("Critical load cases")
     st.caption("Nz / Nx are the inertia load factors (negative of the air-load factor); "
@@ -284,7 +284,7 @@ with st.form("net_wing_loads_form"):
         or [["", None, 0.0, 0.0, 0.0, 0.0, 0.0]],
         columns=["name", "vn_case", "nz", "nx", "unbal_moment", "cl", "v_eas_kt"],
     )
-    case_df = st.data_editor(case_default, num_rows="dynamic", hide_index=True, use_container_width=True,
+    case_df = st.data_editor(case_default, num_rows="dynamic", hide_index=True, width="stretch",
                              key=widget_key("wing_case_editor"))
 
     mass_applied = st.form_submit_button("Apply", type="primary")
@@ -370,11 +370,11 @@ for title, attr, unit_key in [("Shear Sz", "sz", "lbf"), ("Bending Mxx", "mxx", 
     fig.update_layout(title=f"{title} — {sel}",
                       xaxis_title=f"Butt line Y ({si_scalar_label('in', system)})",
                       yaxis_title=f"{title} ({unit})", legend={"orientation": "h"}, height=320)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 st.subheader("Net load station table (LIMIT)")
 st.dataframe(pd.DataFrame(wing_limit_rows(wing_load_rows([net]), system)),
-             hide_index=True, use_container_width=True)
+             hide_index=True, width="stretch")
 
 # Two basis-marked downloads (defect M4-15): the LIMIT file is the on-page
 # table's converted, unit-suffixed rows (L-8i -- ``limit_csv`` owns both); the

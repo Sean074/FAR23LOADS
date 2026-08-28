@@ -442,7 +442,7 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
     for r in results:
         with st.expander(f"FAR {r.far_reference} — {r.title}", expanded=True):
             rows = [{"Quantity": v.label, "Value": v.value, "Units": v.units} for v in r.values]
-            st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
             if r.note:
                 st.caption(r.note)
 
@@ -457,7 +457,7 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
     for r in op_results:
         with st.expander(f"FAR {r.far_reference} — {r.title}", expanded=True):
             rows = [{"Quantity": v.label, "Value": v.value, "Units": v.units} for v in r.values]
-            st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
             if r.note:
                 st.caption(r.note)
     # Deliberately re-stated here beside the placards it bears on, as well as at

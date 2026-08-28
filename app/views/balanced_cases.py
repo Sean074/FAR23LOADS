@@ -111,7 +111,7 @@ if not cases:
 # --------------------------------------------------------------------------- #
 st.subheader("Balance quality")
 rows = balanced_case_rows(cases)
-st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
 st.caption(
     f"Residuals are measured **before** closure — the gate ({RESIDUAL_GATE:.0%}) "
     "is on the physics, not on the correction. `dn` is the mass-proportional "
@@ -235,7 +235,7 @@ st.dataframe(pd.DataFrame([
      f"ΣFy ({U['weight']})": f"{to_display(v[1], 'weight', system):,.1f}",
      "Cards": sum(1 for ld in case.loads if ld.source == src)}
     for src, v in totals.items()
-]), hide_index=True, use_container_width=True)
+]), hide_index=True, width="stretch")
 st.caption(
     "No wing carry-through reaction appears here, and none may: it is the seam "
     "between two free bodies, and in an assembled model the solver recovers it. "
@@ -260,7 +260,7 @@ fig.update_layout(
     xaxis_title=f"Butt line y ({U['length']})",
     yaxis_title=f"Applied Fz ({U['weight']}, LIMIT)",
     height=420)
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 # --------------------------------------------------------------------------- #
 # The deck

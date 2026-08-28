@@ -170,7 +170,7 @@ st.subheader("Altitudes (V-n balanced at each)")
 st.caption("The cruise set balances at every altitude listed; the flaps-down "
            "envelope runs at sea level only (FLTLOADS.BAS line 3000).")
 alt_df = st.data_editor(alt_default, num_rows="dynamic", hide_index=True,
-                        use_container_width=True, key=widget_key("altitudes_editor"))
+                        width="stretch", key=widget_key("altitudes_editor"))
 altitudes_ft = sorted({float(v) for v in alt_df["altitude_ft"] if pd.notna(v)}) or [0.0]
 st.caption("Edit altitudes above, then **Apply geometry & altitudes** in the sidebar to save.")
 
@@ -190,7 +190,7 @@ st.dataframe(pd.DataFrame([
      f"xcg ({U['length']})": round(to_display(c.xcg, "length", system), 2),
      f"zcg ({U['length']})": round(to_display(c.zcg, "length", system), 2)}
     for c in cg_cases
-]), hide_index=True, use_container_width=True)
+]), hide_index=True, width="stretch")
 
 # The effective FLTLOADS input from the current widgets. Merge (never wholesale-
 # replace) so fields this page doesn't show survive the persist path; the aero sets
@@ -286,7 +286,7 @@ def _tab_vn() -> None:
     title_alt = "all altitudes" if overlay_all_alt else f"{selected_alt:.0f} ft"
     fig.update_layout(title=f"V-n diagram — {selected_cg}, {title_alt}", xaxis_title="V (KEAS)",
                       yaxis_title="Load factor NZ", legend={"orientation": "h"}, height=440)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
     st.caption(
         "Grey lines are the continuous **LIMIT** design envelope (stall boundary, "
         "maneuver limits and — for a single altitude — the textbook Pratt gust lines) "
@@ -314,7 +314,7 @@ def _tab_vn() -> None:
         "LZW": [round(p.lzw) for p in pts],
         "LT (tail)": [round(p.lt) for p in pts],
         "DX": [round(p.dx) for p in pts],
-    }), hide_index=True, use_container_width=True)
+    }), hide_index=True, width="stretch")
 
     st.download_button(
         "Download V-n data (text)", module_text_report("Flight envelope (V-n)", results),
@@ -434,7 +434,7 @@ def _tab_select() -> None:
                 if checked:
                     checked_ids.append(cid)
         rows = governing_loads_table(conds, system)
-        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
 
     # Ground conditions (decision G-9). SELECT does not name them -- LANDLOAD
     # mints its own ``LG-`` ids -- so without this section the filter would miss
@@ -571,7 +571,7 @@ def _tab_trim() -> None:
         title=f"Balancing tail load vs CG — {ref.weight_lb:.0f} lb, zcg {ref.zcg:.1f} in",
         xaxis_title="CG station Xcg (in)", yaxis_title="Balancing tail load LT (lb, LIMIT)",
         legend={"orientation": "h"}, height=430)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
     st.caption(
         "Positive LT is up (tail lift). Open markers are the project's CG cases at this "
         "weight — they lie on the swept curve because the sweep reuses the same FLTLOADS "
@@ -581,7 +581,7 @@ def _tab_trim() -> None:
     st.dataframe(pd.DataFrame({
         "Xcg (in)": [round(x, 2) for x in stations],
         **{f"{cur.condition} LT (lb)": [round(v) for v in cur.lt_lb] for cur in curves},
-    }), hide_index=True, use_container_width=True)
+    }), hide_index=True, width="stretch")
 
     # ------------------------------------------------------------------ #
     # Static-margin sweep (tail-volume neutral point, Configuration module)
@@ -619,7 +619,7 @@ def _tab_trim() -> None:
         title=f"Static margin vs CG — neutral point {np_pct:.1f} %MAC",
         xaxis_title="CG (%MAC)", yaxis_title="Static margin (%MAC)",
         legend={"orientation": "h"}, height=360)
-    st.plotly_chart(figs, use_container_width=True)
+    st.plotly_chart(figs, width="stretch")
     st.caption(
         f"Static margin = NP − CG (both %MAC); NP = {np_pct:.1f} %MAC from the tail-volume "
         "estimate (Geometry page, Ref 1 Ch 8: h_acw = 0.25, a_t/a_w = 1.0, "

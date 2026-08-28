@@ -108,10 +108,10 @@ def confirm_discard(new_project: Project, source: str, path: Optional[str] = Non
         "deleted)."
     )
     c1, c2 = st.columns(2)
-    if c1.button("Discard and load", type="primary", use_container_width=True):
+    if c1.button("Discard and load", type="primary", width="stretch"):
         adopt(new_project, path)
         st.rerun()
-    if c2.button("Cancel", use_container_width=True):
+    if c2.button("Cancel", width="stretch"):
         st.rerun()
 
 
@@ -164,10 +164,10 @@ def confirm_overwrite(project: Project, path: str) -> None:
              "directory and is not the file this project was opened from. "
              "Overwrite it?")
     c1, c2 = st.columns(2)
-    if c1.button("Overwrite", type="primary", use_container_width=True):
+    if c1.button("Overwrite", type="primary", width="stretch"):
         save_to(project, path)
         st.rerun()
-    if c2.button("Cancel", use_container_width=True):
+    if c2.button("Cancel", width="stretch"):
         st.rerun()
 
 

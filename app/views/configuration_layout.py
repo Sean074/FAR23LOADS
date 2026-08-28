@@ -669,7 +669,7 @@ if lg_applied:
     st.success("Landing-gear geometry updated.")
     st.rerun()
 
-st.plotly_chart(_three_view(), use_container_width=True)
+st.plotly_chart(_three_view(), width="stretch")
 
 # --------------------------------------------------------------------------- #
 # Fuselage outline (Step G1): the station-area table that drives the body
@@ -864,7 +864,7 @@ else:
                 st.dataframe(
                     pd.DataFrame([{"Quantity": v.label, "Value": round(v.value, 4),
                                    "Units": v.units} for v in _r.values]),
-                    hide_index=True, use_container_width=True)
+                    hide_index=True, width="stretch")
                 if _r.note:
                     st.caption(_r.note)
         _dl = st.columns(2)
@@ -925,7 +925,7 @@ with left:
     for r in display_results:
         with st.expander(r.title, expanded=True):
             rows = [{"Quantity": v.label, "Value": round(v.value, 4), "Units": v.units} for v in r.values]
-            st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
             if r.note:
                 st.caption(r.note)
 

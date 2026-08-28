@@ -280,10 +280,21 @@ the pre-commit hooks run, so hook and CI agree). Install with
 `pip install -e '.[dev]'`; add `,solver` for the sbeam round-trip gate. A floor
 copied here drifts from the one that is enforced — this page carried a
 `streamlit` floor six minor versions below the real one (2026-08-20 review,
-CR-D-5), which exists because of `st.navigation(expanded=…)`. The doc-currency
+CR-D-5); the reason for each floor is a comment beside it there (the
+`streamlit` one has since moved from `st.navigation(expanded=…)` to the layout
+parameter that replaced `use_container_width`). The doc-currency
 guard now treats a version specifier beside a dependency name as a volatile
 literal, so the class cannot come back — including in a sentence like this one,
 which is why the numbers here are words.
+
+**Ceiling policy: there is deliberately no upper bound on a runtime dependency,
+and the reason is written beside the requirement it applies to.** The bet is
+that CI installs the runtime set unpinned on every run, so an upstream release
+that removes an API this code calls fails here before it reaches an installed
+user — which is why a pinned or constrained CI install is itself a guarded
+condition (`tests/test_ci_conformance.py`), and why a floor exists only where a
+named API needs it (`tests/test_app_shell.py` compares the declared Streamlit
+floor against the layout parameter both front-ends pass).
 
 ---
 

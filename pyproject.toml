@@ -31,7 +31,18 @@ classifiers = [
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
-    "streamlit>=1.36",  # st.navigation(expanded=...) added in 1.36
+    # Floor: the `width=` layout parameter, which replaces the deprecated
+    # `use_container_width=` both front-ends used to pass (#129). Upstream added
+    # it per element -- buttons in 1.48, `st.dataframe`/`st.data_editor` in 1.49,
+    # `st.plotly_chart` in 1.51 -- so the last of those is the binding one; the
+    # older `st.navigation(expanded=...)` floor (1.36) is subsumed by it.
+    # No upper bound, and that is a decision, not an omission: `use_container_width`
+    # is documented as "deprecated and will be removed in a future release", and CI
+    # installs Streamlit unpinned on every run, so an upstream removal fails the
+    # GUI tests here before it reaches an installed user. Guards:
+    # tests/test_app_shell.py (no deprecated spelling; floor admits the API used),
+    # tests/test_ci_conformance.py (the unpinned install this policy rests on).
+    "streamlit>=1.51",
     "pandas>=2.0",
     "plotly>=5.0",
     "openpyxl>=3.1",

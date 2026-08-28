@@ -89,7 +89,7 @@ if critical is not None:
         any_shown = True
         st.subheader(title)
         rows = governing_loads_table(conds, system)
-        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
     if not any_shown:
         st.info("No governing conditions selected yet.")
 
@@ -123,6 +123,6 @@ for phase in wf.PHASES:
             # module CSV channel and the oracle results page.
             rows = summary_rows(mr.module, conds)
             if rows:
-                st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+                st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
             else:
                 st.caption("No tabular results.")

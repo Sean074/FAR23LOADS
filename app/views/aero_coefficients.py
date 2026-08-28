@@ -134,7 +134,7 @@ with st.form("aero_coefficients_form"):
     )
     cruise_df = st.data_editor(
         _coeff_table(aero.cruise if aero else None), hide_index=True,
-        use_container_width=True, disabled=["row"], key=widget_key("cruise_coeff"),
+        width="stretch", disabled=["row"], key=widget_key("cruise_coeff"),
     )
 
     st.divider()
@@ -153,7 +153,7 @@ with st.form("aero_coefficients_form"):
     )
     flaps_df = st.data_editor(
         _coeff_table(aero.flaps_down if aero else None), hide_index=True,
-        use_container_width=True, disabled=["row"], key=widget_key("flaps_coeff"),
+        width="stretch", disabled=["row"], key=widget_key("flaps_coeff"),
     )
 
     applied = st.form_submit_button("Apply", type="primary")
@@ -194,7 +194,7 @@ st.subheader("Current coefficients")
 
 def _summary(name: str, cfg: AeroCoeffSet) -> None:
     st.markdown(f"**{name} — {cfg.name}**")
-    st.dataframe(_coeff_table(cfg), hide_index=True, use_container_width=True)
+    st.dataframe(_coeff_table(cfg), hide_index=True, width="stretch")
     st.caption(f"Stall CL {cfg.stall_cl:.3f} / negative stall CL {cfg.neg_stall_cl:.3f}")
 
 
@@ -310,7 +310,7 @@ for _cfg in _configs:
                                  mach_ref=_fl_bal.mn)
     _curves = build_aero_curves(_cfg, points=_pts, closure=_closure)
     st.markdown(f"**{'Flaps down' if _cfg.flaps_down else 'Cruise'} — {_cfg.name}**")
-    st.plotly_chart(_curve_figure(_curves), use_container_width=True)
+    st.plotly_chart(_curve_figure(_curves), width="stretch")
 
     _bits = [
         f"Curve at the reference Mach (as entered). Lift peaks at CL "

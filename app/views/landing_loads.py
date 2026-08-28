@@ -270,7 +270,7 @@ rows = [{
     "NDP": round(c.ndp, 3),
     "NS": round(c.ns, 3),
 } for c in reactions]
-st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 st.caption(
     f"VMP/DMP/SMP — vertical/drag/side main per wheel; VNP/DNP/SNP — nose; loads in "
     f"{_lbf_lbl}, with respect to the ground line. PITCH/ROLL/YAW — the unbalanced "
@@ -324,7 +324,7 @@ else:
         "% of stroke": f"{fraction * 100:.0f} %",
         "LANDLOAD cases": f"{min(cases)}–{max(cases)}",
     } for (leg, state, angle, stroke, fraction), cases in _stroke_rows.items()]),
-        use_container_width=True, hide_index=True)
+        width="stretch", hide_index=True)
     st.caption(
         "The landing families are computed near the **top** of the stroke and "
         "the handling families near the **bottom** — impact versus sitting. "

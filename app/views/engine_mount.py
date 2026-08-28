@@ -492,7 +492,7 @@ for r in conditions:
         df = pd.DataFrame(
             [{"Quantity": v.label, "Value": v.value, "Units": v.units} for v in r.values]
         )
-        st.dataframe(df, hide_index=True, use_container_width=True)
+        st.dataframe(df, hide_index=True, width="stretch")
         if r.note:
             if r.note.lstrip().upper().startswith("WARNING"):
                 st.warning(r.note)

@@ -112,7 +112,7 @@ else:
     fig.update_layout(title=f"Chordwise net pressure — {sel}",
                       xaxis_title=f"Chord station from LE ({_in_lbl})",
                       yaxis_title=f"Net pressure PSI ({_psi_lbl})", height=360)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     st.subheader("Chordwise distribution table")
     st.caption(
@@ -123,7 +123,7 @@ else:
     # rows (L-8i -- ``limit_csv`` owns both); ``results`` themselves stay
     # Imperial for the Loads Plots / Export pages.
     st.dataframe(pd.DataFrame(tail_limit_rows(results, system)),
-                 hide_index=True, use_container_width=True)
+                 hide_index=True, width="stretch")
 
     st.download_button("Download tail distributions (CSV)", tail_limit_csv(results, system),
                        file_name="tail_chordwise_loads_LIMIT.csv", mime="text/csv")
@@ -179,4 +179,4 @@ else:
             f"Approx XTC ({_in_lbl})": round(to_si_scalar(r["XTC"], "in", system), 2),
             f"Error ({_in_lbl})": round(to_si_scalar(r["DXT"], "in", system), 2),
         } for r in bal_rows])
-        st.dataframe(table, hide_index=True, use_container_width=True)
+        st.dataframe(table, hide_index=True, width="stretch")
