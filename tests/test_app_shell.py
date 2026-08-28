@@ -822,6 +822,171 @@ def test_the_mac_tool_says_what_is_missing_when_there_is_no_wing(tmp_path):
     assert not [w for w in at.sidebar.number_input if "% MAC" in w.label]
 
 
+# The unit journey through the Tools section (#126). The station field was the
+# only converted number input in either GUI spelled by hand rather than through
+# ``unit_number_input`` -- seeded with a converted value but keyed without the
+# system suffix, so Streamlit's retained state outvoted ``value=`` and the same
+# digits were read as inches and then as millimetres. #80 shipped the section
+# with four tests that all run Imperial, which is why nothing caught it; this is
+# practice 3's drift guard, and it drives the real radio, not a helper.
+_UNITS_TOOLS_SCRIPT = """
+import streamlit as st
+from sloads import io as sloads_io
+from app_shell.sidebar import render_shell_sidebar
+
+if "project" not in st.session_state:
+    st.session_state["project"] = sloads_io.load_project({path!r})
+with render_shell_sidebar(st.session_state["project"]):
+    pass
+"""
+
+
+def _station_tools_app():
+    """The Tools section with the station→%MAC direction chosen, in Imperial."""
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_string(_UNITS_TOOLS_SCRIPT.format(path=_GA6), default_timeout=60)
+    at.run()
+    assert not at.exception, [e.message for e in at.exception]
+    next(r for r in at.sidebar.radio if r.label == "Convert").set_value("station → % MAC").run()
+    assert not at.exception, [e.message for e in at.exception]
+    return at
+
+
+def _station_widget(at):
+    return next(w for w in at.sidebar.number_input if w.label.startswith("Fuselage station"))
+
+
+def _pct_metric(at):
+    return float(next(m for m in at.sidebar.metric if m.label == "% MAC").value)
+
+
+def _switch_to(at, system_label):
+    next(r for r in at.sidebar.radio
+         if r.label == "Reported results in").set_value(system_label).run()
+    assert not at.exception, [e.message for e in at.exception]
+    return at
+
+
+def test_the_mac_tool_gives_the_same_answer_for_the_same_station_in_either_system():
+    """The answer follows the *physical* station, not the digits: ten inches aft
+    of the MAC leading edge is the same place as 254 mm aft of it and must read
+    the same % MAC. This is the pair to the re-seed guard below and catches the
+    other way the boundary can fail -- a return path that converted the wrong
+    way, which the re-seed guard would not see."""
+    from sloads import UnitSystem
+    from sloads import io as sloads_io
+    from sloads.derived_geometry import mac_reference
+    from sloads.units import to_display
+
+    ref = mac_reference(sloads_io.load_project(_GA6))
+    at = _station_tools_app()
+    _station_widget(at).set_value(float(ref.xlemac) + 10.0).run()
+    imperial = _pct_metric(at)
+    assert imperial > 0.0, "ten inches aft of the leading edge is a positive % MAC"
+
+    _switch_to(at, "SI")
+    same_place_in_mm = float(to_display(float(ref.xlemac) + 10.0, "length", UnitSystem.SI))
+    _station_widget(at).set_value(same_place_in_mm).run()
+    assert abs(_pct_metric(at) - imperial) < 0.01, (_pct_metric(at), imperial)
+
+
+def test_the_station_field_re_seeds_on_a_unit_switch_instead_of_being_reread():
+    """The defect itself: before the fix the field kept 63.641 across the switch
+    and answered −88.29 % MAC, reading inches as millimetres. A re-seeded field
+    shows the leading edge in the new unit and answers 0.00 % MAC."""
+    from sloads import UnitSystem
+    from sloads import io as sloads_io
+    from sloads.derived_geometry import mac_reference
+    from sloads.units import to_display
+
+    ref = mac_reference(sloads_io.load_project(_GA6))
+    at = _station_tools_app()
+    _station_widget(at).set_value(float(ref.xlemac) + 10.0).run()
+
+    _switch_to(at, "SI")
+    widget = _station_widget(at)
+    assert widget.label.endswith("(mm)"), widget.label
+    expected = float(to_display(float(ref.xlemac), "length", UnitSystem.SI))
+    assert abs(float(widget.value) - expected) < 0.01, (widget.value, expected)
+    assert abs(_pct_metric(at)) < 0.01, _pct_metric(at)
+
+
+# --------------------------------------------------------------------------- #
+# The class guard behind #126 (practice 4: generalize on first find)
+# --------------------------------------------------------------------------- #
+_GUI_TREES = ("app_shell", "oracle_app", os.path.join("app", "views"))
+#: What marks a number input as seeded with a *converted* value. ``to_display``
+#: is the conversion itself; ``dflt`` is engine_mount's one-line wrapper of it.
+_CONVERTED_SEED = ("to_display(", "dflt(")
+#: What marks its key as carrying the active unit system, so that a switch
+#: re-seeds the field instead of rereading its digits in the other unit. The
+#: two helper spellings are checked for real below -- an allowlist that lied
+#: would be worse than no guard.
+_SYSTEM_IN_KEY = ("number_input_name(", "system.value", "k(")
+
+
+def _number_input_calls(source):
+    """Each ``st.number_input(...)`` call in *source*, arguments included."""
+    out, at = [], source.find("st.number_input(")
+    while at != -1:
+        i, depth = source.index("(", at), 0
+        while True:
+            if source[i] == "(":
+                depth += 1
+            elif source[i] == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            i += 1
+        out.append(source[at:i + 1])
+        at = source.find("st.number_input(", i)
+    return out
+
+
+def test_a_converted_number_input_is_always_keyed_with_the_unit_system():
+    """#126's class, swept across both GUIs and the shell. A field seeded with a
+    converted value and keyed without the system keeps its retained state across
+    a unit switch -- Streamlit's state outvotes ``value=`` -- and the number then
+    means inches on one render and millimetres on the next. ``unit_number_input``
+    is the cure and the default; the two hand-rolled helpers that predate it are
+    allowed only because their keys are checked below."""
+    offenders = []
+    for tree in _GUI_TREES:
+        for root, _dirs, names in os.walk(os.path.join(_ROOT, tree)):
+            if "__pycache__" in root:
+                continue
+            for name in sorted(names):
+                if not name.endswith(".py") or name == "components.py":
+                    continue  # components.py *is* the boundary
+                path = os.path.join(root, name)
+                with open(path, encoding="utf-8") as fh:
+                    source = fh.read()
+                for call in _number_input_calls(source):
+                    if not any(seed in call for seed in _CONVERTED_SEED):
+                        continue
+                    if not any(marker in call for marker in _SYSTEM_IN_KEY):
+                        offenders.append((os.path.relpath(path, _ROOT), call.split("\n")[0]))
+    assert not offenders, (
+        "converted number input(s) keyed without the unit system -- route them "
+        "through app_shell.components.unit_number_input(kind=...): " + repr(offenders)
+    )
+
+
+def test_the_allowed_key_helper_really_does_carry_the_unit_system():
+    """The guard above trusts two helper names. ``number_input_name`` is checked
+    from the outside already (``test_oracle_gui.test_a_converted_field_clears_in_si_too``
+    depends on the suffix being there); the other one is checked here, because an
+    allowlist that lied would be worse than no guard at all."""
+    with open(os.path.join(_ROOT, "app", "views", "engine_mount.py"), encoding="utf-8") as fh:
+        body = fh.read()
+    signature = body.index("def k(")
+    assert "system.value" in body[signature:signature + 600], (
+        "engine_mount.k() no longer suffixes the system; the #126 guard's "
+        "allowlist would now be passing a converted field it cannot vouch for"
+    )
+
+
 def test_both_front_ends_get_the_tools_section():
     """Neither GUI may grow its own: the section is built by the shared shell
     both entry points wrap their pages in, and neither spells its widgets."""

@@ -38,7 +38,12 @@ from typing import Iterator
 
 import streamlit as st
 
-from app_shell.components import IN_SHELL_KEY, RELEASE_STATE, StopPage
+from app_shell.components import (
+    IN_SHELL_KEY,
+    RELEASE_STATE,
+    StopPage,
+    unit_number_input,
+)
 from app_shell.project_state import (
     has_unsaved_changes,
     load_with_guard,
@@ -59,7 +64,6 @@ from sloads.report.results_zip import results_zip_name as _results_zip_name
 from sloads.units import (
     labels_for,
     to_display,
-    to_imperial_scalar,
     unit_system_from,
 )
 
@@ -363,10 +367,17 @@ def _render_mac_converter(project: Project, system: UnitSystem) -> None:
         st.metric(f"Fuselage station ({length_label})",
                   f"{to_display(station, 'length', system):.2f}")
     else:
-        entered = st.number_input(f"Fuselage station ({length_label})",
-                                  value=float(to_display(ref.xlemac, "length", system)),
-                                  step=1.0, key=widget_key("_tool_station"))
-        station = to_imperial_scalar(float(entered), "length", system)
+        # A converted length goes through the one unit boundary like every other
+        # converted number in either GUI (#126). Seeded and keyed by hand, this
+        # field kept its retained state across a unit switch -- Streamlit's state
+        # outvotes ``value=`` -- and the same digits were read as inches and then
+        # as millimetres: 63.641 answered 0.00 %MAC in Imperial and -88.29 %MAC
+        # after toggling to SI, the same field, the same number, two answers.
+        # ``unit_number_input`` takes Imperial in and returns Imperial, and its
+        # key carries the system, so the switch re-seeds instead of reinterpreting.
+        entered = unit_number_input("Fuselage station", ref.xlemac, kind="length",
+                                    step=1.0, key=widget_key("_tool_station"))
+        station = ref.xlemac if entered is None else float(entered)
         st.metric("% MAC", f"{station_to_pct_mac(station, ref):.2f}")
     # The C210-13 half of the row: WTENV falls back to the planform when the
     # envelope's XLEMAC/MAC are blank, and nothing on that page says so. A tool
