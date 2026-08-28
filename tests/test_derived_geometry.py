@@ -48,7 +48,11 @@ from sloads.models import (
     WeightInput,
     WingMassInput,
 )
-from sloads.modules.weight_estimate import resolve_max_continuous_hp
+from sloads.modules.weight_estimate import (
+    engine_list_max_continuous_hp,
+    resolve_max_continuous_hp,
+    resolve_max_continuous_hp_for,
+)
 
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
@@ -276,6 +280,95 @@ def test_power_single_sourced_from_engine_list():
     # Fallback: no engine carries a rating -> the stored total is used.
     p = _project_with_engines([None, None], estimate_total=480.0, override=False)
     assert resolve_max_continuous_hp(p) == 480.0
+
+
+def test_the_two_entry_points_apply_one_precedence():
+    """The input-level entry point exists so a GUI holding a detached
+    ``WeightEstimationInput`` -- the form's values, before Apply writes them to the
+    project -- has an owner to call (#124). It must not become a second precedence:
+    the project-level function is a wrapper over it, and this pins that."""
+    for hps, total, override in (([270.0, 270.0], 999.0, False),
+                                 ([270.0, 270.0], 600.0, True),
+                                 ([None, None], 480.0, False),
+                                 ([], 300.0, False)):
+        p = _project_with_engines(hps, estimate_total=total, override=override)
+        assert (resolve_max_continuous_hp_for(p.weight.estimation, p.engines)
+                == resolve_max_continuous_hp(p))
+    # And the sum is the owner's too, so "engine list total" cannot be a third
+    # spelling: the view showed ``sum(...)`` beside a rule using ``math.fsum(...)``.
+    assert engine_list_max_continuous_hp([EngineInput(max_cont_hp=h)
+                                          for h in (270.0, None, 130.5)]) == 400.5
+
+
+def _powerplant_total(at):
+    """The estimate's "Total powerplant" figure as the Weight & Mass page renders it."""
+    for df in at.dataframe:
+        frame = df.value
+        if "Quantity" not in frame:
+            continue
+        row = frame[frame["Quantity"] == "Total powerplant"]
+        if not row.empty:
+            return float(row["Value"].iloc[0])
+    raise AssertionError("the page rendered no 'Total powerplant' row")
+
+
+def test_the_weight_page_reads_the_hp_owner_rather_than_its_own_copy():
+    """Drift guard for the second consumer (#124).
+
+    ``app/views/weight_mass.py`` spelled the Step M2-6 precedence again inline, over
+    its own ``sum(...)`` of the engine list. Two copies of one rule, agreeing on the
+    day they were written -- exactly what practice 3 forbids. The inline copy is gone
+    and the page calls :func:`resolve_max_continuous_hp_for`; this fails if a copy
+    comes back and answers differently, because the page's estimate is checked
+    against the owner's for the engine list, not against the stored total.
+
+    Powerplant weight is the HP-sensitive line: the installed-engine and propeller
+    correlations both take the resolved power (WTESTIMA Ch 3)."""
+    pytest.importorskip("streamlit.testing.v1")
+    from dataclasses import replace as _replace
+
+    from streamlit.testing.v1 import AppTest
+
+    from sloads.modules.weight_estimate import estimate
+
+    view = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "app", "views", "weight_mass.py")
+
+    def rendered(project):
+        at = AppTest.from_file(view, default_timeout=90)
+        at.session_state["project"] = project
+        at.run()
+        assert not at.exception, [e.message for e in at.exception]
+        return _powerplant_total(at)
+
+    def owner_total(project):
+        est = _replace(project.weight.estimation,
+                       max_continuous_hp=resolve_max_continuous_hp(project))
+        return _powerplant_total_of(estimate(est))
+
+    # The engine list disagrees with the stored estimation total, override off: the
+    # engine list governs. (ga6_normal ships 265 hp in both places -- agreement is
+    # what makes a duplicated rule invisible, so the fixture is pulled apart here.)
+    p = io.load_project(_GA)
+    p.engines[0].max_cont_hp = 400.0
+    engine_led = rendered(p)
+    assert math.isclose(engine_led, owner_total(p))
+
+    # Override on: the stored total governs, and the page follows the owner there too.
+    p.weight.estimation.override_max_continuous_hp = True
+    stored_led = rendered(p)
+    assert math.isclose(stored_led, owner_total(p))
+
+    # The two must differ, or neither assertion above could catch a wrong precedence.
+    assert engine_led != stored_led
+
+
+def _powerplant_total_of(conditions):
+    for cond in conditions:
+        for v in cond.values:
+            if v.label == "Total powerplant":
+                return float(v.value)
+    raise AssertionError("the estimate produced no 'Total powerplant' value")
 
 
 # --- note 33 gate DG-3: one place resolves the wing area ---------------------- #

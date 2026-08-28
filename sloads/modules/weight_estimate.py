@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import replace
-from typing import List, NamedTuple, Tuple
+from typing import List, NamedTuple, Sequence, Tuple
 
 from ..basic import basic_int
 from ..constants import (
@@ -50,6 +50,7 @@ from ..constants import (
 from ..load_keys import key_from_label as _key
 from ..models import (
     ConditionResult,
+    EngineInput,
     LoadValue,
     MassItem,
     MassItemKind,
@@ -342,21 +343,46 @@ _CONCEPT_NOTE = (
 )
 
 
-def resolve_max_continuous_hp(project: Project) -> float:
-    """Combined max-continuous power for the weight estimate (Step M2-6).
+def engine_list_max_continuous_hp(engines: Sequence[EngineInput]) -> float:
+    """Combined max-continuous rating of an engine list (Step M2-6).
+
+    The sum itself, with no precedence applied -- what a GUI shows as "engine list
+    total" next to the override switch, and the first term of
+    :func:`resolve_max_continuous_hp_for`. Both spellings of the sum used to live in
+    the GUI and here, and they were not even the same function (#124)."""
+    return math.fsum((e.max_cont_hp or 0.0) for e in engines)
+
+
+def resolve_max_continuous_hp_for(est: WeightEstimationInput,
+                                  engines: Sequence[EngineInput]) -> float:
+    """The Step M2-6 precedence itself, over loose inputs.
 
     Single-sourced from the engine list -- ``sum(engines[].max_cont_hp)`` -- so the
     Weight & Mass "max continuous power (total)" field can no longer silently drift
     from the per-engine Engine Mount ratings. Uses the stored estimation total only
-    when ``estimation.override_max_continuous_hp`` is set, or as the fallback when no
-    engine carries a max-continuous rating (older files / no engine slice)."""
+    when ``est.override_max_continuous_hp`` is set, or as the fallback when no
+    engine carries a max-continuous rating (older files / no engine slice).
+
+    This input-level entry point exists because a GUI holds a detached
+    ``WeightEstimationInput`` -- the values in the form, before Apply writes them to
+    the project -- and so cannot call the project-level wrapper below. Without it the
+    GUI had no owner to call and spelled the rule again inline; **the precedence is
+    written here once and read everywhere else** (#124)."""
+    if est.override_max_continuous_hp:
+        return est.max_continuous_hp
+    return engine_list_max_continuous_hp(engines) or est.max_continuous_hp
+
+
+def resolve_max_continuous_hp(project: Project) -> float:
+    """Combined max-continuous power for the weight estimate (Step M2-6).
+
+    Project-level wrapper over :func:`resolve_max_continuous_hp_for`: it locates the
+    estimation slice and refuses a project without one, then applies the one
+    precedence."""
     est = project.weight.estimation if project.weight is not None else None
     if est is None:  # run() has already refused; the same refusal for direct callers
         raise MissingInputError("Project has no 'weight.estimation' inputs for the weight_estimate module")
-    if est.override_max_continuous_hp:
-        return est.max_continuous_hp
-    engine_sum = math.fsum((e.max_cont_hp or 0.0) for e in project.engines)
-    return engine_sum or est.max_continuous_hp
+    return resolve_max_continuous_hp_for(est, project.engines)
 
 
 def run(project: Project) -> ModuleResult:
