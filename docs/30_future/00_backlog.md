@@ -40,10 +40,24 @@ closure gate in CI, benchmark-first); a page in `workflow.py`; the `Project`
 schema round-trips with `SCHEMA_VERSION` bumped and older files loading; docs
 synced per the closure tier.
 
-**Where things stand (2026-08-25):** **0.7.2 is cut** — `v0.7.2`, 2026-08-25,
-schema v55 unchanged (release-cut block in
+**Where things stand (2026-08-28):** **0.8.0 is cut** — `v0.8.0`, 2026-08-28,
+schema v57 (release-cut block in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)).
-Defect-only by construction: the seven `b`-class items of the C210 build review
+The oracle-GUI development milestone, 27 issues: the derive-by-default override
+mechanism and its `derived_from` registry links (#97/#98/#95, note 36), the
+oracle user guide with both worked-example appendices (#96, note 34), the
+landing load factor entered as N (#123, note 37) with its HP-precedence sweep
+finding (#124), and the four cut blockers of the
+[production-release review](../50_reviews/2026-08-27_oracle_gui_production_review.md)
+closed in-band (#126 the Tools station unit boundary, #127 the smoke gate boots
+both front-ends, #128 a design note cannot claim unbuilt work, #129 the
+container-width migration taken whole with the dependency ceiling policy
+stated); the release states its maturity once (`4 - Beta`;
+`app_shell.components.RELEASE_STATE`). **Band B retired with the cut; band B2
+is the milestone in flight — cut 0.9.0 when band B2 is empty** (its anchor is
+the main-GUI review #29, whose findings drive the re-cut that owns the table).
+Before it: **0.7.2 cut 2026-08-25** (`v0.7.2`, schema v55 unchanged) —
+defect-only by construction: the seven `b`-class items of the C210 build review
 (#76/#81/#82/#83/#84/#85/#86), closed 2026-08-24, plus the two first-order
 defects the code review of the oracle GUI found inside eight lines of one
 function (#88 — the row counter that deleted entered rows with no confirmation
@@ -303,7 +317,6 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
-| **B — 0.8.0: oracle-GUI development — extended 2026-08-27 with the landing load-factor defect and its sweep finding (owner ruling), then again the same day with the four cut-blocking rows of the [production-release review](../50_reviews/2026-08-27_oracle_gui_production_review.md) §3. Order within the band is that review's §4: the code defect, then the two release gates, then the forward-compat row, then #124 — nothing here depends on anything else here. The `Development Status` classifier (§3.5) was a cut-step decision, **taken 2026-08-28**: `4 - Beta`, with the mixed state a trove value cannot express stated by its one owner `app_shell.components.RELEASE_STATE` — shipped in-session, so nothing here carries it. Cut when empty, RELEASE_PROCESS §4** ||||||
 | **B2 — 0.9.0: main-GUI development and bug correction** ||||||
 | 8 | **GUI review resumption** — the five unswept sections (Flight, Other, Ground, Plotting, Export) against the 0.7.2 deliverables; findings filed at close (rule 5); re-cut follows (#29) | The review body completed; the UI freeze on `app/views/` re-opened to the extent the findings justify — a reviewed list, not a rework. **The anchor of 0.9.0**, and the re-cut that promotes the parked main-GUI rows: **L-8c** (Results Review omits the 8 folded modules' results), **L-8e** (uncovered input fields + UX nits), **L-8f** (display-only nits), **M4-11b** (the six F/E-complexity view functions) and the **mutation half of L-8d** — which the 2026-08-24 code review showed is a live mechanism, not a theoretical one (a retained widget beat a model grown underneath it; the row-counter fix closed that instance, the class stays open) | V | S (review) / M | 0.8.0 cut |
 | 9 | **Seeding the item table from the estimate is destructive, and its rows are silently zero-stationed** — the oracle half shipped **2026-08-25** (`changes/weight-estimate-advisory.changed.md`): WTESTIMA's block captioned with what reads it (nothing — WTONECG and WTENV read the itemized data base) and the estimate shown beside the entered empty weight and MTOW with the delta. The **seed button itself already exists** and has since before the review (`app/views/weight_mass.py`, `weight_estimate.estimate_to_mass_items`, specified in `PROGRAM_SPEC.md` §WTESTIMA) — C210-9, issue #78 and the 2026-08-24 re-cut all recorded it as unbuilt because the whole C210 build was in the oracle GUI, which has no such button. What is open is the #62-class hardening the issue actually asked for *(C210-9, class c; build review 2026-08-23)* (#78) | Seeded rows **loudly incomplete** until positioned and tagged, rather than arriving at station 0 and untagged — `mass_distribution.infer_component` then lumps every one of them on the fuselage beam, the defect `fuselage_mass_warnings` already reports from the other side; and the button either merges, refuses, or says before the click that it **replaces every item already entered** (its caption says so today, after the fact). Main GUI, so it lands with the `app/views/` freeze lift | V | S–M / S–M | #29 |
