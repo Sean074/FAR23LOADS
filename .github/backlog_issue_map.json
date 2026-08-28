@@ -38,5 +38,13 @@
   "Calc-side function size (CH-8) — build_lra_model (336 lines), landing_reactions (200) (#17)": 17,
   "Review 2026-08-10 unscheduled findings m3–m13, m15–m18 + NITs (defect sweep) (#18)": 18,
   "mypy strictness ratchet — stage 2 export/, stage 3 modules/ (design note 27 ST-3; detail below) (#19)": 19,
-  "Whole-pipeline-per-assertion tests, re-aimed at the coverage leg (CR-D-6, filed from #46; hygiene; ruled 2026-08-26 (…": 92
+  "Whole-pipeline-per-assertion tests, re-aimed at the coverage leg (CR-D-6, filed from #46; hygiene; ruled 2026-08-26 (…": 92,
+  "The %MAC ↔ fuselage-station Tool reinterprets its entered station on a unit switch — the station widget (sidebar.py:3…": 126,
+  "The pre-release smoke gate never launches the oracle GUI — RELEASE_PROCESS.md §3.5 is a hard gate and scripts/smoke_t…": 127,
+  "A design note's status line can claim work is unbuilt after it has shipped — note 32 §Status still reads \"everything …": 128,
+  "use_container_width survives in app_shell/ on an unbounded Streamlit floor — eleven sites (sidebar.py ×7, project_sta…": 129,
+  "The max-continuous-HP precedence rule is written twice — weight_estimate.resolve_max_continuous_hp (weight_estimate.p…": 124,
+  "flight_envelope view crashes on a blank full_down_aileron_deg — the note-36 derive default is unrenderable in the mai…": 121,
+  "The oracle form reaches into a field_registry private — oracle_app/form.py:709 calls fr._locate(paths[0]) to answer \"…": 130,
+  "A blank limit_load_factor derives through a half-entered planform and escapes as a raw TypeError instead of a named r…": 122
 }

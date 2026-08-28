@@ -14,7 +14,12 @@ authors = [
 ]
 keywords = ["far23", "aircraft", "structural-loads", "aerospace", "streamlit"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    # 4 - Beta, not 5 - Production/Stable (owner ruling 2026-08-28, review
+    # §5.3): the classifier describes the whole distribution, which ships the
+    # beta `app/` front-end beside the finished oracle GUI, and a fresh
+    # installer gets both. The mixed state a single trove value cannot express
+    # is stated by its one owner, `app_shell.components.RELEASE_STATE`.
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",

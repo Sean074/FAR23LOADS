@@ -18,6 +18,13 @@ carries every module's inputs; each module emits its own load-case CSV.
 **License:** MIT (see [LICENSE](LICENSE)) — free to use, modify, and
 redistribute, including commercially.
 
+> **Release state.** Core analysis developed per FAR 23 LOADS and the oracle GUI production-ready; additional features and the full sloads GUI in beta.
+>
+> *(One owner: `app_shell.components.RELEASE_STATE`, which the About panel in
+> both GUIs and `CAPABILITIES.md` also carry, and which `pyproject.toml`'s
+> `Development Status :: 4 - Beta` classifier points at — a trove value cannot
+> express a mixed state. Guarded by `tests/test_doc_currency.py`.)*
+>
 > **Status:** Phases 0–2 and Phase-C Steps **C0–C11** complete — **all 22 of 22**
 > Reference 1 Appendix-C suite programs ported (ENGLOADS, WTESTIMA, WTONECG, WTENV,
 > WINGGEOM, STRSPEED, MACHLIM, TAU, AIRLOADS, AIRLOAD4, FLTLOADS, SELECT, WINGINER,

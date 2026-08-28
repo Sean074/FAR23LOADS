@@ -38,7 +38,7 @@ from typing import Iterator
 
 import streamlit as st
 
-from app_shell.components import IN_SHELL_KEY, StopPage
+from app_shell.components import IN_SHELL_KEY, RELEASE_STATE, StopPage
 from app_shell.project_state import (
     has_unsaved_changes,
     load_with_guard,
@@ -390,6 +390,13 @@ def _render_about() -> None:
             "An educational and exploratory engineering tool — results are "
             "**not certified** for structural design or airworthiness decisions."
         )
+        # What this release is, from its one owner (components.RELEASE_STATE) --
+        # the same sentence README.md and CAPABILITIES.md carry. It belongs in
+        # front of the user, not only in the packaging metadata: a person typing
+        # an airplane into the beta front-end has no other way to learn that is
+        # what it is, and `Development Status :: 4 - Beta` is read by pip, not by
+        # them (owner ruling 2026-08-28, production-release review §5.3).
+        st.caption(f"**Release state.** {RELEASE_STATE}")
         st.caption(
             "**Not affiliated with, endorsed by, or associated with McGettrick "
             "Structural Engineering, Inc. or DARcorporation**, whose "

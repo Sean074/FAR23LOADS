@@ -375,6 +375,33 @@ def unit_number_input(
 #: unchanged. One string for both GUIs and every widget path.
 EMPTY_NUMBER_PLACEHOLDER = "empty — type a value"
 
+#: **What this release is**, in one sentence — the owner of the maturity claim
+#: (owner ruling, 2026-08-28, production-release review §3.5 / §5.3).
+#:
+#: The claim is genuinely mixed: the FAR23 core is oracle-locked and the oracle
+#: GUI is the finished deliverable, while ``app/`` and the concept-mode features
+#: are not. A PyPI trove classifier cannot say that — ``Development Status``
+#: takes one value from a fixed vocabulary — so ``pyproject.toml`` carries
+#: ``4 - Beta``, the value a *fresh installer* is owed (the distribution ships
+#: both front-ends, and one of them is beta by this very sentence), and the
+#: nuance the classifier cannot hold lives here.
+#:
+#: One owner because it is a cross-cutting claim and this project has paid for
+#: the alternative: four hand-written copies in ``README.md``,
+#: ``CAPABILITIES.md`` and the About panel would disagree by the second cut.
+#: The two markdown files cannot import a symbol, so the drift guard asserts
+#: they contain this string verbatim and that nothing spells a second copy —
+#: ``tests/test_doc_currency.py::test_the_release_state_is_stated_by_one_owner``.
+#: Same posture as :data:`LANDING_L_FAR_CAPTION` below, one level up: a
+#: statement about the product rather than about a widget.
+#:
+#: **Update it at a cut, not between them** — and update the two documents in
+#: the same change, or the guard fails, which is the whole point.
+RELEASE_STATE = (
+    "Core analysis developed per FAR 23 LOADS and the oracle GUI production-ready; "
+    "additional features and the full sloads GUI in beta."
+)
+
 #: The wing-lift-factor guidance both GUIs caption on the landing L widget
 #: (note 37, LF-4 / gate G-LF-6): L is a **free** input -- a hard cap cannot
 #: serve two certification bases -- and the regulations' values are stated as
