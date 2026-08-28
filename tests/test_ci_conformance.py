@@ -45,6 +45,7 @@ _STD = os.path.join(_ROOT, "docs", "10_standard")
 _DEV_PROCESS = os.path.join(_STD, "DEVELOPMENT_PROCESS.md")
 _RELEASE = os.path.join(_STD, "RELEASE_PROCESS.md")
 _COMMANDS = os.path.join(_STD, "WORKFLOW_COMMANDS.txt")
+_SMOKE = os.path.join(_ROOT, "scripts", "smoke_test.sh")
 
 #: Standard docs that describe the CI matrix to a reader.
 _CI_CLAIM_SITES = (
@@ -276,6 +277,86 @@ def test_no_doc_states_the_full_matrix_as_if_it_ran_everywhere(rel):
         "the full CI matrix is stated without saying it runs only on the push to "
         "`main` (a PR runs 3.12 alone):\n  " + "\n  ".join(bad)
     )
+
+
+# --------------------------------------------------------------------------- #
+# The §3.5 smoke gate and the front-ends it claims to boot (#127)
+# --------------------------------------------------------------------------- #
+# The same defect class as the rest of this file, in the release gate rather than
+# in CI: §3.5 is a hard gate, and for the release whose headline deliverable is
+# the oracle GUI it started `app/Home.py` and nothing else. A second front-end
+# nothing boots under a real server is a front-end whose boot no gate covers.
+
+#: Directories that hold no front-end. Everything else at the top level is
+#: scanned, so a third GUI joins the comparison by existing rather than by
+#: someone remembering to list it here.
+_NOT_A_GUI = {"tests", "scripts", "docs", "reference", "sloads", "changes",
+              "examples", "projects", "changes", "sloads.egg-info"}
+#: A GUI entry point is the file that calls ``st.set_page_config`` -- exactly one
+#: per front-end (``tests/test_app_shell.py`` owns that rule). Anchored at the
+#: line start so prose *about* the call, in a test or a doc, is not a front-end.
+_PAGE_CONFIG = re.compile(r"^\s*st\.set_page_config\(", re.M)
+
+
+def _front_ends():
+    found = []
+    for gui in sorted(os.listdir(_ROOT)):
+        path = os.path.join(_ROOT, gui)
+        if gui.startswith(".") or gui in _NOT_A_GUI or not os.path.isdir(path):
+            continue
+        for name in sorted(os.listdir(path)):
+            entry = os.path.join(path, name)
+            if not name.endswith(".py") or not os.path.isfile(entry):
+                continue
+            if _PAGE_CONFIG.search(_read(entry)):
+                found.append(f"{gui}/{name}")
+    return found
+
+
+def test_the_smoke_gate_boots_every_front_end_this_repo_has():
+    """`st.set_page_config` marks a GUI entry point (one per front-end, guarded
+    by tests/test_app_shell.py). Every one of them is booted by the §3.5 script."""
+    script = _read(_SMOKE)
+    declared = re.search(r"GUI_ENTRY_POINTS=\((?P<body>[^)]*)\)", script)
+    assert declared, "smoke_test.sh no longer declares GUI_ENTRY_POINTS"
+    booted = re.findall(r'"([^"]+\.py)"', declared.group("body"))
+    front_ends = _front_ends()
+    assert front_ends, "no front-end found -- the detector, not the gate, is broken"
+    assert sorted(booted) == sorted(front_ends), (
+        "scripts/smoke_test.sh boots {booted} but this repo's front-ends are "
+        "{front}: a GUI the §3.5 gate never starts is a GUI no release gate "
+        "starts (#127)".format(booted=sorted(booted), front=sorted(front_ends))
+    )
+    # Declaring them is not booting them: one smoke_gui call per front-end.
+    calls = re.findall(r"^smoke_gui ", script, re.M)
+    assert len(calls) == len(front_ends), (
+        f"{len(front_ends)} front-end(s) declared, {len(calls)} booted")
+
+
+def test_the_release_checklist_names_every_front_end_the_gate_boots():
+    """§3.5 is the line a release manager reads. It names what the script does."""
+    release = _read(_RELEASE)
+    section = release[release.index("### 3.5"):]
+    section = section[:section.index("---")]
+    for entry in _front_ends():
+        assert entry in section, (
+            f"RELEASE_PROCESS.md §3.5 does not name {entry}, which the smoke "
+            "gate boots -- the checklist and the script must say the same thing"
+        )
+    assert "sloads-oracle" in section, (
+        "§3.5 must say the oracle GUI is launched through its console script: "
+        "running the launcher is the half of #127 that path-checking missed"
+    )
+
+
+def test_the_smoke_gate_runs_the_oracle_launcher_rather_than_resolving_it():
+    """`test_oracle_gui.test_the_launcher_points_at_the_entry_point` proves the
+    path resolves; only this proves the console script `pyproject.toml` binds
+    actually starts a server."""
+    script = _read(_SMOKE)
+    assert "sloads-oracle" in script, "the console script is never invoked"
+    with open(os.path.join(_ROOT, "pyproject.toml"), encoding="utf-8") as fh:
+        assert "sloads-oracle" in fh.read(), "the console script is not declared"
 
 
 if __name__ == "__main__":  # zero-dependency self-runner

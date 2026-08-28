@@ -1,10 +1,20 @@
 #!/usr/bin/env bash
 # GUI/CLI smoke test — RELEASE_PROCESS.md §3.5.
 #
-# 1. Starts the Streamlit app headless, waits for it to come up, and checks
-#    the root page answers 200 with no traceback in the server log.
-# 2. Runs the CLI "engine" module against the ga6_normal example and checks
+# 1. Starts the main GUI (app/Home.py) headless, waits for it to come up, and
+#    checks the root page answers 200 with no traceback in the server log.
+# 2. Does the same for the oracle GUI (oracle_app/Oracle.py) — launched through
+#    the `sloads-oracle` console script, so the packaging entry point is run and
+#    not merely resolved.
+# 3. Runs the CLI "engine" module against the ga6_normal example and checks
 #    the CSV it writes is non-empty with the expected header.
+#
+# **Both front-ends, because there are two** (#127). The release whose headline
+# deliverable is the oracle GUI had a hard §3.5 gate that booted only the other
+# one. In-process AppTest coverage coincidentally reaches Oracle.py's
+# set_page_config, st.navigation and sidebar context manager; what only a real
+# server reaches is the boot itself, and what only this reaches is the console
+# script a user actually types.
 #
 # Usage: scripts/smoke_test.sh
 # Exit 0 on success; non-zero (with a message on stderr) on the first failure.
@@ -28,6 +38,12 @@ if [[ -z "$PYTHON" ]]; then
 fi
 PROJECT="$ROOT_DIR/examples/ga6_normal.project.json"
 
+# The GUI entry points this gate boots, one per front-end. RELEASE_PROCESS.md
+# §3.5 names the same two, and tests/test_ci_conformance.py compares the lists:
+# a third front-end that never reaches this line is a front-end no release gate
+# starts (the defect class that file exists for).
+GUI_ENTRY_POINTS=("app/Home.py" "oracle_app/Oracle.py")
+
 if [[ -z "$PYTHON" || ! -x "$PYTHON" ]]; then
   echo "smoke_test: no usable Python interpreter (set \$PYTHON or install python3)" >&2
   exit 1
@@ -38,9 +54,7 @@ if ! "$PYTHON" -c 'import streamlit, sloads' >/dev/null 2>&1; then
 fi
 
 TMP_DIR="$(mktemp -d)"
-SERVER_LOG="$TMP_DIR/streamlit.log"
 OUT_CSV="$TMP_DIR/out.csv"
-PORT=8765
 STREAMLIT_PID=""
 
 cleanup() {
@@ -52,54 +66,86 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "smoke_test: [1/2] starting Streamlit headless on port $PORT ..."
-"$PYTHON" -m streamlit run "$ROOT_DIR/app/Home.py" \
-  --server.headless true \
-  --server.address 127.0.0.1 \
-  --server.port "$PORT" \
-  --browser.gatherUsageStats false \
-  >"$SERVER_LOG" 2>&1 &
-STREAMLIT_PID=$!
+# Resolve the oracle launcher the way a user meets it: the console script
+# `pyproject.toml` binds to `oracle:main`, taken from the interpreter's own bin
+# directory so it matches $PYTHON, then from PATH. A source checkout with no
+# install still has `python oracle.py`, which is the same entry point one hop
+# earlier -- the fallback keeps the gate runnable, and says which it took.
+ORACLE_BIN="$(dirname "$PYTHON")/sloads-oracle"
+if [[ -x "$ORACLE_BIN" ]]; then
+  ORACLE_LAUNCH=("$ORACLE_BIN")
+  ORACLE_HOW="the sloads-oracle console script"
+elif command -v sloads-oracle >/dev/null 2>&1; then
+  ORACLE_LAUNCH=("$(command -v sloads-oracle)")
+  ORACLE_HOW="the sloads-oracle console script (from PATH)"
+else
+  ORACLE_LAUNCH=("$PYTHON" "$ROOT_DIR/oracle.py")
+  ORACLE_HOW="python oracle.py (no console script installed)"
+fi
 
-health_url="http://127.0.0.1:$PORT/_stcore/health"
-up=0
-for _ in $(seq 1 30); do
-  if ! kill -0 "$STREAMLIT_PID" 2>/dev/null; then
-    echo "smoke_test: FAIL — Streamlit process exited early; log:" >&2
-    cat "$SERVER_LOG" >&2
+# Boot one front-end, prove it serves, and stop it again.
+#   smoke_gui <label> <port> <command ...>
+# The command is anything that ends in a Streamlit server; the server flags are
+# appended here so every front-end is started on identical terms.
+smoke_gui() {
+  local label="$1" port="$2"
+  shift 2
+  local slug="${label// /-}"
+  local log="$TMP_DIR/$slug.log"
+
+  "$@" \
+    --server.headless true \
+    --server.address 127.0.0.1 \
+    --server.port "$port" \
+    --browser.gatherUsageStats false \
+    >"$log" 2>&1 &
+  STREAMLIT_PID=$!
+
+  local up=0
+  for _ in $(seq 1 30); do
+    if ! kill -0 "$STREAMLIT_PID" 2>/dev/null; then
+      echo "smoke_test: FAIL — $label exited early; log:" >&2
+      cat "$log" >&2
+      exit 1
+    fi
+    if curl -sf "http://127.0.0.1:$port/_stcore/health" >/dev/null 2>&1; then
+      up=1
+      break
+    fi
+    sleep 1
+  done
+  if [[ "$up" -ne 1 ]]; then
+    echo "smoke_test: FAIL — $label did not report healthy within 30s; log:" >&2
+    cat "$log" >&2
     exit 1
   fi
-  if curl -sf "$health_url" >/dev/null 2>&1; then
-    up=1
-    break
+
+  local status_code
+  status_code="$(curl -s -o "$TMP_DIR/$slug.html" -w '%{http_code}' "http://127.0.0.1:$port/")"
+  if [[ "$status_code" != "200" ]]; then
+    echo "smoke_test: FAIL — $label root page returned HTTP $status_code" >&2
+    exit 1
   fi
-  sleep 1
-done
 
-if [[ "$up" -ne 1 ]]; then
-  echo "smoke_test: FAIL — Streamlit did not report healthy within 30s; log:" >&2
-  cat "$SERVER_LOG" >&2
-  exit 1
-fi
+  if grep -qiE "traceback \(most recent call last\)|streamlit\.errors\." "$log"; then
+    echo "smoke_test: FAIL — traceback in the $label server log:" >&2
+    cat "$log" >&2
+    exit 1
+  fi
 
-status_code="$(curl -s -o "$TMP_DIR/root.html" -w '%{http_code}' "http://127.0.0.1:$PORT/")"
-if [[ "$status_code" != "200" ]]; then
-  echo "smoke_test: FAIL — root page returned HTTP $status_code" >&2
-  exit 1
-fi
+  kill "$STREAMLIT_PID" 2>/dev/null || true
+  wait "$STREAMLIT_PID" 2>/dev/null || true
+  STREAMLIT_PID=""
+  echo "smoke_test: $label started headless and rendered its root page (HTTP 200, no traceback)."
+}
 
-if grep -qiE "traceback \(most recent call last\)|streamlit\.errors\." "$SERVER_LOG"; then
-  echo "smoke_test: FAIL — traceback found in Streamlit server log:" >&2
-  cat "$SERVER_LOG" >&2
-  exit 1
-fi
+echo "smoke_test: [1/3] starting the main GUI (${GUI_ENTRY_POINTS[0]}) headless on port 8765 ..."
+smoke_gui "main GUI" 8765 "$PYTHON" -m streamlit run "$ROOT_DIR/${GUI_ENTRY_POINTS[0]}"
 
-kill "$STREAMLIT_PID" 2>/dev/null || true
-wait "$STREAMLIT_PID" 2>/dev/null || true
-STREAMLIT_PID=""
-echo "smoke_test: Streamlit started headless and rendered the root page (HTTP 200, no traceback)."
+echo "smoke_test: [2/3] starting the oracle GUI (${GUI_ENTRY_POINTS[1]}) headless on port 8766 via $ORACLE_HOW ..."
+smoke_gui "oracle GUI" 8766 "${ORACLE_LAUNCH[@]}"
 
-echo "smoke_test: [2/2] running CLI export against $(basename "$PROJECT") ..."
+echo "smoke_test: [3/3] running CLI export against $(basename "$PROJECT") ..."
 "$PYTHON" cli.py engine "$PROJECT" -o "$OUT_CSV"
 
 if [[ ! -s "$OUT_CSV" ]]; then
