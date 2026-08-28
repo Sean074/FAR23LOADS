@@ -76,7 +76,8 @@ in `CLAUDE.md`, not re-audited at release time.
 - [ ] For releases that touch a shared upstream module (weights, geometry, aero), re-run the **full** suite — downstream modules read those slices.
 
 ### 3.5 GUI / CLI smoke test
-- [ ] `scripts/smoke_test.sh` exits 0 — it starts `app/Home.py` headless, checks the root page renders (HTTP 200, no traceback in the server log), then runs `sloads engine examples/ga6_normal.project.json -o out.csv` and checks the CSV.
+- [ ] `scripts/smoke_test.sh` exits 0 — it starts **both** GUI entry points headless and checks each root page renders (HTTP 200, no traceback in the server log): `app/Home.py`, and `oracle_app/Oracle.py` through the `sloads-oracle` console script (the launcher is run, not path-checked). It then runs `sloads engine examples/ga6_normal.project.json -o out.csv` and checks the CSV.
+- [ ] Two front-ends, two boots: the entry points named here and the ones the script boots are compared by `tests/test_ci_conformance.py` — a GUI this gate never starts is a GUI no release gate starts (#127, 2026-08-28).
 
 ---
 
