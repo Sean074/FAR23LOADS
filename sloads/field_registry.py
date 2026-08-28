@@ -1474,7 +1474,16 @@ REGISTRY: Tuple[FieldEntry, ...] = (
     # ``geometry.landing_gear.*`` rows and nothing else.
     # ----------------------------------------------------------------- #
     _E("landing.lift_factor", _LAND, _ORIG, "LGFACTOR L"),
-    _E("landing.gear_load_factor", _LAND, _ORIG, "LGFACTOR NLG override"),
+    # Replaced ``landing.gear_load_factor`` (note 37, LF-1/LF-12): the governing
+    # airplane load factor N, entered where LANDLOAD runs at a rounded design
+    # value (2.5 + 0.667 = 3.167 on p230); NLG = N - L is derived, never entered.
+    # ``SLOADS``, honestly: LGFACTOR.BAS had an NLG override, never an N input.
+    # The oracle GUI carries it regardless (C210-15), and the mark is earned:
+    # demonstrably load-bearing (G5) -- omit it on ga6 and the p230 K/gamma/
+    # reaction table moves off the oracle (NLG 2.4281 vs the printed 2.5).
+    _E("landing.airplane_load_factor", _LAND, _SLDS,
+       "governing N; None -> LGFACTOR energy value (demonstrably load-bearing, G5: "
+       "ga6 p230 reproduces only at N 3.167)", supplied=True),
     _E("landing.strut_stroke_in", _LAND, _ORIG, "LGFACTOR SSTRUT"),
     _E("landing.tire_od_in", _LAND, _ORIG, "LGFACTOR OD"),
     _E("landing.hub_diameter_in", _LAND, _ORIG, "LGFACTOR ID"),

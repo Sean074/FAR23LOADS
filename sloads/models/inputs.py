@@ -1586,6 +1586,11 @@ class LandingInput:
     airplane load factor ``N`` is the absorbed energy ratio and the gear factor is
     ``NLG = N - L`` (both returned on ``LoadFactorResult``; M2R-4 removed the
     write-back ``n`` field -- rendering the page must not mutate the project).
+    The **governing** N may be entered on ``airplane_load_factor`` (note 37: the
+    manual's LANDLOAD runs at a rounded design N, 3.167 on p230); NLG is always
+    derived as ``N - L``, so a change to the wing lift factor L always moves the
+    gear reaction. The old ``gear_load_factor`` NLG override (removed at schema
+    v57) made L inert -- see ``modules/landing.py:governing_load_factors``.
 
     LANDLOAD (FAR 23.473-23.499) then computes the tricycle-gear reaction loads for
     the level, tail-down, one-wheel, braked-roll, side and supplementary-nose-wheel
@@ -1611,7 +1616,7 @@ class LandingInput:
     strut_stroke_in: float = 0.0               # SSTRUT (fully extended -> compressed)
     tire_od_in: float = 0.0                    # OD (outer diameter of tyre)
     hub_diameter_in: float = 0.0               # ID (hub diameter)
-    lift_factor: float = 0.667                 # L (wing lift factor, <= 0.667)
+    lift_factor: float = 0.667                 # L (wing lift factor; 0.667 FAR 23.473, 1.0 FAR 25.473)
     # LANDLOAD -- the gear *geometry* is not held here (note 33, DS-1). ``main_gear``,
     # ``nose_gear`` and ``tread_in`` were fields on this slice, filled from
     # ``geometry.landing_gear`` (Step G6b's single stored home) on every run and never
@@ -1620,7 +1625,11 @@ class LandingInput:
     # page. Consumers take the geometry as an argument, resolved once by
     # :func:`sloads.modules.landing.gear_geometry`.
     tail_down_angle_deg: float = 0.0           # GRA(3) (ground line to WL, tail-down bump)
-    gear_load_factor: float = 0.0              # NLG override; 0 -> from LGFACTOR (N - L)
+    # N (governing airplane load factor); None -> LGFACTOR's energy value governs.
+    # NLG = N - L is derived, never entered (note 37, LF-1/LF-2): entering NLG made
+    # L inert on the vertical reaction. Optional, not a 0.0 sentinel -- 0 is not a
+    # legal load factor here, but "unset" must not share an encoding with a value.
+    airplane_load_factor: Optional[float] = None
 
 
 # --------------------------------------------------------------------------- #

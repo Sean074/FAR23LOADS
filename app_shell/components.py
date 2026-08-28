@@ -375,6 +375,15 @@ def unit_number_input(
 #: unchanged. One string for both GUIs and every widget path.
 EMPTY_NUMBER_PLACEHOLDER = "empty — type a value"
 
+#: The wing-lift-factor guidance both GUIs caption on the landing L widget
+#: (note 37, LF-4 / gate G-LF-6): L is a **free** input -- a hard cap cannot
+#: serve two certification bases -- and the regulations' values are stated as
+#: guidance. One string for both GUIs, drift-guarded in
+#: ``tests/test_landing.py`` (the guard enumerates the caption once, here).
+LANDING_L_FAR_CAPTION = (
+    "Wing lift carried during the impact = L × W. FAR guidance, not a cap: "
+    "L = 0.667 (FAR 23.473) · L = 1.0 (FAR 25.473(a)(2)).")
+
 
 def _seeded_number(where, label: str, seed: Optional[float],
                    name: Optional[str], **kwargs) -> Optional[float]:

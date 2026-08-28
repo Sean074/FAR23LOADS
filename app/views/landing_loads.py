@@ -17,7 +17,13 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app_shell.components import page_header, stop_page, unit_number_input, workflow_page_link
+from app_shell.components import (
+    LANDING_L_FAR_CAPTION,
+    page_header,
+    stop_page,
+    unit_number_input,
+    workflow_page_link,
+)
 from app_shell.widget_keys import widget_key
 from sloads import (
     LandingInput,
@@ -37,7 +43,13 @@ from sloads.derived_geometry import wing_reference
 from sloads.export import sbeam_bridge as sb
 from sloads.gear_loads import UNSPRUNG_NOTE, gear_case_loads
 from sloads.models import MissingInputError
-from sloads.modules.landing import build_landing, run
+from sloads.modules.landing import (
+    below_energy_caution,
+    build_landing,
+    energy_load_factor_estimate,
+    governing_load_factors,
+    run,
+)
 from sloads.validation import (
     landing_reaction_warnings,
 )
@@ -98,12 +110,27 @@ with st.form("landing_loads_form"):
         "Hub diameter", float(inp.hub_diameter_in),
         kind="length", key="land_hub_diameter", min_value=0.0, container=c3)
     lift_factor = c1.number_input(
-        "Wing lift factor, L (≤ 0.667)", min_value=0.0, max_value=0.667,
-        value=float(inp.lift_factor), key=widget_key("land_lift_factor"))
-    gear_load_factor = c2.number_input(
-        "Gear load factor override, NLG", min_value=0.0, value=float(inp.gear_load_factor),
-        key=widget_key("land_nlg_override"),
-        help="0 → use LGFACTOR's computed N − L. LANDLOAD usually rounds it up.")
+        "Wing lift factor, L", min_value=0.0,
+        value=float(inp.lift_factor), key=widget_key("land_lift_factor"),
+        help=LANDING_L_FAR_CAPTION)
+    # The governing N (note 37, LF-7): seeded from LGFACTOR's computed energy
+    # value, editable; the checkbox is the way back to computed (the app-form
+    # shape of the oracle GUI's "✕ clear"). NLG = N − L is derived below --
+    # never entered, so a change to L always moves the gear reaction.
+    _energy_est = energy_load_factor_estimate(project)
+    _n_seed = (inp.airplane_load_factor if inp.airplane_load_factor is not None
+               else (_energy_est.airplane_load_factor if _energy_est else 0.0))
+    use_computed_n = c2.checkbox(
+        "Computed N governs", value=inp.airplane_load_factor is None,
+        key=widget_key("land_n_use_computed"),
+        help="Checked → LGFACTOR's drop-test energy N governs the reactions. "
+             "Uncheck to enter a rounded design N (LANDLOAD runs at 3.167 on the "
+             "p230 oracle). NLG = N − L is always derived, never entered.")
+    entered_n = c2.number_input(
+        "Airplane load factor, N (governing)", min_value=0.0, value=float(_n_seed),
+        key=widget_key("land_airplane_load_factor"), disabled=use_computed_n,
+        help="The N the gear reactions run at. FAR 23.473(g) floors: N ≥ 2.67, "
+             "NLG ≥ 2.0 — refused in a FAR 23 category, warned in concept.")
 
     tail_down_angle_deg = st.number_input("Tail-down ground angle (deg)", min_value=0.0,
                                           value=float(inp.tail_down_angle_deg),
@@ -146,7 +173,7 @@ if applied:
     inp.tire_od_in = tire_od_in
     inp.hub_diameter_in = hub_diameter_in
     inp.lift_factor = lift_factor
-    inp.gear_load_factor = gear_load_factor
+    inp.airplane_load_factor = None if use_computed_n else entered_n
     inp.tail_down_angle_deg = tail_down_angle_deg
     project.landing = inp
     st.session_state["project"] = project
@@ -193,11 +220,25 @@ except (ValueError, ZeroDivisionError) as exc:
     stop_page()
 
 st.subheader("Landing load factor")
+_n_gov, _nlg_gov = governing_load_factors(inp, lf)
 m1, m2, m3 = st.columns(3)
-m1.metric("Sink rate (ft/s)", f"{lf.sink_rate_fps:.3f}")
-m2.metric("Airplane load factor N", f"{lf.airplane_load_factor:.3f}")
-m3.metric("Gear load factor NLG", f"{lf.gear_load_factor:.3f}")
+m1.metric("Sink rate (ft/s)", f"{lf.sink_rate_fps:.3f}",
+          help="LGFACTOR's drop-test estimate (FAR 23.473(d)).")
+m2.metric("Computed (energy) N", f"{lf.airplane_load_factor:.3f}",
+          help="The work-energy airplane load factor LGFACTOR estimates; it "
+               "governs when no N is entered above.")
+m3.metric("Computed (energy) NLG", f"{lf.gear_load_factor:.3f}")
+g1, g2, g3 = st.columns(3)
+g2.metric("Governing N", f"{_n_gov:.3f}",
+          help="What the 33-case reaction matrix below actually runs at "
+               "(entered, else the computed energy value).")
+g3.metric("Governing NLG (= N − L)", f"{_nlg_gov:.3f}",
+          help="Derived, never entered (note 37): the wing lift factor L "
+               "always moves the gear reaction.")
 
+_caution = below_energy_caution(project)
+if _caution:
+    st.warning(_caution)
 for _w in landing_reaction_warnings(reactions):
     st.warning(_w.message)
 

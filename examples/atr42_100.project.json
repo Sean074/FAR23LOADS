@@ -1,5 +1,5 @@
 {
-  "schema_version": 56,
+  "schema_version": 57,
   "name": "ATR 42-300 (\"ATR 42-100\" prototype designation never entered production; -300 is the closest PW120-powered production analog) \u2014 2x PW120 (concept, category C)",
   "engines": [
     {
@@ -941,6 +941,6 @@
     "hub_diameter_in": 14,
     "lift_factor": 0.667,
     "tail_down_angle_deg": 12.0,
-    "gear_load_factor": 2.0
+    "airplane_load_factor": 2.67
   }
 }

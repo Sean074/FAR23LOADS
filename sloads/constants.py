@@ -57,6 +57,14 @@ KT_TO_FPS_SUITE = 1.15 * 88.0 / 60.0
 # interpolated factor (1.0-1.5); sudden engine stoppage is held at 1.5 for now.
 ULTIMATE_FACTOR = 1.5
 
+# FAR 23.473(g) minima on the landing load factors: the limit inertia load factor
+# N and the limit ground-reaction factor NLG "may not be less than" these. Policy
+# owner is ``modules/landing.far23_473g_floor_violations`` (note 37, LF-6): a
+# governing N/NLG below a floor is a refusal in a FAR 23 category (N/U/A) and a
+# warning in concept (C).
+FAR23_473G_N_FLOOR = 2.67
+FAR23_473G_NLG_FLOOR = 2.0
+
 # pi: Decision 3 ("modernize the math") -- the .BAS programs wrote 3.1416; the
 # package uses ``math.pi`` directly everywhere (no ``PI`` alias to drift; the
 # guard test forbids the literal). This shifts the manual's worked-example

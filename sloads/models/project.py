@@ -263,7 +263,14 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # engine_mass_item/prop_mass_item weight-row selectors (OV-7). No default
 # changes, no removals; the 55->56 hop is an identity (the readers take the
 # defaults), so a v55 file loads bit-identical.
-SCHEMA_VERSION = 56
+# v57 (note 37, #123): the landing load factor re-parameterized. LandingInput
+# gains airplane_load_factor (Optional, the governing N) and loses the
+# gear_load_factor NLG override, which made the wing lift factor L inert on the
+# vertical reaction. The 56->57 hop is *semantic*: N = gear_load_factor +
+# lift_factor where the old override was non-zero (its 0.0 sentinel meant
+# unset -> None). It reproduces every NLG the reaction path read, so no load
+# number moves.
+SCHEMA_VERSION = 57
 
 
 @dataclass
