@@ -65,7 +65,7 @@ typed-means-override at **calc level** (a blank field in any project file
 derives, CLI and GUI alike — owner ruling), one named resolver per quantity,
 the computed value shown beside each collapsed field, and a drift guard that
 makes the mechanism the single-source owner rather than a convention
-(design note `docs/30_future/36_derive_override_note.md`, agreed 2026-08-26;
+(design note `docs/40_history/39_derive_override_note.md`, agreed 2026-08-26;
 decisions OV-1…OV-12, gates G-OV-1…G-OV-6).
 
 **Deliverables.**
@@ -230,7 +230,7 @@ pair — **`N` and `L` are the inputs; `NLG = N − L` is derived, reported, and
   new governing rows), balance/gear/deck channels on the three concept fixtures only (the
   LF-10 nudge) — ga6/cessna/baron load channels byte-identical, as LF-11 promised.
 
-**Key decisions.** LF-1 … LF-12 in `docs/30_future/37_landing_load_factor_note.md` (AGREED
+**Key decisions.** LF-1 … LF-12 in `docs/40_history/40_landing_load_factor_note.md` (AGREED
 2026-08-27); implementation choices in session: energy + governing rows both reported (not
 governing-only), one solo-close commit, floor policy homed in `modules/landing.py` with
 constants in `constants.py`.

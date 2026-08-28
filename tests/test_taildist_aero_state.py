@@ -1,6 +1,6 @@
 """TAILDIST states the aero state of each case it distributes (#100, note 35).
 
-The closure gates G-AS-1 .. G-AS-5 of ``docs/30_future/35_taildist_aero_state_note.md``:
+The closure gates G-AS-1 .. G-AS-5 of ``docs/40_history/38_taildist_aero_state_note.md``:
 
 * **G-AS-1 (oracle)** -- on the Appendix A GA6, ``BAL UP RETRACTED``'s structured
   ``alpha_tail_deg``/``delta_deg`` equal the loose ``LoadValue``s already
