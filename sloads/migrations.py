@@ -73,11 +73,33 @@ def _hop_55(d: Dict[str, Any]) -> Dict[str, Any]:
     return d
 
 
+def _hop_56(d: Dict[str, Any]) -> Dict[str, Any]:
+    """v56 -> v57 (note 37 LF-8, #123): **semantic** -- the landing N inversion.
+
+    ``landing.gear_load_factor`` (an NLG override, ``0.0`` = unset) is replaced
+    by ``landing.airplane_load_factor`` (the governing N, ``None`` = unset):
+    ``N = NLG_old + L``, the vertical-equilibrium identity at peak load. Not an
+    identity hop, deliberately -- the field's role inverts from input to derived,
+    and re-pointing an old project at the energy equation instead would move its
+    NLG (ga6 p230: 2.5 entered vs 2.4281 energy). The hop reproduces every NLG
+    the reaction path read, so no load number moves.
+    """
+    landing = d.get("landing")
+    if isinstance(landing, dict):
+        nlg = landing.pop("gear_load_factor", 0.0)
+        if nlg:
+            landing["airplane_load_factor"] = nlg + landing.get("lift_factor", 0.667)
+    return d
+
+
 #: ``{from_version: hop}`` -- applied in ascending order, each turning a file of
 #: version *n* into version *n+1* shape. A version that changes shape adds its
 #: hop here; :data:`SUPPORTED_FLOOR` names the oldest version the chain starts
 #: from.
-MIGRATIONS: Dict[int, Callable[[Dict[str, Any]], Dict[str, Any]]] = {55: _hop_55}
+MIGRATIONS: Dict[int, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
+    55: _hop_55,
+    56: _hop_56,
+}
 
 #: The oldest project version this build reads. It sat at ``SCHEMA_VERSION``
 #: while the chain was empty (#93: pre-production, nothing older worth

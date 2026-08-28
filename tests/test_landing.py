@@ -19,9 +19,11 @@ Two oracle bands (Reference 1 Ch 20):
   VMP 3144 / VNP 1787 / nose resultant 1879; the side-load cases VMP 2261 with
   SMP -1700 (LT drift) / 1122 (RT drift).
 
-Note LANDLOAD takes the **gear load factor as a rounded design input** (2.5 on
-p230), distinct from LGFACTOR's computed 2.428 -- the oracle's ``NAP = NLG + L``
-is 3.167 = 2.5 + 0.667.
+Note the manual's LANDLOAD runs at a **rounded design load factor** distinct from
+LGFACTOR's computed 2.428: since note 37 that is entered as the governing
+**airplane** load factor ``N = 3.167`` (the oracle's ``NAP = NLG + L`` =
+2.5 + 0.667) and ``NLG = N - L = 2.5`` is derived -- never entered -- so the
+wing lift factor L always moves the gear reaction (gate G-LF-2).
 
 Reference: LGFACTOR.BAS (Appendix C p483), LANDLOAD.BAS (Appendix C p468); Ref 1
 Ch 20; oracles Appendix A p230, p236.
@@ -65,6 +67,10 @@ _GA = os.path.join(_EXAMPLES, "ga6_normal.project.json")
 #: The Appendix A GA-6 design weights, which left ``LandingInput`` at decisions
 #: G-4 / G-14 and are now passed to ``landing_reactions`` explicitly.
 _MLW, _MTOW = 3230.0, 3400.0
+# The governing NLG the ga6 fixture runs at: the entered N = 3.167 (LF-9, the
+# manual's rounded design value -- p230 reproduces at no other NLG) minus
+# L = 0.667. Stated as the literal the oracle used, not re-derived in float.
+_GA_NLG = 2.5
 
 #: The three roled loadings, in the order LANDLOAD consumes them.
 _GA_CGS = [
@@ -98,7 +104,7 @@ def _ga_landing() -> LandingInput:
     """
     return LandingInput(
         strut_stroke_in=7, tire_od_in=19, hub_diameter_in=7, lift_factor=0.667,
-        tail_down_angle_deg=15.0, gear_load_factor=2.5,
+        tail_down_angle_deg=15.0, airplane_load_factor=3.167,
     )
 
 
@@ -153,7 +159,7 @@ def test_lgfactor_spring_vs_oleo():
 # --------------------------------------------------------------------------- #
 def test_landload_geometry_oracle():
     inp = _ga_landing()
-    g = _geometry(inp, _ga_gear(), inp.gear_load_factor, _GA_CGS, _MLW)
+    g = _geometry(inp, _ga_gear(), _GA_NLG, _GA_CGS, _MLW)
     assert math.isclose(g.k, 0.324, rel_tol=3e-3), g.k
     assert math.isclose(g.gamma_deg, 17.978, rel_tol=3e-3), g.gamma_deg
     # Ground angles: 3-/2-wheel level, ground roll, tail down.
@@ -168,7 +174,7 @@ def test_landload_geometry_oracle():
 def test_landload_lever_arms_oracle():
     """The BP / DP / ground-roll AP-CP lever arms reproduce the p230 table exactly."""
     inp = _ga_landing()
-    g = _geometry(inp, _ga_gear(), inp.gear_load_factor, _GA_CGS, _MLW)
+    g = _geometry(inp, _ga_gear(), _GA_NLG, _GA_CGS, _MLW)
     # Level-attitude BP for the three CG cases (p230).
     assert math.isclose(g.bp[0][0], 19.796, rel_tol=2e-3), g.bp[0]
     assert math.isclose(g.bp[0][1], 28.512, rel_tol=2e-3), g.bp[0]
@@ -204,9 +210,9 @@ def test_landload_case_formulas():
     """Closure on the FAR-section reaction formulas (LANDLOAD.BAS 910-1900)."""
     inp = _ga_landing()
     lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
-    g = _geometry(inp, _ga_gear(), inp.gear_load_factor, _GA_CGS, _MLW)
+    g = _geometry(inp, _ga_gear(), _GA_NLG, _GA_CGS, _MLW)
     rx = {c.case: c for c in landing_reactions(inp, _ga_gear(), lf, _GA_CGS, mlw=_MLW, mtow=_MTOW)}
-    nlg, k = inp.gear_load_factor, g.k
+    nlg, k = _GA_NLG, g.k
     w1 = _GA_CGS[0].weight_lb
     # 3-wheel level (case 1): VMP = .5*NLG*W*AP/DP, DMP = K*VMP, resultant.
     assert math.isclose(rx[1].vmp, 0.5 * nlg * w1 * g.ap[0][0] / g.dp[0][0], rel_tol=1e-9)
@@ -261,7 +267,7 @@ def test_landing_io_roundtrip():
     p = io.load_project(_GA)
     d = io.project_to_dict(p)
     p2 = io.project_from_dict(d)
-    assert p2.landing.gear_load_factor == 2.5
+    assert p2.landing.airplane_load_factor == 3.167
     assert landing_role_cases(p2)[0].xcg == 85.1
     assert p2.weight.max_landing_weight_lb == 3230
     assert p2.weight.max_takeoff_weight_lb == 3400
@@ -300,14 +306,17 @@ def test_landing_requires_explicit_cg_cases():
 
 
 def _soft_strut_landing() -> LandingInput:
-    """GA-6 gear with an over-soft oleo stroke so N/NLG fall below the 23.473(g)
-    floors (N < 2.67, NLG < 2.0) -- the trigger for the concept-mode warning."""
-    return replace(_ga_landing(), strut_stroke_in=25.0)
+    """GA-6 gear with an over-soft oleo stroke so the *energy* N/NLG fall below
+    the 23.473(g) floors (N < 2.67, NLG < 2.0), and no entered N, so the energy
+    pair governs -- the trigger for the floor policy (note 37, LF-6)."""
+    return replace(_ga_landing(), strut_stroke_in=25.0, airplane_load_factor=None)
 
 
 def test_landing_473g_floor_warning_concept():
-    """Concept mode notes the 23.473(g) floor when N < 2.67 or NLG < 2.0."""
-    lf, _ = build_landing(_ga_project(_soft_strut_landing()))
+    """Concept mode notes the 23.473(g) floor when the governing pair sits below
+    it (warn-only: the computed N/NLG are left untouched)."""
+    lf, _ = build_landing(_ga_project(_soft_strut_landing(),
+                                      speeds=StructuralSpeedsInput(category="C")))
     assert lf.airplane_load_factor < 2.67 and lf.gear_load_factor < 2.0
     mod = run(_ga_project(_soft_strut_landing(),
                           speeds=StructuralSpeedsInput(category="C")))
@@ -315,12 +324,124 @@ def test_landing_473g_floor_warning_concept():
     assert "23.473(g)" in note and "N=" in note and "NLG=" in note
 
 
-def test_landing_473g_floor_not_warned_in_far23():
-    """The floor note is concept-gated: a FAR23 project below the floor is silent
-    (the computed N/NLG are unchanged in both modes -- warn-only)."""
-    mod = run(_ga_project(_soft_strut_landing(),
-                          speeds=StructuralSpeedsInput(category="N")))
-    assert "23.473(g)" not in mod.conditions[0].note
+def test_landing_473g_floor_blocks_in_far23():
+    """G-LF-4 (note 37, LF-6): a FAR 23 category (N/U/A) below the 23.473(g)
+    floors is a named refusal, not a silent pass. It was warn-only *and*
+    concept-only while N was derived and could not be wrong; a user-supplied N
+    in a certificated category can be."""
+    try:
+        build_landing(_ga_project(_soft_strut_landing(),
+                                  speeds=StructuralSpeedsInput(category="N")))
+        raise AssertionError("expected the 23.473(g) refusal")
+    except ValueError as e:
+        assert "23.473(g)" in str(e) and "N=" in str(e)
+    # An entered N below the floor is refused the same way -- the entry path is
+    # the one that made the floor reachable in a FAR 23 category at all.
+    try:
+        build_landing(_ga_project(replace(_ga_landing(), airplane_load_factor=2.5),
+                                  speeds=StructuralSpeedsInput(category="N")))
+        raise AssertionError("expected the 23.473(g) refusal on an entered N")
+    except ValueError as e:
+        assert "23.473(g)" in str(e)
+
+
+def test_landing_n_le_l_is_refused_by_name():
+    """G-LF-4 (note 37, LF-5): with the L cap gone, ``N <= L`` is the one guard
+    between ``K = NAP/NLG * K0`` and a zero or sign-flipped NLG."""
+    lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
+    inp = replace(_ga_landing(), airplane_load_factor=0.5)
+    try:
+        landing_reactions(inp, _ga_gear(), lf, _GA_CGS, mlw=_MLW, mtow=_MTOW)
+        raise AssertionError("expected the N <= L refusal")
+    except ValueError as e:
+        assert "N=" in str(e) and "L=" in str(e) and "NLG" in str(e)
+
+
+def test_landing_473g_floor_constants_drift_guard():
+    """Practice 3 (note 37, LF-6): the floors are regulation text with one code
+    owner -- the constants and the policy function may not drift apart, and the
+    numbers are 23.473(g)'s, not anyone's tuning."""
+    from sloads.constants import FAR23_473G_N_FLOOR, FAR23_473G_NLG_FLOOR
+    from sloads.modules.landing import far23_473g_floor_violations
+    assert FAR23_473G_N_FLOOR == 2.67 and FAR23_473G_NLG_FLOOR == 2.0
+    assert far23_473g_floor_violations(2.67, 2.0) == []
+    both = far23_473g_floor_violations(2.669, 1.999)
+    assert len(both) == 2 and "2.67" in both[0] and "2.0" in both[1]
+
+
+def test_lift_factor_moves_the_gear_reaction():
+    """G-LF-2 (note 37): the defect dies, stated as a test. Before the fix the
+    stored NLG override made L **inert** on the vertical reaction -- raising L
+    0.667 -> 1.0 at a fixed entered NLG changed *no wheel load at all* (the user
+    changed the lift assumption and no reaction moved). At a fixed governing
+    ``N``, NLG = N - L: raising L 0.667 -> 1.0 on ga6 lowers NLG 2.500 -> 2.167
+    and every case-4-12 VMP by the same ratio, and raises K/gamma."""
+    p = io.load_project(_GA)
+    _, rx = build_landing(p)
+    p.landing = replace(p.landing, lift_factor=1.0)
+    lf2, rx2 = build_landing(p)
+    from sloads.modules.landing import governing_load_factors
+    n, nlg = governing_load_factors(p.landing, lf2)
+    assert math.isclose(n, 3.167) and math.isclose(nlg, 2.167)
+    by, by2 = {c.case: c for c in rx}, {c.case: c for c in rx2}
+    for m in range(4, 13):
+        assert math.isclose(by2[m].vmp / by[m].vmp, 2.167 / 2.5, rel_tol=1e-9), m
+    # K rises with L at fixed N: K = NAP/NLG * K0 = (3.167/2.167)*0.256133
+    # = 0.3743, gamma 20.52 deg (the note's printed 0.3586/19.72 was an
+    # arithmetic slip, corrected with the note in this change).
+    g = _geometry(p.landing, _ga_gear(), nlg, _GA_CGS, _MLW)
+    assert math.isclose(g.k, 3.167 / 2.167 * 0.256133, rel_tol=1e-4), g.k
+    assert math.isclose(g.gamma_deg, 20.522, rel_tol=1e-3), g.gamma_deg
+
+
+def test_nvp_recovers_the_governing_n_on_every_example():
+    """G-LF-3 (note 37): N is recoverable from the reactions -- ``NVP == N``
+    exactly on the full-lift cases 4-9 and ``NVP == 0.5*NLG + L`` on the
+    one-wheel cases 10-12, for every bundled example with a landing slice. The
+    closure gate rule 2 requires with the feature."""
+    from sloads.modules.landing import governing_load_factors
+    checked = 0
+    for name in sorted(os.listdir(_EXAMPLES)):
+        if not name.endswith(".project.json"):
+            continue
+        p = io.load_project(os.path.join(_EXAMPLES, name))
+        if p.landing is None:
+            continue
+        lf, rx = build_landing(p)
+        n, nlg = governing_load_factors(p.landing, lf)
+        by = {c.case: c for c in rx}
+        for m in range(4, 10):
+            assert math.isclose(by[m].nvp, n, rel_tol=1e-9), (name, m)
+        for m in range(10, 13):
+            assert math.isclose(by[m].nvp, 0.5 * nlg + p.landing.lift_factor,
+                                rel_tol=1e-9), (name, m)
+        checked += 1
+    assert checked >= 6, "the bundled fleet shrank"
+
+
+def test_below_energy_caution_fires_on_cessna_not_ga6():
+    """G-LF-6's caution half (note 37, LF-7): cessna_210 enters N = 3.167 below
+    its computed 3.3885 and is told so; ga6 enters 3.167 above its 3.0951 and is
+    not. One owner (``below_energy_caution``) serves both GUIs."""
+    from sloads.modules.landing import below_energy_caution
+    assert below_energy_caution(io.load_project(_GA)) is None
+    caution = below_energy_caution(
+        io.load_project(os.path.join(_EXAMPLES, "cessna_210.project.json")))
+    assert caution is not None and "3.1670" in caution and "3.3885" in caution
+
+
+def test_lift_factor_caption_is_shared_by_both_guis():
+    """G-LF-6's caption half: the FAR-defaults guidance is enumerated once
+    (``app_shell.components.LANDING_L_FAR_CAPTION``) and both GUIs consume that
+    symbol -- the L widget carries no cap in either."""
+    from app_shell.components import LANDING_L_FAR_CAPTION
+    assert "0.667" in LANDING_L_FAR_CAPTION and "23.473" in LANDING_L_FAR_CAPTION
+    assert "1.0" in LANDING_L_FAR_CAPTION and "25.473(a)(2)" in LANDING_L_FAR_CAPTION
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for rel in (os.path.join("app", "views", "landing_loads.py"),
+                os.path.join("oracle_app", "form.py")):
+        with open(os.path.join(root, rel), encoding="utf-8") as fh:
+            assert "LANDING_L_FAR_CAPTION" in fh.read(), rel
 
 
 # --------------------------------------------------------------------------- #
@@ -348,7 +469,7 @@ def test_unbalanced_moments_closure():
     original port but delivered nowhere and asserted nowhere until M4-17e."""
     inp = _ga_landing()
     lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
-    g = _geometry(inp, _ga_gear(), inp.gear_load_factor, _GA_CGS, _MLW)
+    g = _geometry(inp, _ga_gear(), _GA_NLG, _GA_CGS, _MLW)
     rx = {c.case: c for c in landing_reactions(inp, _ga_gear(), lf, _GA_CGS, mlw=_MLW, mtow=_MTOW)}
     wr = _MTOW / _MLW
     # 2-wheel level (4) and tail-down (7): -2 * RMP * BP for the attitude/CG pair.

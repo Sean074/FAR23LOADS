@@ -1,8 +1,9 @@
 """The schema gate (#93), and the migration machinery kept behind it.
 
 Pre-production a project file is read at the current ``SCHEMA_VERSION`` or a
-version the hop chain reaches it from — since note 36 (OV-10, #97) that is v55,
-through the additive-identity 55→56 hop — and `sloads.migrations.migrate`
+version the hop chain reaches it from — v55, through the additive-identity
+55→56 hop (note 36 OV-10, #97) and the semantic 56→57 landing-N hop (note 37
+LF-8, #123) — and `sloads.migrations.migrate`
 raises `SchemaVersionError` for anything else: older than the floor, newer, or
 unversioned. This file pins that gate, and pins that the hop chain works
 (`migrations.py` module docstring).
@@ -37,7 +38,7 @@ from sloads.models import SCHEMA_VERSION
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _FIXTURES = os.path.join(_HERE, "fixtures_schema")
 _EXAMPLES = os.path.join(os.path.dirname(_HERE), "examples")
-_CURRENT = "v56_current.json"
+_CURRENT = "v57_current.json"
 
 
 def _load(name=_CURRENT):
@@ -135,17 +136,46 @@ def test_a_registered_hop_still_runs():
 
 def test_a_v55_file_loads_through_the_identity_hop_unchanged():
     """Gate G-OV-5 (note 36, OV-10): the 55->56 hop is an identity -- a v55
-    file loads with nothing but its stamp moved, ``applied_hops(55)`` names the
-    hop, and the loaded ``Project`` equals the same file loaded at v56."""
+    file passes through it with nothing moved (the chain then applies 56->57
+    like any v56 file), ``applied_hops(55)`` names both hops, and the loaded
+    ``Project`` equals the same airplane's current fixture."""
     v55 = _load("v55_current.json")
     assert v55["schema_version"] == 55
-    out = migrate(v55)
-    assert out["schema_version"] == SCHEMA_VERSION
-    assert {k: v for k, v in out.items() if k != "schema_version"} == \
-           {k: v for k, v in v55.items() if k != "schema_version"}
-    assert applied_hops(55) == [55]
+    hopped = MIGRATIONS[55](copy.deepcopy(v55))
+    assert hopped == v55, "the 55->56 identity hop moved something"
+    assert applied_hops(55) == [55, 56]
     assert io.project_to_dict(io.project_from_dict(v55)) == \
            io.project_to_dict(io.project_from_dict(_load()))
+
+
+def test_the_v56_hop_inverts_the_landing_override():
+    """Gate G-LF-5 (note 37, LF-8, #123): the 56->57 hop is *semantic* --
+    ``airplane_load_factor = gear_load_factor + lift_factor`` where the old NLG
+    override was non-zero (3.167 = 2.5 + 0.667 on the frozen fixture), the
+    ``0.0`` sentinel loads to unfilled, and the old key is gone either way."""
+    v56 = _load("v56_current.json")
+    assert v56["schema_version"] == 56
+    assert v56["landing"]["gear_load_factor"] == 2.5
+    out = migrate(v56)
+    assert out["schema_version"] == SCHEMA_VERSION
+    assert "gear_load_factor" not in out["landing"]
+    assert out["landing"]["airplane_load_factor"] == 3.167
+    assert applied_hops(56) == [56]
+    # The 0.0 sentinel meant "unset": it loads to an unfilled Optional.
+    sentinel = copy.deepcopy(v56)
+    sentinel["landing"]["gear_load_factor"] = 0.0
+    out0 = migrate(sentinel)
+    assert "gear_load_factor" not in out0["landing"]
+    assert "airplane_load_factor" not in out0["landing"]
+    assert io.project_from_dict(sentinel).landing.airplane_load_factor is None
+    # The whole point (LF-11): the hop reproduces every NLG the reaction path
+    # read, so the migrated project's 33-case matrix is bit-identical to the
+    # same airplane's current fixture.
+    from sloads.modules.landing import build_landing
+    _, rx_hop = build_landing(io.project_from_dict(v56))
+    _, rx_cur = build_landing(io.project_from_dict(_load()))
+    assert [(c.vmp, c.dmp, c.smp, c.vnp, c.dnp, c.snp) for c in rx_hop] == \
+           [(c.vmp, c.dmp, c.smp, c.vnp, c.dnp, c.snp) for c in rx_cur]
 
 
 def test_migrate_does_not_mutate_the_callers_dict():
@@ -163,7 +193,7 @@ def test_migrate_is_idempotent():
 
 def test_applied_hops_matches_the_chain():
     assert applied_hops(SCHEMA_VERSION) == []            # nothing at/above current
-    assert applied_hops(SUPPORTED_FLOOR) == sorted(MIGRATIONS) == [55]
+    assert applied_hops(SUPPORTED_FLOOR) == sorted(MIGRATIONS) == [55, 56]
 
 
 # --------------------------------------------------------------------------- #

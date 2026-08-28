@@ -305,7 +305,16 @@ def fields_hash() -> str:
 #: persisted set from an older file loads them as ``None`` and TAILDIST states
 #: the AS-4 "re-run SELECT" reason. No input dataclass changed, no migration
 #: hop, ``SCHEMA_VERSION`` unchanged.
-EXPECTED_FIELDS_HASH = "8524f8d8c86fae6f"
+#: v57 (note 37 LF-1/LF-2/LF-8, #123): the landing load factor re-parameterized.
+#: ``LandingInput.gear_load_factor`` (an NLG override with a ``0.0`` sentinel)
+#: removed; ``LandingInput.airplane_load_factor`` (Optional, the governing N)
+#: added -- ``NLG = N - L`` is derived, never entered, so the wing lift factor
+#: moves the gear reaction. The 56->57 hop is **semantic**:
+#: ``N = gear_load_factor + lift_factor`` where the override was non-zero, else
+#: unfilled. It reproduces every NLG the reaction path read (ga6 p230 stays at
+#: 2.5), so no load number moves; the three concept fixtures were separately
+#: nudged to N = 2.67 (LF-10, a deliberate fixture edit stated in its diff).
+EXPECTED_FIELDS_HASH = "d43c387d783c2540"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

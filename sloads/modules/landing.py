@@ -14,6 +14,14 @@ load factor is the absorbed-energy ratio::
 
 and the landing-gear factor is ``NLG = N - L``.
 
+The *governing* pair the reaction solve runs at is owned by
+``governing_load_factors`` (note 37): ``N`` is the entered
+``landing.airplane_load_factor`` when filled (the manual's LANDLOAD runs at a
+rounded design N -- 3.167 on p230), else the energy value, and ``NLG = N - L``
+is always derived, so the wing lift factor moves the reaction. The FAR 23.473(g)
+floors (``far23_473g_floor_violations``) refuse in a FAR 23 category and warn in
+concept.
+
 **LANDLOAD** (FAR 23.473-23.499) computes the tricycle-gear reaction loads for the
 level (3-wheel and 2-wheel), tail-down, one-wheel, braked-roll, side and
 supplementary-nose-wheel ground conditions. The drag load factor of FAR 23
@@ -50,7 +58,7 @@ from typing import List, NamedTuple, Optional, Tuple
 from ..basic import basic_trunc3
 from ..case_ids import CaseIdAllocator
 from ..cg_cases import landing_role_cases, max_landing_weight, max_takeoff_weight
-from ..constants import IN_PER_FT, G
+from ..constants import FAR23_473G_N_FLOOR, FAR23_473G_NLG_FLOOR, IN_PER_FT, G
 from ..models import (
     STRUT_TYPES,
     CaseRef,
@@ -87,13 +95,12 @@ def landing_load_factor(wing_area_sqft: float, weight_lb: float, strut_stroke_in
                         main_is_oleo: bool) -> LoadFactorResult:
     """Estimate the landing load factor (LGFACTOR.BAS lines 40-160).
 
-    ``lift_factor`` (L) must not exceed 0.667; the descent velocity is clamped to
-    7-10 fps per FAR 23.473(d). Returns the sink rate, airplane load factor N and
-    landing-gear factor ``NLG = N - L``."""
+    ``lift_factor`` (L) is a free number (note 37, LF-4: 0.667 is the FAR 23.473
+    default, 1.0 the FAR 25.473(a)(2) basis -- guidance, not a cap); the descent
+    velocity is clamped to 7-10 fps per FAR 23.473(d). Returns the sink rate,
+    airplane load factor N and landing-gear factor ``NLG = N - L``."""
     if wing_area_sqft <= 0 or weight_lb <= 0:
         raise ValueError("LGFACTOR needs positive wing area and landing weight")
-    if lift_factor > 0.667:
-        raise ValueError("lift factor L must not exceed 0.667 (FAR 23.473)")
     v = 4.4 * (weight_lb / wing_area_sqft) ** 0.25
     v = min(10.0, max(7.0, v))
     d_tire = (tire_od_in - hub_diameter_in) / 6.0    # flat-tyre deflection, in
@@ -106,6 +113,43 @@ def landing_load_factor(wing_area_sqft: float, weight_lb: float, strut_stroke_in
     n = numerator / denominator
     return LoadFactorResult(sink_rate_fps=v, airplane_load_factor=n,
                             gear_load_factor=n - lift_factor)
+
+
+def governing_load_factors(inp: LandingInput,
+                           lf_result: LoadFactorResult) -> Tuple[float, float]:
+    """The governing ``(N, NLG)`` the reaction solve runs at (note 37, LF-1/LF-3).
+
+    ``N`` is ``inp.airplane_load_factor`` when entered (the manual's LANDLOAD runs
+    at a rounded design N -- 3.167 on p230, where LGFACTOR's energy value is
+    3.095), else the energy value; ``NLG = N - L`` is derived here and nowhere
+    else, so the wing lift factor L always moves the gear reaction. Refuses
+    ``N <= L`` by name (LF-5): with the L cap gone that is the only guard between
+    ``K = NAP/NLG * K0`` and a zero or negative NLG.
+    """
+    n = (inp.airplane_load_factor if inp.airplane_load_factor is not None
+         else lf_result.airplane_load_factor)
+    if n <= inp.lift_factor:
+        raise ValueError(
+            f"landing N must exceed the wing lift factor L: N={n:.4f}, "
+            f"L={inp.lift_factor:.4f} gives NLG = N - L = {n - inp.lift_factor:.4f}, "
+            "and the gear reaction solve needs NLG > 0 (K = NAP/NLG * K0)")
+    return n, n - inp.lift_factor
+
+
+def far23_473g_floor_violations(n: float, nlg: float) -> List[str]:
+    """The FAR 23.473(g) floors, stated once (note 37, LF-6; practice 3).
+
+    Returns one message per floor the governing pair sits below (empty = clear).
+    The *policy* -- refuse in a FAR 23 category, warn in concept -- is applied by
+    ``build_landing``/``run`` on this single owner's output; the numbers live in
+    ``constants.py`` with the drift guard in ``tests/test_landing.py``.
+    """
+    floors = []
+    if n < FAR23_473G_N_FLOOR:
+        floors.append(f"N={n:.3f} < {FAR23_473G_N_FLOOR}")
+    if nlg < FAR23_473G_NLG_FLOOR:
+        floors.append(f"NLG={nlg:.3f} < {FAR23_473G_NLG_FLOOR}")
+    return floors
 
 
 # Drag load factor K0 of FAR 23 Appendix C 23.1 (interpolated 0.25 -> 0.33).
@@ -306,7 +350,7 @@ def landing_reactions(inp: LandingInput, gear: LandingGearGeometry,
     ``WR = mtow/mlw`` scales cases 13-22 to the take-off weight."""
     if len(cgs) != 3:
         raise ValueError("LANDLOAD needs exactly 3 CG cases (aft/fwd max landing, fwd light)")
-    nlg = inp.gear_load_factor or lf_result.gear_load_factor
+    _, nlg = governing_load_factors(inp, lf_result)
     lf = inp.lift_factor
     geo = _geometry(inp, gear, nlg, cgs, mlw)
     k = geo.k
@@ -592,8 +636,61 @@ def build_landing(project: Project) -> Tuple[LoadFactorResult, List[GearReaction
                              inp.tire_od_in, inp.hub_diameter_in, inp.lift_factor,
                              normalise_code(gear.main_gear.strut, STRUT_TYPES, "main-gear strut type") == "O")
     cgs = _cg_cases(project)
+    # FAR 23.473(g) floors on the *governing* pair (note 37, LF-6): a refusal in a
+    # FAR 23 category (a user-entered N in a certificated category can be wrong in
+    # a way the derived-only N never could), a warn-only note (in ``run``) in
+    # concept. One policy owner: ``far23_473g_floor_violations``.
+    n_gov, nlg_gov = governing_load_factors(inp, lf)
+    if not project.is_concept:
+        floors = far23_473g_floor_violations(n_gov, nlg_gov)
+        if floors:
+            raise ValueError(
+                "23.473(g) floor not met (" + "; ".join(floors) + "): a FAR 23 "
+                f"category requires N >= {FAR23_473G_N_FLOOR} and "
+                f"NLG >= {FAR23_473G_NLG_FLOOR}. Enter a higher landing N, or a "
+                "stiffer gear if the energy value governs.")
     reactions = landing_reactions(inp, gear, lf, cgs, mlw=mlw, mtow=mtow)
     return lf, reactions
+
+
+def energy_load_factor_estimate(project: Project) -> Optional[LoadFactorResult]:
+    """LGFACTOR's energy result from the stored inputs, or ``None`` -- never raises.
+
+    A display helper for both GUIs (note 37, LF-7): the seed for the governing-N
+    widget and the "entered N is below the computed N" caution both need the
+    energy value on a page that may not yet be computable. One owner here so the
+    two front-ends cannot restate the LGFACTOR call differently.
+    """
+    try:
+        if project.landing is None:
+            return None
+        inp = project.landing
+        gear = gear_geometry(project)
+        return landing_load_factor(
+            _wing_area(project), max_landing_weight(project), inp.strut_stroke_in,
+            inp.tire_od_in, inp.hub_diameter_in, inp.lift_factor,
+            normalise_code(gear.main_gear.strut, STRUT_TYPES, "main-gear strut type") == "O")
+    except (MissingInputError, ValueError, ZeroDivisionError):
+        return None
+
+
+def below_energy_caution(project: Project) -> Optional[str]:
+    """The "entered N is below the computed N" caution, or ``None`` (note 37, LF-7).
+
+    Not a refusal: a rounded-down design N is legal (the floors are the hard
+    bound), but running the reactions below the drop-test energy value deserves a
+    stated warning. One owner for both GUIs; ``cessna_210`` trips it (3.1670
+    entered vs 3.3885 computed), ``ga6_normal`` does not (3.167 vs 3.0951).
+    """
+    inp = project.landing
+    if inp is None or inp.airplane_load_factor is None:
+        return None
+    est = energy_load_factor_estimate(project)
+    if est is None or inp.airplane_load_factor >= est.airplane_load_factor:
+        return None
+    return (f"Entered N = {inp.airplane_load_factor:.4f} is below LGFACTOR's "
+            f"computed (energy) N = {est.airplane_load_factor:.4f}: the reactions "
+            "run below the drop-test work-energy estimate for this gear.")
 
 
 def _critical(cases: List[GearReactionCase], far: str) -> Optional[GearReactionCase]:
@@ -654,21 +751,25 @@ def _case_values(c: GearReactionCase) -> List[LoadValue]:
 def run(project: Project) -> ModuleResult:
     """Run LGFACTOR + LANDLOAD: the ground-load conditions (FAR 23.473-23.499)."""
     lf, reactions = build_landing(project)
+    inp = project.landing
+    assert inp is not None  # build_landing raised otherwise
+    n_gov, nlg_gov = governing_load_factors(inp, lf)
     note = "Tricycle gear only (UG Table 2.1)."
+    if inp.airplane_load_factor is not None:
+        note += (f" The reactions run at the entered N = {n_gov:.4f} "
+                 f"(NLG = N - L = {nlg_gov:.4f}); the energy N/NLG rows are "
+                 "LGFACTOR's drop-test estimate.")
     if project.is_concept:
         note += " Concept mode -- unverified extrapolation past the FAR23 band."
-        # FAR 23.473(g): the limit inertia load factor N must not be < 2.67 and the
-        # limit ground-reaction factor NLG must not be < 2.0. Warn-only (concept
-        # mode) -- the computed N/NLG are left untouched, so the Appendix-A oracle
-        # (N 3.0951 / NLG 2.4281, both above the floors) is unaffected.
-        floors = []
-        if lf.airplane_load_factor < 2.67:
-            floors.append(f"N={lf.airplane_load_factor:.3f} < 2.67")
-        if lf.gear_load_factor < 2.0:
-            floors.append(f"NLG={lf.gear_load_factor:.3f} < 2.0")
+        # FAR 23.473(g) on the *governing* pair: warn-only in concept (a FAR 23
+        # category refuses instead, in ``build_landing`` -- note 37, LF-6). The
+        # energy N/NLG are left untouched, so the Appendix-A oracle (N 3.0951 /
+        # NLG 2.4281) is unaffected.
+        floors = far23_473g_floor_violations(n_gov, nlg_gov)
         if floors:
             note += (" 23.473(g) floor not met (" + "; ".join(floors)
-                     + "): the regulation requires N >= 2.67 and NLG >= 2.0.")
+                     + f"): the regulation requires N >= {FAR23_473G_N_FLOOR} "
+                     f"and NLG >= {FAR23_473G_NLG_FLOOR}.")
 
     conditions = [ConditionResult(
         title="Landing load factor (LGFACTOR)",
@@ -677,6 +778,12 @@ def run(project: Project) -> ModuleResult:
             LoadValue("Sink rate", lf.sink_rate_fps, "ft/s", key="sink_rate"),
             LoadValue("Airplane load factor N", lf.airplane_load_factor, "", key="airplane_load_factor_n"),
             LoadValue("Landing gear factor NLG", lf.gear_load_factor, "", key="landing_gear_factor_nlg"),
+            # The pair the reaction matrix actually ran at (note 37: equal to the
+            # energy rows above unless the user entered N). Fixes symptom S2 --
+            # the page used to report only an N the reactions were not computed
+            # from whenever the old NLG override was set.
+            LoadValue("Governing airplane load factor N", n_gov, "", key="governing_airplane_load_factor_n"),
+            LoadValue("Governing gear factor NLG", nlg_gov, "", key="governing_gear_factor_nlg"),
         ],
         note=note,
     )]

@@ -51,6 +51,7 @@ import streamlit as st
 from app_shell.components import (
     EMPTY_NUMBER_PLACEHOLDER,
     GRID_COMMIT_NOTE,
+    LANDING_L_FAR_CAPTION,
     active_system,
     clear_number_input,
     page_header,
@@ -65,6 +66,7 @@ from sloads.applicability import step_not_applicable
 from sloads.derived import refresh_derived
 from sloads.derived_geometry import tail_cp_suggestion
 from sloads.models import Project, same_name
+from sloads.modules.landing import below_energy_caution, energy_load_factor_estimate
 from sloads.selectors import duplicate_selectors, seed_name
 from sloads.units import (
     FieldUnit,
@@ -208,8 +210,34 @@ def _tail_cp_group_note(project: Any) -> str:
 #: and returns the caption ("" says nothing). Guarded in
 #: ``tests/test_oracle_gui.py``: every key must be a group some oracle page
 #: actually renders, so a renamed slice cannot leave a note pointing at nothing.
+def _landing_group_note(project: Any) -> str:
+    """The landing group's caption (note 37, LF-7/G-LF-6).
+
+    States the FAR lift-factor guidance (the shared ``LANDING_L_FAR_CAPTION``,
+    since the L widget carries no cap any more), the derived role of NLG, and --
+    the C210-20 suggestion pattern -- the computed energy N beside the governing
+    pair, plus the below-energy caution when the entered N undercuts it.
+    """
+    text = (LANDING_L_FAR_CAPTION +
+            " **NLG = N − L** is derived from the governing airplane load factor "
+            "N and never entered (note 37): leave N unfilled and LGFACTOR's "
+            "computed energy value governs.")
+    est = energy_load_factor_estimate(project)
+    if est is not None and project.landing is not None:
+        entered = project.landing.airplane_load_factor
+        n_gov = entered if entered is not None else est.airplane_load_factor
+        text += (f" Computed (energy) N ≈ {est.airplane_load_factor:.4f} → "
+                 f"governing N = {n_gov:.4f}, "
+                 f"NLG = {n_gov - project.landing.lift_factor:.4f}.")
+    caution = below_energy_caution(project)
+    if caution:
+        text += f" ⚠ {caution}"
+    return text
+
+
 GROUP_NOTES: Dict[str, Callable[[Any], str]] = {
     "flight_loads": _tail_cp_group_note,
+    "landing": _landing_group_note,
     "wing_mass.cases[]": lambda _project: (
         "0 rows = WINGINER runs the SELECT governing set (the derived critical "
         "wing conditions). Typed rows REPLACE that set entirely — adding one "

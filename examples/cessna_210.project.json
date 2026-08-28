@@ -1,5 +1,5 @@
 {
-  "schema_version": 56,
+  "schema_version": 57,
   "name": "Cessna 210 Centurion \u2014 Continental IO-520-A",
   "engines": [
     {
@@ -995,6 +995,6 @@
     "hub_diameter_in": 7,
     "lift_factor": 0.667,
     "tail_down_angle_deg": 13.0,
-    "gear_load_factor": 2.5
+    "airplane_load_factor": 3.167
   }
 }

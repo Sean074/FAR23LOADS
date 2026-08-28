@@ -1,5 +1,5 @@
 {
-  "schema_version": 56,
+  "schema_version": 57,
   "name": "de Havilland Canada DHC-8-100 Dash 8 \u2014 2x PW121 (concept, category C)",
   "engines": [
     {
@@ -962,6 +962,6 @@
     "hub_diameter_in": 14,
     "lift_factor": 0.667,
     "tail_down_angle_deg": 12.0,
-    "gear_load_factor": 2.0
+    "airplane_load_factor": 2.67
   }
 }

@@ -525,7 +525,7 @@ _NOT_DIMENSIONAL: Dict[str, str] = {
     "chosen_nneg": "a load factor, in g",
     "nx": "a load factor, in g",
     "nz": "a load factor, in g",
-    "gear_load_factor": "a load factor, in g",
+    "airplane_load_factor": "a load factor, in g",
     "gust_load_factor": "a load factor, in g",
     "limit_load_factor": "a load factor, in g",
     "lift_factor": "a fraction of the airplane weight carried by the wing",

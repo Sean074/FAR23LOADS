@@ -7,8 +7,8 @@ Generated from `sloads/field_registry.py` — the registry of record for where e
 
 | Field | Type | Units / notes | Default | Origin | Provenance |
 | --- | --- | --- | --- | --- | --- |
-| `landing.lift_factor` | `float` | L (wing lift factor, <= 0.667) | `0.667` | original | LGFACTOR L |
-| `landing.gear_load_factor` | `float` | NLG override; 0 -> from LGFACTOR (N - L) | `0.0` | original | LGFACTOR NLG override |
+| `landing.lift_factor` | `float` | L (wing lift factor; 0.667 FAR 23.473, 1.0 FAR 25.473) | `0.667` | original | LGFACTOR L |
+| `landing.airplane_load_factor` | `Optional[float]` |  | `None` | sloads (supplied) | governing N; None -> LGFACTOR energy value (demonstrably load-bearing, G5: ga6 p230 reproduces only at N 3.167) |
 | `landing.strut_stroke_in` | `float` | SSTRUT (fully extended -> compressed) | `0.0` | original | LGFACTOR SSTRUT |
 | `landing.tire_od_in` | `float` | OD (outer diameter of tyre) | `0.0` | original | LGFACTOR OD |
 | `landing.hub_diameter_in` | `float` | ID (hub diameter) | `0.0` | original | LGFACTOR ID |
