@@ -2,13 +2,15 @@
 
 **Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6)*
 
-**Status: AGREED 2026-08-26 (owner, in session — `CLAUDE.md` rule 1's
-working-alone path). Milestone: 0.8.0, issue #100 (C210-32, tier L).**
-Agreed as drafted, with one scope ruling: the equivalent-gust-Δα extension
-offered under AS-2 is **parked** ([`02_parked.md`](02_parked.md), "Equivalent
-gust Δα on the h-tail gust conditions") — the gust cases state their trim
-state plus the existing load increment, nothing more. Nothing below is built
-yet.
+**Status: SHIPPED 2026-08-27 (#100, C210-32, tier L;
+`changes/taildist-aero-state.*`). Agreed 2026-08-26 (owner, in session —
+`CLAUDE.md` rule 1's working-alone path); implemented as drafted, gates
+G-AS-1…G-AS-5 in `tests/test_taildist_aero_state.py`. Milestone: 0.8.0; rolls
+to `40_history/` at the cut.** Agreed with one scope ruling: the
+equivalent-gust-Δα extension offered under AS-2 is **parked**
+([`02_parked.md`](02_parked.md), "Equivalent gust Δα on the h-tail gust
+conditions") — the gust cases state their trim state plus the existing load
+increment, nothing more.
 
 **Scope.** Owner directive (C210-32, build review 2026-08-23): *"it would be
 useful in TAILDIST to record the alpha, beta and rudder or elevator

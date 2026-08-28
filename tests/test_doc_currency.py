@@ -188,5 +188,88 @@ def test_no_second_spelling_of_the_release_state():
         f"{offenders} -- import app_shell.components.RELEASE_STATE instead")
 
 
+# --------------------------------------------------------------------------- #
+# A design note cannot claim work is unbuilt after it has shipped (#128)
+# --------------------------------------------------------------------------- #
+# It blocks a release rather than trailing it: `RELEASE_PROCESS.md` §4 step 3
+# rolls the notes into `docs/40_history/` at the cut, so an "unbuilt" claim
+# enters the permanent record of the release that built it. Two instances found
+# together (production-release review 2026-08-27 §3.3): note 32 said "everything
+# else is unbuilt" of the oracle GUI whose every step had shipped, note 35 said
+# "Nothing below is built yet" of work that shipped as #100.
+#
+# The evidence is deliberately **in-repo**. Whether an issue is closed lives on
+# GitHub, which CI has no credential to read (the same constraint
+# `tests/test_ci_conformance.py` is built around) -- but a closed item leaves a
+# `changes/` fragment behind by the tiered-closure rule, and that fragment cites
+# the note. So the fragment is the proxy, and it is a faithful one: it exists
+# because something closed.
+_NOTES_DIR = os.path.join("docs", "30_future")
+_CHANGES = os.path.join(_ROOT, "changes")
+#: Claims that work in this note has not been done. Kept literal rather than
+#: clever -- a guard that guesses at prose fails on innocent sentences, and the
+#: two spellings this file exists for are the two the review found.
+_UNBUILT_CLAIM = re.compile(
+    r"(everything else is unbuilt"
+    r"|\bis unbuilt\b"
+    r"|nothing (?:below|here)[^.]{0,40}\bbuilt\b"
+    r"|not built yet"
+    r"|no code has been written)", re.I)
+#: A note's own record that some of it shipped.
+_SHIPPED_MARK = re.compile(r"(✅|\bSHIPPED\b|\bBUILT\b)")
+
+
+def _design_notes():
+    directory = os.path.join(_ROOT, _NOTES_DIR)
+    return sorted(n for n in os.listdir(directory) if n.endswith("_note.md"))
+
+
+def _fragments_citing(note_name):
+    """Closure fragments that name this note (``note 35``), i.e. it shipped."""
+    number = note_name.split("_", 1)[0].lstrip("0")
+    cite = re.compile(rf"\bnote {number}\b", re.I)
+    if not os.path.isdir(_CHANGES):
+        return []
+    out = []
+    for name in sorted(os.listdir(_CHANGES)):
+        if not name.endswith(".md") or name == "README.md":
+            continue
+        with open(os.path.join(_CHANGES, name), encoding="utf-8") as fh:
+            if cite.search(fh.read()):
+                out.append(name)
+    return out
+
+
+@pytest.mark.parametrize("note", _design_notes())
+def test_a_design_note_does_not_claim_unbuilt_work_it_has_shipped(note):
+    text = "\n".join(_lines(os.path.join(_NOTES_DIR, note)))
+    claims = [m.group(0) for m in _UNBUILT_CLAIM.finditer(text)]
+    if not claims:
+        return
+    evidence = []
+    if _SHIPPED_MARK.search(text):
+        evidence.append("the note itself marks work SHIPPED/BUILT/✅")
+    fragments = _fragments_citing(note)
+    if fragments:
+        evidence.append("closure fragment(s) cite it: " + ", ".join(fragments))
+    assert not evidence, (
+        f"{note} still claims unbuilt work ({claims}) while {'; '.join(evidence)}. "
+        "Restate the Status line for what shipped -- notes 36/37 (SHIPPED) and 34 "
+        "(AGREED …; BUILT …) are the model. RELEASE_PROCESS.md §4 step 3 rolls "
+        "this note into docs/40_history/ at the cut, so the claim would enter the "
+        "permanent record of the release that built it (#128)."
+    )
+
+
+def test_the_unbuilt_guard_would_catch_the_two_it_was_written_for():
+    """A guard whose pattern no longer matches its own founding instances is a
+    guard that passes because it sees nothing. These are the exact sentences
+    note 32 and note 35 carried on 2026-08-27."""
+    for sentence in ("an independent tier-S fix; everything else is unbuilt.",
+                     "state plus the existing load increment, nothing more. "
+                     "Nothing below is built yet."):
+        assert _UNBUILT_CLAIM.search(sentence), sentence
+
+
 if __name__ == "__main__":  # zero-dependency self-runner
     sys.exit(pytest.main([__file__, "-p", "no:xdist", "-q"]))
