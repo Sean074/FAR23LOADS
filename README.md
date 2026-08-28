@@ -89,7 +89,7 @@ runtime set, `pip install -e '.[dev]'` for the supported developer install (a
 second `requirements.txt` list was deleted at 0.5.0 because it had drifted from
 it). CI (`.github/workflows/ci.yml`) runs ruff and pytest on Python 3.12 for
 every pull request and every push to a `dev/**` milestone branch; the
-3.9 / 3.11 compatibility legs run on the push to `main`.
+3.10 / 3.11 compatibility legs run on the push to `main`.
 
 ## Validation & math fidelity
 

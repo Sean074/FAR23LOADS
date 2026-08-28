@@ -150,7 +150,7 @@ def test_the_process_docs_name_the_snapshot_required_checks():
         )
     stale = [
         c
-        for c in ("test (3.9)", "test (3.11)", "sbeam-roundtrip (3.11)")
+        for c in ("test (3.9)", "test (3.10)", "test (3.11)", "sbeam-roundtrip (3.11)")
         if c not in snap["required_status_checks"] and f"required checks `{c}`" in text
     ]
     assert not stale, f"DEVELOPMENT_PROCESS.md still lists non-required check(s): {stale}"
@@ -256,7 +256,7 @@ def test_the_process_docs_agree_with_the_live_review_settings():
 
 # --- hop 1c: no doc may state the matrix without its asymmetry -------------
 
-_FULL_LIST = re.compile(r"3\.9\s*(?:/|,)\s*3\.11\s*(?:/|,)\s*3\.12")
+_FULL_LIST = re.compile(r"3\.10\s*(?:/|,)\s*3\.11\s*(?:/|,)\s*3\.12")
 
 
 @pytest.mark.parametrize("rel", _CI_CLAIM_SITES)
@@ -357,6 +357,51 @@ def test_the_smoke_gate_runs_the_oracle_launcher_rather_than_resolving_it():
     assert "sloads-oracle" in script, "the console script is never invoked"
     with open(os.path.join(_ROOT, "pyproject.toml"), encoding="utf-8") as fh:
         assert "sloads-oracle" in fh.read(), "the console script is not declared"
+
+
+_CLASSIFIER = re.compile(r'"Programming Language :: Python :: (3\.\d+)"')
+_REQ_PY = re.compile(r'requires-python\s*=\s*">=(3\.\d+)"')
+_MATRIX_LIST = re.compile(r"fromJSON\('\[([^\]]*)\]'\)")
+
+
+def test_the_python_support_claim_is_one_claim_in_three_places():
+    """The 0.8.0 cut shipped `requires-python >= 3.9` beside a streamlit floor
+    whose own Requires-Python is >= 3.10 — the 3.9 leg failed at *install*, on
+    the push to `main`, after the tag (#132). Three statements of the supported
+    interpreters exist (`requires-python`, the trove classifiers, the ci.yml
+    full matrix) and the classifier comment's mirror rule was prose. This makes
+    it structural: the classifier set IS the full-matrix set, the floor is the
+    smallest of them, and every leg satisfies the floor. The half a test cannot
+    reach offline — whether the *dependencies'* Requires-Python admits the
+    floor — is enforced by the full-matrix install on `main` being green, which
+    is exactly where #132 surfaced."""
+    with open(os.path.join(_ROOT, "pyproject.toml"), encoding="utf-8") as fh:
+        pyproject = fh.read()
+    floor = _REQ_PY.search(pyproject)
+    assert floor, "pyproject.toml states no '>=' requires-python floor"
+    floor_v = tuple(int(n) for n in floor.group(1).split("."))
+    classifiers = {c for c in _CLASSIFIER.findall(pyproject) if c != "3"}
+
+    ci = _read(_CI)
+    lists = [
+        {v.strip().strip('"') for v in m.group(1).split(",")}
+        for m in _MATRIX_LIST.finditer(ci)
+    ]
+    versions = [vs for vs in lists if vs and all(v.startswith("3.") for v in vs)]
+    assert versions, "no python-version matrix list parsed out of ci.yml"
+    full = max(versions, key=len)  # the main-push list; PR legs are a subset
+
+    assert classifiers == full, (
+        f"the classifier set {sorted(classifiers)} is not the ci.yml full matrix "
+        f"{sorted(full)} — the classifier list mirrors the matrix (pyproject's own "
+        "comment); a classifier claiming an untested interpreter is #132's shape"
+    )
+    as_tuples = {tuple(int(n) for n in v.split(".")) for v in full}
+    assert min(as_tuples) == floor_v, (
+        f"requires-python >= {floor.group(1)} but the smallest tested leg is "
+        f"{'.'.join(map(str, min(as_tuples)))} — the floor must be the smallest "
+        "interpreter CI actually installs on"
+    )
 
 
 def test_the_dependency_ceiling_policy_rests_on_an_unpinned_install():

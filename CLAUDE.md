@@ -99,7 +99,7 @@ Additional rules (rationale in `docs/50_reviews/`):
   errors on `sloads/`; strictness ratchets per package in `pyproject.toml`) and `pytest` passing
   are the merge gate. **CI is asymmetric — `ci.yml` is the authority** (guard
   `tests/test_ci_conformance.py`): PRs and `dev/**` pushes run the fast gate (3.12,
-  `typecheck`, `sbeam-roundtrip (3.12)`); 3.9/3.11 and coverage run on the push to `main`.
+  `typecheck`, `sbeam-roundtrip (3.12)`); 3.10/3.11 and coverage run on the push to `main`.
 - **The git workflow is REQUIRED for all development work** — no change lands outside
   it. The operative mode is the **solo profile** (`DEVELOPMENT_PROCESS.md` §0) unless
   collaboration is explicitly in play: `scripts/solo_start.sh dev/vX.Y.Z` opens the

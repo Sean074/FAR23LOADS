@@ -105,7 +105,7 @@ otherwise all along). Rebase satisfies both: linear history for the protection
 rule, one commit per item for the record. It rewrites the branch's SHAs onto
 `main`'s tip, so delete `dev/vX.Y.Z` after the merge rather than reusing it, and
 it drops any merge commit the branch itself picked up. That push to `main` runs the full
-3.9/3.11 + coverage matrix — the gate of record for the whole milestone. Step 4
+3.10/3.11 + coverage matrix — the gate of record for the whole milestone. Step 4
 tags `main` after the merge, unchanged. The issues of this milestone are
 already closed, each in its own commit, so the PR body carries **no**
 `Closes #N`.

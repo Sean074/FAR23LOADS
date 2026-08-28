@@ -28,18 +28,18 @@ jobs:
         # The full matrix runs in exactly one place: the push to `main`, which
         # is the milestone merge. Everything else -- every PR, and every push to
         # a `dev/**` milestone branch -- is the fast gate: ONE interpreter
-        # (3.12, uninstrumented). The 3.9 / 3.11 legs are the *compatibility*
+        # (3.12, uninstrumented). The 3.10 / 3.11 legs are the *compatibility*
         # claim, not the correctness gate, and in this repository they have
         # never failed where 3.12 passed; they are fixed forward if they ever
         # differ (2026-08-17 process review; DEVELOPMENT_PROCESS §0). Required
         # checks on `main` are therefore `test (3.12)`, `typecheck`,
         # `sbeam-roundtrip (3.12)`.
-        python-version: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') && fromJSON('["3.9", "3.11", "3.12"]') || fromJSON('["3.12"]') }}
+        python-version: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') && fromJSON('["3.10", "3.11", "3.12"]') || fromJSON('["3.12"]') }}
         # Coverage on ONE leg, and on PUSH TO MAIN only (2026-08-16 item 8;
         # moved off the PR leg 2026-08-22): coverage instrumentation was the
         # wall-clock multiplier — the instrumented PR leg had grown past 27
         # minutes against ~2.5 uninstrumented local minutes. The 80 % floor is
-        # one number a single item almost never moves; like the 3.9/3.11
+        # one number a single item almost never moves; like the 3.10/3.11
         # compatibility legs it is measured on the merge push and fixed forward
         # (DEVELOPMENT_PROCESS §0). Keeping it off `dev/**` is what holds the
         # advisory gate at its measured ~7.3 min instead of ~27.
@@ -79,7 +79,7 @@ jobs:
 
   # Static type check of the calc package (design note 27, 2026-08-16). Its own
   # job, on one interpreter: mypy 2.x targets the running Python and the code's
-  # 3.9 compatibility is the test matrix's claim, not mypy's. Zero errors in
+  # 3.10 compatibility is the test matrix's claim, not mypy's. Zero errors in
   # default mode is the gate; the per-package strictness ratchet lives in
   # pyproject.toml [[tool.mypy.overrides]].
   typecheck:
@@ -106,7 +106,7 @@ jobs:
   #
   # Its own job, not a fourth leg of the matrix above: that keeps `pip install
   # scipy` off the three existing legs, and names the failure ("sbeam round
-  # trip") in the PR check list instead of burying it in a 1000-test run. 3.9 is
+  # trip") in the PR check list instead of burying it in a 1000-test run. 3.10 is
   # skipped for install cost only -- sbeam's own CI covers it.
   sbeam-roundtrip:
     runs-on: ubuntu-latest
