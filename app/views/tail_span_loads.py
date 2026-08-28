@@ -190,7 +190,7 @@ for r in results:
         "LH×": f"{r.lh_scale:.3f}",
         "Basis": "LIMIT",
     })
-st.dataframe(pd.DataFrame(_rows), hide_index=True, use_container_width=True)
+st.dataframe(pd.DataFrame(_rows), hide_index=True, width="stretch")
 st.caption(
     f"Torsion is stated about **{results[0].torsion_axis}** — every torsion names "
     "its axis. `RH×`/`LH×` are the per-side shares: equal except under FAR "
@@ -219,7 +219,7 @@ _table = [{
     _fields[4]: _mom(st_.mxx),
     _fields[5]: _mom(st_.myy),
 } for st_ in case.stations]
-st.dataframe(pd.DataFrame(_table).round(3), hide_index=True, use_container_width=True)
+st.dataframe(pd.DataFrame(_table).round(3), hide_index=True, width="stretch")
 
 # The discrete control-surface load path (plan 09 T6). Shown beside the strip
 # table rather than folded into it, because these are different points on the
@@ -235,7 +235,7 @@ if case.control_loads:
         f"Torsion ({_MOM})": _mom(cp.m_torsion),
     } for cp in case.control_loads]
     st.dataframe(pd.DataFrame(_attach).round(3), hide_index=True,
-                 use_container_width=True)
+                 width="stretch")
     _hm_cols = st.columns(3)
     _hm_cols[0].metric(f"Control-surface load ({U['weight']})",
                        f"{to_display(case.control_surface_load_lb, 'weight', system):,.1f}")
@@ -288,7 +288,7 @@ _fig.update_layout(
     yaxis_title=f"Strip Fz ({U['weight']}, LIMIT)",
     yaxis2={"title": f"Cumulative Sz ({U['weight']})", "overlaying": "y", "side": "right"},
     height=420, legend={"orientation": "h"})
-st.plotly_chart(_fig, use_container_width=True)
+st.plotly_chart(_fig, width="stretch")
 if case.attachment_y:
     st.caption(
         "The horizontal tail is a **full-span** beam, tip to tip through the "

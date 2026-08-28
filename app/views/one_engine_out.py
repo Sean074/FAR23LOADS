@@ -131,7 +131,7 @@ for cond in display_conditions:
         f"Max tail load ({force_u}, LIMIT)": round(v["max_tail_load"], 1),
         "Time to recovery (s)": round(v["time_to_recovery"], 2),
     })
-st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
 for cond in mod.conditions:
     if "NOT recovered" in cond.note:
         st.warning(f"**{cond.title}** — {cond.note}")

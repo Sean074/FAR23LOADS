@@ -260,12 +260,12 @@ else:
             x = shown[0][2]
             fig = _overlay_figure(f"{y_title} — {title}", x_label,
                                   f"{y_title} ({unit}, LIMIT)", x, traces)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
         st.subheader("Case-index for this selection")
         st.dataframe(pd.DataFrame([
             {"Case ID": cid, "Condition": lab} for cid, lab, _, _ in shown
-        ]), hide_index=True, use_container_width=True)
+        ]), hide_index=True, width="stretch")
 
         # Comparison-CSV download: the currently displayed component/cases, one
         # row per station per case per y-field -- long format, easy to re-plot.
@@ -342,7 +342,7 @@ else:
     fig.update_xaxes(title_text=f"Butt line Y ({_in_lbl})", row=1, col=1)
     fig.update_xaxes(title_text=f"Fuselage station X ({_in_lbl})", row=1, col=2)
     fig.update_layout(height=420, legend={"orientation": "h"})
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 # --------------------------------------------------------------------------- #
 # External-comparison CSV import: the sbeam_bridge span-load CSV schema
@@ -425,4 +425,4 @@ if uploaded is not None:
                 fig.update_layout(title=f"Imported vs computed — {y_col}",
                                   xaxis_title=x_col, yaxis_title=y_col, height=360,
                                   legend={"orientation": "h"})
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")

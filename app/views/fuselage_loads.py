@@ -79,7 +79,7 @@ if _summary:
             "carry-through reaction, and applying it as mass too would count it "
             "twice (Ref 1 Ch 15 p103).")
         st.dataframe(pd.DataFrame(_summary), hide_index=True,
-                     use_container_width=True)
+                     width="stretch")
         _tie = mass_distribution.wing_mass_tie(project)
         if _tie is not None and not _tie.ok:
             st.info(f"Wing mass tie: {_tie.detail}.")
@@ -105,7 +105,7 @@ with st.form("fuselage_mass_form"):
         "weight_lb": st.column_config.NumberColumn(f"weight ({U['weight']})"),
     }
     df = st.data_editor(default, column_config=station_cols, num_rows="dynamic",
-                        hide_index=True, use_container_width=True, key=widget_key(f"fuselage_stations_{system.value}"))
+                        hide_index=True, width="stretch", key=widget_key(f"fuselage_stations_{system.value}"))
     applied = st.form_submit_button("Apply", type="primary")
 
 if applied:
@@ -205,7 +205,7 @@ for title, attr, unit_key in [("Shear Sz", "sz", "lbf"), ("Bending Myy", "myy", 
     fig.update_layout(title=f"{title} — {sel}",
                       xaxis_title=f"Fuselage station X ({si_scalar_label('in', system)})",
                       yaxis_title=f"{title} ({unit})", height=320)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 st.subheader("Net fuselage load table (LIMIT)")
 st.caption(
@@ -213,7 +213,7 @@ st.caption(
     f"Myy ({si_scalar_label('lb-in', system)})."
 )
 st.dataframe(pd.DataFrame(body_limit_rows(body_load_rows([res]), system)),
-             hide_index=True, use_container_width=True)
+             hide_index=True, width="stretch")
 
 # Two basis-marked downloads (defect M4-15): the LIMIT file is the on-page
 # table's converted, unit-suffixed rows (L-8i -- ``limit_csv`` owns both); the

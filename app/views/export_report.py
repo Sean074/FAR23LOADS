@@ -602,7 +602,7 @@ if case_index_csv.strip():
     import csv as _csv_mod
 
     rows = list(_csv_mod.DictReader(_io.StringIO(strip_comment_lines(case_index_csv))))
-    st.dataframe(rows, use_container_width=True, hide_index=True)
+    st.dataframe(rows, width="stretch", hide_index=True)
     st.download_button("Case index (CSV)", case_index_csv,
                        file_name=f"{_stem}_case_index.csv", mime="text/csv")
 else:

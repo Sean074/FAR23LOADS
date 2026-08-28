@@ -169,7 +169,7 @@ def _render_project_file(project: Project, examples_dir: str) -> None:
             choice = st.selectbox(
                 "Saved projects", [f for f, _mtime in saved], key="_open_saved_choice"
             )
-            if st.button("Open", key="_open_saved_btn", use_container_width=True):
+            if st.button("Open", key="_open_saved_btn", width="stretch"):
                 path = os.path.join(projects_dir, choice)
                 loaded = safe_load(lambda: sloads_io.read_project_dict(path), choice)
                 if loaded is not None:
@@ -181,7 +181,7 @@ def _render_project_file(project: Project, examples_dir: str) -> None:
             example_choice = st.selectbox(
                 "New from example", example_files, key="_open_example_choice"
             )
-            if st.button("Load example", key="_open_example_btn", use_container_width=True):
+            if st.button("Load example", key="_open_example_btn", width="stretch"):
                 path = os.path.join(examples_dir, example_choice)
                 loaded = safe_load(lambda: sloads_io.read_project_dict(path), example_choice)
                 if loaded is not None:
@@ -208,7 +208,7 @@ def _render_project_file(project: Project, examples_dir: str) -> None:
     # One sanitiser for Save and Download (``io.project_filename``): the raw
     # name reached the filesystem before #65. The file this project came from
     # is written back unasked; any other existing file is confirmed first.
-    if st.button("💾 Save to disk", use_container_width=True, key="_save_btn"):
+    if st.button("💾 Save to disk", width="stretch", key="_save_btn"):
         save_path = os.path.join(projects_dir, sloads_io.project_filename(project.name))
         if save_with_guard(project, save_path):
             # A toast, not ``st.success``: the ``st.rerun()`` on the next line
@@ -224,7 +224,7 @@ def _render_project_file(project: Project, examples_dir: str) -> None:
     st.download_button(
         "Download project.json", sloads_io.project_to_json(project),
         file_name=sloads_io.project_filename(project.name), mime="application/json",
-        use_container_width=True, key="_download_btn",
+        width="stretch", key="_download_btn",
     )
     # Two complementary routes, said *before* the click (#94, C210-48): a
     # browser page cannot open an OS save dialog for a server-side write, so
@@ -245,7 +245,7 @@ def _render_project_file(project: Project, examples_dir: str) -> None:
     # that on every sidebar rerun would tax every page for a button nobody
     # pressed. The built bytes are keyed to the project's serialized identity,
     # so an edit after Build invalidates the stale zip instead of serving it.
-    if st.button("📦 Build results zip", use_container_width=True,
+    if st.button("📦 Build results zip", width="stretch",
                  key="_results_zip_build"):
         ident = sloads_io.project_to_json(project)  # identity of what was built
         try:
@@ -266,7 +266,7 @@ def _render_project_file(project: Project, examples_dir: str) -> None:
             st.download_button(
                 "⬇️ Download results (zip)", _data,
                 file_name=_results_zip_name(project),
-                mime="application/zip", use_container_width=True,
+                mime="application/zip", width="stretch",
                 key="_results_zip_dl",
             )
             st.caption(
@@ -337,7 +337,7 @@ def _render_speed_converter() -> None:
     st.dataframe(
         {"Measure": list(_SPEED_UNITS),
          "kt": [round(convert_airspeed(eas, float(altitude), u), 2) for u in _SPEED_UNITS]},
-        hide_index=True, use_container_width=True,
+        hide_index=True, width="stretch",
     )
     st.caption(
         "ISA standard day, subsonic. The three are equal at sea level and part "

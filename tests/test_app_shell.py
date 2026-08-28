@@ -1002,6 +1002,70 @@ def test_both_front_ends_get_the_tools_section():
             assert "_tool_speed" not in body and "Airspeed converter" not in body, name
 
 
+# --------------------------------------------------------------------------- #
+# The layout flag both front-ends pass, and the floor that admits it
+# --------------------------------------------------------------------------- #
+#: The Streamlit release that first accepted ``width=`` on the *last* element
+#: this repo passes it to, and therefore the binding floor: buttons took it in
+#: 1.48, ``st.dataframe``/``st.data_editor`` in 1.49, ``st.plotly_chart`` in
+#: 1.51 (upstream release notes, 2025). ``pyproject.toml`` owns the declared
+#: floor; this constant is what the code needs, and the test compares them.
+_WIDTH_API_FLOOR = (1, 51)
+
+
+def _declared_streamlit_floor():
+    """The ``>=`` floor `pyproject.toml` declares for Streamlit, as a tuple."""
+    with open(os.path.join(_ROOT, "pyproject.toml"), encoding="utf-8") as fh:
+        for line in fh:
+            if line.lstrip().startswith("#"):
+                continue
+            match = re.search(r'"streamlit>=([0-9.]+)"', line)
+            if match:
+                return tuple(int(part) for part in match.group(1).split("."))
+    raise AssertionError("pyproject.toml declares no streamlit floor")
+
+
+def test_no_front_end_passes_the_deprecated_container_width_flag():
+    """``use_container_width`` is documented as "deprecated and will be removed
+    in a future release" (#129). It is not a style preference: the release that
+    removes it turns every call site into a ``TypeError`` on a fresh install,
+    and the sites were spread over both GUIs and the shared shell -- Open, Save,
+    Download and Build-results-zip among them. The migration to ``width=`` is
+    only half a fix while nothing stops the next widget arriving with the old
+    spelling copied from the one beside it, so the ban is a test (rule 3)."""
+    for directory in list(_gui_dirs()) + [_SHELL_DIR]:
+        for path in _py_files(directory):
+            with open(path, encoding="utf-8") as fh:
+                body = fh.read()
+            assert "use_container_width" not in body, (
+                f"{os.path.relpath(path, _ROOT)} passes use_container_width, which "
+                'upstream will remove; pass width="stretch" instead'
+            )
+
+
+def test_the_streamlit_floor_admits_the_layout_api_the_front_ends_use():
+    """A floor below the API the code calls is the same break as the deprecation,
+    arriving from the other side: ``pip install sloads`` resolves a Streamlit the
+    declaration allows and the GUI dies on an unexpected keyword. This repo had
+    exactly that latency -- four ``width="stretch"`` sites shipped against a
+    floor set for ``st.navigation(expanded=...)``, many releases too old."""
+    declared = _declared_streamlit_floor()
+    uses_width = any(
+        'width="stretch"' in open(path, encoding="utf-8").read()
+        for directory in list(_gui_dirs()) + [_SHELL_DIR]
+        for path in _py_files(directory)
+    )
+    assert uses_width, (
+        "no front end passes width= any more -- if that is deliberate, the floor "
+        "this test guards can come down with it"
+    )
+    assert declared >= _WIDTH_API_FLOOR, (
+        f"pyproject.toml declares streamlit>={'.'.join(str(n) for n in declared)}, "
+        f"older than the {'.'.join(str(n) for n in _WIDTH_API_FLOOR)} that first "
+        "accepted width= on st.plotly_chart"
+    )
+
+
 if __name__ == "__main__":  # zero-dependency self-runner
     import sys
 
