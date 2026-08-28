@@ -16,6 +16,13 @@ For the *why* behind the design, see
 unit-boundary input pattern). For every input field's type/units/default, see
 the generated [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md).
 
+> **The original-suite-only interface.** A second front-end, the **oracle GUI**
+> (`streamlit run oracle_app/Oracle.py` / `sloads-oracle`), exposes exactly the
+> original FAR 23 LOADS suite's input set — no concept mode, plots or exports —
+> over the same project file. It has its own page-by-page illustrated guide:
+> [`docs/60_guide/00_index.md`](../60_guide/00_index.md). Projects move between
+> the two front-ends unchanged.
+
 ---
 
 ## 1. What the tool computes

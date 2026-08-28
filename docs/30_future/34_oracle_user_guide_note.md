@@ -3,11 +3,12 @@
 **Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
 
 **Status: AGREED 2026-08-26 (owner, in session — `CLAUDE.md` rule 1's
-working-alone path). The four open questions were answered by the owner on
-2026-08-25 as UG-9 … UG-12 (§8); the note carried them for a day still marked
-PROPOSED, which is the state that blocked note 32's step OG-B and would have
-blocked the first chapter here. Milestone: 0.8.0.** Nothing below is built yet.
-This note settles the *shape* of the guide — where it lives, what a chapter looks like, where its
+working-alone path); BUILT 2026-08-27 (#96, the six UG-10 stages in order,
+gates first — closure fragments `changes/oracle-user-guide.*`). The four open
+questions were answered by the owner on 2026-08-25 as UG-9 … UG-12 (§8); the
+note carried them for a day still marked PROPOSED, which is the state that
+blocked note 32's step OG-B and would have blocked the first chapter here.
+Milestone: 0.8.0.** This note settles the *shape* of the guide — where it lives, what a chapter looks like, where its
 numbers and images come from, and what "done" means — so that writing fourteen
 chapters is mechanical rather than fourteen separate judgement calls.
 
