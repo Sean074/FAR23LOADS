@@ -10,6 +10,951 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-08-28
+
+### Added
+
+- **One derive-by-default override mechanism for the duplicated inputs (design
+  note 36 OV-1…OV-12, tier L, 2026-08-27, #97).** Eight C210 findings, one
+  contract: a blank collapsed field **falsy-derives** through one named
+  resolver per quantity — the `select.py` `value or derive(project)` idiom
+  generalized — and a typed value overrides. Blank now derives: WTENV
+  `gross_weight` ← the MTOW SSOT (C210-13); `taper_ratio` ← the paired
+  planform's tip/centreline chord and `tip_ratio` ← the new
+  `SurfaceInput.tip_cap_width_in` / semi-span (C210-31 — a blank taper no
+  longer lands on the TAU fit's pointed-wing knot, τ = 0.206209, silently);
+  the h-tail's `aspect_ratio_wing` ← the consolidated planform-AR owner
+  (`derived_geometry.planform_aspect_ratio`, OV-5 — the unguarded downwash
+  divide dies) and `wing_lift_slope_per_rad` ← the cruise set's C1 × 57.3
+  (C210-36); SELECT's `full_down_aileron_deg` ← the aileron's own travel
+  (C210-38); flap NG ← the envelope's own GUST VF corner factor,
+  `flight_envelope.gust_at_vf`, bit-for-bit (C210-39, owner directive); engine
+  LIMNZ ← the 23.337 limit, and — with the new `engine_mass_item`/
+  `prop_mass_item` row selectors — engine/prop weight and CG ← the named
+  weight-database row, every engine consumer reading through one resolver
+  (C210-41, owner directive); an empty `aero.surfaces` seeds a schema-default
+  row per unpaired symmetric planform (C210-29 seed half — the four fixtures
+  with unpaired tails gain their htail/vtail spanwise views; only the
+  `airloads` digests moved, every other channel byte-identical). The per-set
+  stall CLs register their existing `normalize()` fill-through (C210-15
+  ruling). Registry mechanics (OV-9/OV-11): every collapsed path carries
+  `derived_from` + a resolver in `EXTERNAL_VALUES`
+  (`field_registry.COLLAPSED_OVERRIDES`), the oracle GUI shows the derived
+  value beside each field blank or typed and warns on a > 1e-9 typed
+  disagreement, and the OV-11 drift guard fails CI on a future duplicated
+  input without its link. New warnings `aileron_deflection_mismatch` /
+  `engine_mass_row_mismatch`; a mass selector naming no row is refused by
+  name. Schema **55 → 56** (additive; identity hop, v55 files load unchanged).
+  Gates G-OV-1…G-OV-6 in `tests/test_derive_override.py`; the full Appendix A
+  oracle and twin-closure suites pass untouched.
+
+- **The oracle GUI user guide ships (design note 34, #96, tier M,
+  2026-08-27).** A new docs section `docs/60_guide/`: front matter (index,
+  getting started, before-you-start checklist, conventions with the one
+  LIMIT-vs-ULTIMATE statement — UG-8), one chapter per oracle page in
+  `sloads.workflow.oracle_steps()` order with the eight-section note-34
+  template, and four appendices (the `ga6_normal` Appendix A pass with
+  page-cited checkpoints, the `baron_58` SI pass closing on the unit channel
+  — UG-12, troubleshooting, where-next). Per-page **field tables and the
+  chapter list are generated** from `sloads/field_registry.py` by
+  `docs/generate_data_dict.py` into `60_guide/_generated/` (UG-3/UG-7 —
+  adding a `.BAS`-backed step scaffolds its chapter with no hand edit);
+  screenshots come from the re-runnable Playwright script
+  `scripts/capture_guide_shots.py` (UG-4; `playwright` joins the dev extra).
+  The worked twin is new: **`examples/baron_58.project.json`** (UG-9), a
+  Beech Baron 58 / two IO-550-C built from FAA Aircraft Spec 3A16 with every
+  estimate marked in `examples/baron_58.sources.md`, running all fourteen
+  oracle pages warning-free — including ONENGOUT — with D-25 entered ground
+  loadings, and declared `EXACT` under the oracle-reduction gate. Acceptance
+  gates **G-UG-1…G-UG-6** (`tests/test_guide.py`) landed before any chapter:
+  chapter↔step bijection, generated-tree exactness, image↔reference
+  closure with alt text, both examples running every module they reach,
+  link resolution, and the template-heading order. `10_standard/GUI_USER_GUIDE.md`
+  is not superseded (UG-2) — the two guides now cross-link. Filed en route:
+  #121 (main-GUI `float(None)` crash on the blank SELECT aileron field) and
+  #122 (the OV-7 derive chain escaping as a raw traceback on a half-entered
+  planform).
+
+- **A Tools section in the sidebar of both GUIs** (#80, C210 build review
+  2026-08-23, tier M). Two conversions the C210 build did by hand at the
+  envelope and speeds pages: an **airspeed converter** — a speed in any of
+  KCAS/KEAS/KTAS plus a pressure altitude, all three out, ISA-only and subsonic
+  — and a **% MAC ↔ fuselage station** converter, in both directions. The
+  arithmetic is the existing `sloads` owners' (`convert_airspeed` /
+  `eas_from_airspeed`; `mac_reference` and the two %MAC functions), so a Tool
+  cannot answer a question differently from a page. It lives in the shared
+  `app_shell` sidebar, one implementation for both front-ends, and is
+  display-only: it reads the project and writes nothing back — the ground of
+  the owner's refinement to the oracle GUI's capability cap, which governs
+  analysis and data capability, not inert display utilities.
+- **KCAS in, not only KEAS out** (#80, tier S). `convert_airspeed` converted
+  *from* equivalent airspeed only, so a converter that took KEAS alone would
+  have left the conversion actually wanted — a POH or placard speed, which is
+  calibrated airspeed — still to be done by hand. `eas_from_airspeed` inverts
+  the same relation in closed form, exactly: the round trip is pinned to 1e-9
+  at five altitudes for all three measures.
+- **The %MAC tool says which wing it measured from** (#80, C210-13). WTENV
+  falls back to the wing planform when the weight envelope's XLEMAC/MAC pair is
+  left blank, and nothing on that page says so. A tool that quietly answered
+  with the fallback would have carried the same silence into the sidebar, so it
+  names the reference and prints the XLEMAC and MAC it used.
+
+### Changed
+
+- **The git workflow is explicitly required in `CLAUDE.md` (tier S, 2026-08-27).**
+  Two Required-practices bullets now state that no development work lands outside
+  the git workflow — the solo profile (`DEVELOPMENT_PROCESS.md` §0,
+  `solo_start.sh`/`solo_close.sh`) is the operative mode — and that every git/`gh`
+  command (the solo scripts included) is presented to the user **one at a time**,
+  waiting for the pasted output before the next. With it: the status-prose trims
+  (mission dates, "all 22 ported", header decorations) that CLAUDE.md's own
+  rules-and-pointers rule asks for, and the `00_INDEX.md` row for design note 37.
+
+- **Design note 37 filed at AGREED and the 0.8.0 band extended (tier S, 2026-08-27).**
+  The landing load-factor note (`docs/30_future/37_landing_load_factor_note.md`,
+  LF-1…LF-12, G-LF-1…G-LF-6) is AGREED (owner, in session) and its implementation
+  is #123, pulled into band B ahead of the cut under the 2026-08-24 first-order
+  ruling; the note's §4 sweep filed one adjacent finding, the twice-written
+  max-continuous-HP precedence (#124), beside it. Band B is no longer
+  ready-to-cut — it cuts when empty.
+
+- **The six bundled examples are re-stamped at the current schema (#93, tier L, 2026-08-25).**
+  They had sat at v41 for fourteen versions, so every example load ran hops 43, 46 and 54 in
+  memory — the repo's own fixtures were the only prior-schema files in existence. Regenerated
+  through the chain before it was deleted, and verified output-neutral two ways: the `Project`
+  loaded from each old file and from its replacement are identical dicts, and
+  `tests/fixtures_imperial/digests.json` did not move. New guard
+  `test_schema_guards.py::test_every_bundled_example_is_written_at_the_current_version` reads
+  the stamp off **disk**, so the next `SCHEMA_VERSION` bump fails CI until the examples are
+  re-stamped with it.
+
+- **What this release is has one owner, and the trove classifier moves to
+  `4 - Beta` (tier S, 2026-08-28; production-release review §3.5, owner ruling
+  §5.3).** The maturity claim is genuinely mixed — the FAR23 core is
+  oracle-locked and the oracle GUI is the finished deliverable, while `app/` and
+  the concept-mode features are not — and PyPI's `Development Status` takes one
+  value from a fixed vocabulary. So `pyproject.toml` carries the value a *fresh
+  installer* is owed (`4 - Beta`: the distribution ships both front-ends and one
+  of them is beta), and the sentence the classifier cannot hold gets a single
+  owner, `app_shell.components.RELEASE_STATE`: *"Core analysis developed per
+  FAR 23 LOADS and the oracle GUI production-ready; additional features and the
+  full sloads GUI in beta."* `README.md` and `CAPABILITIES.md` carry it verbatim
+  and both GUIs' About panel consumes the symbol — so a person typing an
+  airplane into the beta front-end is told so where they are, rather than in
+  packaging metadata `pip` reads and they do not. Markdown cannot import a
+  constant, so "one owner" is enforced the only way prose allows
+  (`tests/test_doc_currency.py`, two halves, both verified to fail on a
+  mutation): the documents must contain the owner's string verbatim and the
+  About panel must consume the symbol, and **no second spelling** of it may
+  appear anywhere else in the tree. Same posture as `LANDING_L_FAR_CAPTION`,
+  one level up — a statement about the product rather than about a widget.
+
+- **TAILDIST states the aero state of each case it distributes (note 35, #100,
+  tier L, 2026-08-27; C210-32).** Every h-tail/v-tail `CriticalCondition` now
+  publishes the state its method actually used — `alpha_tail_deg` (AT / fin
+  AoA), `delta_deg` (elevator TE-dn + / rudder SC-2 TE-port +) and `q_psf` —
+  as additive `None`-default result fields beside L-7's `beta_deg` (AS-1/AS-2;
+  no migration hop, `SCHEMA_VERSION` unchanged), and TAILDIST prints them
+  ahead of each condition's stations with the carried-across fields on
+  `TailChordResult`. A quantity the method never defines states its fixed
+  reason instead of a guess (AS-4): the checked-maneuver δ (the 23.423(b)
+  increment is the pitching-acceleration inertia term), the side-gust q
+  (23.443(b) is linear in V), any h-tail β; a persisted critical set that
+  predates the fields says "re-run SELECT". The AHT / AVT + EFFECTV
+  intermediates print **once per component** from the same single-source
+  owners inside the loads — the finite-surface slope `2π/(1+2/AR)` is
+  consolidated to `_vtail.lift_curve_slope` (AS-5), replacing three inline
+  spellings in `select.py`, with a one-spelling drift guard. Closure gates
+  G-AS-1..G-AS-5 in `tests/test_taildist_aero_state.py`: the Appendix A
+  case-202 δ −5.39° oracle, the rel-1e-9 identities reconstructing every
+  fixture's stamped `LT25`/`LT50` from the published state, the
+  no-silent-blank statement guard, the stale-set statement and the §1
+  per-label literals. **No load number moves** (AS-8): only the
+  `csv/taildist` and `txt/taildist` digests changed.
+
+- **The weight estimate now says what reads it, and shows the gap** (C210-9, issue #78,
+  tier M, 2026-08-26). WTESTIMA sits at the top of the oracle Weight & Mass page above
+  WTONECG and WTENV, and nothing on the page said that neither of them reads it: the mass
+  properties every downstream program uses come from the itemized data base the user
+  enters. The block is captioned with that (`weight_estimate.ADVISORY`) and the estimate's
+  empty weight and max take-off weight are shown beside the entered figures with the delta
+  (`compare_with_itemized`) — on the Cessna 210 that is +22 % on empty weight, ordinary
+  scatter for a GA statistical correlation and, until now, a gap nothing framed. Both
+  entered figures come from their owners rather than being re-summed: the empty weight from
+  `WeightInput.database_totals`, MTOW from `cg_cases.max_takeoff_weight` (G-14) — **not**
+  the database's first element, which holds full fuel and full payload at once and is
+  documented as a ceiling. The comparison is shown plainly and never thresholded: there is
+  no sourced figure for "too far", and inventing one would put a verdict on the page where
+  the finding asked only for the two numbers side by side.
+- **`PROGRAM_SPEC` said the estimate feeds the two programs under it** (C210-9, #78,
+  tier M, 2026-08-26). The WTESTIMA section stated "feeds WTONECG *and* WTENV — parallel
+  siblings off WTESTIMA", which is the suite's data flow (UG Table 2.2) and runs **through
+  the weight data base**. Here that base is authored by the user, so the estimate reaches
+  it only when the seed button copies it there; absent that click nothing reads the
+  estimate at all. Both halves are now stated, so the caption and the spec cannot be read
+  against each other.
+
+### Fixed
+
+- **The 0.8.0 band has its closure order, and `backlog_issues.py create` can
+  no longer duplicate the table (tier S, 2026-08-26).** The 2026-08-26 re-cut
+  (owner, in session) orders band B by fix dependency — #99, then #97 (the
+  collapsed-override mechanism #95 consumes), #98, #95, #100's implementation,
+  #94 (text last, against shipped mechanisms), #96 last so the guide captures
+  finished pages — with #100's design note drafted first (rule 1); the table is
+  renumbered densely; **#92 is ruled (b)**, re-aimed at CI's coverage leg (the
+  local command already passes the clause's own thresholds); and the wing-fuel
+  row, which had never had an issue behind its old "7a" ordinal, is filed as
+  **#111** (milestone 1.0.0). The filing exposed that
+  `.github/backlog_issue_map.json` still held only the original 20-issue
+  migration keyed by pre-rewrite titles, so `create` re-opened the whole table
+  as #101–#120: the 19 duplicates are closed with cross-references, the map is
+  rebuilt keying every current row title to its real issue number, and
+  `scripts/backlog_issues.py check` runs clean both ways.
+
+- **The priority table re-cut for the 0.7.2 cut; band B is the milestone in
+  flight (tier S, 2026-08-25).** `RELEASE_PROCESS.md` §4's post-cut step — the
+  backlog reflects what the release closed — had not run for 0.7.2: §Where
+  things stand still read "0.7.2 is content-complete and **uncut**" and the
+  empty band-A header row was still in the table, a day after `v0.7.2` was
+  tagged. Both corrected: the narrative states the cut (schema v55 unchanged,
+  defect-only, #88 and the narrow half of #71 named beside the seven carried
+  `b`'s), band A is retired with the release it named, and the cut signal for
+  the milestone in flight is stated where the old one was — **cut 0.8.0 when
+  band B is empty**. No row content changed; the 2026-08-24 re-cut's ordering
+  and rulings stand as written.
+
+- **The branch-protection guard reaches the review settings, and three promises
+  `main` never kept are corrected (CR-D-4's class, tier S, 2026-08-26).** The
+  guard added with #46 tracked `required_pull_request`, which is true the moment
+  GitHub carries *any* review block for the branch — so `DEVELOPMENT_PROCESS.md`
+  §2 could promise "one approving review from someone other than the author",
+  "review from Code Owners required" and "stale approvals dismissed on push"
+  against a block that required none of the three, and no hop-1 assertion could
+  see it. The snapshot now tracks `required_approving_review_count`,
+  `required_code_owner_reviews`, `dismiss_stale_reviews` and
+  `required_conversation_resolution`, and the first `--check` run against live
+  `main` found exactly that drift: all three off, conversation resolution the
+  only one live.
+- **The prose is corrected, not the branch — the settings split by profile.**
+  The three review requirements are the multi-dev profile's target and are off
+  under §0's solo profile deliberately: GitHub does not let an author approve
+  their own pull request, and `.github/CODEOWNERS` names one person on every
+  line, so either setting would block **every** merge — the milestone PR
+  included — until a second collaborator exists. Turning them on joins restoring
+  squash-merge in the switch-over list. §2 now states both profiles, as it
+  already did for the merge method, and
+  `test_the_process_docs_agree_with_the_live_review_settings` holds the prose to
+  whichever way the settings are set, in both directions: the "OFF under §0"
+  bullet is required while they are off and must go when they come on.
+
+- **The C210 review's text-only residue lands: eleven helps and captions now say
+  what the mechanisms do (#94, tier S, 2026-08-27).** The EMPTY-only item sum is
+  labelled **empty weight** everywhere it shows (the ordering chain, the fleet
+  comparison; OEW adds the MINIMUM crew — C210-12); `role` help states it assigns
+  the LANDLOAD slot and validates nothing (C210-14); the chosen speeds state
+  "blank = computed minimum, below-minimum values are raised", with `chosen_vf`
+  distinguished from the placard VFE (C210-16, the MFC half moot since #79);
+  `xtc`/`xtf` carry the CP convention (flaps up ≈ 5 % tail MAC, flaps down ≈ 25 %)
+  **plus a computed suggestion from the empennage record** beside the fields in
+  both GUIs (`derived_geometry.tail_cp_suggestion`; `oracle_app.form.GROUP_NOTES`),
+  `mn` and the altitudes say what they are (C210-20); the SELECT block states its
+  search scope — the governing case over the full V-n matrix, all loadings, CGs
+  and altitudes (C210-26); `section_slope` says it is the 2-D section slope, not
+  the AR-reduced C1 (C210-28); `wing_mass.cases` states "0 rows = the SELECT
+  governing set; typed rows REPLACE it entirely" (C210-30); the oracle Tail Loads
+  page points at the spanwise deliverable's home (main GUI Tail Span Loads + the
+  export decks — C210-33); `ref_waterline` is captioned reserved/not consumed
+  (C210-34, owner ruling); blank Optional number inputs carry an "empty — type a
+  value" placeholder so Streamlit's inert steppers stop reading as a locked
+  widget (C210-42, the #35 blank-render contract unchanged); and the sidebar says
+  before the click that **Save to disk** writes `projects/<name>.project.json`
+  beside the app while **Download** lets the browser choose the location
+  (C210-48). Guards in `tests/test_oracle_gui.py` (`GROUP_NOTES` keys must name a
+  rendered group; the suggestion arithmetic; the placeholder; the two advisories).
+
+- **An Optional override entered in the oracle GUI could never be taken back**
+  (PB-20, issue #72, tier M, 2026-08-25). Once `landing.gear_load_factor`,
+  `speeds.chosen_vc/vd`, `aero.surfaces[].tau` or `weight.envelope.mac` held a
+  number, nothing in this GUI could return the field to "computed" — and it is
+  the only editor its projects have, so a value typed to see what it did was
+  permanent. The review's proposed fix (write `None` when the widget comes back
+  empty) cannot work: a number-seeded `st.number_input` never comes back empty,
+  because the frontend restores the last value and the serde reads an empty
+  submission as the seed. A filled Optional field now carries a **✕ clear**
+  button — a deliberate named click, the posture row deletion already takes —
+  which empties the widget through the one door Streamlit offers, its own state,
+  from the `on_click` callback that is the only legal moment to write it. The
+  next render reads the empty widget and unfills the field on its normal persist
+  path, so there is still exactly one writer. Required fields offer no clear
+  (`None` is not one of their values) and neither do the display-only copies of
+  a quantity someone else owns.
+- **The confirmation for the one action that writes outside the session was
+  never seen** (PB-23, #72, tier S, 2026-08-25). Save-to-disk emitted
+  `st.success` and then `st.rerun()`, which discards the frame that carried it.
+  It is a toast now — the channel the loader's repair warnings already use
+  because it survives the rerun.
+- **A table row could only be deleted from the end** (PB-23, #72, tier M,
+  2026-08-25). The row counter plus #88's surplus button meant removing item 3
+  of 24 cost twenty-one deletions and twenty retypes. Rows are now deleted where
+  they sit: a button inside each row's expander where rows carry a polyline, a
+  by-name picker beneath the grid where they do not, both naming the row that
+  goes. The deletion re-sizes the counter with it — left where it was, the next
+  render grows the list back up to the retained count and the deleted row
+  reappears as a blank, which is the #88 data-loss defect wearing the other sign.
+- **Clearing a required table cell put the old value back in silence** (PB-23,
+  #72, tier S, 2026-08-25). Restoring it is correct — a required field has no
+  `None` — but with nothing said, the grid read as having eaten the edit. The
+  columns that refused are now named beneath the table, beside the existing rule
+  for a row with an empty cell.
+
+- **The non-owner mark reaches composite fields, and an empty result block no longer
+  crashes the page (#89, code review 2026-08-24 §4.3, tier S, 2026-08-25).**
+  `_copy_note` was reachable from `render_scalar` alone, so the first non-owner tuple,
+  curve or enum set would have rendered bare and silently editable — the #36/CR-A-2
+  defect returning through a door never closed. Marking the external owners walked
+  straight through it: `engines[].engine_cg` is a three-member tuple copied from the
+  weight database. `render_field` now forwards the project to every branch and the
+  composite renderers caption; a display-only composite would need a mark the renderer
+  cannot give, so the registry may no longer hold one. Separately,
+  `st.columns(len(block.artifacts))` is guarded for the empty case, which would have
+  taken down any results page carrying a table and no download.
+
+- **The deprecated `use_container_width` is gone from both front-ends, and the
+  Streamlit requirement now states both a floor and a ceiling policy (#129,
+  tier S, 2026-08-28; production-release review §3.7, owner ruling §5.4).**
+  73 call sites migrated to `width="stretch"` — 62 in `app/views/`, 11 in
+  `app_shell/` (`sidebar.py` ×7, `project_state.py` ×4) — taken **whole**
+  rather than by GUI, because upstream documents the parameter as *"deprecated
+  and will be removed in a future release"* and the release that removes it
+  breaks Open / Save / Download / Build-results-zip in *both* GUIs at once, on
+  a fresh install, with no version constraint to stop it. The migration also
+  closed the mirror-image gap: four `width="stretch"` sites had already shipped
+  against a `streamlit` floor set years earlier for `st.navigation(expanded=…)`,
+  so a resolver honouring the declared floor would have raised on an unexpected
+  keyword. The floor now names the API the code actually calls — `width=`
+  arrived per element upstream (buttons, then `st.dataframe`/`st.data_editor`,
+  then `st.plotly_chart`), and the last of those is the binding one. **No upper
+  bound, stated as a decision rather than left as an omission**
+  (`pyproject.toml`, `00_program_overview.md` §Dependency requirements): CI
+  installs the runtime set unpinned on every run, so an upstream removal fails
+  the GUI tests here before it reaches an installed user. Three guards
+  (practice 3): no front-end file may pass `use_container_width` (AST-derived
+  over every GUI package plus the shell, so a third front-end is covered the
+  day it lands); the declared floor must admit the layout parameter the
+  front-ends pass; and CI's install must stay unpinned and unconstrained, since
+  the ceiling policy rests on it. Each verified by mutation — reinstating the
+  old spelling, lowering the floor, and constraining the CI install each fail
+  their own guard. No behaviour change: `width="stretch"` is the documented
+  equivalent of `use_container_width=True`.
+
+- **A design note can no longer claim work is unbuilt after it has shipped
+  (#128, tier S, 2026-08-28; production-release review §3.3).** Two notes still
+  carried their pre-build status: [note 32](docs/30_future/32_oracle_gui_note.md)
+  said *"everything else is unbuilt"* of the oracle GUI whose every §7 step is
+  marked shipped in its own table (OG-A…OG-C2 on 2026-08-19, OG-D…OG-F on
+  2026-08-20), and [note 35](docs/30_future/35_taildist_aero_state_note.md) said
+  *"Nothing below is built yet"* of work that shipped as #100 on 2026-08-27.
+  Both now state what shipped, in the shape notes 36/37 (`SHIPPED`) and 34
+  (`AGREED …; BUILT …`) already use. This blocks a cut rather than trailing it:
+  `RELEASE_PROCESS.md` §4 step 3 rolls the notes into `docs/40_history/` at the
+  cut, so an "unbuilt" claim would enter the permanent record of the release
+  that built it. The structural half (practice 3) is a guard in
+  `tests/test_doc_currency.py`: a note carrying an unbuilt claim while also
+  carrying shipped evidence fails. The evidence is deliberately **in-repo** —
+  whether an issue is closed lives on GitHub, which CI has no credential to
+  read, but a closed item leaves a `changes/` fragment citing its note by the
+  tiered-closure rule, and that fragment exists *because* something closed. A
+  companion test asserts the pattern still matches the two sentences it was
+  written for, so it cannot quietly decay into a guard that passes by seeing
+  nothing. Verified: reintroducing either sentence fails its note's case.
+
+- **A widget that flips disabled is pinned to its governing value (tier S,
+  2026-08-27; the #95 CI find on 0b38c8a).** A display-only number widget kept
+  its stale live state when its owner appeared mid-session — type a fuselage
+  length, add the outline on the same page, and the disabled field went on
+  showing the typed number while the analysis read the outline's own length
+  (current Streamlit lets keyed widget state outvote `value=`; the G5 journey
+  caught it on CI's newer Streamlit, not the pinned local one).
+  `app_shell.components._seeded_number` now writes the governing seed into a
+  **disabled** widget's session state before instantiation — one point on the
+  unit boundary, so every disabled scalar in both GUIs shows the number the
+  calc uses. Guard:
+  `tests/test_oracle_gui.py::test_a_widget_that_flips_disabled_is_pinned_to_the_governing_value`
+  walks the exact live→disabled flip.
+
+- **A documented git or CI setting can no longer differ from the live one in
+  silence (CR-D-4…D-8, CR-D-11, issue #46, tier S, 2026-08-25).** Six doc/CI
+  conformance findings from the 2026-08-20 critical review, closed together
+  because they are one class: a rule stated in prose, with nothing comparing it
+  to the thing it describes.
+- **The CI matrix is asymmetric, and now says so everywhere it is described.**
+  `ci.yml` runs 3.12 alone on every pull request and every `dev/**` push; the
+  3.9 / 3.11 legs, `sbeam-roundtrip (3.11)` and the coverage-instrumented leg
+  run only on the push to `main`, so **a change that breaks 3.9 merges green by
+  design**. `README.md`, `CLAUDE.md` and `00_program_overview.md` (§Testing and
+  §Coverage floor) all stated the full matrix with no caveat. Worse,
+  `DEVELOPMENT_PROCESS.md` §2 listed six required status checks, three of which
+  a pull request never produces — a required check that never reports blocks its
+  PR forever — while §0's table on the same page named the correct three.
+  Corrected to the live fast gate, with the reason the other three cannot be
+  required.
+- **Two new guards make it structural, in two hops** (`tests/test_ci_conformance.py`,
+  `.github/branch-protection.json`, `scripts/branch_protection_snapshot.py`).
+  Hop 1 always runs and needs no network: every required check in the snapshot
+  must be one `ci.yml` actually reports on a PR; the process docs must name that
+  set; and no doc may assert "merge commits allowed", "linear history off" or
+  `git merge main` outside a quotation or a retraction — the wording that made
+  the 0.7.2 milestone PR unmergeable at the cut. Hop 2 is
+  `branch_protection_snapshot.py --check`, which reads GitHub and is run by the
+  owner (added to the `RELEASE_PROCESS.md` §3.1 checklist). The split is
+  deliberate: CI has no `gh` credential, and a gate that needs a credential CI
+  lacks is a gate that silently skips — which is the defect class being closed.
+- **The nav guard cuts both ways, and the user guide's phase table is derived.**
+  `test_every_view_file_is_a_workflow_step` closes CR-D-8: a stray
+  `app/views/foo.py` never entered nav, still passed the smoke suite, and no
+  guard failed — a page could exist, be tested, and be unreachable forever.
+  `GUI_USER_GUIDE.md` §2's phase table is now asserted against `workflow.py`
+  (CR-D-7) and was wrong in two places: Aircraft Comparison was filed under
+  Load-case plotting where the graph puts it in Export, and the Flight-loads row
+  omitted **Tail Span Loads** and **Balanced Cases** — the two pages carrying the
+  mission's primary distributed deliverable.
+- **`pyproject.toml` owns every version floor; the overview names none** (CR-D-5).
+  It had carried a `streamlit` floor six minor versions below the real one, which
+  exists because of `st.navigation(expanded=…)`. `test_doc_currency.py` gains a
+  volatile pattern for a version specifier beside a dependency name, so the class
+  is visible to the guard that was already meant to catch it.
+- **`cspell.json` is an editor convenience, and the prose rule that pretended
+  otherwise is gone** (CR-D-11). "New domain terms → `cspell.json`" was a
+  convention with no gate — the shape rule 3 forbids. Given the choice between
+  adding a gate and dropping the rule, the rule went.
+- **The suite-runtime clause stops asserting a number it cannot hold** (CR-D-6).
+  §Testing claimed "the suite in the tens of seconds and no test over ten"
+  against a measured parallel suite several times that, with its own revisit
+  thresholds crossed and nothing filed. It now points at `--durations` output,
+  and the work the clause asks for — splitting the whole-pipeline-per-assertion
+  tests — is filed as its own backlog row rather than left as a standing claim.
+- **`backlog_issues.py check` compares a row's band with its issue's milestone.**
+  The second instance of the same class, found the same day: #71 sat open on the
+  already-cut **0.7.1** while its row was in the 0.8.0 band, and no gate saw it —
+  the check proved row ↔ open-issue correspondence both ways but never requested
+  `milestone`. It now does, and the expected milestone is read from **the band
+  header's own text** rather than a hardcoded letter map, because the letters
+  move at every re-cut: band A retired when 0.7.2 was cut, making B the milestone
+  in flight. An issue parked on a milestone `CHANGELOG.md` shows as already cut
+  is reported too, since every cut milestone in this repository is still `open`
+  on GitHub and that state carries no information.
+- **Two parser defects found building that check, both pinned by tests.**
+  `BAND_ROW` matched a single letter (`^\|\s*\*\*([A-Z])\s+`), so the **B2**
+  header added by the 2026-08-24 re-cut never matched and every 0.9.0 row
+  inherited `band:B` — the 0.8.0 label. The band is exactly what the new
+  milestone check compares, so it could not have worked. And a row's issue was
+  read from the whole table line, so the "(#29)" that band D's function-size row
+  cites in its *What ships* cell was taken as that row's identity, putting the
+  single band-B2 row under band D: a guard reporting a fault against the row it
+  had misread. `row_ref` now reads the **Item** cell alone.
+
+- **The geometry-page presentation family, and one summary-table shape per
+  module (tier M, 2026-08-27, #95; C210-1/2/3/5/6/8/22/25/26/27).** The
+  C210 build's placement/duplication findings closed as mechanisms, not
+  patches. **Tables (owner directive, "one line per case"):**
+  `report.summary_rows` is now the one dispatch every summary channel renders
+  through — the module CSV (`io.load_cases_csv`), the oracle results page and
+  the main GUI's Results Review — so the screen and the CSV are the same rows
+  by construction. SELECT renders one row per condition with its per-case SF
+  (`report.critical_rows`, sharing `governing_loads_table`'s one-line core;
+  the oracle page groups the rows per component), replacing the stacked
+  ~150-row shape whose SF column was blank on every wing case; WTENV renders
+  one row per (weight, station) point (`report.weight_station_rows` — the
+  envelope vertices, CG-limit corners and summary weights fold from stacked
+  pairs); every other non-load-case module gets the data-shaped floor
+  (`results_to_rows` drops all-empty columns). **Accepted deliverable-format
+  change: the frozen Imperial `csv/*` digests moved with it — every other
+  channel (text, sbeam decks, case index, gear report) is byte-identical.**
+  **Derives (the #97 mechanism, extended):** a blank elevator/rudder area
+  derives as the sum of its own hinge halves (`select.derived_elevator_area` /
+  `derived_rudder_area`; a >1 % typed disagreement warns,
+  `elevator_area_mismatch`/`rudder_area_mismatch` — Appendix A's own rounding
+  sits at 0.2–0.7 % and stays silent) and a blank v-tail `wing_span_in` from
+  the WINGGEOM planform's own span (`select.effective_vtail_inputs`; ONENGOUT
+  and the tail-span control split read through it, rule 4). The undisclosed
+  fallbacks are disclosed: `wing_weight_lb`'s 0 → 0.09·MTOW and the side-gust
+  rod IZZ (`select.default_side_gust_izz`) render beside their fields, and the
+  SELECT block captions both rod inertias against WTONECG's database values
+  (C210-25: +34 %/+49 % on the C210). **Placement:**
+  `field_registry.DISPLAY_GROUPS` renders a field on the page its *quantity*
+  belongs to — the h-tail record's wing-aero fields (ARW, AW, the IW angles)
+  with the aero data, SELECT's section cm with the aero data, the aileron
+  travel with the aileron record, the wing weight with the weight data.
+  **Geometry:** the parametric wing seeds from a typed `wing` planform behind
+  a button (`configuration.parametric_wing_seed` via
+  `field_registry.RECORD_SEEDS` — GR-GEOM-3, seeded and overridable), and
+  `fuselage_length` renders disabled exactly while the outline it summarises
+  exists. New CONVENTIONS §7 SSOT row; guards in
+  `tests/test_summary_shapes.py` and the extended registry/select/validation
+  suites.
+
+- **A grid cell typed and confirmed with Enter was still discarded** (C210-4 residual,
+  issue #77, tier S, 2026-08-25). Streamlit's `st.data_editor` keeps the cell editor
+  **open** on Enter — the value is on screen but not in the frame the widget returns —
+  and the next Tab or click closes the editor by throwing it away. Reproduced in a bare
+  Streamlit 1.58.0 app during the Cessna 210 build, so it is the grid's behaviour and
+  there is no version of `form.py` that fixes it: every oracle page that renders a grid
+  now says **"commit a grid cell with Tab, not Enter"**, above the first one.
+  The sentence is owned by `app_shell.components.GRID_COMMIT_NOTE` rather than by the
+  GUI that says it today, because fourteen of the sixteen `st.data_editor` call sites
+  are in `app/views/`, whose layout is frozen pending #29 — that page set adopts the
+  note by importing it, not by retyping a sentence that would then drift.
+- **The warning had been withdrawn for a defect it did not cover** (#77, tier S,
+  2026-08-25). Enter dropping an entry was *also* a symptom of C210-4, the remount race
+  that was ours, and when `_stable_frame` closed that race on 2026-08-23 the Enter
+  warning went out with it — the two presented identically as "Enter loses my entry"
+  and only one of them was fixed. The guard is therefore two-sided: a page that renders
+  a grid must say it *and* a page that does not must stay silent, so the note and the
+  grids cannot part company again.
+- **The loader half of #77 was already closed.** "The loader coerces or refuses a
+  non-numeric corner, under a guard" (C210-7 residual) shipped on 2026-08-24 as #76 —
+  `io._numeric_shape` reading the numeric containers off the model's own annotations,
+  swept across all 18 of them. Recorded here because the issue asked for both halves.
+- **The geometry-presentation family had been recorded under this issue's number**
+  (#77/#95, tier S, 2026-08-25). Backlog row 20, the 2026-08-24 code review's
+  existing-rows list and the completed-development history all pointed the C210
+  geometry family at `#77`, which is this grid defect — and the geometry family had
+  no issue at all, while `#77` appeared in no planning document. Found by reading the
+  issue before working the row. Filed as **#95** with a body (rule 5) and the backlog
+  corrected; the two reviews and the history keep what they said, as dated records,
+  and row 20 says how to read them.
+
+- **The landing load factor is entered as N, not NLG — the wing lift factor moves the gear
+  reaction again (note 37, #123, tier L, schema v57, 2026-08-27).** `LandingInput.gear_load_factor`
+  (an NLG override with a `0.0` sentinel) is replaced by the optional governing
+  `airplane_load_factor` N; `NLG = N − L` is derived by the one owner
+  `landing.governing_load_factors` and never entered. The old override made `L` inert on the
+  vertical reaction (`VMP = ½·NLG·W·AP/DP` read NLG and nothing else) while the page reported
+  the energy-derived N the reactions were *not* computed from. The 56→57 hop is semantic
+  (`N = NLG_old + L`) and reproduces every NLG the reaction path read — no load number moves;
+  the only moved fleet numbers are the three concept fixtures deliberately nudged to
+  `N = 2.67` (LF-10, +0.15 % on NLG, clearing the 23.473(g) floor). `ga6_normal` and
+  `cessna_210` now carry the manual's rounded design point as an explicit `N = 3.167`. The
+  `L ≤ 0.667` cap is removed (FAR 25.473(a)(2) permits 1.0; both GUIs caption the FAR defaults
+  as guidance via one shared string); `N ≤ L` is refused by name; the 23.473(g) floors
+  (`N ≥ 2.67`, `NLG ≥ 2.0`, one policy owner `landing.far23_473g_floor_violations`) **block**
+  in a FAR 23 category and **warn** in concept. Both GUIs seed N from the computed energy
+  value with a way back to computed, render NLG as a derived output, and caution when the
+  entered N sits below the energy value (`cessna_210` trips it: 3.1670 vs 3.3885). The
+  LGFACTOR condition now reports the governing pair beside the oracle-locked energy rows, so
+  the landing deliverable channels and the three concept examples' balance/deck digests are
+  deliberately regenerated.
+
+- **The %MAC ↔ fuselage-station Tool no longer reinterprets its entered station
+  on a unit switch (#126, tier S, 2026-08-28; production-release review §3.4).**
+  The station field was the one converted number input in either GUI spelled by
+  hand instead of through `app_shell.components.unit_number_input`: seeded with a
+  converted length but keyed without the system suffix `number_input_name`
+  appends on the converted path, so Streamlit's retained state outvoted `value=`
+  and the same digits were read as inches on one render and as millimetres on
+  the next — on `ga6_normal`, 63.641 answered **0.00 % MAC** in Imperial and
+  **−88.29 % MAC** after toggling to SI, the same field, the same number, two
+  answers. It now goes through the one unit boundary like every other converted
+  number, so a switch re-seeds the field with the leading edge in the new unit.
+  Display-only, so nothing was stored and no load moved. Two behavioural guards
+  drive the real unit radio (the four tests #80 shipped with all run Imperial,
+  which is why nothing caught it): the tool's answer follows the physical
+  station in either system, and the field re-seeds rather than being reread —
+  the second fails on the pre-fix code. Practice 4 takes the class with them: a
+  source guard across `app_shell/`, `oracle_app/` and `app/views/` fails any
+  `st.number_input` seeded with a converted value whose key does not carry the
+  active system, with the two pre-`unit_number_input` key helpers it tolerates
+  checked rather than trusted.
+
+- **The max-continuous-HP precedence is written once and read everywhere
+  (#124, tier S, 2026-08-28; production-release review §3.1).** Step M2-6's rule
+  — the engine-list total unless `override_max_continuous_hp` is set, the stored
+  total as the fallback when no engine carries a rating — lived in
+  [`weight_estimate.resolve_max_continuous_hp`](sloads/modules/weight_estimate.py)
+  and again inline in [`app/views/weight_mass.py`](app/views/weight_mass.py),
+  over a locally computed `sum(...)` where the owner used `math.fsum(...)`: two
+  copies of one rule, agreeing on the day they were written, which is the drift
+  practice 3 forbids. The view could not simply call the owner — it takes a
+  `Project` and refuses one without a `weight.estimation`, while the page holds
+  the form's values before Apply writes them — so the precedence now lives in a
+  new input-level `resolve_max_continuous_hp_for(estimation, engines)`, with the
+  project-level function a thin wrapper that locates the slice and applies it,
+  and `engine_list_max_continuous_hp(engines)` owning the sum the page shows
+  beside the override switch. The view reads both; the inline copy is deleted.
+  No behaviour change: the two copies agreed. The structural half is two guards
+  in `tests/test_derived_geometry.py` — the entry points are pinned to one
+  answer across the override/fallback/empty-list cases, and a headless render of
+  the Weight & Mass page with an engine list deliberately disagreeing with the
+  stored total checks its powerplant weight against the owner's, in both
+  override states, with the two required to differ so neither check can pass
+  vacuously. Verified: reinstating a drifted inline copy fails the page guard.
+
+- **A half-entered planform is refused by name instead of crashing the page (#71, PB-21, tier S, 2026-08-25).**
+  The oracle GUI's curve editor persists a one-point leading or trailing edge
+  after the first complete row, and Wing Loads answered that with a raw
+  `IndexError` traceback rather than a note. Every strip sweep now asks one
+  precondition — `derived_geometry.require_integrable_planform` (two or more
+  points per edge, butt lines ordered inboard → outboard, two or more
+  integration elements) and `require_positive_planform_area` for what can only
+  be known after the sweep — so the refusal names the surface and what is wrong
+  with it, and the page shows it as "cannot run yet". It stays a plain
+  `ValueError`, not a `MissingInputError`: a mid-entry planform is
+  present-but-invalid input, so a run-all or an sbeam export refuses it rather
+  than skipping the wing and shipping a deck without one.
+
+- **Four more sites of the same class, found by sweeping for it (#71, tier S, 2026-08-25).**
+  The finding named one function. Five walk the edge polylines strip by strip,
+  and only two carried the check: `tail_geometry`'s two polyline integrals
+  reached `[0]` on an empty tail edge and came back through SELECT and the
+  balance as an `IndexError`, the Schrenk distribution had the point check but
+  still divided by an area of zero, and `wing_inertia` had nothing. Coincident
+  edges, a zero span, a repeated butt line and a trailing edge entered ahead of
+  the leading edge are all ordinary mid-entry states and all produced a bare
+  `float division by zero`, which `_NOT_READY` deliberately does not catch. The
+  gear-placement consistency check, which renders on every page, now skips a
+  planform still being typed rather than interpolating it.
+
+- **The broad `except` around the wing-area resolver is narrowed (#70 follow-up, tier S, 2026-08-25).**
+  `validation` and the field registry caught `(ValueError, ZeroDivisionError,
+  StopIteration)` around `planform_area_sqft` because the calc underneath could
+  still divide by zero. It cannot now, so both catch the declared `ValueError`.
+
+- **Design note 32 described a GUI that had moved on** (PB-24, issue #74, tier S,
+  2026-08-25). The oracle-GUI note is a live plan, not a historic record, and six
+  of its statements no longer matched the code it plans: OG-4 named
+  `_has_unsaved_changes` / `_confirm_discard` / `_load_with_guard` in
+  `app/components.py`, which shipped as the public `app_shell/project_state.py`
+  API; OG-8's gear-duplication prerequisite was closed by note 33 DS-1 / #52 and
+  guarded, and both it and review 2026-08-20 §7's "not satisfied" now say so;
+  gate G7's *statement* still promised "the parametrized ultimate-contract scan"
+  and §5 still leaned on it, although OG-9 — the item that would have built it —
+  was withdrawn in full on 2026-08-20 and the gate as shipped reads the payload
+  bytes instead.
+- **`supplied` was documented as a field written behind the user's back** (PB-24,
+  #74, tier S, 2026-08-25). Note 32's G5 row, the registry's own comment, its
+  `supplied_paths` docstring and two test docstrings all read "a field the oracle
+  GUI *writes* without asking" — and all thirteen supplied paths are rendered
+  widgets the user can see and change. Several are *seeded* with a meaningful
+  default rather than left empty (a surface name, a CG case's role), which is
+  where the reading came from, but seeding a field the user then edits is not
+  writing it behind their back, and a mark documented that way invites a GUI that
+  hides them. Corrected in all five places.
+- **Every field count in note 32 was a present-tense claim about a moving
+  number** (PB-24, #74, tier S, 2026-08-25). The registry has been 323 fields /
+  219 `ORIGINAL` / 11 supplied and 230 fields on 35 groups since 2026-08-19; it
+  is 297 / 199 / 13 and 212 on 34 groups today, and the oracle page count went
+  from 13 to 14 with nothing noticing. Each measurement now carries the date it
+  was taken, the section that leans on them carries a one-line recount command,
+  and the live page count points at its owner (`workflow.oracle_step_keys()`) and
+  the guard that holds it — rather than being re-frozen at a value that will
+  drift again.
+
+- **Coefficients in the oracle GUI were displayed rounded to four decimals**
+  (PB-22, issue #73, tier S, 2026-08-25). Every float widget carried
+  `format="%.4f"`, so FLTLOADS' airplane-less-tail polynomials showed as
+  `0.3205` and `0.0041` where the project held `0.320479` and `0.004128`. The
+  stored value was never touched — but this GUI exists for a persona who reads
+  the coefficients off the screen to check them against the manual, and a
+  coefficient the screen rounds is one nobody can check. Precision is now a
+  property of the quantity rather than of the page: `sloads.units.display_format`
+  answers per `FieldUnit` — `%g` for a dimensionless value, four decimals for one
+  carrying a unit, where `%g`'s six significant figures would *lose* precision on
+  a station or an area — and no renderer in `oracle_app/` or `app_shell/` may
+  write a format string of its own.
+- **Fields whose leaf name is a code rather than a word were labelled with the
+  code** (PB-22, #73, tier S, 2026-08-25). *Xt25*, *Xv50*, *Fwd Regardless Pct
+  MAC* and *Elevator Aft Hinge* (an area aft of the hinge line, not a fitting)
+  name nothing to a reader who does not already know the schema. ~20 of them are
+  now hand-declared in `oracle_app/labels.py` beside the spelling table, with the
+  same guard `MEMBER_LABELS` carries: a label for a field that is not in the
+  input set fails the suite. An override replaces the field's *name* and never
+  its unit, so a deflection cannot lose its degrees on the way through.
+- **A rate in rad/s was labelled "Design Pitch Rate Rad (s)"** (PB-22, #73,
+  tier S, 2026-08-25). The unit-suffix table was matched in declaration order,
+  so `design_pitch_rate_rad_s` matched `_s` before `_rad_s` — the unit split in
+  half with the other half left in the name. Matched longest-first now.
+- **The one V-n field whose name gives no clue had help naming a different
+  quantity** (PB-22, #73, tier S, 2026-08-25). `flight_loads.mn`'s registry basis
+  read "FLTLOADS gust/manoeuvre matrix"; it is the Mach number the aero
+  coefficients were obtained at (~0.1, FLTLOADS.BAS line 138), not a design Mach.
+  The tooltip is built from the basis, so the row was the fix.
+- **The airspeed unit nested its own parentheses** (PB-22, #73, tier S,
+  2026-08-25). Widgets append a unit as `label (unit)`, and the unit string was
+  `kt (EAS)` — *Chosen Vc (kt (EAS))*. It is **KEAS** now, the one word
+  `CONVENTIONS.md` and every help string in the tool already use, declared once
+  in `sloads/units.py` and re-exported by `app_shell/components.py` instead of
+  spelled separately in both. A group of fields held on the project itself is
+  captioned as such rather than as a schema path `` `(project)` `` that does not
+  exist.
+
+- **Four oracle-GUI acceptance gates were asserting less than they read as
+  (PB-10 … PB-13, issue #67, tier S, 2026-08-25).** G2 checked that the
+  navigation *expression* mentions `oracle_steps()` by walking the source, which
+  stays true of a page set that has been filtered or re-ordered; it now runs the
+  entry point and asserts the page set actually registered
+  (`app_shell.nav.PAGES`) is `oracle_steps()`, in order, with one default, the
+  source scan kept as a drift hint. G8/OG-10, the lint gate and the shell
+  back-import test all scoped themselves to "directories holding a module-level
+  `set_page_config`", so wrapping `Oracle.py`'s call in a helper would have
+  removed `oracle_app/` from all four at once with CI green — discovery is now
+  by directory, pinned against a literal `{app, oracle_app}`. The Imperial→SI
+  factor scan was two hand-typed literal lists (eight numbers in
+  `test_oracle_gui.py`, five others in `test_units.py`, neither reading
+  `app_shell/` or `oracle_app/`), replaced by one scan derived from `units.py`'s
+  own constants and matched numerically against the float literals of all four
+  packages; `test_constants.py`'s package list was swept the same way (rule 4).
+  G7 ran on one airplane in one unit system, where `one_engine_out` is blocked
+  and `body_loads` has no conditions — two pages asserted over an empty artifact
+  list, and the SI conversion never applied; it now runs over a single **and** a
+  twin, one unit system each, with a guard that every page running a program
+  offers a file on at least one of them. Each strengthened gate was
+  mutation-tested. Also corrected: G7's text half claimed byte equality with
+  `cli.py` for every module, which is untrue of `engine` (the CLI prints
+  `text_report` — the same body under an engine/propeller identification
+  header); the gate pins the shared body of the two owners instead.
+
+- **Fields the user must state are no longer filtered off the oracle pages
+  (#98, C210-46/49/29, tier M, 2026-08-27).** One cause — the `_SLDS`-origin
+  filter — and the same failure three ways, now closed as two guarded classes
+  plus a generated caption. **Row selectors** (`tab_loads.tabs[].surface`,
+  `tail_mass[].surface`, `aero.surfaces[].name`): a page resolves a *scalar*
+  surface selector positionally, never a *row's*, so hiding one hardcoded every
+  row — every tab was silently an h-tail tab (wrong case-ID band, export tag
+  and BL-vs-WL station reading) and a rudder or aileron tab could not be
+  entered at all. They are rendered now (selectboxes over the
+  `TAB_SURFACES`/`TAIL_SURFACES` vocabularies), an unknown surface is **refused
+  by name** (`models.inputs.require_surface`) where it used to be silently
+  filed under `wing` or silently inert, and
+  `test_a_list_row_selector_is_always_asked` fails structurally on the next
+  hidden one. **Sentinel defaults** (both gear legs' `carrier`, `attach`,
+  `weight_lb`): defaults that mean "not stated" — the export assumes or omits
+  the leg's node and no ground case is deliverable — are registered in
+  `field_registry.SENTINEL_DEFAULTS` (each entry citing its refusing consumer),
+  rendered, and guarded by `test_a_sentinel_default_field_is_always_asked`.
+  **Empty lists** (C210-29's caption half; the seed half shipped with #97): an
+  empty list table used to be a bare rows counter with no trace of the whole
+  AIRLOADS block it hid; it now captions every field the page holds behind a
+  row, **generated from the page's own field set** so every empty list in the
+  GUI gains it and the caption cannot drift when a field is added. Each new
+  `supplied` mark is demonstrated load-bearing in `tests/test_oracle_inputs.py`.
+
+- **Oracle page placement moves, the load-bearing zero tail CP is refused, and
+  a crash names its line (tier M, 2026-08-26, #99).** C210-37/44 (owner
+  directives): the aileron/flap planform geometry (areas, deflection limits,
+  chord ratio) and `engine_layout` render on the Geometry page beside the
+  empennage forms — the rows keep their slices, the placement is the registry
+  page tag, and a drift guard holds the decision; the Engine Mount page's
+  layout-consistency message now names both owning pages. C210-21: `xtc`/`xtf`
+  at their 0.0 default put the tail CP at the datum, sign-flip the tail arm and
+  balance silently wrong — `build_envelope` refuses the station a config in
+  play would read, by name, and `tail_cp_station_unset` warns on the Flight
+  Envelope page before anything runs. C210-14: `landing_light_not_lighter`
+  warns when a `fwd_light` case weighs exactly the max landing weight — the
+  role claims the light corner while the numbers answer the heavy question.
+  C210-24 (the display half of #71): a not-ready result block keeps its
+  friendly one-liner but adds the exception type and carries the traceback,
+  module:line first, in an expander — a from-blank user can report *where* it
+  died without leaving the GUI.
+
+- **A page states the later page its numbers depend on (#69, PB-15/PB-19, tier M, 2026-08-25).**
+  Flap Loads computes its FAR 23.457(b) slipstream case from an engine record entered
+  two pages later, and WTESTIMA correlates against the engine list's combined power
+  rather than the horsepower typed beside it. Run either page first and it showed a
+  complete-looking answer that moved once the Engine page was filled — ~19 % of the
+  governing flap load on the C210, the slipstream being a whole delivered case that
+  did not exist yet — with nothing on the page saying the dependency existed.
+  `WorkflowStep.reads` now declares those dependencies and
+  `app_shell.components.render_page_order_reads` states them: the slice and the page
+  that enters it on every visit, escalating from caption to warning while that page
+  is still empty. `requires` was the wrong instrument — it blocks, and both calcs are
+  correct with no engine at all. Seven declarations across four steps (Geometry,
+  Weight & Mass, Balanced Cases, Flap Loads), found by sweep rather than by report.
+- **A copy whose owner is not a field is marked too (#69, C210-41 step 1, tier M, 2026-08-25).**
+  `_copy_note` returned early on `owner_is_external`, so the half of the registry that
+  records "owned, but not by a field" was dark: engine weight and CG (owner: the weight
+  database, D-25), the engine-mount limit load factor (the computed 23.337 limit), and
+  the weight estimate's engine count and horsepower all rendered as silent peer inputs.
+  All six are now captioned with their owner in words. They are never disabled — an
+  external owner is an expression with no value to substitute, and one of them is the
+  fallback the calc uses when the owner is empty — and where `governs` alone would
+  state the rule wrongly the row carries the true sentence in a new `FieldEntry.resolves`.
+
+- **An `AppTest` script was permanently stubbing a real module** (found while working
+  #79, tier S, 2026-08-26). `AppTest.from_string` execs its script in the *running*
+  process, so `_NO_ARTIFACT_SCRIPT`'s `r.step_results = lambda …` (added with #89) rebound
+  the attribute on `oracle_app.results` for the rest of the session — every later test
+  that imported it got a one-block stub for a page called "flap". Harmless when written,
+  because nothing after it read `step_results`; it stopped being harmless the moment
+  something did, and the symptom was a `KeyError` in an unrelated test that came and went
+  with the xdist worker split. Restored in a `finally` (the stub is the point of that
+  test), and a new guard reads every `*_SCRIPT` constant and fails on any other
+  module-attribute assignment — including in the one script that is a `str.format`
+  template and cannot be parsed, which is scanned textually so it cannot become the hole.
+
+- **Row 17 is split by mechanism, note 34 reaches AGREED, and the suite-runtime
+  row is re-measured (tier S, 2026-08-26).** Three corrections to the 0.8.0
+  record, none of them a code change. **The split:** the C210 family the
+  2026-08-24 re-cut folded into row 17 was 26 findings across 14 pages sharing
+  nothing but a review date, and its one tier-L member — TAILDIST recording the
+  aero state of each case — would have gated twenty-five presentation findings
+  behind a schema change. It is now five rows by mechanism: the text-only
+  residue stays at row 17 (#94), the derive-by-default overrides go to #97, the
+  fields filtered off the page to #98, the placement/validation pair to #99, and
+  the tier-L aero-state contract to #100, which carries its own design-note-first
+  requirement.
+- **Design note 34 (oracle GUI user guide) moves PROPOSED → AGREED**, milestone
+  0.8.0. Its four open questions were answered by the owner on 2026-08-25 as
+  UG-9 … UG-12, but the note carried them for a day still marked PROPOSED — the
+  state that blocked note 32's step OG-B and would have blocked the guide's
+  first chapter under `CLAUDE.md` rule 1.
+- **The suite-runtime revisit clause (#92) is re-measured, and the figure that
+  tripped it was a coverage-instrumented run.** Plain `pytest`, the documented
+  local command: 62.1 / 62.7 s, one call over 16 s, none over 30 s — inside all
+  three of the clause's thresholds. Under `--cov=sloads` with
+  `COVERAGE_CORE=sysmon`, as CI's coverage leg runs it: 265.6 s, 13 calls over
+  16 s and 8 over 30 s, reproducing the recorded 269 s. The test named as the
+  critical-path floor at the trip measures 2.3 s in isolation and enters the top
+  20 in neither mode. The row keeps both readings and states the scoping
+  question it now poses — close as no-longer-tripped, or re-aim at the coverage
+  leg that gates the push to `main` — as the owner's to answer.
+
+- **A file opened in either GUI now says it was migrated (PB-14, issue #68,
+  tier S, 2026-08-25).** `apply_schema_check` asked
+  `new_project.schema_version` — but `project_from_dict` runs `migrate`, which
+  stamps the dict at the current `SCHEMA_VERSION` before the shell ever sees it,
+  so the status was always `ok` and the 🔁 *"Migrated from schema N to 55"*
+  notice could not fire: a v41 file (every bundled example) opened, was
+  upgraded, and would be rewritten at v55 on save with nothing said. The
+  pre-migration version is a fact about the raw dict and now has one reader,
+  `io.source_schema_version`, with `io.read_project_dict` splitting the file read
+  out of `load_project` so the question can be asked before the hops run.
+  `safe_load` takes the dict reader rather than a project builder and builds the
+  project itself, which keeps the project and the version it came from together
+  for every load action in both GUIs; the JSON editor's Apply had the same dead
+  check and was swept in the same change. The now-redundant stamp bump at both
+  sites is gone — it was already current. Guards:
+  `test_app_shell.py::test_opening_an_older_file_says_it_was_migrated` (a real
+  v41 example through the sidebar, asserting the toast), its current-version
+  twin, an AST guard that no GUI asks `schema_status` about a built object's
+  stamp, and `test_io.py::test_the_version_a_file_was_written_at_survives_the_load`.
+
+- **The weight/CG chart drew its `% MAC` column and its CG-limit lines from
+  different wings** (#80, tier M). `X = XLEMAC + (pct/100)·MAC` was spelled four
+  times, and the spellings disagreed about the prior question the relation
+  cannot answer for itself — *which* XLEMAC and MAC. WTENV preferred the typed
+  `weight.envelope.xlemac`/`mac` override and fell back to the planform; the
+  report's envelope-corner table inverted the relation over the planform alone.
+  On a project carrying an override the vertical limit lines and the `% MAC`
+  column beside them therefore described different references, on one chart,
+  with nothing saying so. No shipped example sets the override — which is why
+  this was invisible and why nothing in the frozen Imperial baseline moves — so
+  the guard makes one disagree on purpose. `sloads/derived_geometry.py` now owns
+  the resolution and both directions of the relation (`mac_reference`,
+  `pct_mac_to_station`, `station_to_pct_mac`), and an AST scan over `sloads/`,
+  `app/`, `app_shell/` and `oracle_app/` fails on a fifth spelling.
+- **Two more MAC-frame quantities were computed locally** (#80, generalised from
+  the above). The tail-volume neutral point and the 25%-MAC CG estimate in
+  `modules/configuration.py`, and the static-margin sweep's station→%MAC
+  conversion in `app/views/flight_envelope.py`, each open-coded the same
+  arithmetic. All three now share the relation while passing a **planform**
+  reference explicitly: they are aerodynamic quantities, so the weight
+  envelope's override deliberately does not reach them, and saying so in one
+  line is what stops the next reader from "fixing" it the other way.
+
+- **The §3.5 release smoke gate boots both front-ends, not just the first one
+  (#127, tier S, 2026-08-28; production-release review §3.2).** `smoke_test.sh`
+  started `app/Home.py` and nothing else, so the release whose headline
+  deliverable is the oracle GUI had no hard gate that launched it under a real
+  server. It now boots each front-end in turn through one `smoke_gui` function —
+  identical terms, its own port, its own log — and the oracle GUI is started the
+  way a user meets it, through the **`sloads-oracle` console script**
+  `pyproject.toml` binds to `oracle:main` (falling back to `python oracle.py` in
+  a checkout with no install, and saying which it took). That is the half the
+  existing coverage missed: `AppTest` already reaches `Oracle.py`'s
+  `set_page_config`, `st.navigation` and sidebar context manager in-process, and
+  `test_the_launcher_points_at_the_entry_point` proves the path *resolves* — only
+  a real boot proves the launcher launches. `RELEASE_PROCESS.md` §3.5 names both.
+  The structural half lives in `tests/test_ci_conformance.py`, whose defect class
+  this is (a documented setting differing from the live one in silence): the
+  front-ends are **found**, not listed — every top-level `.py` that calls
+  `st.set_page_config`, which is one per GUI — and the gate must boot every one
+  of them and the checklist must name every one it boots. A third front-end
+  joins the comparison by existing. Both guards verified to fail on a mutation.
+
+- **The shell's unit radio beat a loaded project's own unit system, and the
+  disabled wing-area copy showed a number the analysis does not use**
+  (PB-16, PB-17, issue #70, tier M, 2026-08-25). `unit_system` is a field of
+  `Project`, so the sidebar radio is a project-seeded widget; it was exempted
+  from the project-generation stamp as "the user's choice", and its retained
+  state therefore beat `index=` — opening an SI-saved file in an Imperial
+  session put `imperial` back on the file and reported it *unsaved* before the
+  user had touched anything. It now carries the stamp like every other widget
+  seeded from the project, and the exemption list has a behavioural guard
+  beneath it: loading any shipped example through the shell must leave it clean.
+  Separately, `speeds.wing_area_sqft` was registered as a display-only copy of
+  `geometry.parametric.wing_area_sqft` while STRSPEED integrates the
+  `speeds.wing_surface` **planform** — so the disabled widget stated 500.0 where
+  the answer used 497.75 on `concept_regional_jet`, and two unrelated numbers on
+  a hand-typed project. The row now names the planform as its owner and the
+  widget shows the resolved area, from the same function the calc calls; where
+  no such surface exists the field is what STRSPEED actually reads, so it goes
+  live instead of being disabled against its own error message's advice.
+- **The wing planform integral had four implementations and the wing-area
+  mismatch warning printed twice on one page and never on the other**
+  (#70, tier M, 2026-08-25). `structural_speeds`, `landing`, `validation` and
+  `derived_geometry` each performed the strip integral; the guard that was
+  supposed to prevent this scanned `sloads/modules/` only and allowlisted two of
+  them, so `validation.py` grew a third copy outside its view. There is now one
+  owner, `derived_geometry.planform_area_sqft` — the callers keep their own
+  policy for an absent planform (LGFACTOR refuses, STRSPEED falls back) and none
+  of them keeps the arithmetic — and the guard covers all of `sloads/`.
+  `_check_area_mismatch` returned its warning tagged for Configuration & Layout
+  twice, so that page printed the same sentence twice and Design Speeds, where
+  the disagreement decides which number is integrated, printed it not at all.
+- **A caption quoting an owner's value quoted it in Imperial on an SI page**
+  (#70, tier S, 2026-08-25). The copy marks state the governing number beside a
+  widget that converts, so an SI reader was shown kilograms in the box and
+  pounds in the caption. `oracle_app.form._shown` converts and labels it.
+
+### Removed
+
+- **Pre-production schema floor: a project file is read at the current version, or refused (#93, tier L, 2026-08-25).**
+  The twelve migration hops (v18→v55) and the v0 bare-`EngineInput` branch are gone, and
+  `SUPPORTED_FLOOR` is now `SCHEMA_VERSION`. `migrations.migrate` raises the new
+  `SchemaVersionError` — a `ValueError`, so it lands in the documented error contract — for a
+  file that is older, newer or unversioned, naming both versions. The gate is raised once,
+  inside `io.project_from_dict`, so CLI and both GUIs refuse identically; `io.schema_status`
+  and the shell's `apply_schema_check` notice path went with it. This project is
+  pre-production: no analysis made with an earlier build has to stay readable, and refusing is
+  more honest than reshaping someone else's schema into this build's answer.
+  The hop machinery is kept, empty — at production the floor drops and hops register from the
+  then-current version forward, unchanged in shape.
+
+- **Flutter clearance (MFC / V(FC)) is gone from the tool** (C210-19, issue #79, tier M,
+  2026-08-26). `MACHLIM.BAS` computes `MFC = 1.2·MD` and a per-altitude
+  `V(FC) = MFC·a·√σ`, and this port reproduced both. Flutter substantiation is
+  **14 CFR 23.629**, not a design load — nothing in this suite sizes structure to MFC —
+  and the symbol makes it worse rather than clearer: a Part 25 reader takes `VFC`/`MFC`
+  for **§25.253's** maximum-speed-for-stability pair, a different quantity under a
+  different definition. Removed on the owner's directive from the calc
+  (`mach_limit.py`), the report's plot series **and its `V(MFC) (KEAS)` workbook
+  column**, the Speed–Altitude chart in the main GUI (whose constant-Mach fan reached
+  `1.2·MD + 0.05` and now reaches `MD + 0.05`), and the theory document. **MNE = 0.9·MD
+  and the V(MC)/V(MNE)/V(MD) lines are untouched and stay oracle-locked.**
+- **The dropped Appendix A output is registered as a scope withdrawal, not a
+  correction** (#79, tier M, 2026-08-26). Appendix A p160 prints MFC 0.4836 and the
+  oracle test asserted it to ±0.1 % until this date; we now decline to compute it, and
+  the printed figure stands uncontradicted.
+  `docs/20_theory/02_approved_corrections.md` gains a **third category** for that: its
+  existing entries say *the manual is wrong and here is the right number*, which is the
+  opposite claim. Guarded by
+  `tests/test_mach_limit.py::test_no_shipped_module_computes_a_flutter_clearance_speed`,
+  an AST scan of every shipped package — because the quantity was computed in **two**
+  places, and deleting only the module's would have left the chart still drawing the
+  line. **The VF half of #79 closes verified-correct:** every `VF` in code and docs is
+  the 23.345 design flap speed, with no flutter conflation anywhere.
+
 ## [0.7.2] — 2026-08-25
 
 ### Fixed
