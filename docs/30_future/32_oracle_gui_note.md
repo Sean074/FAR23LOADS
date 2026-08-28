@@ -3,8 +3,13 @@
 **Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
 
 **Status: AGREED 2026-08-19 (owner, in session) — the oracle GUI is the next
-development phase.** OG-A (the `bas` sentinel defect, §3) shipped 2026-08-19 as
-an independent tier-S fix; everything else is unbuilt. The GUI freeze is lifted
+development phase; BUILT 2026-08-20.** Every step in §7 shipped, each marked
+there with its date: OG-A, OG-B, OG-C and OG-C2 on 2026-08-19, OG-D, OG-E and
+OG-F on 2026-08-20 (OG-9 withdrawn in full — see OG-F). The oracle GUI has
+carried its own development band since, closed issue by issue against
+`00_backlog.md` rather than against this note, so what follows records **the
+shape it was built to**, not work outstanding. Milestone: 0.8.0; rolls to
+`40_history/` at the cut. The GUI freeze is lifted
 for this note's work (§8). One decision was added at agreement — **OG-14**, the
 single registry — which changes what OG-5 / step OG-C build; the rest of the
 note is agreed as written.
