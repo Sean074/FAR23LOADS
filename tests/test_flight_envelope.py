@@ -465,6 +465,69 @@ def test_a_set_with_no_stall_cl_is_refused_by_name_not_divided_by():
         raise AssertionError("a zero stall CL must be refused, not divided by")
 
 
+def test_a_lift_polynomial_with_no_alpha_term_is_refused_by_name():
+    """#144: a coefficient set whose lift polynomial cannot move with alpha is
+    refused at the consumer, not laundered into a 400-trip ``SolverFailure``.
+
+    The inner balance moves alpha until NZ lands in its +-0.005 band. With
+    ``C1..C4`` all zero, CL -- and with it LZ, MM and the tail load -- is the
+    same number at every alpha, so no trip can answer differently and the loop
+    exhausts as "did not converge in 400 iterations ... reached NZ=0 at
+    alpha=41.3861 deg": a solver failure naming no input, on a page working a
+    moment earlier. It arrives from any writer that can attach a blank set
+    (#143 is one), and ``normalize()`` fills ``stall_cl`` from ``clmax_flap``,
+    so the #81 guard does not catch it. Refused for both entry points that share
+    ``balance_configs``.
+    """
+    from dataclasses import replace as _replace
+
+    from sloads.models import MissingInputError
+    from sloads.modules.flight_envelope import trim_sweep
+
+    def _phantom(project):
+        """The GA6 project with a zero-polynomial flaps-down set attached, its
+        stall CL filled from ``clmax_flap`` exactly as ``normalize`` fills it."""
+        aero = project.aero_coeffs
+        project.aero_coeffs = AeroCoefficientsInput(
+            cruise=aero.cruise,
+            flaps_down=AeroCoeffSet(
+                name="LANDING", lift=(0.0,) * 5, drag=(0.0,) * 5,
+                moment=(0.0,) * 5, flaps_down=True,
+            ),
+            clmax_clean=aero.clmax_clean, clmax_clean_neg=aero.clmax_clean_neg,
+            clmax_flap=aero.clmax_flap,
+        )
+        assert project.aero_coeffs.flaps_down.stall_cl > 0.0, (
+            "the fill must pass the #81 guard, or this test proves nothing")
+        return project
+
+    for entry in ("build_envelope", "trim_sweep"):
+        project = _phantom(io.load_project(_GA))
+        try:
+            if entry == "build_envelope":
+                build_envelope(project)
+            else:
+                trim_sweep(project, weight_lb=3400.0, zcg=93.0, xcg_stations=[80.0])
+        except MissingInputError as exc:
+            assert "LANDING" in str(exc), (entry, str(exc))
+            assert "alpha" in str(exc) and "C1..C4" in str(exc), (entry, str(exc))
+        else:
+            raise AssertionError(
+                f"{entry}: a lift polynomial with no alpha term must be refused")
+
+    # The ruling, executed: only lift is guarded. An all-zero drag or moment
+    # polynomial is a legitimate entry -- CD = 0 and CM = 0 are values, not
+    # voids, and the balance solves with either -- so the same blanking of the
+    # other two polynomials must still run.
+    project = io.load_project(_GA)
+    project.aero_coeffs.cruise = _replace(
+        project.aero_coeffs.cruise, drag=(0.0,) * 5, moment=(0.0,) * 5)
+    if project.aero_coeffs.flaps_down is not None:
+        project.aero_coeffs.flaps_down = _replace(
+            project.aero_coeffs.flaps_down, drag=(0.0,) * 5, moment=(0.0,) * 5)
+    assert build_envelope(project).vn, "a zero drag/moment polynomial must still balance"
+
+
 def test_a_zero_tail_cp_station_is_refused_by_name_not_balanced():
     """C210-21 (#99): ``xtc``/``xtf`` = 0 flow straight into the tail arm
     (``xt - xcg``), so the field's default puts the tail CP at the datum --

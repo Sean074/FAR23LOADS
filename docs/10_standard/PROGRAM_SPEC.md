@@ -230,6 +230,23 @@ distribution it drives, cross-linked from both pages) writes it (`flight_envelop
   prints −0.41 against a clean −0.59), so a flaps-down set that leaves it 0
   clamps the negative side of the flap envelope at CL = 0 — the
   `aero_flap_neg_stall_unset` validation warning, not a guess.
+
+- **A lift polynomial with no alpha lever is refused, not iterated (#144, tier M,
+  2026-08-29).** The same choke point, `balance_configs`, refuses a coefficient
+  set whose lift polynomial has no alpha term (`C1..C4` all zero). The inner
+  balance moves alpha until NZ lands in its ±0.005 band; with no alpha term CL —
+  and with it LZ, MM and the tail load — is the same number at every alpha, so
+  no trip can answer differently and the loop exhausts as a 400-iteration
+  `SolverFailure` naming no input (measured: "reached NZ=0 at alpha=41.3861 deg"
+  on a GA6 project one gesture after the V-n page was working). A zero-slope set
+  is not a poor fit but an unsolvable one, which is why it is refused here and
+  not warned: a *negative* or implausible slope still balances, and stays the
+  `aero_lift_slope_sign` `ConsistencyWarning`. **Only lift is guarded** — an
+  all-zero drag or moment polynomial is a legitimate entry (a set may honestly
+  carry no polar or no CM fit; `CD = 0` and `CM = 0` are values, not voids),
+  while an all-zero lift polynomial says the set carries no airplane. Stated at
+  the consumer for every writer, the way the stall-CL, weightless-CG and
+  tail-CP-at-datum refusals above are.
 - **Zero tail-CP station refusal (C210-21, #99):** `xtc`/`xtf` feed the tail
   arm `xt − xcg` directly, so the field's 0.0 default puts the tail CP at the
   datum — ahead of the CG on any real airplane — sign-flips the arm, and
