@@ -2,9 +2,20 @@
 
 **Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6)*
 
-**Status: AGREED 2026-08-28 — REOPENED 2026-08-28 on GF-1/GF-2, which an
-existing closure gate falsifies as scoped (§1.8) — GF-1 since re-confirmed
-and GF-2 refuted outright from the Appendix C listing (§1.9, OQ-2/OQ-3).
+**Status: AGREED on GF-1/GF-2′; GF-3′ WITHDRAWN 2026-08-28 and the note is
+AWAITING RE-AGREEMENT on the deviation surface (§1.11).** GF-3′ was agreed on a
+scope that understated the deviation — it named the p230 arm table, and the
+correction in fact moves printed **p231 ground-line reactions** by up to 40 %
+(§1.11). The owner stopped implementation at that measurement rather than
+proceed. **Nothing is built**: the GF-1/GF-2′ code and the GF-4 gate were
+written, measured, and reverted. The note was reopened the same day when the GF-2 fix
+site failed an existing closure gate (§1.8), then re-adjudicated from the
+Appendix C listing: GF-1 is confirmed from a second, independent direction,
+GF-2 is refuted and replaced by **GF-2′** (five tables, one sign — the
+ground-roll lever arms move with the resolution), and GF-3 grows into **GF-3′**
+(the deviation reaches the printed p230 arm row, where `DP` states a wheelbase
+of 93.147 between contact points that are 94.811 apart). §1.8–§1.10 carry the
+evidence and supersede §1.4.
 Milestone 0.8.1 (re-milestoned 2026-08-28 when the patch band opened ahead of
 0.9.0 — backlog re-cut 2026-08-28, ruling 1). Nothing built; the GF-1/GF-2 code
 change was written, measured against the gates, and reverted. GF-6/GF-7 (the
@@ -400,12 +411,125 @@ produced.
 
 ---
 
+### 1.10 OQ-5 answered (2026-08-28): all three arms flip, CP does not
+
+**`FNBP` simplifies to a projection.** From the Appendix C definitions:
+
+```basic
+DEF FNAP(XCG,XNG,B,ZCG,ZNG) = (XCG-XNG)*COS(B) - (ZCG-ZNG)*SIN(B)
+DEF FNDP(XMG,XNG,B,ZMG,ZNG) = (XMG-XNG)*COS(B) - (ZMG-ZNG)*SIN(B)
+DEF FNBP(XMG,XCG,B,ZCG,ZMG) = (XMG-XCG)/COS(B) + ((ZCG-ZMG)-(XMG-XCG)*TAN(B))*SIN(B)
+```
+
+with `a = XMG-XCG`, `c = ZCG-ZMG`:
+
+    BP = a/cos b + (c - a·tan b)·sin b = a(1-sin²b)/cos b + c·sin b = a·cos b + c·sin b
+
+So **all three are plain projections onto a direction rotated by `b`** — the
+`/cos` and `tan` are algebra, not a different construction. The question OQ-5
+asks ("resultant-direction rotation, or a magnitude in a ground-line
+projection?") therefore has one answer for all three: they are ground-line
+projections, and the only question is the sign of the rotation.
+
+**The sign, settled without reference to any convention.** GRA is *defined* as
+the axle-line slope less the radius correction, so the contact line lies at
+**+GRA in body axes** (ga6 ground roll: axle line 6.1134°, correction 1.3893°,
+GRA 4.7241°) — the ground rises going aft, i.e. the airplane is nose-up, as
+§1.2 argued. The ground-parallel unit vector is therefore
+**u = (cos GRA, +sin GRA)**, and the printed arms project onto
+`(cos GRA, −sin GRA)`.
+
+**`DP` decides it on its own.** DP is the wheelbase along the ground line — the
+distance between the two contact points. That is the distance between two
+points and admits no sign convention:
+
+    |patch_main − patch_nose| = 94.811   (ga6, ground roll)
+
+against a printed **93.147**. The corrected projection returns 94.811 exactly.
+
+| arm (ground roll, 3 CG cases) | printed p230 | true ground-line projection |
+|---|---|---|
+| DP(2,·) | 93.147 | **94.811** |
+| AP(2,·) | 78.836 / 69.886 / 66.501 | **86.002 / 77.052 / 73.502** |
+| BP(2,·) | 14.311 / 23.260 / 26.646 | **8.810 / 17.759 / 21.310** |
+| CP(2,·) | 42.241 / 42.981 / 42.271 | **unchanged** — enters through `cos`, even |
+
+Two internal checks: projecting from the **contact patch** and from the **axle**
+give identical values (the patch offset is along the ground *normal*, so it
+contributes nothing to a ground-parallel projection); and the derived values
+reproduce §1.9's closure experiment to three decimals, which was measured
+independently.
+
+**OQ-5: answered. AP, BP and DP all take the corrected rotation; CP is
+untouched.** The fix site is therefore `AP(2,·)`, `BP(2,·)`, `DP(2,·)`,
+`PHIM(13–24)` and `PHIN(13–15, 25–33)` — five tables, one sign.
+
+---
+
+### 1.11 The deviation surface is larger than GF-3′ stated (2026-08-28)
+
+GF-2′ was implemented and measured before commit. The correction behaves exactly
+as §1.9/§1.10 predict — case 13's pre-closure residual pitching moment falls from
+**−757.1 to −0.7 lb-in**, and `test_the_ground_closure_reproduces_landloads_
+unbalanced_moments` passes on every case with no loosened tolerance. But the arms
+feed the **reaction solve**, not only the moment bookkeeping, so the deviation
+reaches the printed p231 table:
+
+| cases | quantity | as printed → corrected |
+|---|---|---|
+| 13–15 (braked, nose down) | VMP / DMP / RMP | 1404.19 → 1511.99 (**+7.7 %**) |
+| 13–15 | VNP | 1713.61 → 1498.01 (**−12.6 %**) |
+| 13–15 | NDP | 0.6608 → 0.7115 |
+| 16–18 | PITCHP | −217525 → −192645 (−11 %) |
+| 19–24 | PITCHP / YAWP | −64714 → −39834; ∓40386 → ∓24859 (**−38 %**) |
+| 25–33 (supplementary nose) | VNP / DNP / SNP / RESULT | case 25 1175.34 → 710.77 (**−40 %**) |
+
+**The driver is `BP`** — the CG-to-main-gear ground-parallel arm — at
+14.311 → 8.810 (−38 %); the nose reaction is `W·BP/DP`.
+
+**The evidence still favours the correction, and one argument is new.** A
+ground-parallel arm cannot depend on whether it is measured to the axle or to
+the contact patch: the patch offset is along the ground **normal**, so it
+contributes nothing to the projection. Under the corrected rotation both give
+**8.810**. Under the printed rotation they give **14.311** (axle) and **15.63**
+(patch), differing by `2·r·sin GRA`. **The printed sign fails a self-consistency
+test that makes no reference to the frame argument at all.** The families' FAR
+relations also survive the correction unchanged (`DMP = 0.8·VMP`,
+`VNP = 1.33·W − 2·VMP`, `DNP = 0.8·VNP`).
+
+**Why no oracle caught the size of this.** `test_landing.py`'s printed-value
+locks cover **case 1** (VMP 3144, VNP 1787, RESULT 1879) and **case 19's VMP
+(2261)** — all level or side, all unmoved by the correction. Cases 13–15 and
+25–33 are pinned only by *internal identities*, which hold under either sign
+because they are relations rather than printed values. **The p231 oracle
+coverage has a hole exactly where this deviation lands**, which is why a 40 %
+move in the supplementary nose reactions leaves the module's oracle suite green
+but for the arm table. That is a practice-3 gap in its own right and is
+independent of how the sign question is ruled — see the open finding below.
+
+**GF-3″ (to be drafted, replacing the withdrawn GF-3′).** The register entry
+must state the whole deviation surface — p230 arms, p231 cases 13–15 and 25–33,
+p232 datum — with each deviated-from value transcribed from the rendered page
+rather than computed from the pre-fix code, and the corrected expectation beside
+it. Until that entry is drafted and agreed, **no code**.
+
+**Open finding — the p231 lock hole (filed 2026-08-28, rule 5).** Independently
+of GF-1: the braked-roll and supplementary-nose families carry no printed-value
+oracle, on any fixture. Whatever is ruled here, those rows should be locked to
+p231 as printed (or, if the deviation is approved, to the corrected values with
+the register entry beside them) so the families stop resting on identities alone.
+Sized S; it is the assertion that would have made this whole question visible in
+2026-08-15 rather than 2026-08-28.
+
+---
+
 ## 2. Decisions (GF-1 … GF-8)
 
 | # | Decision | Rationale |
 |---|---|---|
 | **GF-1** | **The attitude-1 airplane-datum resolution is adjudicated a defect in LANDLOAD.BAS**: the physical PHIM/PHIN subtract the ground angle in every attitude. Corrected: PHIM(13–18) = atan(0.8) − GRA₂; PHIM(19–24) = −GRA₂; PHIN(13–15) = −GRA₂; PHIN(25/28/31) = atan(0.8) − GRA₂, (26/29/32) = atan(−0.4) − GRA₂, (27/30/33) = −GRA₂. | §1.2. The manual's own level and tail-down rows prove the convention; the ground-roll rows violate it. |
-| **GF-2** | **REFUTED 2026-08-28 (§1.9) — superseded; the fix site reaches the p230-locked ground-roll lever arms, per-arm scope open at OQ-5.** ~~Fix site is the PHIM/PHIN tables only~~ ([landing.py:471–490](../../sloads/modules/landing.py)). `_geometry`, `beta`, and the p230-locked AP/BP/DP/CP lever arms are untouched; every primed (ground-line) quantity is untouched. | The lever arms and the primed set are oracle-locked and *correct* — the ground-line equilibrium closes (NVP identities). Only the frame resolution is wrong. Smallest true fix site. |
+| **GF-2′** *(proposed 2026-08-28, replacing the refuted GF-2)* | **Fix site is five tables, one sign: `AP(2,·)`, `BP(2,·)`, `DP(2,·)` (`_geometry`, ground-roll attitude only) and `PHIM(13–24)` / `PHIN(13–15, 25–33)`.** `CP(2,·)` is untouched (enters through `cos`); the level and tail-down attitudes are untouched; `beta` itself, `gamma` and the `FNAP`/`FNBP`/`FNDP` definitions are untouched — only the rotation handed to them on attitude 1. ~~Fix site is the PHIM/PHIN tables only~~ (REFUTED §1.9: correcting the resultant direction while leaving the arms produces an incoherent module, measured at 0.106·W·MAC) ([landing.py:471–490](../../sloads/modules/landing.py)). `_geometry`, `beta`, and the p230-locked AP/BP/DP/CP lever arms are untouched; every primed (ground-line) quantity is untouched. | The lever arms and the primed set are oracle-locked and *correct* — the ground-line equilibrium closes (NVP identities). Only the frame resolution is wrong. Smallest true fix site. |
+| **GF-3′** *(WITHDRAWN 2026-08-28 — understated the deviation surface; see §1.11 and GF-3″)* | The register entry additionally records the **p230 ground-roll lever-arm row** — AP 78.836/69.886/66.501 → 86.002/77.052/73.502; BP 14.311/23.260/26.646 → 8.810/17.759/21.310; DP 93.147 → 94.811 (§1.10) — with DP's independent check as the headline evidence: the wheelbase along the ground line is the distance between two contact points, 94.811, and the printout states 93.147. `test_landload_lever_arms_oracle` is **re-pinned to the corrected arms**, not deleted, citing this entry. | The p230 table is a printed oracle; departing from it needs the register, and DP's discrepancy is the cleanest statement of the defect in the whole note — it needs no frame argument at all. |
 | **GF-3** | **This is an approved oracle deviation**: an entry in [`../20_theory/02_approved_corrections.md`](../20_theory/02_approved_corrections.md) recording the printed p232 values deviated from (43.387 / −17.079 / +4.724 and the vm/dm rows of §1.3, **plus the ND/NR cells of the lift-carrying cases per §1.6** — case 1: ND 0.679 → 0.585, NR 3.287 → 3.269) and the corrected expectations, owner-approved in the PR. The p232 **level and tail-down force** rows, which are correct, become new oracle locks (±0.1 %); the wheels-only **NR** values lock as printed (frame-invariant, §1.6). The entry **supersedes the register's "Considered and declined" decision of 2026-08-15** on the same question (§1.2): the declined entry is converted in place (declined → approved deviation, with the new evidence and a pointer to this note), and its pin test `test_the_ground_roll_attitude_is_resolved_against_the_other_sign` is flipped to pin ρ = −GRA on every attitude, never deleted. | The register is the process for departing from a printed oracle (`CLAUDE.md` §Math fidelity). Locking the rows that are right while deviating from the rows that are wrong is exactly what the register exists to state — and the declined entry's own text names this note's evidence as its reopening condition. |
 | **GF-4** | **ρ gets an absolute gate**: `ground_rotation_deg(case) == −GRA(attitude of case)` for every case, against `ground_angles` directly, exact (1e-9), all bundled examples. The gate's docstring states its assumption: the nose-up sense of GRA (§1.2's proof) was derived on **tricycle geometry**, the only arrangement the suite models — a tail-wheel configuration would re-open the sign derivation, not inherit it. | §1.4 — the existing G-6 gate is self-consistent and structurally cannot catch a sign error. This converts the documented anomaly in `gear_loads.py:224–229` from prose into an assertion (practice 3), and that prose is rewritten to describe history, not behaviour. |
 | **GF-5** | **Downstream re-verification rides the existing CI gates**: the assembled ground cases re-close in six DOF from the corrected reactions; the sbeam round-trip stays green; the gear reference-point loads **and the patch-to-trunnion transfer couples** move with `vm/dm` (§1.6 — the couple is derived from the force, so it co-corrects with no additional code). No consumer needs code changes. | The consumers were built to trust `vm/dm`; correcting the producer corrects them all. G-7a is untouched (§1.4); the application-point chain itself is verified sound (§1.7). |
