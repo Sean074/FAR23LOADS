@@ -3,7 +3,9 @@
 **Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6)*
 
 **Status: AGREED 2026-08-28 (owner, in session — `CLAUDE.md` rule 1's
-working-alone path), milestone 0.9.0; nothing built.** Proposed and amended the
+working-alone path), milestone 0.8.1 — re-milestoned 2026-08-28 when the
+patch band opened ahead of 0.9.0 (backlog re-cut 2026-08-28, ruling 1);
+nothing built.** Proposed and amended the
 same day after the owner-directed Appendix C `.BAS` verification: GF-1 confirmed
 at source level, OQ-1 resolved (revealing a second instance of the sign error,
 §1.6), the application-point audit folded into GF-6, the flight-side α/β sweep
