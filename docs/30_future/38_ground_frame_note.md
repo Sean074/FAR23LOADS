@@ -13,7 +13,12 @@ deviated-from set is executable — and found a **third instance** of the §4 cl
 in p233's datum-moment transform, which rotates `+GRA` on *every* attitude.
 GF-1 stands on the tail-down row, which fixes the sense with no appeal to
 consistency; the open question is now whether GF-1 and GF-2′ are priced
-together, since only GF-2′ costs the p231/p233 agreements. **GF-3″ is DRAFTED (§5, 2026-08-29)** with the whole surface transcribed and priced; it awaits the owner's ruling on which of GF-1 / GF-2′ is approved.** GF-3′ was agreed on a
+together, since only GF-2′ costs the p231/p233 agreements. **GF-3″ is DRAFTED (§5, 2026-08-29)** with the whole surface transcribed and priced; it awaits the owner's ruling on which of GF-1 / GF-2′ is approved. **§1.15 (2026-08-29) then closed the sign question from the
+manual's own construction figures**: p234 states the rule (`BETA = GAMMA − GRD ANGLE`, arms axle-to-axle
+normal to the resultant) and p235 prints braked-roll arms of 77.052 / 17.760 / 94.811 against the p230
+table's 69.886 / 23.260 / 93.147 — reproduced exactly by flipping `beta[1]`. GF-1 and GF-2′ are **one
+defect at one line**; positive ground angle is **nose up**; §1.10's DP argument is withdrawn though its
+conclusion held; and GF-3″ becomes a figure-versus-program record rather than an oracle deviation.** GF-3′ was agreed on a
 scope that understated the deviation — it named the p230 arm table, and the
 correction in fact moves printed **p231 ground-line reactions** by up to 40 %
 (§1.11). The owner stopped implementation at that measurement rather than
@@ -449,13 +454,20 @@ GRA 4.7241°) — the ground rises going aft, i.e. the airplane is nose-up, as
 **u = (cos GRA, +sin GRA)**, and the printed arms project onto
 `(cos GRA, −sin GRA)`.
 
-**`DP` decides it on its own.** DP is the wheelbase along the ground line — the
-distance between the two contact points. That is the distance between two
-points and admits no sign convention:
+**`DP` decides it on its own.** ~~DP is the wheelbase along the ground line — the
+distance between the two contact points.~~ **WITHDRAWN 2026-08-29 (§1.15):** p234
+shows DP is measured *axle to axle*, normal to the *resultant*, and the actual
+contact-patch separation is 94.622, not 94.811. The conclusion was right for a
+reason this paragraph did not give — p235 prints 94.811. The original argument
+follows, kept as the record of how it was reached — and note that its arithmetic
+was wrong as well as its premise: the patch separation is 94.622.
 
-    |patch_main − patch_nose| = 94.811   (ga6, ground roll)
-
-against a printed **93.147**. The corrected projection returns 94.811 exactly.
+> DP is the distance between the two contact points. That is the distance
+> between two points and admits no sign convention:
+>
+>     |patch_main − patch_nose| = 94.811   (ga6, ground roll)
+>
+> against a printed **93.147**. The corrected projection returns 94.811 exactly.
 
 | arm (ground roll, 3 CG cases) | printed p230 | true ground-line projection |
 |---|---|---|
@@ -712,6 +724,148 @@ before the sign is settled would ship a point that then moves.
 
 ---
 
+### 1.15 The manual's own figures settle it: p234 states the rule, p235 breaks the table (2026-08-29)
+
+Appendix A carries two construction figures for LANDLOAD's lever arms, on the
+pages immediately after the result tables. Both were rendered at 200 dpi and read
+cleanly. **They are the independent reference this note has been missing since
+§1.8**, and between them they close the sign question, dissolve §1.10's argument
+while confirming its conclusion, and merge GF-1 and GF-2′ into one defect at one
+line.
+
+#### p234 — "3 WHEEL LEVEL LANDING": the rule, stated
+
+The figure draws WL, FS, NORMAL TO GRD and the RESULTANT through CG 6
+(X = 76.12, Z = 93) with the compressed axles (nose R 5.7 at 1.9/46.9, main R 8.0
+at 96.3/55.9), and states in the drawing:
+
+```
+K = .324
+GAMMA = ARCTAN K = 17.978
+BETA = GAMMA - GRD ANGLE = 17.978 - 4.057 = 13.921
+GRD ANGLE = +4.057
+AP = 60.948    BP = 28.513    DP = 89.462
+```
+
+Three things are settled by the drawing alone. **The arms are measured between
+the axles**, not the contact patches — the dimension lines run from the wheel
+centres. **They are normal to the RESULTANT**, not to the ground line. And
+**`BETA` is the resultant-to-FS angle**, obtained by subtracting the ground angle
+from `GAMMA` — which is exactly what `_Geometry.beta`'s field comment already
+claims it is (`landing.py:169`), and exactly what the code computes for this
+attitude and no other.
+
+#### p235 — "BRAKED ROLL": the same construction, and a different answer from the table
+
+The same CG 6, the static axles (nose 2.4/49.5, main 96.7/59.6), the 4.724 deg
+ground angle, the 4522 lb vertical and the `.8RVM` drag — and the arms:
+
+| | p230 table (program output) | **p235 figure** |
+|---|---|---|
+| AP | 69.886 | **77.052** |
+| BP | 23.260 | **17.760** |
+| DP | 93.147 | **94.811** |
+| CP | 42.981 | 42.981 — agrees |
+
+The figure's three values are precisely the arms §1.10 derived as corrected, and
+they are reproduced **exactly** by flipping one sign:
+
+| arm | `beta[1] = +GRA₂` (as coded) | `beta[1] = −GRA₂` | p235 figure |
+|---|---|---|---|
+| AP | 69.887 | **77.052** | 77.052 |
+| BP | 23.261 | **17.759** | 17.760 |
+| DP | 93.148 | **94.811** | 94.811 |
+
+`CP` is untouched by the flip and agrees with the figure at 42.981, confirming
+§1.10's prediction that it enters through `cos` and is even. The figure's
+**4522 lb** is a second, incidental confirmation of #135: `1.33 × 3400`, the
+braked-roll weight at `WCG × WR` for a max-landing loading.
+
+#### The sign convention, settled against both figures at once
+
+Both readings of "positive GRD ANGLE" were tested against both figures:
+
+| reading | level (p234: 60.948 / 28.513 / 89.462) | braked roll (p235: 77.052 / 17.760 / 94.811) |
+|---|---|---|
+| **positive = nose up** (`+4.057 / +4.724 / +15`) | BETA 13.920 → 60.950 / 28.512 / 89.463 ✓ | BETA −4.724 → 77.052 / 17.759 / 94.811 ✓ |
+| positive = nose down (`−4.057 / −4.724 / −15`) | BETA 22.033 → 51.505 / 32.624 / 84.129 ✗ | BETA +4.724 → 69.887 / 23.261 / 93.148 ✗ |
+
+**Positive ground angle is nose up.** The nose-down reading reproduces neither
+figure; it matches only the p230 row under dispute, and destroys the level
+attitude, which never was. It is also forced geometrically: the level and
+ground-roll angles come from the same axle geometry rising aft (compressed
+contacts 41.2 → 47.9, static 43.8 → 51.6), so all three attitudes share one
+sense and cannot be signed against each other. The tail-down entry is the plain
+statement of it — a tail-down landing is unambiguously nose-up, and it is entered
+`+15`.
+
+A drawing of the ground sloping away toward the nose, with WL held horizontal, is
+the same geometry seen in body axes; it is not a nose-down attitude.
+
+#### One rule, one wrong line
+
+```
+BETA = GAMMA − GROUND ANGLE,  with GAMMA = 0 where the drag rides the .8·CP term
+     → (13.920, −4.724, −15.000)
+```
+
+`landing.py:229` computes `beta = (gamma - gra1, gra2, gra3)` → `(13.920, +4.724,
++15.000)`. Attitudes 2 and 3 both hold the wrong sign; only attitude 3 negates it
+back, and it does so **at both of its use sites**: `bp[2]` is written longhand as
+`a·cos(GRA₃) − c·sin(GRA₃)`, which is `fn_bp` with `−GRA₃`, and `PHIM(7–9) =
+−BETA(3)`. Attitude 2 negates it at neither, so both its arms and its
+`PHIM`/`PHIN` carry it.
+
+| attitude | `beta` holds | arms use | PHIM uses | net |
+|---|---|---|---|---|
+| 1 level | `GAMMA − GRA₁` ✓ | `+beta[0]` | `+beta[0]` | correct |
+| 3 tail down | `+GRA₃` ✗ | longhand **−GRA₃** | **−**`beta[2]` | correct — compensated twice |
+| 2 ground roll | `+GRA₂` ✗ | `+beta[1]` | `+beta[1]` | **wrong at both sites** |
+
+A sign negated at one use site and not the other is the signature of an error
+fixed where it was noticed rather than where it originated. **This is the whole
+defect**, and `gear_loads`' own instrumentation had already isolated it: ρ
+recovered per case reads −4.0570 (level), **−15.0003 (tail down)** and +4.7253 /
++4.7239 (ground roll) — tail down negative despite `beta[2]` holding `+15`,
+ground roll the only positive. That was read as a quirk of LANDLOAD to be routed
+around ("never has to adjudicate a sign inconsistency that is in LANDLOAD.BAS
+itself", `gear_loads.py:214`) rather than as a defect with a location.
+
+#### Consequences for the decisions
+
+1. **GF-1 and GF-2′ are one defect, not two claims to price separately.**
+   §5's separation is void as a *choice*; it survives only as a description of
+   which pages each symptom touches. Fix site: `beta = (gamma - gra1, -gra2,
+   gra3)` plus `ap[1]`'s call site, which passes the literal `gra2` rather than
+   `beta[1]`. `cp[1]` stays on `+gra2` — it builds the contact-patch line, and
+   the figure confirms CP unchanged.
+2. **§1.9 is explained rather than overturned.** Correcting one use site left the
+   other reading the same wrong `beta`, which is exactly the incoherence measured
+   at 0.106·W·MAC.
+3. **§1.10's `DP` argument is WITHDRAWN, though its conclusion was right.** `DP`
+   is axle-to-axle and normal to the resultant (p234), not the ground-line
+   distance between contact points; the actual patch separation is **94.622**,
+   not 94.811. The number 94.811 is correct because p235 prints it, not because
+   of the wheelbase reasoning. §1.11's axle-vs-patch self-consistency argument
+   falls with it, for the same reason.
+4. **GF-3″ changes character.** This is no longer a deviation from a printed
+   oracle. The manual contradicts *itself* — its construction figure against its
+   program's table — and the register entry records that the replication follows
+   the figure over the program. That is a materially weaker thing to approve, and
+   §5 should be re-cut against it.
+5. **§1.13's p233 finding is explained.** The datum-moment transform rotates
+   `+GRA` on every attitude because it reads the same `beta`.
+
+#### What the figures do not settle
+
+There is **no tail-down figure** — printed p236 is the LGFACTOR output, so the
+set is p234 and p235 only. Attitude 3 therefore has no figure corroboration; it
+is simply already correct in the code, by compensation. And nothing here touches
+the deviation surface itself: the p230 arm row and the p231/p232/p233 cells that
+derive from it still move, in the amounts §5 tabulates.
+
+---
+
 ## 2. Decisions (GF-1 … GF-8)
 
 | # | Decision | Rationale |
@@ -719,7 +873,7 @@ before the sign is settled would ship a point that then moves.
 | **GF-1** | **The attitude-1 airplane-datum resolution is adjudicated a defect in LANDLOAD.BAS**: the physical PHIM/PHIN subtract the ground angle in every attitude. Corrected: PHIM(13–18) = atan(0.8) − GRA₂; PHIM(19–24) = −GRA₂; PHIN(13–15) = −GRA₂; PHIN(25/28/31) = atan(0.8) − GRA₂, (26/29/32) = atan(−0.4) − GRA₂, (27/30/33) = −GRA₂. | §1.2. The manual's own level and tail-down rows prove the convention; the ground-roll rows violate it. |
 | **GF-2′** *(proposed 2026-08-28, replacing the refuted GF-2)* | **Fix site is five tables, one sign: `AP(2,·)`, `BP(2,·)`, `DP(2,·)` (`_geometry`, ground-roll attitude only) and `PHIM(13–24)` / `PHIN(13–15, 25–33)`.** `CP(2,·)` is untouched (enters through `cos`); the level and tail-down attitudes are untouched; `beta` itself, `gamma` and the `FNAP`/`FNBP`/`FNDP` definitions are untouched — only the rotation handed to them on attitude 1. ~~Fix site is the PHIM/PHIN tables only~~ (REFUTED §1.9: correcting the resultant direction while leaving the arms produces an incoherent module, measured at 0.106·W·MAC) ([landing.py:471–490](../../sloads/modules/landing.py)). `_geometry`, `beta`, and the p230-locked AP/BP/DP/CP lever arms are untouched; every primed (ground-line) quantity is untouched. | The lever arms and the primed set are oracle-locked and *correct* — the ground-line equilibrium closes (NVP identities). Only the frame resolution is wrong. Smallest true fix site. |
 | **GF-3′** *(WITHDRAWN 2026-08-28 — understated the deviation surface; see §1.11 and GF-3″)* | The register entry additionally records the **p230 ground-roll lever-arm row** — AP 78.836/69.886/66.501 → 86.002/77.052/73.502; BP 14.311/23.260/26.646 → 8.810/17.759/21.310; DP 93.147 → 94.811 (§1.10) — with DP's independent check as the headline evidence: the wheelbase along the ground line is the distance between two contact points, 94.811, and the printout states 93.147. `test_landload_lever_arms_oracle` is **re-pinned to the corrected arms**, not deleted, citing this entry. | The p230 table is a printed oracle; departing from it needs the register, and DP's discrepancy is the cleanest statement of the defect in the whole note — it needs no frame argument at all. |
-| **GF-3″** *(drafted 2026-08-29, replacing the withdrawn GF-3′ — **awaiting the owner's AGREED**)* | **The register entry states the whole surface, and prices GF-1 and GF-2′ separately.** §5 carries the draft entry with every deviated-from value transcribed from the rendered page and its corrected expectation beside it. The two corrections are no longer one purchase: **GF-1 alone departs from p232 only** (cases 13–33) and leaves p230, p231, p233 and p236 untouched; **GF-2′ additionally departs from p230's ground-roll arm row, p231 cases 13–15 and 25–33, and p233 cases 16–24** — further cells that reproduce today to the printed digit. **The ruling GF-3″ needs is which of the two claims is approved on its own evidence**, not merely that a deviation is approved — while noting that §1.9 binds their *implementation*: the PHIM-only fix site is already refuted, so approving GF-1 without GF-2′ means shipping nothing, not shipping half. | §1.13. GF-3′ was withdrawn for understating the surface; the surface is now measured rather than estimated, and measuring it separated two corrections §1.9 had bound together. A register entry that cannot say what each half costs cannot be approved on evidence. |
+| **GF-3″** *(drafted 2026-08-29, replacing the withdrawn GF-3′ — **awaiting the owner's AGREED**)* | **The register entry states the whole surface, and prices GF-1 and GF-2′ separately.** §5 carries the draft entry with every deviated-from value transcribed from the rendered page and its corrected expectation beside it. The two corrections are no longer one purchase: **GF-1 alone departs from p232 only** (cases 13–33) and leaves p230, p231, p233 and p236 untouched; **GF-2′ additionally departs from p230's ground-roll arm row, p231 cases 13–15 and 25–33, and p233 cases 16–24** — further cells that reproduce today to the printed digit. ~~**The ruling GF-3″ needs is which of the two claims is approved on its own evidence**~~ **SUPERSEDED by §1.15 (2026-08-29):** the two are one defect at one line (`beta[1]`), so there is nothing to price apart — and the entry is no longer a deviation from a printed oracle at all, but a record that the replication follows the manual's **p235 construction figure** over its own program's p230 table. §5's tables remain valid as the deviation *surface*; §5's framing of the choice does not. | §1.13. GF-3′ was withdrawn for understating the surface; the surface is now measured rather than estimated, and measuring it separated two corrections §1.9 had bound together. A register entry that cannot say what each half costs cannot be approved on evidence. |
 | **GF-3** | **This is an approved oracle deviation**: an entry in [`../20_theory/02_approved_corrections.md`](../20_theory/02_approved_corrections.md) recording the printed p232 values deviated from (43.387 / −17.079 / +4.724 and the vm/dm rows of §1.3, **plus the ND/NR cells of the lift-carrying cases per §1.6** — case 1: ND 0.679 → 0.585, NR 3.287 → 3.269) and the corrected expectations, owner-approved in the PR. The p232 **level and tail-down force** rows, which are correct, become new oracle locks (±0.1 %); the wheels-only **NR** values lock as printed (frame-invariant, §1.6). The entry **supersedes the register's "Considered and declined" decision of 2026-08-15** on the same question (§1.2): the declined entry is converted in place (declined → approved deviation, with the new evidence and a pointer to this note), and its pin test `test_the_ground_roll_attitude_is_resolved_against_the_other_sign` is flipped to pin ρ = −GRA on every attitude, never deleted. | The register is the process for departing from a printed oracle (`CLAUDE.md` §Math fidelity). Locking the rows that are right while deviating from the rows that are wrong is exactly what the register exists to state — and the declined entry's own text names this note's evidence as its reopening condition. |
 | **GF-4** | **ρ gets an absolute gate**: `ground_rotation_deg(case) == −GRA(attitude of case)` for every case, against `ground_angles` directly, exact (1e-9), all bundled examples. The gate's docstring states its assumption: the nose-up sense of GRA (§1.2's proof) was derived on **tricycle geometry**, the only arrangement the suite models — a tail-wheel configuration would re-open the sign derivation, not inherit it. | §1.4 — the existing G-6 gate is self-consistent and structurally cannot catch a sign error. This converts the documented anomaly in `gear_loads.py:224–229` from prose into an assertion (practice 3), and that prose is rewritten to describe history, not behaviour. |
 | **GF-5** | **Downstream re-verification rides the existing CI gates**: the assembled ground cases re-close in six DOF from the corrected reactions; the sbeam round-trip stays green; the gear reference-point loads **and the patch-to-trunnion transfer couples** move with `vm/dm` (§1.6 — the couple is derived from the force, so it co-corrects with no additional code). No consumer needs code changes. | The consumers were built to trust `vm/dm`; correcting the producer corrects them all. G-7a is untouched (§1.4); the application-point chain itself is verified sound (§1.7). |
@@ -760,7 +914,8 @@ that recovers its reference from the thing it checks.
 
 | Site | Rotation | Verdict |
 |---|---|---|
-| `landing.py` PHIM/PHIN (attitude 1) | +GRA₂ | **This note (GF-1).** First wrong-way instance. |
+| `landing.py` `beta[1]` (`:229`) | `+GRA₂` where the rule gives `−GRA₂` | **The origin (§1.15).** Every other row below that touches attitude 2 is this one line read twice. Attitude 3 holds the same wrong sign but negates it at both use sites, which is why only attitude 2 shows. |
+| `landing.py` PHIM/PHIN (attitude 1) | +GRA₂ | **This note (GF-1).** First wrong-way instance *observed*; §1.15 locates it upstream in `beta[1]`. |
 | p232's VM/DM cells, used to test p232's PHIM | — | **The enabler class again** (§1.12). `VM=RMP·COS(PHIM)` in the listing: one printed quantity read as two. Withdrawn 2026-08-29; the cells stay, as GF-3″ deviated-from values. |
 | LANDLOAD.BAS datum moment transform (`RMOM`/`YMOM`) | +GRA, **all attitudes** | **Third instance, same class** (§1.13). Printed on p233 with its equations; not in sloads (only the primed moments are emitted), so like the ND lift term it arrives only via GF-6 and must arrive corrected. |
 | LANDLOAD.BAS datum ND lift term (`+LF·SIN(GRA)`) | +GRA | **Second instance, same class** (§1.6). Not yet in sloads — it lands only via GF-6's datum factors, which build with the corrected sign; the p232 cells join GF-3's register. |
@@ -780,6 +935,12 @@ the property claimed, not a sign adjudication, so it is not in the class.
 ---
 
 ## 5. The GF-3″ register entry (draft, 2026-08-29 — not yet agreed)
+
+> **Partly superseded by §1.15 (2026-08-29).** The value tables below stand — they are the deviation
+> surface, unchanged. What does not stand is §5.1/§5.2's framing of GF-1 and GF-2′ as two separately
+> priceable claims: p235's figure shows them to be one defect at one line, and recasts the entry from
+> *deviation from a printed oracle* to *the manual's figure against the manual's program*. Re-cut §5
+> against §1.15 before taking it to the register.
 
 Ready to move into [`../20_theory/02_approved_corrections.md`](../20_theory/02_approved_corrections.md)
 **if and when** the owner rules on §2's GF-3″. Every "as printed" figure below is
