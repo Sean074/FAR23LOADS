@@ -462,6 +462,13 @@ _MID_ENTRY = {
     "elements=1": lambda s: setattr(s, "elements", 1),
 }
 
+#: The ``effective_engine`` (note 36, OV-7) inputs that derive-by-default *through
+#: the wing planform*, mapped to the blank that triggers the derive. Only LIMNZ
+#: routes through geometry today -- the mass-selector derives read
+#: ``weight.items`` and cannot see a planform -- but the guard below is written
+#: over the mapping so that adding a field here is the whole of covering it.
+_DERIVE_BY_DEFAULT_ENGINE_FIELDS = {"limit_load_factor": 0.0}
+
 
 def _examples():
     import glob
@@ -511,6 +518,95 @@ def test_a_mid_entry_planform_is_refused_by_name_not_by_traceback(example):
     assert not escaped, (
         "a half-entered planform reached the page as a traceback rather than a "
         f"named refusal (#71): {escaped}")
+
+
+@pytest.mark.parametrize("example", _examples(),
+                         ids=[os.path.basename(f).split(".")[0] for f in _examples()])
+def test_a_derive_by_default_field_refuses_through_a_half_entered_planform(example):
+    """#122: the sweep above, run down the *derive* path instead of the typed one.
+
+    Every shipped fixture types its ``engines[].limit_load_factor``, so the note
+    36 OV-7 derive -- blank LIMNZ -> ``design_speed_values(project).n``, added by
+    C210-41 because a 0 LIMNZ silently zeroes every mount load -- was never
+    walked by the sweep above. It reads the wing planform, so it is a geometry
+    consumer and owes the #71 contract like any other; blanking the field in the
+    test rather than in a fixture keeps that true no matter what the examples
+    happen to type (and the guard survives a fixture entering the number, which
+    is how #122 came to be found and then hidden again).
+
+    Stated over the fields rather than over one field on purpose: this is a
+    property of the OV-7 resolver, so a future derive-by-default input routed
+    through geometry is covered the day it is added (rule 4).
+    """
+    import copy
+
+    import sloads.modules  # noqa: F401  -- registers the modules
+    from sloads import registry
+
+    base = io.load_project(example)
+    if base.geometry is None or not base.engines:
+        pytest.skip("no geometry slice to half-enter, or no engine to blank")
+    names = sorted(registry.available())
+    escaped = []
+    for surf in base.geometry.surfaces:
+        for label, mutate in _MID_ENTRY.items():
+            project = copy.deepcopy(base)
+            mutate(project.geometry.by_name(surf.name))
+            for eng in project.engines:
+                for field, blank in _DERIVE_BY_DEFAULT_ENGINE_FIELDS.items():
+                    setattr(eng, field, blank)
+            for name in names:
+                try:
+                    registry.get(name)(project)
+                except ValueError:
+                    pass                       # refused by name: the contract
+                except Exception as exc:
+                    escaped.append(f"{surf.name} {label} -> {name}: "
+                                   f"{type(exc).__name__}: {exc}")
+    assert not escaped, (
+        "a half-entered planform reached the page as a traceback rather than a "
+        f"named refusal on the derive path (#122): {escaped}")
+
+
+def test_the_limnz_derive_refuses_rather_than_resolving_to_zero():
+    """The half of #122 a "no traceback escaped" sweep cannot see.
+
+    Suppressing the planform refusal inside ``effective_engine`` also passes the
+    sweep -- nothing escapes, because nothing is raised. What it leaves behind is
+    LIMNZ = 0 on a half-entered wing, which is C210-41's silent zeroing of every
+    mount load with no typed value on the page to show what went wrong. So the
+    assertion is on the refusal itself, not merely on its type.
+    """
+    import copy
+
+    from sloads.modules.engine import resolved_engines
+
+    base = io.load_project(_GA)
+    assert base.engines and base.speeds is not None
+    for eng in base.engines:
+        eng.limit_load_factor = 0.0
+
+    # Intact planform: the derive resolves to the 23.337 limit, not to 0.
+    from sloads.modules.structural_speeds import design_speed_values
+    expected = design_speed_values(base, base.speeds).n
+    assert expected > 0
+    assert all(math.isclose(e.limit_load_factor, expected)
+               for e in resolved_engines(copy.deepcopy(base)))
+
+    # Half-entered planform: refused by name, naming the surface.
+    for label in _MID_ENTRY:
+        project = copy.deepcopy(base)
+        _MID_ENTRY[label](project.geometry.by_name("wing"))
+        with pytest.raises(ValueError) as exc:
+            resolved_engines(project)
+        assert "'wing'" in str(exc.value), f"{label}: {exc.value}"
+
+    # No wing planform at all is *not* a refusal: STRSPEED's typed
+    # ``wing_area_sqft`` fallback is live there, so the derive still answers.
+    project = copy.deepcopy(base)
+    project.geometry.surfaces = [s for s in project.geometry.surfaces if s.name != "wing"]
+    project.speeds.wing_area_sqft = 184.125
+    assert all(e.limit_load_factor > 0 for e in resolved_engines(project))
 
 
 def test_the_planform_precondition_names_the_surface_and_what_is_wrong():
