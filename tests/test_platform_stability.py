@@ -159,6 +159,71 @@ def test_extreme_pick_is_first_in_order_across_a_platform_ulp_tie():
                    largest=False) == "b"
 
 
+def _ulp_neighbours(value, ulps=4):
+    """``value`` shifted 1..``ulps`` steps each way, the last-ulp noise a
+    different libm build (or a different summation) puts on the same number."""
+    for direction in (math.inf, -math.inf):
+        w = value
+        for _ in range(ulps):
+            w = math.nextafter(w, direction)
+            yield w
+
+
+def test_no_printed_deliverable_cell_hangs_on_the_last_ulp():
+    """``format_value`` is continuous under last-ulp noise (#147).
+
+    The formatter's two branches are far apart -- an integral value prints in
+    full, everything else at four significant figures -- so on the raw double
+    the choice between them was a *discontinuous* function of the last bit:
+    ``-687258.0`` printed ``-687258`` and ``-687257.9999999999`` printed
+    ``-6.873e+05``. Both reached one landing case's CSV, and which one a cell
+    took moved with the libm build, so the frozen Imperial digest passed on the
+    developer's Mac and failed on the Linux CI leg. Asserted on the values the
+    deliverables actually carry, not on invented ones: every value of every
+    condition of the trig-heaviest module of the example that failed.
+    """
+    from sloads import io, registry
+    from sloads.report.render import format_value
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    project = io.load_project(
+        os.path.join(root, "examples", "concept_regional_jet.project.json"))
+    landing = [m for m in registry.run_all_modules(project) if m.module == "landing"]
+    assert landing, "the example must still produce landing results"
+
+    checked = 0
+    for condition in landing[0].conditions:
+        for value in [v.value for v in condition.values] + [condition.safety_factor]:
+            if not isinstance(value, float) or not math.isfinite(value) or value == 0.0:
+                continue  # a relative ulp band around zero is not a band
+            printed = format_value(value)
+            checked += 1
+            for neighbour in _ulp_neighbours(value):
+                assert format_value(neighbour) == printed, (
+                    condition.title, value, printed, neighbour,
+                    format_value(neighbour))
+    assert checked > 100, checked  # the sweep must not quietly empty out
+
+
+def test_the_formatter_still_says_what_it_used_to_where_nothing_was_at_stake():
+    """The quantization is a fix for the cliff, not a change of precision.
+
+    A value nowhere near a boundary prints exactly as before -- integers in
+    full, everything else at four significant figures -- and the near-integers
+    that used to fall off the cliff now join their exact twins rather than the
+    twins joining them.
+    """
+    from sloads.report.render import format_value
+
+    assert format_value(24000.0) == "24000"
+    assert format_value(10) == "10"
+    assert format_value(0.004128) == "0.004128"
+    assert format_value(1.0 / 3) == "0.3333"
+    assert format_value(-687258.0) == format_value(-687257.9999999999) == "-687258"
+    assert format_value(12768.0) == format_value(12768.000000000002) == "12768"
+    assert format_value(1.6685) == format_value(1.6684999999999999) == "1.669"
+
+
 def test_the_keyed_pick_guard_recognises_the_shapes_it_must():
     # the plain forms, and the CR-B-1 bypass the substring grep could not see
     assert _keyed_picks("p = max(cands, key=f)", "t") == [(1, "Name(id='max', ctx=Load())")]

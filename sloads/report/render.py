@@ -40,9 +40,26 @@ def format_value(value: float) -> str:
     already imported it across the module boundary, which the M4-12b public-symbol
     contract (``PROJECT_GUIDE`` §5) makes a defect rather than a shortcut. Promoted
     rather than re-exported under its private name.
+
+    **Quantized first, because a printed byte may not hang on the last ulp**
+    (``CONVENTIONS.md`` §7 "platform-stable deliverable bytes", #147). The two
+    branches below are far apart -- an integral value prints in full, everything
+    else at four significant figures -- so on the raw double they made a
+    *discontinuous* function of it: ``-687258.0`` printed ``-687258`` while
+    ``-687257.9999999999``, the same load rotated through one more cosine,
+    printed ``-6.873e+05``. Both spellings shipped in one landing case, and the
+    choice between them moved with the libm build: macOS and glibc disagree in
+    the last ulp of ``sin``/``cos``, so the frozen Imperial digest passed on the
+    developer's Mac and failed on the Linux CI leg. Rounding to twelve
+    significant figures first absorbs any such difference (~1e-12 relative,
+    four orders above a double's ulp and far below anything a load means) and
+    makes both branches read the same number the reader sees. The residual knife
+    edge is a value within an ulp of a *twelfth*-digit boundary, which no
+    quantization can remove and no deliverable distinguishes.
     """
     if isinstance(value, int):
         return str(value)
+    value = float(f"{value:.12g}")
     if value == int(value):
         return str(int(value))
     return f"{value:.4g}"
