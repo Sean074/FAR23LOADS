@@ -46,5 +46,7 @@
   "The max-continuous-HP precedence rule is written twice — weight_estimate.resolve_max_continuous_hp (weight_estimate.p…": 124,
   "flight_envelope view crashes on a blank full_down_aileron_deg — the note-36 derive default is unrenderable in the mai…": 121,
   "The oracle form reaches into a field_registry private — oracle_app/form.py:709 calls fr._locate(paths[0]) to answer \"…": 130,
-  "A blank limit_load_factor derives through a half-entered planform and escapes as a raw TypeError instead of a named r…": 122
+  "A blank limit_load_factor derives through a half-entered planform and escapes as a raw TypeError instead of a named r…": 122,
+  "The airplane-datum resolution of every attitude-1 ground case rotates the wrong way — the exported ground FORCE cards…": 133,
+  "The landing output is single-frame and unlabeled where the original prints two tables — run() ships only the ground-l…": 134
 }
