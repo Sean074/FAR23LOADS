@@ -60,8 +60,22 @@ factor 0.667, tail-down angle 15°, and the governing airplane load factor
 at NLG 2.5 = 3.167 − 0.667, where LGFACTOR computes 2.428), and the page
 shows both pairs so the rounding is a visible decision, not a mystery.
 The three ground cases are the book's landing corners. The results
-reproduce the printed sink rate, N and NLG, and the wheel-load matrix's
-legible cells — this is one of the suite's page-cited oracle locks.
+reproduce the printed sink rate, N and NLG, and the ground-line wheel-load
+matrix — this is one of the suite's page-cited oracle locks.
+
+**Two approved deviations sit in the airplane-datum half**, and are worth
+knowing before you cross-check against the book's p232 table. The manual
+resolves the ground-roll attitude with the ground angle's sign reversed
+against its own construction figures, and carries the same reversal into the
+datum drag load factor; this tool follows the figures. So the braked-roll,
+side-load and supplementary-nose families' body-frame components differ from
+p232 — the side family's body drag reads 186 lb **forward** where the book
+prints it aft (LIMIT, the basis the book prints on) — and case 1's datum
+load factors read 3.269 / 3.216 / 0.585 against the printed
+3.287 / 3.216 / 0.679. The ground-line ("primed") set,
+which is what p230/p231 print, is untouched by both. Each deviation is
+documented in the
+[approved-corrections register](../20_theory/02_approved_corrections.md).
 
 ## Worked example — twin (`baron_58`)
 
@@ -76,22 +90,66 @@ is the estimated set anchored to the published 115-in tread.
 
 ## Results on this page
 
-Three families (loads ULTIMATE with SF stated; the factors themselves
-dimensionless and unfactored):
+One block — LANDLOAD's whole case set, 40 conditions — with its CSV and text
+downloads. Loads are ULTIMATE with the SF stated; the load factors, the
+fuselage axis angle and every position are dimensionless, angular or
+geometric and are never scaled.
 
-- **The LGFACTOR condition** — sink rate, airplane load factor N, gear
-  factor NLG, with the energy bookkeeping.
-- **One critical-reaction summary per FAR ground family** — the governing
-  case of each family with its wheel reactions.
-- **The full case matrix** — every ground condition as its own row: main
-  and nose vertical/drag/side reactions, resultants, and the unbalanced
-  moments, at the weight each case is computed at.
+**Two frames, and every row names its own.** LANDLOAD works each reaction out
+against the **ground line** — perpendicular and parallel to the runway
+through the contact patches, the frame a gear engineer reads — and then
+resolves the same reaction into the **airplane datum**, the FS/WL body axes of
+[Conventions](03_conventions.md). The manual prints the whole matrix twice for
+exactly that reason, and the two tables differ by a rotation of the ground
+angle, so a number without its frame is not a load. The split here:
 
-Sanity checks: sink rate lands in the regulation's 7-to-10 ft/s band;
-N sits a little above NLG by exactly the lift factor's share; level-landing
-main reactions times two roughly balance weight × NLG; side and braked
-cases split per the regulation's fixed fractions; and nose-gear reactions
-stay positive — a negative one means the CG or gear geometry is off.
+- **The airplane-datum set is the deliverable** — it is what the screen table
+  and the **CSV** carry, and what a beam model or an export deck applies. A
+  `Frame` column states it in-band, so a CSV forwarded on its own still says
+  which axes its numbers are in.
+- **The ground-line ("primed") set is the manual's analysis view** — VMP/DMP/
+  SMP and VNP/DNP/SNP per wheel, the resultants, NVP/NDP/NS, and the
+  unbalanced moments whose labels carry no "(datum)". It rides in the **text**
+  download, beside the datum set, and is deliberately not in the CSV. It is
+  also where you find the cells the book prints on p231 when you cross-check.
+
+The blocks, in order:
+
+- **The LGFACTOR condition** — sink rate, the computed airplane load factor N
+  and gear factor NLG, and the governing pair the matrix actually runs at.
+  Frameless: none of these is a force.
+- **The 33 ground cases, one condition each**, named by family, case number
+  and the landing CG case it runs at — `3-wheel level landing — case 1 (aft
+  max landing)` through `supplementary nose-wheel — case 33 (fwd light)`.
+  Each case delivers **three wheels — nose, left main, right main, all three
+  on every case**, an unloaded gear reported at zero rather than left out:
+
+  - `Fx, Fy, Fz` per wheel in the airplane datum — the force itself;
+  - `x, y, z` per wheel — **the point that force acts at**, which is the
+    axle on some families and the ground contact point on others (the
+    manual's own printed point-of-load column, restated in words in the
+    condition note and in the CSV's `Applied at` column);
+  - `node x, y, z` per wheel — the gear reference point the reaction is
+    *transferred to*, which is where a structural model picks it up. It is a
+    destination, not a point of application, so it names no `Applied at`.
+
+  Then, per case: the **fuselage axis angle** (the attitude's ground angle),
+  the airplane-datum load factors **NR / NV / ND**, and the **datum unbalanced
+  moments** in pitch, roll and yaw. Cases 25–33, the supplementary nose-wheel
+  family, are nose-only reactions with no airplane in equilibrium behind them,
+  so they carry neither datum load factors nor moments.
+- **Six critical-reaction summaries**, one per FAR ground family — level
+  landing, tail-down, one-wheel, side load, braked roll, supplementary nose
+  wheel — each the governing case of its family, reported in the same shape.
+
+Sanity checks: sink rate lands in the regulation's 7-to-10 ft/s band; N sits
+above NLG by exactly the lift factor's share; the two main verticals of a
+level landing roughly balance weight × NLG; side and braked cases split per
+the regulation's fixed fractions; nose-gear verticals stay positive — a
+negative one means the CG or gear geometry is off. Two that are new with the
+frames: the fuselage axis angle equals the attitude's ground angle, and the
+airplane sits **nose-up** on the ground, so a purely ground-vertical reaction
+must show a **forward** (negative `Fx`) body drag component, never an aft one.
 
 ## Common mistakes
 
@@ -109,3 +167,12 @@ stay positive — a negative one means the CG or gear geometry is off.
 - **A waterline-free CG.** The ground moments need the CG height; a ground
   case without a credible waterline solves to nonsense lever arms, which
   the page's warnings call out.
+- **Reading one frame's numbers as the other's.** The CSV is airplane datum
+  throughout and says so in its `Frame` column; the primed set is ground line
+  and lives in the text download. Comparing a `Fz` against a printed VMP, or
+  handing a ground-line resultant to a beam model, is comparing across a
+  rotation of the ground angle.
+- **Taking a wheel's reference node as its point of application.** The `node
+  x/y/z` rows are where the reaction is *transferred to*; the force acts at
+  the `x/y/z` rows, at the axle or the ground contact point per the case. The
+  two are a strut and a rolling radius apart — a moment arm, not a label.
