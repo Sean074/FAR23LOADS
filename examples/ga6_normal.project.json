@@ -464,7 +464,7 @@
       },
       {
         "name": "fwd light",
-        "weight_lb": 2803,
+        "weight_lb": 2800,
         "xcg": 72.64,
         "zcg": 92,
         "analyses": [
