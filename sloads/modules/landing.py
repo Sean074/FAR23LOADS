@@ -358,13 +358,18 @@ def landing_reactions(inp: LandingInput, gear: LandingGearGeometry,
     wr = mtow / mlw if mlw else 1.0
     wcg = [cg.weight_lb for cg in cgs]
 
-    # Per-case weight WL (1-based index 1..24); cases 13-22 use gross (WR), 23-24 the
-    # light landing weight directly (LANDLOAD.BAS lines 820-900).
+    # Per-case weight WL (1-based index 1..24), LANDLOAD.BAS lines 820-900.
+    # The braked-roll and side cases run at gross (WR = GW/MLW) on the two *max
+    # landing* loadings only -- the third (light) loading is already below the
+    # landing weight, so lines 860/870/900 carry it bare: WL(15), WL(18), WL(23)
+    # and WL(24) are WCG(3) with no WR. The same exception is spelled out again
+    # in the supplementary-nose branch below (2.25*WCG*WR only for i < 2).
     wl = [0.0] * 25
     for m in range(1, 13):
         wl[m] = wcg[(m - 1) % 3]
     for m in range(13, 19):
-        wl[m] = wcg[(m - 13) % 3] * wr
+        i = (m - 13) % 3
+        wl[m] = wcg[i] * (wr if i < 2 else 1.0)
     wl[19] = wl[20] = wcg[0] * wr
     wl[21] = wl[22] = wcg[1] * wr
     wl[23] = wl[24] = wcg[2]

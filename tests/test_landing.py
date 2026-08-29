@@ -206,6 +206,49 @@ def test_landload_legible_cells():
     assert math.isclose(rx[20].smp, 1122, rel_tol=3e-3), rx[20].smp
 
 
+def test_the_light_loading_never_takes_the_gross_weight_ratio():
+    """``WR`` is applied to the two *max landing* loadings only.
+
+    ``LANDLOAD.BAS`` states the exception three times (lines 860/870/900 and the
+    23.499 branch at 2160-2180): the braked-roll, side and supplementary-nose
+    families run at gross on ``WCG(1)``/``WCG(2)``, but the third (light)
+    loading is already below the landing weight and is carried **bare** --
+    ``WL(15) = WL(18) = WL(23) = WL(24) = WCG(3)``, and ``2.25*WCG(3)`` with no
+    ``WR`` for cases 31-33.
+
+    sloads applied ``WR`` to all three in the 13-18 loop, which overstated
+    cases 15 and 18 by the ratio (2950.5 lb instead of 2803 on the GA6, VMP
+    1962.1 instead of 1864.0). Found 2026-08-29 reading Appendix A p231 against
+    the module: the printed VMP for case 18 is **1862** and its DMP **1490**,
+    against 1962/1570 as shipped. The other three sites were already correct,
+    so this pins the rule at every site rather than the one that was wrong.
+    """
+    inp = _ga_landing()
+    lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
+    rx = {c.case: c for c in landing_reactions(inp, _ga_gear(), lf, _GA_CGS,
+                                               mlw=_MLW, mtow=_MTOW)}
+    light = _GA_CGS[2].weight_lb
+    wr = _MTOW / _MLW
+    assert wr > 1.0, "the GA6 fixture must exercise a non-unit WR"
+
+    # Every case computed at the light loading reports it bare ...
+    for m in (15, 18, 23, 24, 31, 32, 33):
+        assert math.isclose(rx[m].weight_lb, light, rel_tol=1e-12), (
+            f"case {m} runs at {rx[m].weight_lb}, not the bare light loading "
+            f"{light} (LANDLOAD.BAS 860/870/900)")
+    # ... while the two max-landing loadings in the same families take WR.
+    for m, i in ((13, 0), (14, 1), (16, 0), (17, 1), (19, 0), (21, 1)):
+        assert math.isclose(rx[m].weight_lb, _GA_CGS[i].weight_lb * wr,
+                            rel_tol=1e-12), f"case {m} lost WR"
+
+    # The consequence the printed table checks: cases 18, 23 and 24 share one
+    # formula (0.5*1.33*WCG(3)), so they must print one number.
+    assert math.isclose(rx[18].vmp, 0.5 * 1.33 * light, rel_tol=1e-12)
+    assert math.isclose(rx[18].vmp, rx[23].vmp, rel_tol=1e-12)
+    assert math.isclose(rx[18].vmp, rx[24].vmp, rel_tol=1e-12)
+    assert math.isclose(rx[18].dmp, 0.8 * rx[18].vmp, rel_tol=1e-12)
+
+
 def test_landload_case_formulas():
     """Closure on the FAR-section reaction formulas (LANDLOAD.BAS 910-1900)."""
     inp = _ga_landing()
