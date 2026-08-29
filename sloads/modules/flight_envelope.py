@@ -510,6 +510,24 @@ def balance_configs(aero) -> List[AeroCoeffSet]:
     that produces the value is ``AeroCoefficientsInput.normalize``; this is the
     guard for any writer that gets past it, stated the way STRSPEED already
     states the same missing input.
+
+    It is also where a set with **no alpha lever** is refused (#144). The inner
+    balance moves alpha until ``NZ`` lands in its ±0.005 band; if ``C1..C4`` are
+    all zero, ``CL`` (and with it ``LZ``, ``MM`` and the tail load) is the same
+    number at every alpha, so no trip can answer differently and the loop
+    exhausts as "did not converge in 400 iterations ... reached NZ=0 at
+    alpha=41.3861 deg" -- a solver failure naming no input, on a page that was
+    working a moment earlier. The zero-slope set is not a poor fit but an
+    unsolvable one, which is why it is refused here rather than warned: a
+    *negative* or implausible slope still balances, and stays the
+    ``aero_lift_slope_sign`` ``ConsistencyWarning`` it is today.
+
+    **The ruling on the other two polynomials: only lift is guarded.** An
+    all-zero drag or moment polynomial is a legitimate entry -- a set may
+    honestly carry no drag polar or no ``CM`` fit, and the balance solves
+    perfectly well without either (``CD = 0`` and ``CM = 0`` are values, not
+    voids). An all-zero lift polynomial is not the same statement: it says the
+    set carries no airplane, and there is no flight condition it can describe.
     """
     configs: List[AeroCoeffSet] = []
     if aero is not None:
@@ -524,6 +542,14 @@ def balance_configs(aero) -> List[AeroCoeffSet]:
                     "stall CL, and every stall speed divides by it. Set the maximum "
                     "lift coefficients (clmax_clean / clmax_flap) on the Aerodynamic "
                     "Data page, or enter this set's own stall CL."
+                )
+            if not any(config.lift[1:]):
+                raise MissingInputError(
+                    f"flight_envelope: the '{config.name}' coefficient set's lift "
+                    "polynomial has no alpha term (C1..C4 all zero), so CL cannot "
+                    "move and no angle of attack balances any load factor. Enter "
+                    "the set's lift coefficients on the Aerodynamic Data page, or "
+                    "remove the set."
                 )
         fm = aero.fuselage_moment
         if fm is not None and fm.enabled and fm.d_cm_dalpha:
