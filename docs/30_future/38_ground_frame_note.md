@@ -13,7 +13,7 @@ deviated-from set is executable — and found a **third instance** of the §4 cl
 in p233's datum-moment transform, which rotates `+GRA` on *every* attitude.
 GF-1 stands on the tail-down row, which fixes the sense with no appeal to
 consistency; the open question is now whether GF-1 and GF-2′ are priced
-together, since only GF-2′ costs the p231/p233 agreements.** GF-3′ was agreed on a
+together, since only GF-2′ costs the p231/p233 agreements. **GF-3″ is DRAFTED (§5, 2026-08-29)** with the whole surface transcribed and priced; it awaits the owner's ruling on which of GF-1 / GF-2′ is approved.** GF-3′ was agreed on a
 scope that understated the deviation — it named the p230 arm table, and the
 correction in fact moves printed **p231 ground-line reactions** by up to 40 %
 (§1.11). The owner stopped implementation at that measurement rather than
@@ -671,6 +671,47 @@ given that only GF-2′ costs the p231/p233 agreements.
 
 ---
 
+### 1.14 The application point is a printed column, and the deliverable's shape is ruled (2026-08-29)
+
+§1.5 item 5 recorded that no application point is identified in the landing
+output and treated it as something GF-6 would have to decide. It does not: **the
+manual prints it**, in a column the OCR lost along with the rest of these pages.
+
+| cases | printed point of load | page |
+|---|---|---|
+| 1–12 | CENTER OF EACH WHEEL — the **axle** | p231, p233 |
+| 13–24 | GROUND CONTACT POINT | p231, p233 |
+| 25 / 26, 28 / 29, 31 / 32 | CL AXLE | p232 |
+| 27, 30, 33 | GROUND | p232 |
+
+The split is not arbitrary: the families that carry a drag or side reaction
+resolved against the ground surface are applied at the patch, and the families
+whose reaction is stated about the wheel are applied at the axle. It is also
+**not** a free choice for the replication — a load and its point are one
+statement, and moving the point silently changes every moment downstream.
+
+**Owner's ruling on the deliverable (in session, 2026-08-29), folded into GF-6
+and G-GF-6:**
+
+1. **`Fx, Fy, Fz` and the location `x, y, z`** — signed body-frame components
+   with the point they act at, not a magnitude plus an angle.
+2. **All three legs on every case** — nose, left main, right main — with an
+   unloaded gear recorded at zero rather than omitted.
+3. **The ground-line set stays in the text report and leaves the CSV.** The CSV
+   is the body-frame deliverable; the primed set remains available as the
+   analysis view the manual prints beside it.
+4. **The item still waits on the GF-1 ruling.** GF-6's ordering condition is
+   kept deliberately, not by default.
+
+There is a second reason for (4) beyond not promoting wrong-sign forces: the
+contact-patch coordinates are themselves built from `GRA`
+(`x + r·sin GRA`, `z − r·cos GRA`, `gear_loads`), so **the application point
+moves with the sign ruling too** — by the radius offset, on exactly the
+cases 13–24 and 27/30/33 that are applied at the patch. Shipping the point
+before the sign is settled would ship a point that then moves.
+
+---
+
 ## 2. Decisions (GF-1 … GF-8)
 
 | # | Decision | Rationale |
@@ -678,10 +719,11 @@ given that only GF-2′ costs the p231/p233 agreements.
 | **GF-1** | **The attitude-1 airplane-datum resolution is adjudicated a defect in LANDLOAD.BAS**: the physical PHIM/PHIN subtract the ground angle in every attitude. Corrected: PHIM(13–18) = atan(0.8) − GRA₂; PHIM(19–24) = −GRA₂; PHIN(13–15) = −GRA₂; PHIN(25/28/31) = atan(0.8) − GRA₂, (26/29/32) = atan(−0.4) − GRA₂, (27/30/33) = −GRA₂. | §1.2. The manual's own level and tail-down rows prove the convention; the ground-roll rows violate it. |
 | **GF-2′** *(proposed 2026-08-28, replacing the refuted GF-2)* | **Fix site is five tables, one sign: `AP(2,·)`, `BP(2,·)`, `DP(2,·)` (`_geometry`, ground-roll attitude only) and `PHIM(13–24)` / `PHIN(13–15, 25–33)`.** `CP(2,·)` is untouched (enters through `cos`); the level and tail-down attitudes are untouched; `beta` itself, `gamma` and the `FNAP`/`FNBP`/`FNDP` definitions are untouched — only the rotation handed to them on attitude 1. ~~Fix site is the PHIM/PHIN tables only~~ (REFUTED §1.9: correcting the resultant direction while leaving the arms produces an incoherent module, measured at 0.106·W·MAC) ([landing.py:471–490](../../sloads/modules/landing.py)). `_geometry`, `beta`, and the p230-locked AP/BP/DP/CP lever arms are untouched; every primed (ground-line) quantity is untouched. | The lever arms and the primed set are oracle-locked and *correct* — the ground-line equilibrium closes (NVP identities). Only the frame resolution is wrong. Smallest true fix site. |
 | **GF-3′** *(WITHDRAWN 2026-08-28 — understated the deviation surface; see §1.11 and GF-3″)* | The register entry additionally records the **p230 ground-roll lever-arm row** — AP 78.836/69.886/66.501 → 86.002/77.052/73.502; BP 14.311/23.260/26.646 → 8.810/17.759/21.310; DP 93.147 → 94.811 (§1.10) — with DP's independent check as the headline evidence: the wheelbase along the ground line is the distance between two contact points, 94.811, and the printout states 93.147. `test_landload_lever_arms_oracle` is **re-pinned to the corrected arms**, not deleted, citing this entry. | The p230 table is a printed oracle; departing from it needs the register, and DP's discrepancy is the cleanest statement of the defect in the whole note — it needs no frame argument at all. |
+| **GF-3″** *(drafted 2026-08-29, replacing the withdrawn GF-3′ — **awaiting the owner's AGREED**)* | **The register entry states the whole surface, and prices GF-1 and GF-2′ separately.** §5 carries the draft entry with every deviated-from value transcribed from the rendered page and its corrected expectation beside it. The two corrections are no longer one purchase: **GF-1 alone departs from p232 only** (cases 13–33) and leaves p230, p231, p233 and p236 untouched; **GF-2′ additionally departs from p230's ground-roll arm row, p231 cases 13–15 and 25–33, and p233 cases 16–24** — further cells that reproduce today to the printed digit. **The ruling GF-3″ needs is which of the two claims is approved on its own evidence**, not merely that a deviation is approved — while noting that §1.9 binds their *implementation*: the PHIM-only fix site is already refuted, so approving GF-1 without GF-2′ means shipping nothing, not shipping half. | §1.13. GF-3′ was withdrawn for understating the surface; the surface is now measured rather than estimated, and measuring it separated two corrections §1.9 had bound together. A register entry that cannot say what each half costs cannot be approved on evidence. |
 | **GF-3** | **This is an approved oracle deviation**: an entry in [`../20_theory/02_approved_corrections.md`](../20_theory/02_approved_corrections.md) recording the printed p232 values deviated from (43.387 / −17.079 / +4.724 and the vm/dm rows of §1.3, **plus the ND/NR cells of the lift-carrying cases per §1.6** — case 1: ND 0.679 → 0.585, NR 3.287 → 3.269) and the corrected expectations, owner-approved in the PR. The p232 **level and tail-down force** rows, which are correct, become new oracle locks (±0.1 %); the wheels-only **NR** values lock as printed (frame-invariant, §1.6). The entry **supersedes the register's "Considered and declined" decision of 2026-08-15** on the same question (§1.2): the declined entry is converted in place (declined → approved deviation, with the new evidence and a pointer to this note), and its pin test `test_the_ground_roll_attitude_is_resolved_against_the_other_sign` is flipped to pin ρ = −GRA on every attitude, never deleted. | The register is the process for departing from a printed oracle (`CLAUDE.md` §Math fidelity). Locking the rows that are right while deviating from the rows that are wrong is exactly what the register exists to state — and the declined entry's own text names this note's evidence as its reopening condition. |
 | **GF-4** | **ρ gets an absolute gate**: `ground_rotation_deg(case) == −GRA(attitude of case)` for every case, against `ground_angles` directly, exact (1e-9), all bundled examples. The gate's docstring states its assumption: the nose-up sense of GRA (§1.2's proof) was derived on **tricycle geometry**, the only arrangement the suite models — a tail-wheel configuration would re-open the sign derivation, not inherit it. | §1.4 — the existing G-6 gate is self-consistent and structurally cannot catch a sign error. This converts the documented anomaly in `gear_loads.py:224–229` from prose into an assertion (practice 3), and that prose is rewritten to describe history, not behaviour. |
 | **GF-5** | **Downstream re-verification rides the existing CI gates**: the assembled ground cases re-close in six DOF from the corrected reactions; the sbeam round-trip stays green; the gear reference-point loads **and the patch-to-trunnion transfer couples** move with `vm/dm` (§1.6 — the couple is derived from the force, so it co-corrects with no additional code). No consumer needs code changes. | The consumers were built to trust `vm/dm`; correcting the producer corrects them all. G-7a is untouched (§1.4); the application-point chain itself is verified sound (§1.7). |
-| **GF-6** | **`run()` ships the airplane-datum set alongside the primed set** (deliverable b): per case ≤ 24, `vm/dm/vn/dn`, the fuselage-axis angle (units `deg`, never SF-scaled, like the dimensionless factors), **and the application point** — the contact-patch coordinates, strut state and reference node per leg (§1.5 item 5); cases 25–33 the nose pair; the NR/NV/ND datum factors per OQ-1's resolved formula **with the lift term's corrected sign** (§1.6). Lands **with or after GF-1** — never before, so the wrong-sign numbers are never promoted into the deliverable. | §1.5. The replication's deliverable is thinner than the 1990 printout it replicates; M4-17e closed that gap for the primed set and stopped there. The stress model needs body-frame loads with stated application points; today's deliverable states neither. |
+| **GF-6** *(scope set by the owner 2026-08-29 — §1.14)* | **The delivered landing load is a body-frame force with a stated point of application, for every gear on every case.** Per case, per leg — **nose, left main, right main, all three always present, zeros included** — `run()` emits the signed body components **`Fx, Fy, Fz`** and the **location `x, y, z`** of that force, plus the strut state and reference node. The point is the manual's own printed column, not an inference: **axle centre** for cases 1–12, **ground contact point** for 13–24, **CL axle** for 25/26, 28/29, 31/32 and **ground contact point** for 27, 30, 33 (p231/p232/p233, §1.14). Also emitted: the fuselage-axis angle (units `deg`, never SF-scaled) and the NR/NV/ND datum factors per OQ-1's resolved formula **with the lift term's corrected sign** (§1.6). **The ground-line (primed) set stays in the text/report output and is excluded from the CSV** — the CSV is the body-frame deliverable. Lands **with or after GF-1** — never before, so the wrong-sign numbers are never promoted into the deliverable (owner confirmed 2026-08-29 that this item waits). | §1.5, §1.14. The replication's deliverable is thinner than the 1990 printout it replicates; M4-17e closed that gap for the primed set and stopped there. A stress model consumes a force and a point; a magnitude with an unnamed frame is not a load. Emitting all three legs on every case — rather than only the loaded ones — is what makes a case's free body readable without reconstructing which gear the family implies. |
 | **GF-7** | **Every reactions table names its frame, in both GUIs**, using the manual's own words — "with respect to ground line" / "with respect to airplane datum" — one caption owner in `app_shell` with a drift guard, not two prose copies. | §1.5 item 4; practice 3. The Oracle currently shows unlabeled ground-line numbers while the deck consumes body — a reader moving between them has no stated bridge. |
 | **GF-8** | **Split delivery: GF-1…GF-5 are the defect item (tier L); GF-6/GF-7 are the reporting item (tier M)**, ordered defect-first. | Rule 6: a first-order defect on shipped content outranks the fidelity item; and GF-6 must not ship the pre-fix numbers (GF-6's own condition). |
 
@@ -698,7 +740,7 @@ Benchmark-first (rule 2). Identities exact (`rel_tol=1e-9`); oracle locks ±0.1 
 | **G-GF-3** (ρ identity) | GF-4's gate: ρ == −GRA(attitude) per case, every bundled example, exact. | cases 1–12: −GRA₁; 7–9: −GRA₃; 13–33: **−GRA₂** (ga6: −4.057 / −15.000 / **−4.724**) |
 | **G-GF-4** (the corrected attitude-1 numbers) | ga6 spot values per §1.3, and the two qualitative signs stated in the test docstring: the side family's body drag is *forward*, and the pre-fix behaviour (+GRA₂) is recorded as what the manual prints. | case 16 vm 2402.3 / dm 1616.4 (PHIM 33.936); case 19 dm −186; case 27 dn −97 |
 | **G-GF-5** (downstream closure) | Every assembled ground case closes in six DOF from the corrected reactions; `sbeam-roundtrip` green; the exported ground FORCE cards carry the corrected `vm/dm`. | CI's existing gates, re-run |
-| **G-GF-6** (dual-frame deliverable) | Each case's `ConditionResult` carries both frames, the fuselage-axis angle and the application point (patch, strut state, node per leg); frames named per GF-7 from one caption owner with a drift guard; datum factors NR/NV/ND per OQ-1's formula with the corrected lift sign — case 1 locks at **NR 3.269 / NV 3.216 / ND 0.585** (printed 3.287/3.216/0.679 register-recorded per GF-3); wheels-only NR locks as printed (case 16: 1.703). | angle units `deg`, blank SF column, never scaled |
+| **G-GF-6** (body-frame deliverable with a stated point) | Every case carries **three legs** (nose, left main, right main) each with signed `Fx, Fy, Fz` **and** a location `x, y, z`; a case that leaves a gear unloaded emits it at zero rather than omitting it, and a **guard asserts the three-leg invariant on every case of every bundled example**. The point matches the printed column per family (axle 1–12, ground contact 13–24, CL axle 25/26/28/29/31/32, ground 27/30/33). **CSV carries the body frame only; the ground-line set appears in the text report and not in the CSV** — drift-guarded both ways so neither can leak into the other. Frames named per GF-7 from one caption owner with a drift guard; datum factors NR/NV/ND per OQ-1's formula with the corrected lift sign — case 1 locks at **NR 3.269 / NV 3.216 / ND 0.585** (printed 3.287/3.216/0.679 register-recorded per GF-3); wheels-only NR locks as printed (case 16: 1.703). | per-leg force sums reproduce the locked p232 magnitudes; angle units `deg`, blank SF column, never scaled |
 
 **Closure tiers:** defect item **L** — this note at AGREED first;
 `theory_sources.md` grows the p231/p232 citation rows;
@@ -734,3 +776,99 @@ that recovers its reference from the thing it checks.
 **No adjacent finding.** The one other self-referential check considered —
 `transfer_couple`'s exact guard — verifies a constructed identity that *is*
 the property claimed, not a sign adjudication, so it is not in the class.
+
+---
+
+## 5. The GF-3″ register entry (draft, 2026-08-29 — not yet agreed)
+
+Ready to move into [`../20_theory/02_approved_corrections.md`](../20_theory/02_approved_corrections.md)
+**if and when** the owner rules on §2's GF-3″. Every "as printed" figure below is
+transcribed from the rendered page and is locked in `tests/test_landing.py`
+(`test_landload_p231/p232/p233_*`); every "corrected" figure is computed from the
+manual's own printed formulas with the single substitution each correction makes.
+Nothing here is estimated, and nothing is computed from the pre-fix code — which
+is the defect that withdrew GF-3′.
+
+### 5.1 What GF-1 alone costs: p232, and nothing else
+
+The resultants are untouched, so this is a pure re-resolution of already-locked
+magnitudes. p230, p231, p233 and p236 stay green unmodified.
+
+**Read this as a deviation surface, not as a shippable option.** §1.9 already
+refuted the PHIM-only fix site (the old GF-2): correcting the resolution while
+leaving the arms leaves the module incoherent against its own unbalanced
+moments, measured at 0.106·W·MAC. So "GF-1 alone" is what the *register* would
+have to state if only the resolution were adjudicated — it is not a build. What
+§1.13 separates is the **cost** of the two claims, so that each is approved on
+its own evidence; what §1.9 binds is the **implementation**, and that binding
+stands.
+
+| cases | quantity | as printed → GF-1 corrected |
+|---|---|---|
+| 13 / 14 / 15 | VM | 1307 → 1492, 1153 → 1316, 908 → 1036 (**+14.2 %**) |
+| 13 / 14 / 15 | DM | 1235 → 1004, 1090 → 886, 858 → 697 (**−18.7 %**) |
+| 13 / 14 / 15 | VN, DN | VN unchanged (1708 / 2037 / 1767); DN **flips sign** — 141 → −141, 168 → −168, 146 → −146 |
+| 16 / 17 | VM, DM | 2104 → 2402; 1989 → 1616 |
+| 18 | VM, DM | 1733 → 1978; 1638 → 1331 |
+| 19–24 | VM | unchanged (2253, 2253, 1856) — `cos` is even |
+| 19–24 | DM | **flips sign** — 186 → −186 (19–22), 153 → −153 (23–24) |
+| 25 / 28 / 31 (aft) | VN, DN | 1094 → 1249, 1778 → 2030, 1677 → 1915 (+14.2 %); 1034 → 840, 1680 → 1366, 1585 → 1288 (−18.7 %) |
+| 26 / 29 / 32 (fwd) | VN, DN | 1210 → 1133, 1967 → 1841, 1855 → 1737 (**−6.4 %**); −372 → −565, −604 → −919, −570 → −867 (**+52 %**) |
+| 27 / 30 / 33 (side) | VN, DN | VN unchanged; DN **flips sign** — 97 → −97, 157 → −157, 148 → −148 |
+
+**The sign flips are the physical claim, not an artefact.** In the side families
+the ground-line load is purely normal, so the entire body-frame drag component
+*is* the rotation: printed aft, corrected forward, which is what nose-up geometry
+demands (G-GF-4). A reviewer who reads only one line of this entry should be shown
+that one.
+
+Also in scope per §1.6/GF-3: the p232 **ND** cells of the lift-carrying cases
+(case 1: ND 0.679 → 0.585, NR 3.287 → 3.269), which arrive with #134.
+
+### 5.2 What GF-2′ additionally costs: p230, p231 and p233
+
+| page | cases | quantity | as printed → GF-2′ corrected |
+|---|---|---|---|
+| p230 | ground roll | AP | 78.836 / 69.886 / 66.501 → 86.002 / 77.052 / 73.502 |
+| p230 | ground roll | BP | 14.311 / 23.260 / 26.646 → 8.810 / 17.759 / 21.310 (**−38 %** on the first) |
+| p230 | ground roll | DP | 93.147 → **94.811** |
+| p231 | 13 / 14 / 15 | VMP | 1404 → 1512, 1239 → 1348, 975 → 1064 (+7.7 / +8.8 / +9.1 %) |
+| p231 | 13 / 14 / 15 | DMP | 1123 → 1210, 991 → 1079, 780 → 851 |
+| p231 | 13 / 14 / 15 | RESM | 1798 → 1936, 1587 → 1727, 1249 → 1363 |
+| p231 | 13 / 14 / 15 | VNP | 1714 → 1498, 2044 → 1825, 1773 → 1596 (−12.6 / −10.7 / −10.0 %) |
+| p231 | 25–27 | VNP, DNP | 1175 → 711 (**−39.5 %**); 940 → 569, −470 → −284 |
+| p231 | 28–30 | VNP, DNP | 1910 → 1433 (−25.0 %); 1528 → 1146, −764 → −573 |
+| p231 | 31–33 | VNP, DNP | 1802 → 1416 (−21.4 %); 1442 → 1133, −721 → −566 |
+| p233 | 16 / 17 / 18 | PITCHP | −217530 → −192650, −260675 → −235794, −225167 → −205292 |
+| p233 | 19–20 / 21–22 / 23–24 | PITCHP | −64716 → −39839, −105186 → −80306, −99232 → −79358 (−38 / −24 / −20 %) |
+| p233 | 19–20 / 21–22 / 23–24 | YAWP | ∓40386 → ∓24862, ∓65640 → ∓50116, ∓61925 → ∓49524 |
+
+The NVP/NDP ground-line factors of cases 13–15 and the p231 SNP column move with
+these; they derive from the same reactions.
+
+**The evidence for GF-2′ is unchanged and remains strong** — `DP` is the distance
+between two contact points and admits no sign convention (94.811 against a printed
+93.147, §1.10); a ground-parallel arm cannot depend on whether it is measured to
+the axle or to the patch, and only the corrected rotation makes those two agree
+(§1.11); and the correction drives case 13's pre-closure residual pitching moment
+from −757.1 to −0.7 lb-in (§1.11). **What §1.13 changed is only that the cost is
+now precise rather than indicative.**
+
+### 5.3 Disposition of the existing register entry and the pinned tests
+
+Unchanged from GF-3: the "Considered and declined" decision of **2026-08-15**
+converts in place — its own text names legible printed output as its reopening
+condition, and §1.13 supplies exactly that — and
+`test_the_ground_roll_attitude_is_resolved_against_the_other_sign` is **flipped**
+to pin ρ = −GRA on every attitude, never deleted. The three page locks added
+2026-08-29 get the same treatment: any row a ruling deviates from **moves to the
+corrected value with this entry cited beside it**. No lock is removed, and the
+number of locked cells does not fall.
+
+### 5.4 The one thing this entry cannot decide
+
+Whether the **p233 datum-moment transform** (§1.13, the third instance of the §4
+class) is registered here or with #134. It is not in sloads and cannot be until
+GF-6 emits datum moments. Recommendation: name it here as known and adjudicated,
+and let #134 carry its own deviated-from cells when it builds them — the same
+treatment §1.6's ND lift term already has.
