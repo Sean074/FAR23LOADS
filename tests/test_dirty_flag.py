@@ -133,12 +133,30 @@ def _number_for(at, path):
     return widget_editing(at, path)
 
 
+def _add_record(at, prefix):
+    """Perform the #143 "Add <record>" gesture for ``prefix``, and rerun.
+
+    Since #143 an Optional record block is created only by a deliberate, named
+    click, so a test that types into a record the project does not carry makes
+    that click first -- the same order the user works in, and the reason the
+    button is asserted present here rather than assumed.
+    """
+    from app_shell.widget_keys import unstamped
+
+    hits = [b for b in at.button if unstamped(b.key) == f"_add.{prefix}"]
+    assert len(hits) == 1, (
+        f"no single Add gesture for {prefix!r}: {[unstamped(b.key) for b in at.button]}")
+    hits[0].click().run()
+    assert not at.exception, [e.message for e in at.exception]
+
+
 def test_an_oracle_page_still_persists_what_the_user_types():
     """The other half, without which "never write anything" would pass.
 
     Two directions: a field on a record the project already has, and a field on
-    a record it does not -- where the write has to attach the record too, or the
-    oracle GUI could not build a project from scratch, which is its whole job.
+    a record it does not -- where the record is created by the #143 Add gesture
+    and the typed value must land in it, or the oracle GUI could not build a
+    project from scratch, which is its whole job.
     """
     from streamlit.testing.v1 import AppTest
 
@@ -159,10 +177,13 @@ def test_an_oracle_page_still_persists_what_the_user_types():
     blank.run()
     assert blank.session_state["project"].speeds is None, (
         "an untouched page attached its record anyway")
+    _add_record(blank, "speeds")
+    assert blank.session_state["project"].speeds is not None, (
+        "the Add gesture did not attach the record it names (#143)")
     _number_for(blank, "speeds.weight_lb").set_value(1234.0).run()
     speeds = blank.session_state["project"].speeds
     assert speeds is not None and speeds.weight_lb == 1234.0, (
-        "a typed value did not attach the record it belongs to")
+        "a typed value did not land in the record it belongs to")
 
 
 def _value_at(project, path):
@@ -176,6 +197,14 @@ def _value_at(project, path):
 #: different record groups under the same missing ancestor, which is exactly
 #: where the pending-record clobber lived -- every group used to mint its own
 #: blank ancestor and the last one committed won, discarding the other edit.
+#:
+#: Since #143 the ancestor is attached by the Add gesture before either field is
+#: typed, and one click is one rerun, so a *record block* can no longer reach the
+#: clobber at all -- :func:`~oracle_app.form._attach_record` writes through
+#: rather than into :data:`~oracle_app.form._PENDING`. These stay as
+#: two-edits-in-one-rerun checks over the shape the defect had; the pending path
+#: that can still race is the one :func:`~oracle_app.form.rows_at` walks, where
+#: two tables on a page share a missing ancestor and neither is a click.
 #:
 #: ``landing_loads`` is the exception since note 33. It had three groups under
 #: ``landing`` only because the gear geometry was duplicated onto that slice; the
@@ -223,6 +252,11 @@ def test_two_edits_in_one_rerun_both_persist(key, first, second):
     at = AppTest.from_string(_ORACLE_SCRIPT.format(key=key), default_timeout=60)
     at.session_state["project"] = Project(name="")
     at.run()
+    from app_shell.widget_keys import unstamped
+    for path in (first[0], second[0]):
+        prefix = path.rsplit(".", 1)[0]
+        if any(unstamped(b.key) == f"_add.{prefix}" for b in at.button):
+            _add_record(at, prefix)
     _number_for(at, first[0]).set_value(first[1])
     _number_for(at, second[0]).set_value(second[1])
     at.run()
@@ -246,6 +280,7 @@ def test_a_typed_zero_lands_in_an_unfilled_optional_field():
                              default_timeout=60)
     at.session_state["project"] = Project(name="")
     at.run()
+    _add_record(at, "one_engine_out")
     widget = _number_for(at, "one_engine_out.altitude_ft")
     assert widget.value is None, (
         "an unfilled Optional field rendered a fake 0 instead of empty")

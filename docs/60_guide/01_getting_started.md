@@ -79,14 +79,22 @@ Each page is a form over one analysis step, with the step's results rendered
 below the form and offered as per-table downloads. The pages are ordered by
 data flow: a page that needs an upstream quantity says so in plain text until
 the earlier page has what it needs (the exact messages are decoded in
-[Appendix C](C_troubleshooting.md)). Two entry habits worth forming
-immediately, both stated on the pages themselves:
+[Appendix C](C_troubleshooting.md)). Three entry habits worth forming
+immediately, all stated on the pages themselves:
 
 - **Commit a grid cell with Tab, not Enter** — Enter leaves the cell's editor
   open, and the next keystroke discards what you typed.
 - **Grid rows with an empty cell are not saved** — fill every column to keep
   the row. A row added with a **row counter** is part of the project as soon
   as it appears, blank or not: fill it in, or count back down to delete it.
+- **Some blocks start off the page, behind an "Add" button** — a section your
+  airplane may simply not have (a flaps-down coefficient set, a Mach limit, a
+  weight envelope) shows a caption naming the fields it holds and an **➕ Add**
+  button instead of the fields. Click it when the airplane has that thing; the
+  fields appear, blank, and are yours to fill. Nothing is added to the project
+  by looking at a page, or by touching anything on it. The matching **🗑
+  Remove** control at the foot of the block takes the whole section away again,
+  with everything entered in it.
 
 Start with [Before you start](02_before_you_start.md) so the numbers are on
 your desk before the forms ask for them.
