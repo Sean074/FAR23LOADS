@@ -2,10 +2,13 @@
 
 **Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6)*
 
-**Status: AGREED 2026-08-28 (owner, in session — `CLAUDE.md` rule 1's
-working-alone path), milestone 0.8.1 — re-milestoned 2026-08-28 when the
-patch band opened ahead of 0.9.0 (backlog re-cut 2026-08-28, ruling 1);
-nothing built.** Proposed and amended the
+**Status: AGREED 2026-08-28 — REOPENED 2026-08-28 on GF-1/GF-2, which an
+existing closure gate falsifies as scoped (§1.8, found implementing them).
+Milestone 0.8.1 (re-milestoned 2026-08-28 when the patch band opened ahead of
+0.9.0 — backlog re-cut 2026-08-28, ruling 1). Nothing built; the GF-1/GF-2 code
+change was written, measured against the gates, and reverted. GF-6/GF-7 (the
+reporting item, #134) are untouched by the reopening but are blocked behind it
+by GF-6's own ordering condition.** Proposed and amended the
 same day after the owner-directed Appendix C `.BAS` verification: GF-1 confirmed
 at source level, OQ-1 resolved (revealing a second instance of the sign error,
 §1.6), the application-point audit folded into GF-6, the flight-side α/β sweep
@@ -129,7 +132,7 @@ resolutions move:
 | case | family | as coded vm / dm | corrected vm / dm | Δ |
 |---|---|---|---|---|
 | 13 | braked, nose down (main) | 1306.9 / 1235.2 | 1491.6 / 1003.8 | **+14 % / −19 %** |
-| 13 | (nose) | 2037 / +168 | 2037 / **−168** | drag sign flips |
+| **14** | (nose) | 2037 / +168 | 2037 / **−168** | drag sign flips *(corrected 2026-08-28: this row is case **14**, not 13 — case 13's nose pair is 1707.8 / −141.1. Every main-gear figure in this table reproduced exactly when measured.)* |
 | 16 | **braked, nose clear** | 2104.3 / 1988.9 | **2402.3 / 1616.4** | **+14 % / −19 %** |
 | 19–24 | side | 2253 / +186 | 2253 / **−186** | drag sign flips |
 | 25 | supp. nose aft | 1094 / 1034 | 1248.6 / 840.2 | +14 % / −19 % |
@@ -198,6 +201,12 @@ lift as `(L·sin ρ, 0, L·cos ρ)` with ρ = −GRA
 
 ### 1.6 The second instance, and the corroboration (from the `.BAS` check)
 
+> **Contingent on GF-1 (marked 2026-08-28).** The "second instance" below is
+> the *same* sign question in the datum load-factor lift term, so it stands or
+> falls with GF-1 and is reopened with it (§1.8). The corroborations — NR's
+> frame invariance and the contact-patch construction — are independent of the
+> adjudication and stand.
+
 * **The datum ND lift term** carries `+sin(GRA)` where the physics gives `−`.
   It affects only the to-be-built NR/NV/ND reporting (GF-6) — the assembled
   deck's lift is already correct — and it adds two p232 cells per
@@ -228,6 +237,90 @@ trunnion (`leg.attach`, deck GIDs 10001+, carrier BODY/WING stated) carries
 the exact lever-arm couple, guarded at `rel_tol 1e-12`. What is missing is
 item 5 above — the *output* does not identify the point — which GF-6 now
 covers.
+
+---
+
+### 1.8 GF-1/GF-2 falsified as scoped (2026-08-28, found implementing them)
+
+**The correction was written exactly as GF-1/GF-2 specify, measured, and
+reverted.** It reproduces every main-gear figure of §1.3 to the digit
+(case 13 vm/dm 1491.9/1003.9; case 16 2402.3/1616.4; case 26 1132.6/−565.3) and
+leaves `test_landing.py` green — so **G-GF-1 holds**: the p230/p231/p236 oracles
+and every primed quantity really are untouched. It then fails a gate this note
+did not consider.
+
+**The gate.** `test_gear_report.py::
+test_the_ground_closure_reproduces_landloads_unbalanced_moments` compares
+LANDLOAD's stated unbalanced pitching moment against a reconstruction from the
+assembled case. It is **not** the self-referential shape §1.4 describes:
+`pitchp` is built only from primed quantities (`rmp`, `vmp`, `dmp`) and the
+p230-locked `bp`/`cp` arms and never reads `phim`/`phin`, and a moment about y
+is invariant under a rotation about y — so ground-line `pitchp` and the
+body-frame `M_y` are directly comparable. It is an **independent, absolute**
+reference for the rotation, which is exactly what §1.4 says no gate provides.
+
+Residual as a fraction of W·MAC, `ga6_normal`:
+
+| case | printed `+GRA₂` | GF-1's `−GRA₂` | gate tolerance |
+|---|---|---|---|
+| 13 (braked roll) | 0.00322 | **0.11777** | 5e-2 |
+| 16 (braked, nose clear) | 0.00578 | **0.10565** | 5e-2 |
+| 19 (side) | **0.00001** | **0.10566** | 1e-4 |
+
+Case 19 closes to **1e-5** against the sign the manual prints. That is
+machine-level agreement with an independent reference, and GF-1 destroys it.
+
+**Why — and this is a hole in GF-2, not merely a failed test.** `_geometry`
+builds the AP/BP/DP/CP lever arms from **the same `beta` tuple** that feeds
+PHIM/PHIN (`fn_bp(xm, xcg, b, ...)` with `b = beta[attitude]`). GF-2 rules the
+fix site to be "the PHIM/PHIN tables only … `_geometry`, `beta` and the
+p230-locked lever arms untouched" on the premise that they are independent.
+**They are not.** `beta[1]` is consumed twice — as the lever-arm frame and as
+the resultant direction — and LANDLOAD uses it coherently in both places.
+Correcting one and not the other makes the module internally inconsistent, and
+0.106·W·MAC is the size of that inconsistency.
+
+**What this does and does not establish.** It does *not* show the manual is
+right; §1.2's geometric argument is unrefuted, and `_ground_angle` being a
+single formula (checked 2026-08-28) confirms GRA₁ and GRA₂ do share one
+geometric sense, as §1.2 asserts. What it shows is that **the defect, if it is
+one, is wider than the fix site this note authorised** — and that its
+continuation runs straight into the p230-locked lever arms, which reproduce the
+printout and cannot simply move.
+
+**The inhomogeneity the re-adjudication has to resolve.** `BETA` is not one kind
+of quantity across the attitudes:
+
+* level — `BETA(1) = γ − GRA₁`, a **resultant-direction** angle (it carries the
+  flight-path angle γ), used directly as `PHIM(1–6)`;
+* ground roll — `BETA(2) = GRA₂`, a bare **ground** angle, used as
+  `PHIM = atan(0.8) + BETA(2)`.
+
+§1.2 compares the two as though both were ground angles. They are not, and the
+same two values also rotate the lever arms. Until that is settled, the sign
+question cannot be answered from the printed p232 rows alone.
+
+**Open questions for the re-adjudication.**
+
+* **OQ-2** — what frame are the AP/BP/DP/CP arms actually in, per attitude, and
+  is `BETA`'s double duty (lever-arm rotation *and* resultant direction)
+  faithful to the `.BAS` or an artefact of the port? The Appendix C listing
+  around the arm assignments answers this and was not read for this note.
+* **OQ-3** — if GF-1's geometry holds, what happens to the attitude-1 lever
+  arms, which are p230-oracle-locked and reproduce the printout? Either they
+  are in a frame where `+GRA₂` is correct (and PHIM is too), or the deviation
+  is far larger than GF-3 contemplates.
+* **OQ-4** — does the case-19 `1e-5` closure survive on the other fixtures with
+  a non-trivial GRA₂ (`cessna_210`, GRA₂ = 4.810)? `atr42_100` and
+  `dhc8_dash8` carry GRA₂ ≈ 8e-5 deg and cannot discriminate.
+
+**Process note.** This is the benchmark-first rule (`CLAUDE.md` rule 2) doing
+the work it exists for: the note's own §1.4 asserted that no gate could
+adjudicate the sign, and an existing gate adjudicated it in the first minute of
+implementation, against the note. §1.4 is wrong as written and is superseded by
+this section. **The register's 2026-08-15 "Considered and declined" entry is
+therefore NOT superseded** — GF-3's conversion does not proceed, and the entry
+stands as written until GF-1 is re-adjudicated.
 
 ---
 
