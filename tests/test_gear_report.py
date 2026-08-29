@@ -49,8 +49,11 @@ from sloads.export.balanced_deck import (
 )
 from sloads.export.sbeam_bridge import gear_report_rows
 from sloads.gear_loads import (
+    AXLE,
+    GROUND_CONTACT,
     MAIN,
     NOSE,
+    application_point_of,
     applied_wheels,
     attitude_of,
     gear_case_loads,
@@ -158,12 +161,20 @@ def test_the_report_carries_all_thirty_three_cases(example):
 def test_the_transfer_to_the_reference_point_preserves_the_resultant(example):
     """**G-2's third guard.** The reaction is identical before and after the move.
 
-    LANDLOAD computes the reaction at the tyre contact patch -- 23.485(d) puts it
-    there -- and the transfer to the attachment node is *ours*, which is exactly
-    why it is policed. Force plus the lever-arm couple at the node has the same
-    resultant about **every** reference as the force alone at the patch, so this
-    is a property of the construction rather than an approximation, and it is
-    gated exactly (``rel_tol 1e-12``) rather than to a tolerance.
+    LANDLOAD applies each reaction at the point its own printed column names --
+    the axle on the landing attitudes, the tyre contact patch on the handling
+    ones (design note 39 AP-1) -- and the transfer to the attachment node is
+    *ours*, which is exactly why it is policed. Force plus the lever-arm couple
+    at the node has the same resultant about **every** reference as the force
+    alone at that point, so this is a property of the construction rather than an
+    approximation, and it is gated exactly (``rel_tol 1e-12``) rather than to a
+    tolerance.
+
+    It is asserted from ``leg.point``, the applied point, and **not** from
+    ``leg.patch``: reading the patch is what this test did until 2026-08-29, and
+    it passed all the way through -- an exact transfer from the wrong point is
+    still exact, which is the whole reason #139 needed an external witness
+    (``PITCHP``) rather than an internal one.
 
     Taken about a deliberately arbitrary point, not about the CG: about the CG a
     dropped couple could still cancel against something. Measured worst case over
@@ -176,7 +187,7 @@ def test_the_transfer_to_the_reference_point_preserves_the_resultant(example):
             if not any(leg.airplane):
                 continue
             fx, fy, fz = leg.airplane
-            px, py, pz = leg.patch
+            px, py, pz = leg.point
             nx, ny, nz = leg.node
             mx, my, mz = leg.couple
             before = ((py - ref[1]) * fz - (pz - ref[2]) * fy,
@@ -532,16 +543,25 @@ def test_the_ground_closure_reproduces_landload(example):
                             rel_tol=1e-9, abs_tol=1e-9), f"{where}: NS"
 
 
-#: The families whose ``PITCHP`` is ``mult x RMP x BP`` -- one resultant on one
-#: arm, and ``BP`` is measured to the **axle** (``landing._geometry`` builds it
-#: from ``axle_compressed``/``axle_static``). The braked-roll families 13-18 are
-#: the exception: their ``-2(VMP x BP + DMP x CP)`` puts the drag arm ``CP`` on
-#: the **ground line**, where the tyre is. The assembled case applies every
-#: reaction at the contact patch (G-2/G-12; FAR 23.485(d) says so in as many
-#: words), so the gate moves the applied set to whichever point the family's own
-#: formula used. Getting this wrong is not subtle: the level family misses by
-#: 12 % (21,000 lb-in on ``ga6_normal`` case 4).
-_PITCH_ARM_AT_THE_AXLE = frozenset(list(range(1, 13)) + list(range(19, 25)))
+#: **Withdrawn 2026-08-29 (design note 39, #139).** This set used to move the
+#: applied load from the tyre to the axle *inside the gate* on cases 1-12 and
+#: 19-24, because "the family's own formula" measured its arm there. It was
+#: right about the arithmetic and wrong about what it meant: the assembled case
+#: applied every reaction at the contact patch, LANDLOAD applies the landing
+#: attitudes at the **axle** -- its own printed column -- and the 12 % the
+#: comment below recorded as a bookkeeping move between two conventions was a
+#: defect in the deck's lever arm. The move now lives in
+#: ``gear_loads.application_point``, and the pitch line compares **where the
+#: load is applied**, with no correction of its own (G-AP-1).
+#:
+#: *Kept verbatim as the thing that was believed:* "The families whose PITCHP is
+#: mult x RMP x BP -- one resultant on one arm, and BP is measured to the axle.
+#: The braked-roll families 13-18 are the exception: their -2(VMP x BP + DMP x
+#: CP) puts the drag arm CP on the ground line, where the tyre is. The assembled
+#: case applies every reaction at the contact patch (G-2/G-12), so the gate moves
+#: the applied set to whichever point the family's own formula used. Getting this
+#: wrong is not subtle: the level family misses by 12 % (21,000 lb-in on
+#: ga6_normal case 4)."
 
 
 @pytest.mark.parametrize("example", _WITH_GROUND_CASES)
@@ -626,16 +646,22 @@ def test_the_ground_closure_reproduces_landloads_unbalanced_moments(example):
         flip = -1.0 if _is_reflected(case, gear) else 1.0
 
         # The solved field about the CG, less the G-7a departure: what is left is
-        # the moment of the gear reactions alone, which is what LANDLOAD states.
-        at_patch = tuple(
+        # the moment of the gear reactions alone, which is what LANDLOAD states,
+        # taken about **the point the case applies them at** (design note 39
+        # AP-1: the axle on 1-12 and 25/26/28/29/31/32, the tyre on the rest).
+        # The gate makes no arm correction of its own any more -- the one it used
+        # to make was the defect, and it now lives in the code.
+        at_applied = tuple(
             s - lift for s, lift in
             zip(_solved_moment_about_cg(case),
                 _lift_moment_about_cg(case, gear, project.landing.lift_factor)))
-        # ... and the same load moved from the tyre to the axle. Both wheels of a
-        # leg share the offset (the patch is the rolling radius from the axle
-        # along the ground normal), so one cross product per leg is the whole
-        # move, and it lands only in pitch until a family carries a side load.
-        at_axle = at_patch
+        # The same load at the *other* point, for the two lines whose LANDLOAD
+        # formula is built on the other one. Both wheels of a leg share the
+        # offset (the patch is the rolling radius from the axle along the ground
+        # normal), so one cross product per leg is the whole move, and it lands
+        # only in pitch until a family carries a side load.
+        applied_at_tyre = application_point_of(case.vn_case) == GROUND_CONTACT
+        at_axle, at_tyre = at_applied, at_applied
         for leg, r in radius.items():
             applied = [ld for ld in case.loads if ld.source == f"gear-{leg}"]
             if not applied:
@@ -643,18 +669,22 @@ def test_the_ground_closure_reproduces_landloads_unbalanced_moments(example):
             force = tuple(sum(getattr(ld, c) for ld in applied)
                           for c in ("fx", "fy", "fz"))
             offset = (-r * math.sin(angle), 0.0, r * math.cos(angle))
-            at_axle = tuple(a + m for a, m in zip(at_axle, _cross(offset, force)))
+            move = _cross(offset, force)
+            if applied_at_tyre:
+                at_axle = tuple(a + m for a, m in zip(at_axle, move))
+            else:
+                at_tyre = tuple(a - m for a, m in zip(at_tyre, move))
 
-        pitch_at = (at_axle if case.vn_case in _PITCH_ARM_AT_THE_AXLE else at_patch)
-        # 13-18 also carry the ground-roll attitude's frame difference, which no
-        # rotation in the check can remove: it is in the direction the reaction
-        # is applied, not in the reference the moment is taken about.
-        pitch_tol = 1e-4 if case.vn_case in _PITCH_ARM_AT_THE_AXLE else 5e-2
-        assert abs(pitch_at[1] - gear.pitchp) <= pitch_tol * scale, (
-            f"{where}: PITCHP {pitch_at[1]:,.1f} != {gear.pitchp:,.1f}")
+        # **G-AP-1.** One bound, every family, no per-family arm move and no
+        # per-family slack: 13-18's old 5e-2 carried the ground-roll attitude's
+        # wrong-way rotation (#133, landed 2026-08-29) and 1-12's arm move
+        # carried #139, and with both fixed at their origins every case closes on
+        # the same 1e-4 the truncated-arm families always needed.
+        assert abs(at_applied[1] - gear.pitchp) <= 1e-4 * scale, (
+            f"{where}: PITCHP {at_applied[1]:,.1f} != {gear.pitchp:,.1f}")
 
-        roll = (at_patch[0] * math.cos(contact_line)
-                - at_patch[2] * math.sin(contact_line))
+        roll = (at_tyre[0] * math.cos(contact_line)
+                - at_tyre[2] * math.sin(contact_line))
         yaw = at_axle[2] * math.cos(rho) + at_axle[0] * math.sin(rho)
         if case.vn_case in GROUND_ONE_WHEEL_CASES:
             # The tread arm is the assembled model's own geometry, so these two
@@ -677,8 +707,13 @@ def test_the_rotational_gates_two_departures_are_not_no_ops():
     deleted, so the two the rotational line makes are measured here on
     ``ga6_normal`` case 4 -- the level 2-wheel condition, which carries both.
 
-    * the **arm point** (G-12): comparing at the tyre instead of the axle misses
-      ``PITCHP`` by 20,961 lb-in, **12.5 %**;
+    * the **arm point** (design note 39 AP-1): applying the level attitude at the
+      tyre instead of the axle misses ``PITCHP`` by 20,961 lb-in, **12.5 %**.
+      Until 2026-08-29 that was a correction the *gate* made and the code did
+      not, and this line measured the correction; it now measures the **defect**
+      #139 fixed, from the same arithmetic and the same number. A control that
+      keeps firing after the thing it controls moves into the code is the one
+      worth keeping;
     * the **lift term** (G-7a): 9,787 lb-in, 5.8 % -- small, and exactly the size
       that hides inside a percentage tolerance, which is why G-6 asked for it in
       the line rather than in the slack.
@@ -778,12 +813,19 @@ def test_the_static_contact_patch_breaks_the_level_landing_gate():
     Targets G-12's per-attitude geometry, which G-13 identifies as otherwise the
     least-guarded new decision in the note. Compute a level-landing case at the
     **static** axle instead of the compressed one and the closed-form factor gate
-    must go red -- and it does, because the contact patch moves 3.71 in in ``z``
-    and 0.49 in in ``x``, which changes the lever arms the moment balance is
+    must go red -- and it does, because the applied point moves 3.70 in in ``z``
+    and 0.40 in in ``x``, which changes the lever arms the moment balance is
     solved on.
 
+    It perturbs ``point``, the point the reaction is applied at (design note 39
+    AP-1), which on this level-landing case is the **axle**. It perturbed
+    ``patch`` until 2026-08-29, when the patch stopped being the transfer point
+    on cases 1-12 -- at which moment this control silently stopped being able to
+    fire. That is the failure mode a negative control exists to catch in
+    *itself*, so it is now anchored to the same attribute the transfer reads.
+
     Asserted on the moment, not on ``NVP``: the vertical force factor is
-    unchanged by moving the patch (the same force still acts), so a control that
+    unchanged by moving the point (the same force still acts), so a control that
     watched ``NVP`` alone would pass and prove nothing. That distinction is the
     reason this test exists rather than a blanket "perturb something" check.
     """
@@ -803,11 +845,14 @@ def test_the_static_contact_patch_breaks_the_level_landing_gate():
 
     honest_my = pitching(honest)
 
-    # The same reaction, transferred from the WRONG attitude's contact patch.
+    # The same reaction, transferred from the WRONG attitude's applied point --
+    # the static axle where this case is computed at the compressed one.
     from dataclasses import replace as _replace
-    wrong_patch = (leg.patch[0] + 0.49, leg.patch[1], leg.patch[2] + 3.71)
-    broken = applied_wheels([_replace(x, patch=wrong_patch,
-                                      couple=transfer_couple(wrong_patch, x.node,
+    static = gear_geometry(project).main_gear.axle_static
+    wrong_point = (static[0], leg.point[1], static[1])
+    assert not math.isclose(wrong_point[0], leg.point[0]), "the two axles coincide"
+    broken = applied_wheels([_replace(x, point=wrong_point,
+                                      couple=transfer_couple(wrong_point, x.node,
                                                              x.airplane))
                              if x.leg == MAIN else x for x in case.legs])
     broken_my = pitching(broken)
@@ -1055,10 +1100,18 @@ def test_the_si_channel_states_si_units_and_converted_values():
 #: gate: the values a reader is shown. A physics change that moves them is not
 #: forbidden, it is required to update the document in the same session.
 _WORKED_EXAMPLE = {
+    # Case 4 moved on 2026-08-29 with the application-point correction (design
+    # note 39 AP-1, #139): the level attitude is applied at the **axle**, where
+    # it was transferred from the tyre. Only ``my`` and ``q_dot`` move -- the
+    # forces are LANDLOAD's own and are untouched, which is why ``nz``/``nx``
+    # and the rotated ``NVP``/``NDP`` are the same figures as before. The
+    # residual falls to within 1.1 lb-in of LANDLOAD's own PITCHP once G-7a's
+    # lift moment is allowed for (-158,271.3 - 9,786.6 vs -168,056.9), against
+    # -20,961.8 at the old point.
     4: dict(label="2-wheel level landing (nose clear)", weight_lb=3230.0,
             rho=-4.057, gear_fx=2042.3, gear_fz=8240.1, lift_lb=2154.4,
-            lift_fx=-152.4, fx=1889.9, fz=10389.1, my=-179232.1,
-            nz=3.2165, nx=0.5851, ny=0.0, q_dot=-1.925e-2,
+            lift_fx=-152.4, fx=1889.9, fz=10389.1, my=-158271.3,
+            nz=3.2165, nx=0.5851, ny=0.0, q_dot=-1.701e-2,
             nvp=3.1670, ndp=0.8112, lift_my=9787.0, lift_pct=1.360),
     # Cases 13 and 19 moved on 2026-08-29 with the BETA(2) correction (design
     # note 38 GF-1/GF-2', register 02_approved_corrections.md). The headline is
@@ -1220,3 +1273,101 @@ if __name__ == "__main__":                                   # zero-dependency r
                 print(f"FAIL {name}{f'[{args}]' if args else ''}: {exc}")
     print("FAILURES:" if failures else "OK", failures or "")
     sys.exit(1 if failures else 0)
+
+
+#: **The printed column, transcribed** (Appendix A p231/p233 head the ground-line
+#: and unbalanced-moment tables; p232 heads the airplane-datum one). Rendered at
+#: 200 dpi and read cell by cell on 2026-08-29 -- the column the OCR lost, and the
+#: statement design note 39 AP-1 rests on. Written out case by case rather than as
+#: ranges so that it is a **transcription** and not a restatement of the code's own
+#: rule: a range expression here would be the same construction ``gear_loads``
+#: makes, and two copies of one rule cannot disagree.
+_PRINTED_APPLICATION_POINT = {
+    1: "CENTER OF EACH WHEEL", 2: "CENTER OF EACH WHEEL", 3: "CENTER OF EACH WHEEL",
+    4: "CENTER OF EACH WHEEL", 5: "CENTER OF EACH WHEEL", 6: "CENTER OF EACH WHEEL",
+    7: "CENTER OF EACH WHEEL", 8: "CENTER OF EACH WHEEL", 9: "CENTER OF EACH WHEEL",
+    10: "CENTER OF EACH WHEEL", 11: "CENTER OF EACH WHEEL", 12: "CENTER OF EACH WHEEL",
+    13: "GROUND CONTACT POINT", 14: "GROUND CONTACT POINT", 15: "GROUND CONTACT POINT",
+    16: "GROUND CONTACT POINT", 17: "GROUND CONTACT POINT", 18: "GROUND CONTACT POINT",
+    19: "GROUND CONTACT POINT", 20: "GROUND CONTACT POINT", 21: "GROUND CONTACT POINT",
+    22: "GROUND CONTACT POINT", 23: "GROUND CONTACT POINT", 24: "GROUND CONTACT POINT",
+    25: "CL AXLE", 26: "CL AXLE", 27: "GROUND",
+    28: "CL AXLE", 29: "CL AXLE", 30: "GROUND",
+    31: "CL AXLE", 32: "CL AXLE", 33: "GROUND",
+}
+
+#: How the manual's two spellings of each point map onto this package's two
+#: (``AXLE`` / ``GROUND_CONTACT``). "CL AXLE" is the axle on the centreline --
+#: the 23.499 family is nose-only, so its axle *is* on the centreline and the
+#: extra word is a statement about the wheel, not about a third point.
+_PRINTED_TO_OWNER = {
+    "CENTER OF EACH WHEEL": AXLE, "CL AXLE": AXLE,
+    "GROUND CONTACT POINT": GROUND_CONTACT, "GROUND": GROUND_CONTACT,
+}
+
+
+def test_the_application_point_is_the_manuals_printed_column():
+    """**G-AP-2** -- every case's point matches Appendix A's own column.
+
+    Asserted against :data:`_PRINTED_APPLICATION_POINT`, a transcription, and
+    never against the code that builds the answer. This is the gate that makes
+    AP-1 a reading of the manual rather than a preference: the point is a
+    physical fact about where the load enters the structure (spin-up drag is
+    reacted at the bearing, braking torque is internal to the wheel), and the
+    manual states it per family.
+    """
+    assert len(_PRINTED_APPLICATION_POINT) == 33
+    for case, printed in _PRINTED_APPLICATION_POINT.items():
+        assert application_point_of(case) == _PRINTED_TO_OWNER[printed], (
+            f"case {case}: printed {printed!r}")
+    for outside in (0, 34, -1):
+        with pytest.raises(ValueError):
+            application_point_of(outside)
+
+
+def test_the_application_point_is_built_in_exactly_one_place():
+    """**G-AP-3** -- one owner for the point, structurally, not by convention.
+
+    A load and its point are one statement (design note 38 §1.14), and the way
+    they come apart is a second construction of the point somewhere downstream:
+    that is exactly how the deck ended up transferring from the patch while the
+    manual applied at the axle, with an exact transfer and a green suite on both
+    sides of the disagreement.
+
+    So two things are asserted about the package's own source. Every **gear**
+    ``transfer_couple`` call transfers from the owner's ``point`` and never from
+    a patch; and ``contact_patch``/``_axle`` -- the two constructions
+    :func:`application_point` chooses between -- are called nowhere outside
+    ``gear_loads`` itself. Anything that needs a point reads
+    ``application_point`` or a ``GearLegLoad``/``AppliedWheel`` field.
+
+    The export channel's movers call the same rule on points that are not gear
+    points at all (concentrated-mass offsets, LRA node routing), so the call-site
+    half is scoped to ``gear_loads``. The *rule* itself is now singular: it was
+    implemented twice, identically, each copy's docstring claiming to be note 24
+    R-11's single owner, and ``export/coordinates.py`` re-exports this one since
+    2026-08-29.
+    """
+    import pathlib
+    import re
+
+    package = pathlib.Path(__file__).resolve().parent.parent / "sloads"
+    calls = re.compile(r"transfer_couple\(\s*([A-Za-z_][A-Za-z_0-9.]*)")
+    builders = re.compile(r"(?<![A-Za-z_.])(contact_patch|_axle)\(")
+    offenders = []
+    for path in sorted(package.rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        rel = path.relative_to(package.parent)
+        if path.name == "gear_loads.py":
+            for arg in calls.findall(text):
+                if arg.split(".")[-1] not in ("point", "node"):
+                    offenders.append(
+                        f"{rel}: transfer_couple({arg}, ...) -- not the owner's point")
+        else:
+            for builder in builders.findall(text):
+                offenders.append(f"{rel}: builds a point with {builder}()")
+    # One implementation of the rule, not one per layer (#139).
+    from sloads.export.coordinates import transfer_couple as exported
+    from sloads.gear_loads import transfer_couple as owned
+    assert exported is owned, "the transfer rule is implemented twice again"
+    assert not offenders, "a second application point exists:\n  " + "\n  ".join(offenders)
