@@ -226,7 +226,30 @@ def _geometry(inp: LandingInput, gear: LandingGearGeometry, nlg: float,
 
     gra1, gra2, gra3 = ground_angles(inp, gear)
     gra = (gra1, gra2, gra3)
-    beta = (gamma - gra1, gra2, gra3)
+    # BETA is the **resultant-to-FS angle** for each attitude, and Appendix A
+    # p234 states the rule the whole table follows:
+    #
+    #     BETA = GAMMA - GROUND ANGLE
+    #
+    # with GAMMA = arctan(K) where the drag tilts the resultant (level), and
+    # GAMMA = 0 for the ground-roll and tail-down attitudes, whose reaction is
+    # normal to the ground and whose drag rides the separate .8*CP term.
+    # Positive GROUND ANGLE is nose-up: all three attitudes come from the same
+    # axle geometry rising aft, and a tail-down landing -- unambiguously nose-up
+    # -- is the entered +15.
+    #
+    # LANDLOAD.BAS writes ``(GAMMA-GRA(1), +GRA(2), +GRA(3))``, carrying the
+    # wrong sign on attitudes 2 and 3. Attitude 3 negates it back at *both* its
+    # use sites (BP longhand, PHIM = -BETA(3)) and so comes out right; attitude 2
+    # negates it at neither, so its lever arms *and* its PHIM/PHIN are both
+    # wrong. Corrected here, at the origin, rather than at the use sites --
+    # design note 38 GF-1/GF-2', AGREED 2026-08-29; approved-deviation register
+    # entry in docs/20_theory/02_approved_corrections.md.
+    #
+    # The manual's own braked-roll figure (p235) prints the corrected arms:
+    # AP 77.052 / BP 17.760 / DP 94.811, against its p230 table's 69.886 /
+    # 23.260 / 93.147. CP is unchanged (it enters through cos, and is even).
+    beta = (gamma - gra1, -gra2, -gra3)
 
     def fn_ap(xcg, xn, b, zcg, zn):
         return ((xcg - xn) * math.cos(math.radians(b))
@@ -252,13 +275,17 @@ def _geometry(inp: LandingInput, gear: LandingGearGeometry, nlg: float,
         ap[0][i] = fn_ap(cg.xcg, xn_c, beta[0], cg.zcg, zn_c)
         bp[0][i] = fn_bp(xm_c, cg.xcg, beta[0], cg.zcg, zm_c)
         dp[0][i] = fn_dp(xm_c, xn_c, beta[0], zm_c, zn_c)
-    # Attitude 2 -- tail down (only BP; vertical reactions, GRA(3)).
+    # Attitude 2 -- tail down (only BP; vertical reactions, GRA(3)). This was
+    # written longhand with a negated second term, which is ``fn_bp`` at
+    # ``-GRA(3)`` -- the compensation that hid the ``beta`` sign error on this
+    # attitude. With ``beta[2]`` corrected the compensation is redundant, and
+    # the arm goes through the same ``fn_bp`` as every other attitude. The
+    # numbers are unchanged: this is a consolidation, not a behaviour change.
     for i, cg in enumerate(cgs):
-        bp[2][i] = ((xm_c - cg.xcg) * math.cos(math.radians(gra3))
-                    - (cg.zcg - zm_c) * math.sin(math.radians(gra3)))
+        bp[2][i] = fn_bp(xm_c, cg.xcg, beta[2], cg.zcg, zm_c)
     # Attitude 1 -- ground roll (static axle positions), plus the CP vertical offset.
     for i, cg in enumerate(cgs):
-        ap[1][i] = fn_ap(cg.xcg, xn_s, gra2, cg.zcg, zn_s)
+        ap[1][i] = fn_ap(cg.xcg, xn_s, beta[1], cg.zcg, zn_s)
         bp[1][i] = fn_bp(xm_s, cg.xcg, beta[1], cg.zcg, zm_s)
         dp[1][i] = fn_dp(xm_s, xn_s, beta[1], zm_s, zn_s)
         zt = zn_s - rn * math.cos(math.radians(gra2))
@@ -477,7 +504,7 @@ def landing_reactions(inp: LandingInput, gear: LandingGearGeometry,
     for m in range(1, 7):
         phim[m] = beta[0]
     for m in range(7, 10):
-        phim[m] = -beta[2]
+        phim[m] = beta[2]      # was -beta[2]; the sign now lives in beta alone
     for m in range(10, 13):
         phim[m] = beta[0]
     for m in range(13, 19):

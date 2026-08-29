@@ -177,9 +177,17 @@ def test_landload_geometry_oracle():
     assert math.isclose(g.gra[0], 4.057, rel_tol=3e-3), g.gra
     assert math.isclose(g.gra[1], 4.724, rel_tol=3e-3), g.gra
     assert g.gra[2] == 15.0
-    # BETA per attitude.
+    # BETA per attitude -- the resultant-to-FS angle, per the rule Appendix A
+    # p234 states in the drawing: BETA = GAMMA - GROUND ANGLE, with GAMMA = 0
+    # for the ground-roll and tail-down attitudes (their reaction is normal to
+    # the ground; the drag rides the separate .8*CP term).
     assert math.isclose(g.beta[0], 13.921, rel_tol=3e-3), g.beta
-    assert math.isclose(g.beta[1], 4.724, rel_tol=3e-3), g.beta
+    # p230's table prints +4.724 / +15 here. Approved deviation (design note 38
+    # GF-1/GF-2', register 02_approved_corrections.md): LANDLOAD.BAS carries the
+    # wrong sign on attitudes 2 and 3, and the manual's own braked-roll figure
+    # (p235) prints the corrected arms that follow from -GRA(2).
+    assert math.isclose(g.beta[1], -4.724, rel_tol=3e-3), g.beta
+    assert g.beta[2] == -15.0, g.beta
 
 
 def test_landload_lever_arms_oracle():
@@ -190,11 +198,23 @@ def test_landload_lever_arms_oracle():
     assert math.isclose(g.bp[0][0], 19.796, rel_tol=2e-3), g.bp[0]
     assert math.isclose(g.bp[0][1], 28.512, rel_tol=2e-3), g.bp[0]
     assert math.isclose(g.bp[0][2], 31.649, rel_tol=2e-3), g.bp[0]
-    # Ground-roll lever arms (AP / BP / DP / CP) reproduce p230 to the printed digits.
-    assert math.isclose(g.ap[1][0], 78.836, rel_tol=2e-3), g.ap[1]
-    assert math.isclose(g.bp[1][0], 14.311, rel_tol=2e-3), g.bp[1]
-    assert math.isclose(g.dp[1][0], 93.147, rel_tol=2e-3), g.dp[1]
+    # Ground-roll lever arms. These are the approved deviation (design note 38
+    # GF-1/GF-2', register 02_approved_corrections.md): the p230 *table* prints
+    # AP 78.836 / BP 14.311 / DP 93.147, and the manual's own braked-roll
+    # *figure* on p235 prints AP 77.052 / BP 17.760 / DP 94.811 for CG 6 -- the
+    # values below. The figure is the oracle here; the table is the program
+    # output the figure contradicts. CP is unchanged in both (it enters through
+    # cos, and is even), which is itself a check that only the sign moved.
+    assert math.isclose(g.ap[1][1], 77.052, rel_tol=2e-3), g.ap[1]
+    assert math.isclose(g.bp[1][1], 17.760, rel_tol=2e-3), g.bp[1]
+    assert math.isclose(g.dp[1][1], 94.811, rel_tol=2e-3), g.dp[1]
     assert math.isclose(g.cp[1][1], 42.981, rel_tol=2e-3), g.cp[1]
+    # The other two CG columns, which p235 does not draw, follow from the same
+    # sign (design note 38 s1.10's table).
+    assert math.isclose(g.ap[1][0], 86.002, rel_tol=2e-3), g.ap[1]
+    assert math.isclose(g.ap[1][2], 73.502, rel_tol=2e-3), g.ap[1]
+    assert math.isclose(g.bp[1][0], 8.810, rel_tol=2e-3), g.bp[1]
+    assert math.isclose(g.bp[1][2], 21.310, rel_tol=2e-3), g.bp[1]
     # Tail-down BP (vertical reactions).
     assert math.isclose(g.bp[2][2], 13.511, rel_tol=2e-3), g.bp[2]
 
@@ -309,6 +329,83 @@ _P233 = {
 }
 
 
+#: **The approved deviation** (design note 38 GF-1/GF-2', AGREED 2026-08-29;
+#: register: docs/20_theory/02_approved_corrections.md). Where a cell appears
+#: here it is asserted at this value instead of the printed one; the printed
+#: value stays above, transcribed, as the thing deviated from. No lock was
+#: removed to make this change.
+#:
+#: Every value is computed from Appendix A's own printed formulas (the p231
+#: EQUATIONS column) with the single substitution BETA(2) = -GRA(2) -- never
+#: from ``landing.py``, which is the code under test. The two agree to ~1e-5
+#: relative; the residual is the printed 3-dp CP used in the derivation against
+#: the module's full-precision CP.
+#:
+#: The deviation exists because the manual contradicts itself: its braked-roll
+#: construction figure (p235) prints lever arms of 77.052 / 17.760 / 94.811
+#: where its p230 table -- program output -- prints 69.886 / 23.260 / 93.147.
+#: The figure is followed. Cases 16-24 keep their printed p231 reactions, which
+#: are arm-independent (VMP = .665W); what moves for them is the p232 datum
+#: resolution and the p233 moments.
+_CORRECTED = {
+    "p231": {
+        13: {"vmp": 1512.0003, "dmp": 1209.6002, "rmp": 1936.3051, "vnp": 1497.9994, "result": 1497.9994, "ndp": 0.7115},
+        14: {"vmp": 1348.4514, "dmp": 1078.7611, "rmp": 1726.8603, "vnp": 1825.0973, "result": 1825.0973, "ndp": 0.6346},
+        15: {"vmp": 1063.9962, "dmp": 851.1969, "rmp": 1362.5799, "vnp": 1596.0077, "result": 1596.0077, "ndp": 0.608},
+        25: {"vnp": 710.8342, "dnp": 568.6673, "result": 910.3119},
+        26: {"vnp": 710.8342, "dnp": -284.3337, "result": 765.5918},
+        27: {"vnp": 710.8342, "dnp": 0.0, "snp": 497.5839, "result": 710.8342},
+        28: {"vnp": 1432.937, "dnp": 1146.3496, "result": 1835.0547},
+        29: {"vnp": 1432.937, "dnp": -573.1748, "result": 1543.3204},
+        30: {"vnp": 1432.937, "dnp": 0.0, "snp": 1003.0559, "result": 1432.937},
+        31: {"vnp": 1415.9906, "dnp": 1132.7925, "result": 1813.3527},
+        32: {"vnp": 1415.9906, "dnp": -566.3962, "result": 1525.0685},
+        33: {"vnp": 1415.9906, "dnp": 0.0, "snp": 991.1934, "result": 1415.9906},
+    },
+    "p232": {
+        13: {"vm": 1606.484, "dm": 1080.9656, "vn": 1492.9104, "dn": -123.3723},
+        14: {"vm": 1432.7151, "dm": 964.0405, "vn": 1818.897, "dn": -150.3115},
+        15: {"vm": 1130.4845, "dm": 760.6766, "vn": 1590.5857, "dn": -131.4441},
+        16: {"vm": 2402.2882, "dm": 1616.4436},
+        17: {"vm": 2402.2882, "dm": 1616.4436},
+        18: {"vm": 1978.355, "dm": 1331.1888},
+        19: {"vm": 2253.3189, "dm": -186.2116},
+        20: {"vm": 2253.3189, "dm": -186.2116},
+        21: {"vm": 2253.3189, "dm": -186.2116},
+        22: {"vm": 2253.3189, "dm": -186.2116},
+        23: {"vm": 1855.6744, "dm": -153.3507},
+        24: {"vm": 1855.6744, "dm": -153.3507},
+        25: {"vn": 755.2537, "dn": 508.1925},
+        26: {"vn": 685.0022, "dn": -341.9107},
+        27: {"vn": 708.4193, "dn": -58.5429, "sm": 497.5839},
+        28: {"vn": 1522.4801, "dn": 1024.4413},
+        29: {"vn": 1380.8635, "dn": -689.2415},
+        30: {"vn": 1428.069, "dn": -118.0139, "sm": 1003.0559},
+        31: {"vn": 1504.4748, "dn": 1012.3259},
+        32: {"vn": 1364.5329, "dn": -681.0903},
+        33: {"vn": 1411.1802, "dn": -116.6182, "sm": 991.1934},
+    },
+    "p233": {
+        16: {"pitchp": -192649.109},
+        17: {"pitchp": -235795.7412},
+        18: {"pitchp": -205291.6914},
+        19: {"pitchp": -39838.0674, "yawp": -24861.3503},
+        20: {"pitchp": -39838.0674, "yawp": 24861.3503},
+        21: {"pitchp": -80307.6756, "yawp": -50116.8201},
+        22: {"pitchp": -80307.6756, "yawp": 50116.8201},
+        23: {"pitchp": -79357.9282, "yawp": -49524.1206},
+        24: {"pitchp": -79357.9282, "yawp": 49524.1206},
+    },
+}
+
+
+def _expected(page, case, col, printed):
+    """The value this cell locks to: the approved correction where one exists,
+    otherwise the printed cell. Returns ``(value, is_deviation)``."""
+    v = _CORRECTED.get(page, {}).get(case, {}).get(col)
+    return (printed, False) if v is None else (v, True)
+
+
 def _ga_reactions():
     """The Appendix A GA-6 gear reactions, keyed by the manual's case number."""
     lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
@@ -332,9 +429,14 @@ def _assert_page(table, cols, page, resolution=None):
             if col == "sm":
                 attr = "smp" if case <= 24 else "snp"
             got = getattr(rx[case], attr)
-            band = max(res / 2.0, abs(printed) * REL)
-            assert abs(got - printed) <= band, (
-                f"{page} case {case} {col.upper()}: printed {printed}, "
+            want, deviated = _expected(page, case, col, printed)
+            # A printed cell locks at the page's print resolution; a corrected
+            # cell is derived rather than printed, so it locks at the project's
+            # oracle band alone.
+            band = abs(want) * REL if deviated else max(res / 2.0, abs(want) * REL)
+            why = "approved correction (printed %s)" % printed if deviated else "printed"
+            assert abs(got - want) <= band, (
+                f"{page} case {case} {col.upper()}: {why} {want}, "
                 f"sloads {got:.4f} (band +-{band:g})")
             n += 1
     return n

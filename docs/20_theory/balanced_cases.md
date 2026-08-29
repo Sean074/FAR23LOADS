@@ -768,12 +768,15 @@ pinned as non-trivial by a negative control (12.5 % and 5.8 % of `PITCHP` on
 
 **`ρ` is measured, never re-derived.** It is `atan2(dm, vm) − atan2(DMP, VMP)` —
 the angle between LANDLOAD's own two resolutions of one reaction — so this method
-never has to adjudicate a sign inconsistency that is in `LANDLOAD.BAS` itself
-(`beta` is `gamma − GRA(1)` for the level attitude and `+GRA(2)` for the
-ground-roll one, which states that family's `ROLLP` and `YAWP` 9.45° apart on the
-ga6). The port is faithful to the BASIC on both, by a decision of record —
-"Considered and declined" in
-[`02_approved_corrections.md`](02_approved_corrections.md). **`ρ` appears in the
+is independent of how `beta` is built. **That independence mattered:** `beta` in
+`LANDLOAD.BAS` is `gamma − GRA(1)` for the level attitude but `+GRA(2)` /
+`+GRA(3)` for the other two, which is the wrong sign — adjudicated and corrected
+on 2026-08-29 (design note 38 GF-1/GF-2′, approved deviation in
+[`02_approved_corrections.md`](02_approved_corrections.md), superseding the
+"Considered and declined" decision of 2026-08-15). `ρ` is now `−GRA` in **every**
+attitude, which is what `test_rho_is_minus_the_ground_angle_in_every_attitude`
+pins. Recovering `ρ` per case is still the right construction, but it is no
+longer a way of declining the question. **`ρ` appears in the
 check and in the G-7a lift axis, and nowhere in the load path.**
 
 **Handedness** works as §4 states it, with one exception the manual owns: for the
@@ -827,22 +830,32 @@ manual). MAC 69.246 in throughout.
 | | LG-04 | LG-13 | LG-19 |
 |---|---|---|---|
 | design weight / CG case | 3,230 lb, `aft max landing` | 3,400 lb, `aft max landing at 3,400 lb` | 3,400 lb, same |
-| `ρ` | −4.057° | +4.724° | +4.724° |
-| applied gear (`ΣFx`, `ΣFz`) | +2,042.3, +8,240.1 lb (2 wheels) | +2,470.4, +2,613.8 main; +141.1, +1,707.8 nose | +372.4, +4,506.6 lb, `ΣFy` −2,822.0 |
+| `ρ` | −4.057° | **−4.724°** | **−4.724°** |
+| applied gear (`ΣFx`, `ΣFz`) | +2,042.3, +8,240.1 lb (2 wheels) | **+2,161.9, +3,213.0 main; −123.4, +1,492.9 nose** | **−372.4**, +4,506.6 lb, `ΣFy` −2,822.0 |
 | applied lift | 2,154.4 lb (`0.667 × W`), −152.4 lb along `x` | none | none |
-| pre-closure `Fx`/`Fz` | +1,889.9 / +10,389.1 lb | +2,611.5 / +4,321.6 lb | +372.4 / +4,506.6 lb |
-| pre-closure `My` | −179,232 lb-in | −757.1 lb-in | −70,654 lb-in |
-| solved `n_z` / `n_x` / `n_y` | 3.2165 / 0.5851 / 0 | 1.2711 / 0.7681 / 0 | 1.3255 / 0.1095 / **−0.8300** |
-| rotated to the ground line | `NVP` **3.1670**, `NDP` **0.8112** | `NVP` **1.3300**, `NDP` **0.6608** | `NVP` **1.3300**, `NS` **−0.8300** |
-| LANDLOAD prints | 3.1670 / 0.8112 | 1.3300 / 0.6608 | 1.3300 / −0.8300 |
-| `q̈` (1/in) | −1.925e-2 | −8.016e-5 | −7.481e-3 |
+| pre-closure `Fx`/`Fz` | +1,889.9 / +10,389.1 lb | **+2,038.5 / +4,705.9 lb** | **−372.4** / +4,506.6 lb |
+| pre-closure `My` | −179,232 lb-in | **−0.7 lb-in** | **−39,838 lb-in** |
+| solved `n_z` / `n_x` / `n_y` | 3.2165 / 0.5851 / 0 | **1.3841 / 0.5996** / 0 | 1.3255 / **−0.1095** / **−0.8300** |
+| rotated to the ground line | `NVP` **3.1670**, `NDP` **0.8112** | `NVP` **1.3300**, `NDP` **0.7115** | `NVP` **1.3300**, `NS` **−0.8300** |
+| LANDLOAD prints (corrected) | 3.1670 / 0.8112 | 1.3300 / 0.7115 | 1.3300 / −0.8300 |
+| `q̈` (1/in) | −1.925e-2 | **−7.4e-8** | **−4.218e-3** |
 | G-7a lift moment | +9,787 lb-in (1.360 % `n·W·MAC`) | — | — |
+
+> **Updated 2026-08-29** for the `BETA(2)` correction (design note 38
+> GF-1/GF-2′; register [`02_approved_corrections.md`](02_approved_corrections.md)).
+> The `LG-13` and `LG-19` columns moved; `LG-04` did not — the level attitude was
+> never affected.
 
 Three things to read off it. `n_z` is an **output** — 3.2165 in body axes,
 LANDLOAD's 3.1670 once rotated, and the case reports the solved value rather than
-a placeholder nobody computed. The braked roll's pre-closure `My` is −757 lb-in
-(0.25 % of `n·W·MAC`) against the landing case's −179,232: a ground-handling case
-carries no lift, so nothing pitches it but the drag arm. And `LG-19`'s `n_y` is
+a placeholder nobody computed. The braked roll's pre-closure `My` is **−0.7 lb-in**
+against the landing case's −179,232 — a ground-handling case carries no lift, so
+nothing pitches it but the drag arm, and with the corrected lever arms that arm
+closes to essentially nothing. **This figure is the correction's independent
+witness:** it read −757.1 lb-in until 2026-08-29, and the residual is measured
+against LANDLOAD's own unbalanced moments, which the correction does not touch.
+A thousand-fold fall in `q̈` (−8.0e-5 → −7.4e-8) is what a wrong lever arm
+looks like when it stops being wrong. And `LG-19`'s `n_y` is
 LANDLOAD's `NS` to the last digit, with its twin `LG-20` — the reflection —
 carrying +0.8300 and the mirrored `ṗ`/`ṙ`, which is how the manual's own second
 drift direction becomes the check on the reflection operator.

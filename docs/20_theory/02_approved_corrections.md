@@ -86,6 +86,91 @@ record: `CONVENTIONS.md` §7 (owners + demarcation + guards).
 
 ---
 
+### LANDLOAD's `BETA` carries the wrong sign on attitudes 2 and 3 *(approved 2026-08-29, issue #133)*
+
+**Supersedes the "Considered and declined" decision of 2026-08-15** on the same
+question (moved below, kept verbatim). That decision named legible printed output
+as the condition on which it would resume; Appendix A supplies it — not in a
+table, but in the manual's own **construction figures**.
+
+`LANDLOAD.BAS` defines `BETA` as the resultant-to-FS angle, and Appendix A
+**p234** ("3 WHEEL LEVEL LANDING") states the rule in the drawing:
+
+```
+GAMMA = ARCTAN K = 17.978
+BETA  = GAMMA - GRD ANGLE = 17.978 - 4.057 = 13.921
+```
+
+with the lever arms drawn **axle to axle, normal to the RESULTANT**. The BASIC
+writes `BETA = (GAMMA-GRA(1), +GRA(2), +GRA(3))`, applying that rule to the level
+attitude only. Attitudes 2 and 3 take `+GRA` where the rule gives `−GRA` (their
+reaction is normal to the ground, so `GAMMA = 0` there — the braked drag rides
+the separate `.8·CP` term). Attitude 3 negates it back at **both** its use sites
+(`BP` written longhand, `PHIM(7–9) = −BETA(3)`) and so comes out right; attitude 2
+negates it at neither, so its lever arms *and* its `PHIM`/`PHIN` both carry it.
+
+**The manual contradicts itself, and that is what makes this an adjudicable
+deviation rather than a judgement against a printed oracle.** Appendix A **p235**
+("BRAKED ROLL", CG 6) prints the ground-roll lever arms:
+
+| | p230 table (program output) | **p235 figure** | corrected code |
+|---|---|---|---|
+| AP | 78.836 / 69.886 / 66.501 | **77.052** (CG 6) | 86.002 / 77.052 / 73.502 |
+| BP | 14.311 / 23.260 / 26.646 | **17.760** | 8.810 / 17.759 / 21.310 |
+| DP | 93.147 | **94.811** | 94.811 |
+| CP | 42.981 | 42.981 | 42.981 — unchanged |
+
+Flipping the one sign reproduces all three figure values exactly. `CP` is
+untouched (it enters through `cos`, and is even), which is itself a check that
+only the sign moved. The figure's `4522 lb` is `1.33 × 3400`, confirming the
+weight the braked family runs at.
+
+**Deviated-from values and corrected expectations.** The printed cells stay
+transcribed in `tests/test_landing.py` (`_P231`/`_P232`/`_P233`); the corrected
+ones sit beside them in `_CORRECTED`, each derived from Appendix A's own printed
+formulas with the single substitution `BETA(2) = −GRA(2)` — never from the module
+under test. Surface:
+
+- **p230** — the ground-roll `AP`/`BP`/`DP` row (above). `CP` unchanged.
+- **p231** — cases 13–15 (`VMP` +7.7/+8.8/+9.1 %, `VNP` −12.6/−10.7/−10.0 %) and
+  25–33 (`VNP` −39.5/−25.0/−21.4 %). Cases 1–12 and 16–24 unchanged: their
+  reactions are arm-independent.
+- **p232** — cases 13–33, most of the table. The braked families rotate +14.2 %
+  vertical / −18.7 % drag; the side families keep their vertical magnitude and
+  their body drag **flips sign**, aft → forward.
+- **p233** — cases 16–24 `PITCHP`, and 19–24 `YAWP`. `ROLLP` unchanged (`CP`).
+- **p236** LGFACTOR and the level and tail-down families are untouched throughout.
+
+**The independent witness.** The correction is confirmed by a quantity it does
+not touch: the pre-closure residual pitching moment of the assembled ground case,
+measured against LANDLOAD's *own* printed unbalanced moments. On `ga6_normal`
+case 13 it falls from **−757.1 to −0.7 lb-in**, and `q̈` from −8.0e-5 to −7.4e-8.
+A correct lever arm closes the case; the wrong-signed one was what the residual
+had been reading. (`balanced_cases.md` §9.5.)
+
+**Physical claim, stated so it can be checked by eye.** In the 23.485 side
+family the ground-line load is purely normal, so the entire body-frame drag
+component *is* the rotation: it read **+186 lb aft** and now reads **−186 lb
+forward**, which is what nose-up geometry demands. Positive `GRD ANGLE` is
+**nose up** — the reading that reproduces both figures, and the one the entered
+tail-down `+15` states plainly.
+
+**Pins moved, none deleted.** `test_the_ground_roll_attitude_is_resolved_against_the_other_sign`
+is **flipped** and renamed `test_rho_is_minus_the_ground_angle_in_every_attitude`
+— `ρ == −GRA` in every attitude, exact, against `ground_angles` directly rather
+than recovered from the case (the recovered form is self-consistent by
+construction and structurally cannot see a sign error). The p230 arm oracle
+re-pins to the p235 figure; the p231/p232/p233 page locks re-pin cell by cell via
+`_CORRECTED`; `balanced_cases.md` §9.5's worked example and the frozen Imperial
+digest are re-generated with this entry cited. Assumption recorded on the gate:
+the nose-up sense of `GRA` is derived on **tricycle** geometry, the only
+arrangement the suite models.
+
+Design note: [38](../30_future/38_ground_frame_note.md) §1.15 (AGREED
+2026-08-29), GF-1 / GF-2′ / GF-3″ / GF-4.
+
+---
+
 ## Withdrawn from scope
 
 **A third category, and not a deviation.** The entries above say *the manual's
@@ -133,6 +218,12 @@ gets re-litigated by whoever next reads the source and thinks it is a bug.
 
 ### LANDLOAD's ground-roll attitude resolves at `+BETA(2)` *(declined 2026-08-15 — replicate as printed)*
 
+> **SUPERSEDED 2026-08-29 by the approved deviation above** (issue #133). Kept
+> verbatim: the decision was correct on the evidence it had, and its own stated
+> reopening condition is what reopened it. What it could not know is that the
+> legible output would be a *construction figure* contradicting the program's own
+> table, not another table.
+>
 > **Question resumed 2026-08-28** — the reopening condition below has been met:
 > the p231–233 table now reads legibly (rendered at 200 dpi, bypassing the OCR
 > layer), the Appendix C `.BAS` lines are confirmed verbatim, and a second
