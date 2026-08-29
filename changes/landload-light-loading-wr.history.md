@@ -24,6 +24,9 @@
   `VMP(18) = VMP(23) = VMP(24)` instead of a ±0.1 % lock. Two findings came out
   of the same reading and are filed rather than fixed here: the braked-roll and
   supplementary-nose families still have no printed-value oracle on any fixture,
-  and the p232 datum pair (Fz 1733 / Fx 1638) reproduces only under the shipped
-  `PHIM = atan(0.8) + GRA2`, which refutes design note 38's GF-1 rotation from a
-  printed number for the first time.
+  and the p232 datum pair (Fz 1733 / Fx 1638) reproduces under the shipped
+  `PHIM = atan(0.8) + GRA2`, which pins the fidelity of the port and supplies
+  design note 38's GF-1 with transcribed deviated-from cells — not, as first
+  read, evidence about the rotation's sign, since `LANDLOAD.BAS` derives that
+  pair from the printed angle on the same line (withdrawn the same day, note 38
+  §1.12).

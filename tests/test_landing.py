@@ -224,10 +224,17 @@ def test_landload_braked_roll_printed_cells():
                                   case 18    VMP 1862 DMP 1490
     p232 airplane datum, case 18: Fz 1733    Fx 1638
 
-    The datum pair is also the oracle that settles design note 38's GF-1: it
-    reproduces under the shipped ``PHIM = atan(0.8) + GRA2`` (1733.0 / 1637.9)
-    and not under ``atan(0.8) - GRA2`` (1978.4 / 1331.2), a 14 %/19 % split far
-    outside any rounding.
+    The datum pair is a **port-fidelity lock, not a frame adjudication.**
+    ``LANDLOAD.BAS`` computes it from the printed ``PHIM`` on the same line
+    (``VM(L)=RMP(L)*COS(PHIM(L)/57.3)``, Appendix C listing), so it pins that
+    this port reproduces the manual's rotation and that ``RMP`` is right, and
+    carries no information about whether that rotation's sign is correct --
+    design note 38's open GF-1 question, for which these cells are the
+    deviated-from values. A 2026-08-29 reading of them as *refuting* GF-1 was
+    withdrawn the same day (note 38 SS1.12): the cell and the angle are not
+    independent measurements. If GF-1 is later approved, this assertion moves
+    to the corrected pair with the register entry beside it -- it is never
+    deleted.
     """
     inp = _ga_landing()
     lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)

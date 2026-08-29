@@ -27,11 +27,13 @@
   `test_a_seeded_fwd_light_case_weighs_what_the_seed_gives_it` now makes the
   seed a checked invariant on every fixture, exempting a case that states its
   own D-25 loading (`baron_58`'s fwd light closes at 4,440 lb against a 4,200 lb
-  anchor — a different quantity, correctly not a drift). And the p232 pair
-  settles design note 38's open GF-1 question against the correction: the shipped
-  `PHIM = atan(0.8) + GRA2` gives Fz 1733.0 / Fx 1637.9 and GF-1's
-  `atan(0.8) − GRA2` gives 1978.4 / 1331.2, a 14 %/19 % separation. Three
-  sessions of frame reasoning — the DP-wheelbase argument and the axle-vs-patch
-  self-consistency argument both favoured GF-1 — are overruled by one printed
-  number, which is the benchmark-first rule working as intended and the reason
-  no GF-1 code ever reached `main`.
+  anchor — a different quantity, correctly not a drift). And the p232 pair gives design note 38's
+  open GF-1 question its first transcribed deviated-from cells (Fz 1733 /
+  Fx 1638), which the blocking GF-3″ register entry needs. It was first read, the
+  same day, as *refuting* GF-1 — the shipped `PHIM = atan(0.8) + GRA2` gives
+  1733.0 / 1637.9 where GF-1's `atan(0.8) − GRA2` gives 1978.4 / 1331.2 — and
+  that reading was withdrawn within the day (note 38 §1.12): `LANDLOAD.BAS`
+  computes the pair *from* the printed angle on the same line
+  (`VM(L)=RMP(L)*COS(PHIM(L)/57.3)`), so the two cells are one measurement and
+  cannot adjudicate the sign of the rotation that produced them. A printed
+  number overrules an argument only when it is independent of it.

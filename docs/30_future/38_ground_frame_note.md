@@ -3,7 +3,11 @@
 **Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6)*
 
 **Status: AGREED on GF-1/GF-2′; GF-3′ WITHDRAWN 2026-08-28 and the note is
-AWAITING RE-AGREEMENT on the deviation surface (§1.11).** GF-3′ was agreed on a
+AWAITING RE-AGREEMENT on the deviation surface (§1.11). A 2026-08-29 reading of
+the newly legible p232 force cells as *refuting* GF-1 was withdrawn the same day
+(§1.12) — the manual derives those cells from the angle they were taken to
+test — but that reading's byproduct, the first transcribed p231/p232 cells,
+is what GF-3″ was blocked on.** GF-3′ was agreed on a
 scope that understated the deviation — it named the p230 arm table, and the
 correction in fact moves printed **p231 ground-line reactions** by up to 40 %
 (§1.11). The owner stopped implementation at that measurement rather than
@@ -523,6 +527,55 @@ Sized S; it is the assertion that would have made this whole question visible in
 
 ---
 
+### 1.12 The p232 force cells do not adjudicate the sign (2026-08-29, withdrawn same day)
+
+Reading the rendered p231/p232 for the `WR` defect (#135) and the light-landing
+weight (#137) produced the braked-roll family's first printed-value oracle,
+including case 18's airplane-datum pair, **Fz 1733 / Fx 1638**. That pair
+reproduces to 0.06 % under the shipped `PHIM = atan(0.8) + GRA₂` (1733.0 /
+1637.9) and misses by 14 % / 19 % under GF-1's `atan(0.8) − GRA₂` (1978.4 /
+1331.2), and was recorded that morning as refuting GF-1 from a printed number.
+
+**It does not, and the claim is withdrawn.** The Appendix C listing computes the
+force cells *from* the angle cell:
+
+```basic
+L=13 TO 18:PHIM(L)=ATN(.8)*57.3+BETA(2)          ' code.txt:36319
+VM(L)=RMP(L)*COS(PHIM(L)/57.3)                   ' code.txt:36346
+DM(L)=RMP(L)*SIN(PHIM(L)/57.3)                   ' code.txt:36347
+```
+
+p232's PHIM column and its VM/DM columns are one printed quantity, not two. The
+pair therefore confirms exactly two things — that `RMP(18)` is right (already
+locked from p231) and that this port reproduces the manual's rotation faithfully
+— and carries no information about whether that rotation is the correct one.
+GF-1's claim is that the printed values are wrong; an arithmetic identity among
+the printed values cannot answer it. **This is the note's own §4 class, one turn
+further out**: a check that recovers its reference from the thing it checks. §1.4
+found it in the G-6 gate; here it appeared in the adjudicator's own reasoning.
+
+**What the reading is actually worth to this item — which is more than nothing
+and is on the critical path.** GF-3″ is blocked on transcribing the whole
+deviation surface from the rendered pages rather than computing it from the
+pre-fix code (§1.11), and these are the first cells so transcribed: p231 cases
+16/17 (VMP 2261 / DMP 1808.8) and 18 (1862 / 1490), and p232 case 18 (Fz 1733 /
+Fx 1638). They are deviated-from values in the register, not evidence for it.
+The reading also removed one hazard silently: the p231 cells that GF-3″ must
+record were, until #137, unusable as a reference at all, because a fixture input
+had been back-solved from one of them.
+
+**GF-1's standing is unchanged.** The evidence remains where §1.10/§1.11 left it:
+the manual's own level (`GAMMA − GRA₁` = 13.921) and tail-down (`−GRA₃` =
+−15.000) rows resolve as `θ − GRA`, the ground-roll row alone as `θ + GRA`
+(§1.2); `DP`'s wheelbase between two contact points is 94.811 against a printed
+93.147, which needs no frame convention (§1.10); and a ground-parallel arm
+measured to the axle and to the patch agree only under the corrected rotation
+(§1.11). Against that, the cost is a deviation surface reaching printed p231
+reactions by up to 40 %. The note stays **AWAITING RE-AGREEMENT on GF-3″**; no
+code.
+
+---
+
 ## 2. Decisions (GF-1 … GF-8)
 
 | # | Decision | Rationale |
@@ -571,6 +624,7 @@ that recovers its reference from the thing it checks.
 | Site | Rotation | Verdict |
 |---|---|---|
 | `landing.py` PHIM/PHIN (attitude 1) | +GRA₂ | **This note (GF-1).** First wrong-way instance. |
+| p232's VM/DM cells, used to test p232's PHIM | — | **The enabler class again** (§1.12). `VM=RMP·COS(PHIM)` in the listing: one printed quantity read as two. Withdrawn 2026-08-29; the cells stay, as GF-3″ deviated-from values. |
 | LANDLOAD.BAS datum ND lift term (`+LF·SIN(GRA)`) | +GRA | **Second instance, same class** (§1.6). Not yet in sloads — it lands only via GF-6's datum factors, which build with the corrected sign; the p232 cells join GF-3's register. |
 | `landing.py` PHIM (level, tail-down) | −GRA₁/−GRA₃ | Correct; becomes locked by G-GF-2. |
 | `gear_loads.to_airplane_datum` (G-7a lift axis) | ρ, cases 1–12 only | Correct sign on every case it touches; gains GF-4's gate upstream. |
