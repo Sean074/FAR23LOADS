@@ -276,7 +276,13 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # in the text report. Additive with a ``""`` default that means exactly what v57
 # meant, so the 57->58 hop is an identity; it is a shape change all the same,
 # because ``LoadValue`` is persisted inside ``critical.conditions[].loads``.
-SCHEMA_VERSION = 58
+# v59 (#141): ``LoadValue`` gains ``point`` -- the named application point a force
+# is delivered to (``gear_loads.AXLE``/``GROUND_CONTACT``), which the delivered CSV
+# states beside the coordinates so a standalone consumer no longer has to compare
+# x/y/z back to the geometry to learn which point a case acts at. v58's argument
+# one step on: additive, ``""`` means exactly what v58 meant, identity hop, and a
+# shape change all the same for the same persistence reason.
+SCHEMA_VERSION = 59
 
 
 @dataclass

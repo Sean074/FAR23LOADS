@@ -327,7 +327,17 @@ def fields_hash() -> str:
 #: unbalanced moments); it is a **result** type that ``io.py`` never writes, so it
 #: moves this hash without touching the on-disk shape -- the ``EnvelopeResult``
 #: precedent above.
-EXPECTED_FIELDS_HASH = "e3bcc7dfd130af41"
+#: v59 (#141): ``LoadValue`` gains ``point`` -- the named application point a
+#: force is delivered to (``gear_loads.AXLE``/``GROUND_CONTACT``), which the
+#: delivered CSV states beside the coordinates. The point was carried
+#: numerically only -- x/y/z per gear -- with the word in the condition note and
+#: the GUI captions, both of which the CSV drops, so a standalone consumer could
+#: not tell case 1 acts at the axle except by comparing coordinates back to the
+#: geometry. The v58 argument one step on and for the same reason: additive with
+#: a ``""`` default that means exactly what v58 meant, so the 58->59 hop is an
+#: identity -- and a shape change all the same, because ``LoadValue`` is
+#: persisted inside ``critical.conditions[].loads``.
+EXPECTED_FIELDS_HASH = "412f1e57bccc3f1b"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

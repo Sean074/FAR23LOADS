@@ -113,6 +113,7 @@ __all__ = [
     "MAIN_LEFT",
     "MAIN_RIGHT",
     "NOSE",
+    "POINTS",
     "UNSPRUNG_NOTE",
     "AppliedWheel",
     "DeliveredLeg",
@@ -184,6 +185,15 @@ def contact_patch(leg: LandingGearInput, state: str,
 #: :data:`MAIN`/:data:`NOSE` are: they are also column values.
 AXLE = "axle"
 GROUND_CONTACT = "ground contact point"
+
+#: Every application point a delivered load may name, as
+#: :data:`~sloads.models.LoadValue.point` carries it. A vocabulary rather than
+#: free text for :data:`~sloads.frames.FRAMES`' reason (#141): the word rides
+#: out to the delivered CSV beside the coordinates, and a typo there is a load
+#: delivered to a point that does not exist -- indistinguishable, downstream,
+#: from one delivered to the other point. A blank names none and is delivered
+#: unannotated, which is the right answer for a load factor or a sink rate.
+POINTS = (AXLE, GROUND_CONTACT)
 
 #: **Where each case's reaction acts** -- Appendix A's own printed column, not a
 #: choice this replication makes (design note 39, AP-1; the column is transcribed

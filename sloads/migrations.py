@@ -105,6 +105,23 @@ def _hop_57(d: Dict[str, Any]) -> Dict[str, Any]:
     return d
 
 
+def _hop_58(d: Dict[str, Any]) -> Dict[str, Any]:
+    """v58 -> v59 (#141): **identity**.
+
+    v59 adds ``LoadValue.point`` -- the named application point a force is
+    delivered to (:data:`sloads.gear_loads.AXLE` /
+    :data:`~sloads.gear_loads.GROUND_CONTACT`), which the delivered CSV states
+    beside the coordinates so a standalone consumer no longer has to compare
+    x/y/z back to the geometry to learn whether a case acts at the axle. ``""``
+    (no point named) is exactly the v58 meaning and is the default, so a v58
+    file loads bit-identical. This is ``_hop_57`` one step on, for the same
+    reason: ``LoadValue`` is persisted inside ``critical.conditions[].loads``,
+    so an added display-neutral field is still a shape change and still gets a
+    hop.
+    """
+    return d
+
+
 #: ``{from_version: hop}`` -- applied in ascending order, each turning a file of
 #: version *n* into version *n+1* shape. A version that changes shape adds its
 #: hop here; :data:`SUPPORTED_FLOOR` names the oldest version the chain starts
@@ -113,6 +130,7 @@ MIGRATIONS: Dict[int, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     55: _hop_55,
     56: _hop_56,
     57: _hop_57,
+    58: _hop_58,
 }
 
 #: The oldest project version this build reads. It sat at ``SCHEMA_VERSION``

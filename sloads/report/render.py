@@ -185,6 +185,16 @@ def results_to_rows(results: List[ConditionResult]) -> List[Dict[str, str]]:
     ``r.values`` whole, so the primed set stays in the text report beside the
     body-frame deliverable rather than disappearing from the suite. A value with
     no frame (a sink rate, a load factor, a ground angle) is delivered as before.
+
+    **The frame and the point are stated in-band (#141):** the ``Frame`` and
+    ``Applied at`` columns carry :attr:`~sloads.models.LoadValue.frame` and
+    :attr:`~sloads.models.LoadValue.point` verbatim, so a CSV forwarded on its
+    own says which frame its numbers are in and which named point each force
+    acts at. Both words already lived on the value; this channel used to drop
+    them, leaving the application point stated only numerically (``x``/``y``/``z``
+    per gear) and the frame only in the condition note, which the CSV also
+    drops. They are ordinary columns, so the all-empty prune above removes both
+    from every module that names neither -- no other module's CSV changes.
     """
     rows: List[Dict[str, str]] = []
     for r in results:
@@ -207,6 +217,8 @@ def results_to_rows(results: List[ConditionResult]) -> List[Dict[str, str]]:
                     "Value": format_value(value),
                     "Units": _ult_units(v.units, v.quantity),
                     "SF": format_value(r.safety_factor) if is_load else "",
+                    "Frame": v.frame,
+                    "Applied at": v.point,
                 }
             )
     empty = {col for col in (rows[0] if rows else {})
