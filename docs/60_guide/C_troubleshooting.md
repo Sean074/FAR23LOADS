@@ -55,7 +55,7 @@ was missing.
 
 ## Grid-entry surprises
 
-The two habits from [Getting started](01_getting_started.md), because they
+The entry habits from [Getting started](01_getting_started.md), because they
 generate most first-session confusion:
 
 - **A value you typed vanished** — you pressed Enter. Enter leaves the cell's
@@ -66,6 +66,13 @@ generate most first-session confusion:
 - **A blank row appeared and the page complains** — a **row counter** adds
   the row to the project the moment it appears, blank or not. Fill it in, or
   count back down to delete it.
+- **The fields I need are not on the page** — an optional section is off the
+  page until you add it: look for the caption naming the missing fields and
+  the **➕ Add** button above it. Sections your airplane does not have stay
+  absent, which is how the programs know not to ask for them.
+- **A section I do not want is on the page** — open the **🗑 Remove** control
+  at the foot of that block. It names what it removes and takes everything
+  entered in it; the section can be added again, blank.
 
 ## Unit-toggle surprises
 

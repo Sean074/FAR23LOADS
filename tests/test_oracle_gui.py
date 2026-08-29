@@ -103,6 +103,25 @@ def _seeded():
     return io.load_project(_EXAMPLE)
 
 
+def _with_record(path, project=None):
+    """A project carrying the record ``path`` lives in, so its widget renders.
+
+    Since #143 an Optional record block is created by a named gesture, so a
+    field inside a record the example does not carry -- ``ga6_normal`` has no
+    flaps-down coefficient set -- is off the page until it is added. A test
+    about *what the widget says* adds the record first; a test about the
+    gesture itself is next door
+    (``test_every_optional_record_block_can_be_added_and_removed``).
+    """
+    from oracle_app.form import _attach_record, optional_steps
+
+    project = project if project is not None else _seeded()
+    prefix = fr.record_of(path)
+    if not prefix.endswith(fr.LIST_MARKER) and optional_steps(prefix):
+        _attach_record(project, prefix)
+    return project
+
+
 # --------------------------------------------------------------------------- #
 # G1 -- no dual path
 # --------------------------------------------------------------------------- #
@@ -723,6 +742,134 @@ def test_a_composite_row_is_deleted_from_inside_its_own_expander():
     assert [s.name for s in at.session_state["project"].geometry.surfaces] == before[:1]
     at.run()
     assert [s.name for s in at.session_state["project"].geometry.surfaces] == before[:1]
+
+
+# --------------------------------------------------------------------------- #
+# An Optional record is added and removed by name (#143)
+# --------------------------------------------------------------------------- #
+def _gesture(at, key):
+    """The one button whose unstamped key is ``key``, or fail naming what is there."""
+    from app_shell.widget_keys import unstamped
+
+    hits = [b for b in at.button if unstamped(b.key) == key]
+    assert len(hits) == 1, (
+        f"expected one {key!r} control, got {[unstamped(b.key) for b in at.button]}")
+    return hits[0]
+
+
+def _optional_record_blocks():
+    """``(page key, prefix)`` for every Optional record block the GUI renders.
+
+    Read from the registry through :func:`~oracle_app.form.page_groups`, so a
+    new Optional slice in ``models/inputs.py`` joins this parametrisation the
+    moment the registry classifies it -- the rule-3 drift guard for the #143
+    posture, and the reason there is no list of these prefixes anywhere. One
+    page per prefix: ``select_input`` renders on four, and the gesture is the
+    renderer's, not the page's.
+    """
+    from oracle_app.form import optional_steps, page_groups
+
+    seen, out = set(), []
+    for key in sorted(wf.oracle_step_keys()):
+        for prefix, _paths in page_groups(key):
+            if prefix.endswith(fr.LIST_MARKER) or prefix in seen:
+                continue
+            if optional_steps(prefix):
+                seen.add(prefix)
+                out.append((key, prefix))
+    return out
+
+
+_OPTIONAL_BLOCKS = _optional_record_blocks()
+
+#: A GA single has no engine-out condition, so its One Engine Out page collects
+#: nothing at all (#84, C210-43) and has no blocks to add or remove. The twin is
+#: the airplane that page exists for.
+_TWIN = os.path.join(_EXAMPLES, "dhc8_dash8.project.json")
+
+
+def _applicable(key):
+    """A project whose ``key`` page actually renders its input blocks."""
+    from sloads.applicability import step_not_applicable
+
+    project = _seeded()
+    if step_not_applicable(key, project):
+        project = io.load_project(_TWIN)
+        assert not step_not_applicable(key, project), f"no example reaches {key}"
+    return project
+
+
+def test_there_are_optional_record_blocks_to_guard():
+    """Guard the guard: if every record became required the test below would
+    pass by checking nothing, which is how a rule quietly stops being enforced."""
+    assert _OPTIONAL_BLOCKS, "no Optional record blocks left: retire the posture, not the guard"
+
+
+@pytest.mark.parametrize("key,prefix", _OPTIONAL_BLOCKS,
+                         ids=[prefix for _key, prefix in _OPTIONAL_BLOCKS])
+def test_every_optional_record_block_is_added_and_removed_by_name(key, prefix):
+    """#143, as a rule rather than as the one block it was found on.
+
+    An Optional record block used to render its widgets over a record held
+    detached in ``_PENDING``, so any touch inside it attached the whole record:
+    ticking the LANDING set's flaps-down flag attached a zero-coefficient
+    coefficient set, ``normalize()`` filled its ``stall_cl`` past the #81 guard,
+    the balance hung on a lift polynomial with no alpha term (#144), and the
+    phantom set **saved into the project file** -- silent data gain, the inverse
+    of the #51 class, one gesture after OG-F's "a page visit must not dirty a
+    project" held. Every such block now takes the list-row posture (#88/#72): the
+    fields are off the page until a named click creates the record, and a named
+    click removes it again.
+    """
+    from oracle_app.form import _absent, _detach_record, optional_steps
+
+    project = _applicable(key)
+    gate = optional_steps(prefix)[-1]
+    _detach_record(project, gate)
+
+    at = _render(key, project)
+    assert not at.exception, [e.message for e in at.exception]
+    live = at.session_state["project"]
+    assert _absent(live, gate), "the render attached the record nobody added"
+    at.run()   # a revisit attaches nothing either
+    assert not at.exception, [e.message for e in at.exception]
+    assert _absent(live, gate), "a revisit attached the record nobody added"
+
+    _gesture(at, f"_add.{prefix}").click().run()
+    assert not at.exception, [e.message for e in at.exception]
+    assert not _absent(live, prefix), "the Add gesture did not create the record it names"
+
+    if prefix not in optional_steps(prefix):
+        return   # a plain field of an Optional parent: the parent owns the removal
+    _gesture(at, f"_remove.{prefix}").click().run()
+    assert not at.exception, [e.message for e in at.exception]
+    assert _absent(live, prefix), "the Remove gesture left the record it names attached"
+
+
+def test_the_flaps_down_set_is_not_attached_by_a_stray_touch():
+    """The reported #143 repro, on the real path: Aero page, check, uncheck, V-n.
+
+    ``ga6_normal`` carries no flaps-down set, and the only widget the block used
+    to expose that could be touched without meaning anything about the airplane
+    was the set's own ``flaps_down`` flag. There is nothing to touch now: the
+    block is a caption and an Add button until the user asks for it, and the
+    envelope the phantom set used to take down still runs.
+    """
+    from sloads.modules.flight_envelope import build_envelope
+
+    project = _seeded()
+    assert project.aero_coeffs.flaps_down is None, "the fixture must not carry the set"
+
+    at = _render("aero_coefficients", project)
+    assert not at.exception, [e.message for e in at.exception]
+    for kind in ("number_input", "checkbox", "text_input"):
+        stray = [w.key for w in getattr(at, kind)
+                 if "aero_coeffs.flaps_down" in (w.key or "")]
+        assert not stray, f"the absent LANDING set still offers {kind}s to touch: {stray}"
+
+    live = at.session_state["project"]
+    assert live.aero_coeffs.flaps_down is None
+    assert build_envelope(live).vn, "the envelope the phantom set used to hang"
 
 
 class _GridStub:
@@ -1567,7 +1714,7 @@ def test_no_copy_of_a_shared_quantity_renders_as_a_plain_widget(path):
     (an override the calc honours), and each states the owner's path.
     """
     row = fr.entry(path)
-    at = _render(row.page)
+    at = _render(row.page, _with_record(path))
     assert not at.exception, [e.message for e in at.exception]
 
     captions = " ".join(c.value or "" for c in at.caption)

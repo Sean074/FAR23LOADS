@@ -368,6 +368,28 @@ consistent:
   refuses the degenerate row **by name** at the point that divides
   (`flight_envelope.build_envelope`), with `validation.cg_case_without_weight`
   warning before anything runs.
+- **An Optional record is created and removed by name, never by touch** (#143,
+  2026-08-29). The other half of the same contract, one level up from a row: an
+  Optional slice — the flaps-down coefficient set, the Mach-limit block, the
+  weight envelope — is a *statement about the airplane*, and its absence is one
+  too. The oracle form used to render such a block live over a record held
+  detached in `_PENDING`, so any touch inside it made the record non-blank and
+  `commit_pending` attached the whole thing: ticking the LANDING set's
+  flaps-down flag, which says nothing about the airplane by itself, attached a
+  zero-coefficient set, `refresh_derived` → `normalize()` filled its `stall_cl`
+  from `clmax_flap` so it passed the #81 guard, un-checking did not detach it,
+  and it **saved into the project file** — the inverse of the #51 data-loss
+  class, silent data *gain*, one gesture after OG-F's "a page visit must not
+  dirty a project" held. It took Flight Envelope and SELECT down with it (#144).
+  The rule now: the block's fields are **off the page** until an `➕ Add …`
+  click creates the record — with a caption naming the fields that are missing,
+  the same answer an empty table gives — and a `🗑 Remove …` control behind an
+  expander takes it away again, naming what it removes. Which blocks these are
+  is read from the registry, never listed
+  (`oracle_app.form.optional_steps`); guard:
+  `tests/test_oracle_gui.py::test_every_optional_record_block_is_added_and_removed_by_name`,
+  and the round-trip journey types a whole airplane from blank by performing
+  exactly those clicks.
 - **A cross-field rule is asked, never enforced at construction** (#66,
   review 2026-08-22 PB-7). `Project.__post_init__` used to raise when
   `engine_layout` disagreed with `len(engines)` — two widgets on one page,

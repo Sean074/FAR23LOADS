@@ -1117,8 +1117,139 @@ def _offer_record_seed(project: Project, prefix: str, record: Any) -> None:
             _set_entered(record, name, float(value))
 
 
+def optional_steps(prefix: str) -> List[str]:
+    """The head slices of ``prefix`` that are ``Optional`` records (#143).
+
+    ``aero_coeffs.flaps_down`` answers both itself and ``aero_coeffs``; a
+    ``geometry.landing_gear.main_gear``, which is a plain field of an Optional
+    parent, answers ``geometry.landing_gear`` alone. Read from the registry, so
+    a new Optional slice in ``models/inputs.py`` carries the add/remove posture
+    the moment the registry classifies it -- there is no list of them here
+    (gate G4, and the rule-3 drift guard
+    ``test_every_optional_record_block_can_be_added_and_removed``).
+    """
+    parts = [s for s in prefix.split(".") if s]
+    steps = []
+    for i in range(len(parts)):
+        path = ".".join(parts[: i + 1])
+        inner, optional = _unwrap_optional(fr.field_type(path))
+        if optional and isinstance(inner, type) and dataclasses.is_dataclass(inner):
+            steps.append(path)
+    return steps
+
+
+def _absent(project: Project, path: str) -> bool:
+    """True if the record at ``path`` is not on the project."""
+    obj: Any = project
+    for segment in path.split("."):
+        obj = getattr(obj, segment, None)
+        if obj is None:
+            return True
+    return False
+
+
+def _attach_record(project: Project, prefix: str) -> None:
+    """Create the record at ``prefix`` -- and every missing step to it -- for real.
+
+    The counterpart of :func:`_detach_record`, and the *only* way an Optional
+    record block comes into being (#143). Unlike :func:`record_at` this attaches
+    immediately rather than through :data:`_PENDING`: the click is the decision,
+    so there is nothing left for :func:`commit_pending` to judge.
+    """
+    obj: Any = project
+    parts = [s for s in prefix.split(".") if s]
+    for i, segment in enumerate(parts):
+        value = getattr(obj, segment, None)
+        if value is None:
+            path = ".".join(parts[: i + 1])
+            inner, _ = _unwrap_optional(fr.field_type(path))
+            if not (isinstance(inner, type) and dataclasses.is_dataclass(inner)):
+                return
+            value = seeded(inner, path)
+            setattr(obj, segment, value)
+        obj = value
+
+
+def _detach_record(project: Project, prefix: str) -> None:
+    """Remove the record at ``prefix`` from the project, with what it holds."""
+    head, _, attr = prefix.rpartition(".")
+    owner: Any = project
+    for segment in [s for s in head.split(".") if s]:
+        owner = getattr(owner, segment, None)
+        if owner is None:
+            return
+    setattr(owner, attr, None)
+
+
+def _offer_record_add(project: Project, prefix: str, paths: Sequence[str],
+                      title: str) -> None:
+    """What an absent Optional record is hiding, and the gesture that creates it.
+
+    The #143 half of the deletion contract, seen from the other end. An Optional
+    record block used to render its widgets live over a record held detached in
+    :data:`_PENDING`, so *any* touch inside the block -- ticking the LANDING
+    set's flaps-down flag, which by itself says nothing about the airplane --
+    made the record non-blank and :func:`commit_pending` attached the whole
+    zero-coefficient set. ``refresh_derived`` then filled its ``stall_cl`` from
+    ``clmax_flap``, so it passed the #81 guard, hung the balance on a lift
+    polynomial with no alpha term (#144), and **saved into the project file**:
+    the inverse of the #51 data-loss class, silent data *gain*, one gesture
+    after the "a page visit must not dirty a project" posture (OG-F) held.
+
+    So an Optional record is now created the way a list row is (#88): by a
+    deliberate, named click, with the fields off the page until then and a
+    caption saying which ones -- the same answer :func:`_empty_table_note`
+    gives for an empty table, because it is the same question.
+    """
+    names = ", ".join(_field_label(p) for p in paths)
+    st.caption(
+        f"Not part of this project — nothing entered. The {title} fields are "
+        f"off the page until the record is added: {names}."
+    )
+    st.button(
+        f"➕ Add {title}", key=widget_key(f"_add.{prefix}"),
+        on_click=_attach_record, args=(project, prefix),
+        help=f"Creates `{prefix}` on this project, blank, and puts its fields "
+             "on the page. Nothing else changes, and it can be removed again.")
+
+
+def _offer_record_remove(project: Project, prefix: str, title: str) -> None:
+    """The way back out of an Optional record, naming what it removes (#143).
+
+    Behind an expander for the same reason the flat table's row delete is
+    (:func:`_render_flat_table`): this control discards entered data on one
+    click, so reaching it is itself a gesture. Removing is the only answer to
+    ``flight_envelope``'s "…or remove the set" (#144) and to any other slice
+    added by mistake -- before this, an Optional record was a one-way door, and
+    the only way out was hand-editing JSON in an editor this GUI does not have
+    (#72, PB-20, the same finding one level up from a scalar override).
+    """
+    with st.expander(f"\U0001f5d1 Remove {title}", expanded=False):
+        st.caption(
+            f"Removes `{prefix}` from the project, with everything entered in "
+            f"it. The programs that read it fall back to what they do when it "
+            f"was never there. It can be added again, blank.")
+        st.button(
+            f"\U0001f5d1 Remove {title}", key=widget_key(f"_remove.{prefix}"),
+            on_click=_detach_record, args=(project, prefix),
+            help=f"Removes **{title}** and everything entered in it.")
+
+
 def render_record(project: Project, prefix: str, paths: Sequence[str]) -> None:
-    """One non-list record: its scalars in a grid, its composites underneath."""
+    """One non-list record: its scalars in a grid, its composites underneath.
+
+    An Optional record -- one whose *absence* is a statement about the airplane
+    -- is added and removed by name rather than by touch (#143): see
+    :func:`_offer_record_add`. A list record beside it keeps its own gesture,
+    the row counter, which attaches its ancestors when a row appears.
+    """
+    title = fr.DISPLAY_GROUPS.get(paths[0]) or pretty(
+        prefix.rsplit(".", 1)[-1] or "Project")
+    steps = optional_steps(prefix)
+    if any(_absent(project, step) for step in steps):
+        _offer_record_add(project, prefix, paths, title)
+        return
+
     record = record_at(project, prefix)
     if record is None:
         st.warning(f"`{prefix}` cannot be created on this project.")
@@ -1134,6 +1265,8 @@ def render_record(project: Project, prefix: str, paths: Sequence[str]) -> None:
             render_scalar(record, path, key=path, container=column, project=project)
     for path in composites:
         render_field(record, path, key=path, project=project)
+    if prefix in steps:
+        _offer_record_remove(project, prefix, title)
 
 
 def _delete_row(rows: List[Any], index: int, prefix: str) -> None:
@@ -1556,7 +1689,8 @@ def _step_caption(step: wf.WorkflowStep) -> str:
 
 
 __all__ = [
-    "GROUP_NOTES", "MEMBER_LABELS", "blank", "commit_pending", "is_composite", "page_groups", "record_at",
+    "GROUP_NOTES", "MEMBER_LABELS", "blank", "commit_pending", "is_composite",
+    "optional_steps", "page_groups", "record_at",
     "render_field", "render_record", "render_scalar", "render_step",
     "render_table", "row_class", "rows_at", "seeded",
 ]

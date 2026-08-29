@@ -81,7 +81,7 @@ render_step(st.session_state["_key"])
 '''
 
 _WIDGET_KINDS = ("number_input", "text_input", "checkbox", "selectbox", "multiselect")
-_MAX_ROUNDS = 8
+_MAX_ROUNDS = 16   # a #143 record add is a round of its own (one click per rerun)
 
 
 def _render(key: str, project: Project, replay=None) -> AppTest:
@@ -106,6 +106,18 @@ def _widgets(at: AppTest) -> Dict[str, Tuple[Any, Any]]:
     return out
 
 
+def _add_buttons(at: AppTest) -> Dict[str, Any]:
+    """{unstamped key: button} for the "Add <record>" gestures on the page (#143).
+
+    Since #143 an Optional record block is created by a deliberate click rather
+    than by any touch inside it, so a journey that types into a blank project
+    must perform that click first -- which is the point: the gesture is on the
+    page and it is reachable, or the whole journey stops here.
+    """
+    return {unstamped(b.key): b for b in at.button
+            if (unstamped(b.key) or "").startswith("_add.")}
+
+
 def _same(a: Any, b: Any) -> bool:
     if isinstance(a, float) and isinstance(b, (int, float)):
         return abs(a - b) < 1e-9
@@ -115,9 +127,19 @@ def _same(a: Any, b: Any) -> bool:
 def _type_page(key: str, typed: Project, answer_at: AppTest) -> Project:
     """Set every recorded widget on the blank page; the project as persisted."""
     wanted = _widgets(answer_at)
+    # The answer carries a record wherever it does *not* offer to add one, so
+    # this is exactly the set of #143 gestures the user makes on this page.
+    answer_adds = set(_add_buttons(answer_at))
     frames = dict(answer_at.session_state["_rec_tables"])
     at = _render(key, typed, replay=frames)
     for _round in range(_MAX_ROUNDS):
+        adds = [b for k, b in _add_buttons(at).items() if k not in answer_adds]
+        if adds:
+            # Records first: their fields are off the page until they exist.
+            adds[0].click()
+            at.run()
+            assert not at.exception, f"[{key}] {[e.message for e in at.exception]}"
+            continue
         present = _widgets(at)
         unknown = sorted(set(present) - set(wanted))
         assert not unknown, f"[{key}] widgets on the blank page the answer never showed: {unknown}"
