@@ -8,16 +8,22 @@ Two oracle bands (Reference 1 Ch 20):
   printed value -- the expected Decision-3 drift from ``G = 32.174`` vs the program's
   ``32.2`` (still inside +-0.1%).
 
-* **LANDLOAD's gear-geometry intermediates are oracle-locked** against Appendix A
-  "Landing Loads with Respect to Ground Line" p230: the drag factor ``K`` (0.324),
+* **LANDLOAD is fully oracle-locked** against Appendix A: p230 "Landing Loads with
+  Respect to Ground Line" for the intermediates -- the drag factor ``K`` (0.324),
   ``GAMMA = arctan(K)`` (17.978), the ground angles (4.057 / 4.724 / 15 deg), ``BETA``
-  (13.921 / 4.724 / 15) and the ``AP/BP/DP/CP`` lever-arm table. The printed
-  *wheel-load* table on p231-233 is heavily OCR-garbled in the bundled PDF (column
-  headers and most numbers are scrambled), so the full 24-main / 33-nose matrix is
-  validated by **formula closure plus the handful of legible cells** -- the same
-  precedent as ONENGOUT (Step C9). The legible cells: case 1 (3-wheel level, aft)
-  VMP 3144 / VNP 1787 / nose resultant 1879; the side-load cases VMP 2261 with
-  SMP -1700 (LT drift) / 1122 (RT drift).
+  (13.921 / 4.724 / 15) and the ``AP/BP/DP/CP`` lever-arm table -- and then **every
+  printed cell** of p231 (ground line), p232 (airplane datum) and p233 (limit
+  unbalanced moments), for all 33 cases.
+
+  Those three pages are OCR-garbled in the bundled PDF and were recorded from
+  2026-08-15 as unusable, so the 24-main / 33-nose matrix was held by formula
+  closure plus a handful of legible cells -- the ONENGOUT (Step C9) precedent.
+  **They are garbled, not illegible**: rendered at 200 dpi they read cleanly, and
+  the tables were transcribed on 2026-08-29. Reading them found two defects that
+  had lived in the gap (#135, #137), one of which had made a fixture input a
+  function of the output it was used to check. Transcription and OCR extraction
+  are not the same failure mode, which is why the citations now say which one a
+  cell came from.
 
 Note the manual's LANDLOAD runs at a **rounded design load factor** distinct from
 LGFACTOR's computed 2.428: since note 37 that is entered as the governing
@@ -194,62 +200,180 @@ def test_landload_lever_arms_oracle():
 
 
 # --------------------------------------------------------------------------- #
-# LANDLOAD wheel loads -- legible-cell spot-checks + formula closure
+# LANDLOAD wheel loads -- the full printed Appendix A output (p231/p232/p233)
 # --------------------------------------------------------------------------- #
-def test_landload_legible_cells():
-    """Spot-check the wheel-load cells that survive the p231 OCR."""
-    inp = _ga_landing()
+# Every cell of the three printed LANDLOAD tables, transcribed from the pages
+# rendered at 200 dpi (2026-08-29) rather than extracted by OCR. That
+# distinction is the whole history of this module's oracle coverage: the
+# bundled PDF's *text layer* for these pages is garbled, and from 2026-08-15
+# the project recorded them as unusable and held cases 13-33 on internal
+# identities alone. Two defects lived in that gap -- the ``WL(18)`` gross-weight
+# ratio (#135) and a fixture weight that had been back-solved from a
+# mis-OCR'd cell (#137), which also meant an input was derived from the output
+# it was then used to check. The pages read cleanly rendered.
+#
+# The printed resolution is the tolerance: integer columns lock at +-0.5 or
+# +-0.1 %, whichever is looser (a 153 lb cell cannot be read closer than half a
+# pound, which is already 0.33 %); three-decimal columns at +-0.0005 or +-0.1 %.
+#
+# These values are also the deviated-from set design note 38's GF-3" must
+# state: GF-1 moves the p232 columns for cases 13-33 and GF-2' moves p231 cases
+# 13-15 and 25-33 and the p233 moments for 16-24. Transcribed here, they are
+# executable rather than prose. If a deviation is approved, the affected rows
+# move to the corrected values with the register entry cited beside them --
+# they are never deleted.
+
+#: p231 "VALUES ARE WITH RESPECT TO GROUND LINE - DENOTED BY P (PRIME)".
+_P231_COLS = ("vnp", "dnp", "snp", "result", "vmp", "dmp", "smp", "rmp",
+              "nvp", "ndp", "ns")
+_P231 = {
+    1: (1787, 580, 0, 1879, 3144, 1020, 0, 3305, 3.167, 0.811, 0.00),
+    2: (2574, 835, 0, 2706, 2751, 893, 0, 2892, 3.167, 0.811, 0.00),
+    3: (2476, 804, 0, 2604, 2262, 734, 0, 2378, 3.167, 0.811, 0.00),
+    4: (0, 0, 0, 0, 4038, 1310, 0, 4245, 3.167, 0.811, 0.00),
+    5: (0, 0, 0, 0, 4038, 1310, 0, 4245, 3.167, 0.811, 0.00),
+    6: (0, 0, 0, 0, 3500, 1136, 0, 3680, 3.167, 0.811, 0.00),
+    7: (0, 0, 0, 0, 4038, 0, 0, 4038, 3.167, 0.000, 0.00),
+    8: (0, 0, 0, 0, 4038, 0, 0, 4038, 3.167, 0.000, 0.00),
+    9: (0, 0, 0, 0, 3500, 0, 0, 3500, 3.167, 0.000, 0.00),
+    10: (0, 0, 0, 0, 4038, 1310, 0, 4245, 1.917, 0.406, 0.00),
+    11: (0, 0, 0, 0, 4038, 1310, 0, 4245, 1.917, 0.406, 0.00),
+    12: (0, 0, 0, 0, 3500, 1136, 0, 3680, 1.917, 0.406, 0.00),
+    13: (1714, 0, 0, 1714, 1404, 1123, 0, 1798, 1.330, 0.661, 0.00),
+    14: (2044, 0, 0, 2044, 1239, 991, 0, 1587, 1.330, 0.583, 0.00),
+    15: (1773, 0, 0, 1773, 975, 780, 0, 1249, 1.330, 0.557, 0.00),
+    16: (0, 0, 0, 0, 2261, 1809, 0, 2895, 1.330, 1.064, 0.00),
+    17: (0, 0, 0, 0, 2261, 1809, 0, 2895, 1.330, 1.064, 0.00),
+    18: (0, 0, 0, 0, 1862, 1490, 0, 2385, 1.330, 1.064, 0.00),
+    19: (0, 0, 0, 0, 2261, 0, -1700, 2261, 1.330, 0.000, -0.83),
+    20: (0, 0, 0, 0, 2261, 0, 1122, 2261, 1.330, 0.000, 0.83),
+    21: (0, 0, 0, 0, 2261, 0, -1700, 2261, 1.330, 0.000, -0.83),
+    22: (0, 0, 0, 0, 2261, 0, 1122, 2261, 1.330, 0.000, 0.83),
+    23: (0, 0, 0, 0, 1862, 0, -1400, 1862, 1.330, 0.000, -0.83),
+    24: (0, 0, 0, 0, 1862, 0, 924, 1862, 1.330, 0.000, 0.83),
+    # Supplementary nose-wheel conditions (23.499) -- nose columns only.
+    25: (1175, 940, 0, 1505, None, None, None, None, None, None, None),
+    26: (1175, -470, 0, 1266, None, None, None, None, None, None, None),
+    27: (1175, 0, 823, 1175, None, None, None, None, None, None, None),
+    28: (1910, 1528, 0, 2446, None, None, None, None, None, None, None),
+    29: (1910, -764, 0, 2058, None, None, None, None, None, None, None),
+    30: (1910, 0, 1337, 1910, None, None, None, None, None, None, None),
+    31: (1802, 1442, 0, 2308, None, None, None, None, None, None, None),
+    32: (1802, -721, 0, 1941, None, None, None, None, None, None, None),
+    33: (1802, 0, 1262, 1802, None, None, None, None, None, None, None),
+}
+#: Column print resolution, in the printed unit.
+_P231_RES = dict(vnp=1, dnp=1, snp=1, result=1, vmp=1, dmp=1, smp=1, rmp=1,
+                 nvp=1e-3, ndp=1e-3, ns=1e-2)
+
+#: p232 "VALUES ARE WITH RESPECT TO AIRPLANE DATUM" -- the force columns.
+#: The page's NR/NV/ND load-factor columns are transcribed in design note 38
+#: (GF-6/#134), not here: ``run()`` does not compute them yet.
+_P232_COLS = ("vn", "dn", "vm", "dm", "sm")
+_P232 = {
+    1: (1823, 452, 3208, 795, 0), 2: (2626, 651, 2807, 696, 0),
+    3: (2527, 626, 2308, 572, 0),
+    4: (0, 0, 4120, 1021, 0), 5: (0, 0, 4120, 1021, 0), 6: (0, 0, 3572, 885, 0),
+    7: (0, 0, 3900, -1045, 0), 8: (0, 0, 3900, -1045, 0), 9: (0, 0, 3381, -906, 0),
+    10: (0, 0, 4120, 1021, 0), 11: (0, 0, 4120, 1021, 0), 12: (0, 0, 3572, 885, 0),
+    13: (1708, 141, 1307, 1235, 0), 14: (2037, 168, 1153, 1090, 0),
+    15: (1767, 146, 908, 858, 0),
+    16: (0, 0, 2104, 1989, 0), 17: (0, 0, 2104, 1989, 0), 18: (0, 0, 1733, 1638, 0),
+    19: (0, 0, 2253, 186, -1700), 20: (0, 0, 2253, 186, 1122),
+    21: (0, 0, 2253, 186, -1700), 22: (0, 0, 2253, 186, 1122),
+    23: (0, 0, 1856, 153, -1400), 24: (0, 0, 1856, 153, 924),
+    25: (1094, 1034, None, None, 0), 26: (1210, -372, None, None, 0),
+    27: (1171, 97, None, None, 823),
+    28: (1778, 1680, None, None, 0), 29: (1967, -604, None, None, 0),
+    30: (1904, 157, None, None, 1337),
+    31: (1677, 1585, None, None, 0), 32: (1855, -570, None, None, 0),
+    33: (1796, 148, None, None, 1262),
+}
+
+#: p233 "LIMIT UNBALANCED MOMENTS", the ground-line columns. The page's
+#: airplane-datum moment columns are a *second* ground-to-datum rotation, and
+#: they carry the note-38 sign question -- see ``theory_sources.md`` and note 38
+#: §1.13. They are not asserted here because ``run()`` emits only the primed set.
+_P233_COLS = ("pitchp", "rollp", "yawp")
+_P233 = {
+    1: (0, 0, 0), 2: (0, 0, 0), 3: (0, 0, 0),
+    4: (-168058, 0, 0), 5: (-242054, 0, 0), 6: (-232918, 0, 0),
+    7: (-9827, 0, 0), 8: (-79870, 0, 0), 9: (-94579, 0, 0),
+    10: (-84029, 231147, -75000), 11: (-121027, 231147, -75000),
+    12: (-116459, 200375, -65016),
+    13: (0, 0, 0), 14: (0, 0, 0), 15: (0, 0, 0),
+    16: (-217530, 0, 0), 17: (-260675, 0, 0), 18: (-225167, 0, 0),
+    19: (-64716, -119206, -40387), 20: (-64716, 119206, 40387),
+    21: (-105186, -121293, -65642), 22: (-105186, 121293, 65642),
+    23: (-99232, -98238, -61927), 24: (-99232, 98238, 61927),
+}
+
+
+def _ga_reactions():
+    """The Appendix A GA-6 gear reactions, keyed by the manual's case number."""
     lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
-    rx = {c.case: c for c in landing_reactions(inp, _ga_gear(), lf, _GA_CGS, mlw=_MLW, mtow=_MTOW)}
-    # Case 1 -- 3-wheel level, aft max landing.
-    assert math.isclose(rx[1].vmp, 3144, rel_tol=3e-3), rx[1].vmp
-    assert math.isclose(rx[1].vnp, 1787, rel_tol=3e-3), rx[1].vnp
-    assert math.isclose(rx[1].result, 1879, rel_tol=3e-3), rx[1].result
-    # Side-load cases -- vertical 2261, side -1700 (LT) / 1122 (RT).
-    assert math.isclose(rx[19].vmp, 2261, rel_tol=3e-3), rx[19].vmp
-    assert math.isclose(rx[19].smp, -1700, rel_tol=3e-3), rx[19].smp
-    assert math.isclose(rx[20].smp, 1122, rel_tol=3e-3), rx[20].smp
+    return {c.case: c for c in landing_reactions(_ga_landing(), _ga_gear(), lf,
+                                                 _GA_CGS, mlw=_MLW, mtow=_MTOW)}
 
 
-def test_landload_braked_roll_printed_cells():
-    """Appendix A p231/p232, braked roll nose clear (23.493), read 2026-08-29.
+def _assert_page(table, cols, page, resolution=None):
+    """Lock every transcribed cell of one printed page, and count them."""
+    rx = _ga_reactions()
+    n = 0
+    for case, row in sorted(table.items()):
+        for col, printed in zip(cols, row):
+            if printed is None:
+                continue          # column not printed for this family
+            res = (resolution or {}).get(col, 1)
+            # p232's SM column is the side load in the datum frame, which is
+            # the ground-line one: a rotation about y leaves y alone. It is
+            # carried on ``smp``/``snp`` by family, not under a second name.
+            attr = col
+            if col == "sm":
+                attr = "smp" if case <= 24 else "snp"
+            got = getattr(rx[case], attr)
+            band = max(res / 2.0, abs(printed) * REL)
+            assert abs(got - printed) <= band, (
+                f"{page} case {case} {col.upper()}: printed {printed}, "
+                f"sloads {got:.4f} (band +-{band:g})")
+            n += 1
+    return n
 
-    The first printed-value oracle this family has had. ``theory_sources.md``
-    records p231-233 as OCR-garbled in the bundled PDF, so cases 13-24 were
-    held by internal identities alone -- which is why the ``WL(18)`` ``WR``
-    defect (#135) and the 2803 lb light-landing weight both survived. These
-    cells were transcribed from the rendered page, not extracted by OCR.
 
-    p231 ground line, per wheel:  case 16/17 VMP 2261 DMP 1808.8
-                                  case 18    VMP 1862 DMP 1490
-    p232 airplane datum, case 18: Fz 1733    Fx 1638
+def test_landload_p231_ground_line_table():
+    """Appendix A p231, every printed cell: all 33 cases, ground line.
 
-    The datum pair is a **port-fidelity lock, not a frame adjudication.**
-    ``LANDLOAD.BAS`` computes it from the printed ``PHIM`` on the same line
-    (``VM(L)=RMP(L)*COS(PHIM(L)/57.3)``, Appendix C listing), so it pins that
-    this port reproduces the manual's rotation and that ``RMP`` is right, and
-    carries no information about whether that rotation's sign is correct --
-    design note 38's open GF-1 question, for which these cells are the
-    deviated-from values. A 2026-08-29 reading of them as *refuting* GF-1 was
-    withdrawn the same day (note 38 SS1.12): the cell and the angle are not
-    independent measurements. If GF-1 is later approved, this assertion moves
-    to the corrected pair with the register entry beside it -- it is never
-    deleted.
+    Reactions, resultants and the NVP/NDP/NS ground-line inertia factors for
+    the level (1-12), braked-roll (13-18), side (19-24) and supplementary-nose
+    (25-33) families. Until 2026-08-29 only cases 1 and 19 were locked here.
     """
-    inp = _ga_landing()
-    lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
-    rx = {c.case: c for c in landing_reactions(inp, _ga_gear(), lf, _GA_CGS,
-                                               mlw=_MLW, mtow=_MTOW)}
-    for m in (16, 17):
-        assert math.isclose(rx[m].vmp, 2261, rel_tol=REL), (m, rx[m].vmp)
-        assert math.isclose(rx[m].dmp, 1808.8, rel_tol=REL), (m, rx[m].dmp)
-        assert rx[m].vnp == 0.0, "the nose is clear in 16-18"
-    assert math.isclose(rx[18].vmp, 1862, rel_tol=REL), rx[18].vmp
-    assert math.isclose(rx[18].dmp, 1490, rel_tol=REL), rx[18].dmp
-    # The airplane-datum pair (G-12) -- computed today but not yet surfaced on
-    # ``ModuleResult`` (#134), so it is asserted on the reaction case itself.
-    assert math.isclose(rx[18].vm, 1733, rel_tol=REL), rx[18].vm
-    assert math.isclose(rx[18].dm, 1638, rel_tol=REL), rx[18].dm
+    assert _assert_page(_P231, _P231_COLS, "p231", _P231_RES) == 300
+
+
+def test_landload_p232_airplane_datum_table():
+    """Appendix A p232, every printed force cell: all 33 cases, airplane datum.
+
+    This is the frame the exported deck and the gear reference-point loads
+    consume, and the one design note 38 (GF-1) holds open: the manual resolves
+    the ground-roll families with ``+GRA`` where it resolves level and tail-down
+    with ``-GRA``. These cells are what the port reproduces today and what a
+    GF-1 correction would deviate from -- for cases 13-33, most of this table.
+
+    The side column is asserted across both frames on purpose: the resolution
+    is a rotation about the y axis, so SM is frame-invariant by construction.
+    """
+    assert _assert_page(_P232, _P232_COLS, "p232") == 147
+
+
+def test_landload_p233_unbalanced_moments_table():
+    """Appendix A p233, the ground-line LIMIT UNBALANCED MOMENTS columns.
+
+    The independent reference §1.8 of note 38 discovered the hard way. It also
+    re-checks the two 2026-08-29 fixes from outside their own formulas: case
+    18's PITCHP is built from VMP(18)/DMP(18), so the pre-#135 reactions miss
+    this printed cell by about 5 %.
+    """
+    assert _assert_page(_P233, _P233_COLS, "p233") == 72
 
 
 def test_the_light_loading_never_takes_the_gross_weight_ratio():

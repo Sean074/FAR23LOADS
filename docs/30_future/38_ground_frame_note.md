@@ -7,7 +7,13 @@ AWAITING RE-AGREEMENT on the deviation surface (§1.11). A 2026-08-29 reading of
 the newly legible p232 force cells as *refuting* GF-1 was withdrawn the same day
 (§1.12) — the manual derives those cells from the angle they were taken to
 test — but that reading's byproduct, the first transcribed p231/p232 cells,
-is what GF-3″ was blocked on.** GF-3′ was agreed on a
+is what GF-3″ was blocked on. **§1.13 (2026-08-29) then closed §1.11's open
+finding** — p231/p232/p233 are fully transcribed and locked, so GF-3″'s
+deviated-from set is executable — and found a **third instance** of the §4 class
+in p233's datum-moment transform, which rotates `+GRA` on *every* attitude.
+GF-1 stands on the tail-down row, which fixes the sense with no appeal to
+consistency; the open question is now whether GF-1 and GF-2′ are priced
+together, since only GF-2′ costs the p231/p233 agreements.** GF-3′ was agreed on a
 scope that understated the deviation — it named the p230 arm table, and the
 correction in fact moves printed **p231 ground-line reactions** by up to 40 %
 (§1.11). The owner stopped implementation at that measurement rather than
@@ -576,6 +582,95 @@ code.
 
 ---
 
+### 1.13 The pages are legible, the surface is locked, and p233 holds a second rotation (2026-08-29)
+
+Three things came out of rendering the rest of Appendix A's LANDLOAD output.
+
+**1. The open finding of §1.11 is closed.** p231, p232 and p233 read cleanly at
+200 dpi, and every printed cell of all three now locks against the port at the
+page's own print resolution — `test_landload_p231_ground_line_table`,
+`test_landload_p232_airplane_datum_table`,
+`test_landload_p233_unbalanced_moments_table`. All 33 cases, both frames, the
+NVP/NDP/NS factors and the unbalanced moments. The braked-roll and
+supplementary-nose families no longer rest on internal identities, and the
+40 %-move-leaves-the-suite-green hole is gone. The pages were never illegible;
+they were un-**OCR**-able, and the project recorded the two as the same thing
+from 2026-08-15 until yesterday.
+
+**2. GF-3″'s deviated-from set is now transcribed and executable**, which is what
+the gate was blocked on. It is also larger than §1.11 measured, because §1.11
+measured what the correction moves in *sloads* and the register needs what it
+deviates from in the *manual*:
+
+| page | cells a GF-1 / GF-2′ correction departs from |
+|---|---|
+| p230 | the ground-roll AP/BP/DP row (GF-2′ only) — §1.10's values |
+| p231 | cases 13–15 and 25–33: VNP/DNP/SNP/RESULT/VMP/DMP/RESM and NVP/NDP (GF-2′ only) |
+| p232 | **cases 13–33, essentially the whole table** — VN/DN/VM/DM (GF-1); the same rows again under GF-2′ |
+| p233 | cases 16–24 PITCHP, and 19–24 ROLLP/YAWP (GF-2′ only) |
+
+The p231/p233 rows are the expensive ones: they match the port today at ±0.1 %
+or better, so GF-2′ trades a set of exact printed agreements for a physical
+argument. GF-1 alone does not touch p231 or p233 at all — it moves only p232 —
+which is worth stating plainly, because **GF-1 and GF-2′ no longer cost the same
+thing.** §1.9 bound them together on the closure-residual evidence; the register
+now has to price them separately.
+
+**3. p233 prints a second ground-to-datum rotation, and it is independent of
+PHIM.** The page carries both frames of the unbalanced moments with its
+equations:
+
+```basic
+PMOM = PMOMP
+RMOM = RMOMP*COS(GA) + YMOMP*SIN(GA)
+YMOM = YMOMP*COS(GA) - RMOMP*SIN(GA)
+```
+
+Checked against the printed cells, this is a clean rotation (magnitude preserved
+to the last digit) of **+GRA on every attitude** — +4.0566° on the level cases
+10–12 against GRA₁ = 4.057, +4.724° on the ground-roll cases 19–24 against
+GRA₂ = 4.7241. A moment vector and a force vector rotate identically under the
+same change of frame (`ROLLP = −M_x`, `YAWP = −M_z` from the printed
+`RMOMP = VMP·TREAD/2`, `YMOMP = −DMP·TREAD/2`; the common sign cancels, and the
+result is unchanged whether x is taken forward or aft). So p233 demands
+`PHIM = θ + GRA` **on every attitude** — agreeing with the ground-roll PHIM row
+and contradicting the level and tail-down rows, which is the opposite pairing
+from §1.2.
+
+**This does not overturn GF-1; it enlarges the defect.** §1.2's adjudication did
+not rest on the count of rows on each side, and the tail-down row settles the
+convention on its own without appeal to consistency at all: there
+`θ = 0`, so PHIM *is* the ground normal expressed in body axes, and it prints
+**−15.000 = −GRA₃**. An airplane 15° nose-up sees the ground normal tilted 15°
+toward the nose. That is not a convention, and it fixes the sense as
+`PHIM = θ − GRA`. The reading is therefore: the level and tail-down **force**
+rows are right, the ground-roll force rows are wrong (GF-1, unchanged), and the
+**moment** transform is wrong on *all* attitudes.
+
+That makes the datum-moment transform a **third instance of the §4 class**,
+after PHIM/PHIN and the ND lift term of §1.6 — and, like the ND term, it is not
+in sloads: `run()` emits only the primed moments, so it can only arrive with
+GF-6. It must arrive with the corrected sign.
+
+**Transcribed for GF-6/#134** — the p232 datum load factors, which the note had
+only partially (case 1 and case 16, both of which this reading confirms):
+
+| cases | NR | NV | ND |
+|---|---|---|---|
+| 1–6 | 3.287 | 3.216 | 0.679 |
+| 7–9 | 3.167 | 3.059 | −0.820 |
+| 10–12 | 1.975 | 1.941 | 0.363 |
+| 13 / 14 / 15 | 1.485 / 1.452 / 1.442 | 1.271 / 1.277 / 1.280 | 0.768 / 0.691 / 0.665 |
+| 16–18 | 1.703 | 1.238 | 1.170 |
+| 19–24 | 1.330 | 1.325 | 0.110 |
+
+**Still AWAITING RE-AGREEMENT.** Nothing here unblocks the code: GF-3″ still has
+to be drafted and agreed, and it now has a bigger surface to state and a new
+question to answer — whether GF-1 and GF-2′ are approved together or separately,
+given that only GF-2′ costs the p231/p233 agreements.
+
+---
+
 ## 2. Decisions (GF-1 … GF-8)
 
 | # | Decision | Rationale |
@@ -625,6 +720,7 @@ that recovers its reference from the thing it checks.
 |---|---|---|
 | `landing.py` PHIM/PHIN (attitude 1) | +GRA₂ | **This note (GF-1).** First wrong-way instance. |
 | p232's VM/DM cells, used to test p232's PHIM | — | **The enabler class again** (§1.12). `VM=RMP·COS(PHIM)` in the listing: one printed quantity read as two. Withdrawn 2026-08-29; the cells stay, as GF-3″ deviated-from values. |
+| LANDLOAD.BAS datum moment transform (`RMOM`/`YMOM`) | +GRA, **all attitudes** | **Third instance, same class** (§1.13). Printed on p233 with its equations; not in sloads (only the primed moments are emitted), so like the ND lift term it arrives only via GF-6 and must arrive corrected. |
 | LANDLOAD.BAS datum ND lift term (`+LF·SIN(GRA)`) | +GRA | **Second instance, same class** (§1.6). Not yet in sloads — it lands only via GF-6's datum factors, which build with the corrected sign; the p232 cells join GF-3's register. |
 | `landing.py` PHIM (level, tail-down) | −GRA₁/−GRA₃ | Correct; becomes locked by G-GF-2. |
 | `gear_loads.to_airplane_datum` (G-7a lift axis) | ρ, cases 1–12 only | Correct sign on every case it touches; gains GF-4's gate upstream. |
