@@ -25,6 +25,33 @@ are entered as leading- and trailing-edge corner points in these same
 station/butt-line coordinates on the [Geometry](01_configuration_layout.md)
 page.
 
+## Frames: airplane datum and ground line
+
+The axes above are the **airplane datum**, and almost every page in the guide
+works in it alone. The ground-loads chain is the exception, because the
+original suite works there in two frames and prints both:
+
+- **Airplane datum** — the body FS/WL axes above. This is the **delivered**
+  frame: what a beam model applies, what the export decks carry, and what the
+  downloaded CSV states.
+- **Ground line** — perpendicular and parallel to the runway through the
+  wheels' contact patches, the frame a gear engineer reads a reaction in.
+  LANDLOAD computes in it and the manual prints it as the "primed" set
+  (VMP, DMP, NVP…). It is an analysis view, and it rides in the **text**
+  report rather than the CSV.
+
+The two differ by a rotation of the attitude's ground angle, so the same
+reaction has different components in each and the frame is part of the
+number's meaning. Wherever a value names a frame, that name travels with it:
+on screen, in the text report, and as a `Frame` column in the CSV.
+[Landing Loads](14_landing_loads.md) is where you will meet both.
+
+A delivered force also names **where it acts** — its point of application, in
+the same airplane-datum coordinates, stated both as `x/y/z` numbers and, where
+the point has a name (a wheel's axle, its ground contact point), as a word in
+an `Applied at` column. A force without a point is not yet a load a structural
+model can take.
+
 ## Units and the Imperial/SI boundary
 
 The calculation, like the original suite, runs in **Imperial units**
@@ -81,6 +108,12 @@ below the input form. The recurring columns:
 - **Quantity, Value, Units** — one row per reported quantity, units carrying
   the `-ULT` marker where the ULTIMATE contract applies.
 - **SF** — the case's stated safety factor, as above.
+- **Frame / Applied at** — the frame the value is stated in and the named
+  point the force acts at, per the section above.
+
+A column that no row on the page fills is dropped rather than shown empty, so
+a page of properties renders as Condition / Quantity / Value / Units, and only
+the pages that work in two frames carry `Frame` and `Applied at`.
 
 ## Reading a downloaded CSV
 
@@ -89,3 +122,8 @@ carry the same rows and columns as the screen — the two are written from the
 same data, so they cannot disagree — plus the in-band units statement. Open
 them in any spreadsheet; nothing in them is scaled, renamed, or rounded
 differently from what you saw on the page.
+
+The **text** download is the one place that can carry *more*: where a program
+states a quantity in a frame that is an analysis view rather than a
+deliverable, the text report keeps it beside the delivered set and the CSV
+does not. LANDLOAD's primed (ground-line) rows are the case in point.
