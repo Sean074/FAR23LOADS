@@ -81,8 +81,10 @@ def effective_engine(project: Project, eng: EngineInput,
     > 1e-6 disagreement, ``engine_mass_row_mismatch``). A blank
     ``limit_load_factor`` derives from the FAR 23.337 limit the design speeds
     already own (``design_speed_values(project).n``, selector-independent): a 0
-    LIMNZ silently zeroed every mount load (C210-41). Every typed fixture
-    passes through unchanged, field for field.
+    LIMNZ silently zeroed every mount load (C210-41). That derive reads the wing
+    planform, so a half-entered one **refuses by name** out of this resolver
+    rather than resolving to 0 (#122); only an incomplete *speeds* slice lets the
+    blank stand. Every typed fixture passes through unchanged, field for field.
     """
     from dataclasses import replace
 
@@ -104,8 +106,19 @@ def effective_engine(project: Project, eng: EngineInput,
     if not eng.limit_load_factor and project.speeds is not None:
         import contextlib
 
+        from ..derived_geometry import planform_area_sqft
         from .structural_speeds import design_speed_values
 
+        # A half-entered planform refuses by name and the refusal propagates
+        # (#122): the derive reads the wing through STRSPEED, so it inherits the
+        # #71 contract that every geometry consumer states, and it asks the
+        # precondition's owner rather than restating it (rule 3). Swallowing it
+        # here would leave LIMNZ at 0 -- exactly the silent zeroing of every
+        # mount load that C210-41 added this derive to prevent, and this time
+        # with no typed value on the page to show the user what went wrong.
+        # ``None`` (no geometry, no such surface) is not a refusal: STRSPEED's
+        # typed ``wing_area_sqft`` fallback is live there.
+        planform_area_sqft(project, project.speeds.wing_surface)
         # Underivable (incomplete speeds): the blank stands, validation flags it.
         with contextlib.suppress(MissingInputError, ValueError):
             updates["limit_load_factor"] = design_speed_values(project, project.speeds).n
