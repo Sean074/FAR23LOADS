@@ -3,7 +3,8 @@
 **Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6)*
 
 **Status: AGREED 2026-08-28 — REOPENED 2026-08-28 on GF-1/GF-2, which an
-existing closure gate falsifies as scoped (§1.8, found implementing them).
+existing closure gate falsifies as scoped (§1.8) — GF-1 since re-confirmed
+and GF-2 refuted outright from the Appendix C listing (§1.9, OQ-2/OQ-3).
 Milestone 0.8.1 (re-milestoned 2026-08-28 when the patch band opened ahead of
 0.9.0 — backlog re-cut 2026-08-28, ruling 1). Nothing built; the GF-1/GF-2 code
 change was written, measured against the gates, and reverted. GF-6/GF-7 (the
@@ -324,12 +325,87 @@ stands as written until GF-1 is re-adjudicated.
 
 ---
 
+### 1.9 OQ-2/OQ-3 resolved from the `.BAS` (2026-08-28): GF-1 supported, GF-2 refuted
+
+**OQ-2 — what frame are the lever arms in?** Read from the Appendix C listing
+(`reference/code.txt`, the J-blocks at lines 560–720). The rotation each arm
+takes is per attitude, and it is **not** one kind of quantity:
+
+```basic
+' J=1 level          BP,DP take BETA(1) = GAMMA - GRA(1)   (a resultant direction)
+' J=3 tail down  640 BP(3,I)= ... COS(GRA(3)/57.3) ...     (a ground angle)
+' J=2 ground roll
+670 J=2
+680 AP(2,I)=FNAP(XCG(I),XNG(2),GRA(2),ZCG(I),ZNG(2))       ' GRA(2)
+690 BP(2,I)=FNBP(XMG(2),XCG(I),BETA(2),ZCG(I),ZMG(2))      ' BETA(2)
+700 DP(2,I)=FNDP(XMG(2),XNG(2),BETA(2),ZMG(2),ZNG(2))      ' BETA(2)
+712 CP(2,I)=(ZCG(I)-ZS)*COS(GRA(2)/57.3)                   ' GRA(2)
+```
+
+with `BETA(2)=GRA(2)`, so all four are the same number on the ground-roll
+attitude. **`sloads` ports every one of these exactly** (`ap[1]`/`cp[1]` from
+`gra2`, `bp[1]`/`dp[1]` from `beta[1]`). So `BETA`'s double duty — rotating the
+lever arms *and* giving the resultant direction — is **faithful to the original,
+not a port artefact**, and the coupling §1.8 identified is in LANDLOAD itself.
+
+**The geometric premise re-checked and confirmed.** On `ga6_normal` the main
+axle is aft of and above the nose axle in **both** states (compressed
+Δx 94.40 / Δz +9.00; static Δx 94.30 / Δz +10.10; `cessna_210` likewise), so
+both ground lines rise going aft and GRA₁/GRA₂ share one geometric sense.
+**§1.2 stands.**
+
+**The decisive experiment.** Flipping the ground-roll **lever-arm rotation and**
+the PHIM/PHIN tables together, closure residual as a fraction of W·MAC:
+
+| case | as printed | GF-2 (PHIM only) | arms **and** PHIM |
+|---|---|---|---|
+| 13 | 0.00322 | 0.11777 | **0.00000** |
+| 16 | 0.00578 | 0.10565 | **0.00003** |
+| 19 | 0.00001 | 0.10566 | **0.00002** |
+
+The complete correction closes LANDLOAD's own unbalanced pitching moments
+**better than the printed numbers do**. The 0.003–0.006 residual on cases 13–18
+that forced `test_the_ground_closure_...` to carry a `5e-2` tolerance where the
+rest of the matrix holds `1e-4` — documented in that test as "the ground-roll
+attitude's frame difference, which no rotation in the check can remove" — **is
+the defect, and it goes to zero when the correction is complete.** That is
+independent corroboration of GF-1 from a direction §1.2 never used.
+
+**OQ-3 — what does it cost?** Exactly **one** printed table. With both flipped,
+`test_landing.py` fails only `test_landload_lever_arms_oracle`; every p231
+ground-line reaction lock and the p236 LGFACTOR locks still pass:
+
+| arm (ground roll, 3 CG cases) | as printed / p230 | corrected |
+|---|---|---|
+| AP(2,·) | 78.836 / 69.886 / 66.501 | 86.001 / 77.052 / 73.501 |
+| BP(2,·) | 14.311 / 23.260 / 26.646 | 8.809 / 17.759 / 21.309 |
+| DP(2,·) | 93.147 | 94.811 |
+| CP(2,·) | 42.241 / 42.981 / 42.271 | **unchanged** (cos is even) |
+
+**Standing after this section:** **GF-1 is supported** — more strongly than by
+§1.2 alone, and now from an independent reference. **GF-2 is refuted**: the fix
+site is not the PHIM/PHIN tables, and the correction reaches the p230-locked
+ground-roll lever arms. **GF-3 must grow** to record the p230 AP/BP/DP
+ground-roll row above alongside the p232 rows.
+
+**OQ-5 (new, and the remaining work).** The experiment above flipped all three
+arm rotations *indiscriminately*, which is enough to locate the fix site and not
+enough to specify it. AP and CP take `GRA(2)` while BP and DP take `BETA(2)`;
+whether each is a resultant-direction rotation (which flips) or a ground-line
+projection where `GRA(2)` enters as a magnitude (which does not) needs the
+per-arm geometric derivation against `FNAP`/`FNBP`/`FNDP`. CP is already known
+not to move — it enters through `cos`, an even function. **No code until OQ-5 is
+answered per arm**, since a partial flip is exactly the incoherent state GF-2
+produced.
+
+---
+
 ## 2. Decisions (GF-1 … GF-8)
 
 | # | Decision | Rationale |
 |---|---|---|
 | **GF-1** | **The attitude-1 airplane-datum resolution is adjudicated a defect in LANDLOAD.BAS**: the physical PHIM/PHIN subtract the ground angle in every attitude. Corrected: PHIM(13–18) = atan(0.8) − GRA₂; PHIM(19–24) = −GRA₂; PHIN(13–15) = −GRA₂; PHIN(25/28/31) = atan(0.8) − GRA₂, (26/29/32) = atan(−0.4) − GRA₂, (27/30/33) = −GRA₂. | §1.2. The manual's own level and tail-down rows prove the convention; the ground-roll rows violate it. |
-| **GF-2** | **Fix site is the PHIM/PHIN tables only** ([landing.py:471–490](../../sloads/modules/landing.py)). `_geometry`, `beta`, and the p230-locked AP/BP/DP/CP lever arms are untouched; every primed (ground-line) quantity is untouched. | The lever arms and the primed set are oracle-locked and *correct* — the ground-line equilibrium closes (NVP identities). Only the frame resolution is wrong. Smallest true fix site. |
+| **GF-2** | **REFUTED 2026-08-28 (§1.9) — superseded; the fix site reaches the p230-locked ground-roll lever arms, per-arm scope open at OQ-5.** ~~Fix site is the PHIM/PHIN tables only~~ ([landing.py:471–490](../../sloads/modules/landing.py)). `_geometry`, `beta`, and the p230-locked AP/BP/DP/CP lever arms are untouched; every primed (ground-line) quantity is untouched. | The lever arms and the primed set are oracle-locked and *correct* — the ground-line equilibrium closes (NVP identities). Only the frame resolution is wrong. Smallest true fix site. |
 | **GF-3** | **This is an approved oracle deviation**: an entry in [`../20_theory/02_approved_corrections.md`](../20_theory/02_approved_corrections.md) recording the printed p232 values deviated from (43.387 / −17.079 / +4.724 and the vm/dm rows of §1.3, **plus the ND/NR cells of the lift-carrying cases per §1.6** — case 1: ND 0.679 → 0.585, NR 3.287 → 3.269) and the corrected expectations, owner-approved in the PR. The p232 **level and tail-down force** rows, which are correct, become new oracle locks (±0.1 %); the wheels-only **NR** values lock as printed (frame-invariant, §1.6). The entry **supersedes the register's "Considered and declined" decision of 2026-08-15** on the same question (§1.2): the declined entry is converted in place (declined → approved deviation, with the new evidence and a pointer to this note), and its pin test `test_the_ground_roll_attitude_is_resolved_against_the_other_sign` is flipped to pin ρ = −GRA on every attitude, never deleted. | The register is the process for departing from a printed oracle (`CLAUDE.md` §Math fidelity). Locking the rows that are right while deviating from the rows that are wrong is exactly what the register exists to state — and the declined entry's own text names this note's evidence as its reopening condition. |
 | **GF-4** | **ρ gets an absolute gate**: `ground_rotation_deg(case) == −GRA(attitude of case)` for every case, against `ground_angles` directly, exact (1e-9), all bundled examples. The gate's docstring states its assumption: the nose-up sense of GRA (§1.2's proof) was derived on **tricycle geometry**, the only arrangement the suite models — a tail-wheel configuration would re-open the sign derivation, not inherit it. | §1.4 — the existing G-6 gate is self-consistent and structurally cannot catch a sign error. This converts the documented anomaly in `gear_loads.py:224–229` from prose into an assertion (practice 3), and that prose is rewritten to describe history, not behaviour. |
 | **GF-5** | **Downstream re-verification rides the existing CI gates**: the assembled ground cases re-close in six DOF from the corrected reactions; the sbeam round-trip stays green; the gear reference-point loads **and the patch-to-trunnion transfer couples** move with `vm/dm` (§1.6 — the couple is derived from the force, so it co-corrects with no additional code). No consumer needs code changes. | The consumers were built to trust `vm/dm`; correcting the producer corrects them all. G-7a is untouched (§1.4); the application-point chain itself is verified sound (§1.7). |
