@@ -307,9 +307,16 @@ def test_the_frames_differ_by_the_amounts_the_design_note_measured():
     """The two G-12 figures, asserted so the frame choice cannot silently invert.
 
     ga6 case 1 drag: **1,020 lb ground-line against 795 lb airplane-datum**
-    (-22 %). The side family: **0 lb ground-line drag against 186 lb** in the
+    (-22 %). The side family: **0 lb ground-line drag against -186 lb** in the
     airplane datum. If these ever swap, a deck is applying the gear reaction in
     the wrong frame -- which parses, solves, and is wrong by a fifth.
+
+    The side value is **negative** -- the body-frame drag acts *forward* -- and
+    that sign is the whole physical claim of design note 38's GF-1: the
+    ground-line load there is purely normal, so the entire body-frame drag
+    component *is* the rotation. It read +186 until 2026-08-29 (approved
+    deviation, register ``02_approved_corrections.md``); nose-up geometry demands
+    forward, and aft was the wrong-signed ``BETA(2)`` showing through.
     """
     cases = {c.case: c for c in gear_case_loads(_project("ga6_normal.project.json"))}
     level = next(leg for leg in cases[1].legs if leg.leg == MAIN)
@@ -317,7 +324,7 @@ def test_the_frames_differ_by_the_amounts_the_design_note_measured():
     assert math.isclose(level.airplane[0], 795.2, abs_tol=0.5)
     side = next(leg for leg in cases[19].legs if leg.leg == MAIN)
     assert side.ground_line[1] == 0.0
-    assert math.isclose(side.airplane[0], 186.2, abs_tol=0.5)
+    assert math.isclose(side.airplane[0], -186.2, abs_tol=0.5)
 
 
 def test_the_leg_inertia_is_stated_or_blank_and_never_guessed():
@@ -571,7 +578,7 @@ def test_the_ground_closure_reproduces_landloads_unbalanced_moments(example):
     * ``YAWP = +-0.83 W x BP`` is built on ``BP``, an **axle** arm resolved
       through ``BETA``, so the yaw line is compared in the case's own ``rho``.
 
-    For every attitude but one those are the same frame, because ``rho == -GRA``.
+    Those are the same frame in every attitude, because ``rho == -GRA``.
     In the ground-roll attitude they differ by ``2 x GRA(2)`` -- 9.45 deg on
     ``ga6_normal`` -- because ``LANDLOAD.BAS`` resolves that attitude at
     ``PHIM = +BETA(2)`` where the level and tail-down attitudes use
@@ -698,36 +705,34 @@ def test_the_rotational_gates_two_departures_are_not_no_ops():
 
 
 @pytest.mark.parametrize("example", sorted(_WITH_GEAR))
-def test_the_ground_roll_attitude_is_resolved_against_the_other_sign(example):
-    """``rho == -GRA`` in every attitude but the ground-roll one, where it is ``+GRA``.
+def test_rho_is_minus_the_ground_angle_in_every_attitude(example):
+    """``rho == -GRA(attitude)``, exactly, on every case of every gear fixture.
 
-    The statement of record for what G-6's rotational gate found (R6-T1), pinned
-    on every gear fixture rather than left in a docstring. ``rho`` is the angle
-    the reaction is rotated through to reach airplane axes, recovered from the
-    case's own two resolutions; ``GRA`` is the angle of the line the tyres stand
-    on. They are the same rotation seen from the two ends, so ``rho = -GRA`` --
-    and it is, in the level attitude (``PHIM = GAMMA - BETA(1)``) and the
-    tail-down one (``PHIM = -BETA(3)``), on all five fixtures. The ground-roll
-    attitude uses ``PHIM = +BETA(2)`` (``LANDLOAD.BAS``: ``L=13 TO 18:
-    PHIM(L)=ATN(.8)*57.3+BETA(2)``, ``L=19 TO 24: PHIM(L)=BETA(2)``), which is
-    the other sign.
+    ``rho`` is the angle the reaction is rotated through to reach airplane axes,
+    recovered from the case's own two resolutions; ``GRA`` is the angle of the
+    line the tyres stand on. They are the same rotation seen from the two ends,
+    so ``rho = -GRA`` -- in every attitude, with no exception.
 
-    The port is faithful to the BASIC on both, so this is not a defect in the
-    replication and nothing here is "fixed" -- it is recorded, with its
-    consequence measured: on ``ga6_normal`` the 23.485 family's own ``ROLLP`` and
-    ``YAWP`` cannot both be reproduced by any single rigid rotation, because they
-    are stated 2 x GRA(2) = 9.45 deg apart. On an airplane that sits level
-    (``GRA(2) = 0``: the regional jet and both twins) the two signs coincide and
-    the question does not arise, which is why only ``ga6_normal`` and the Cessna
-    can see it at all.
+    **This test was flipped, not written, on 2026-08-29** (design note 38 GF-4).
+    It previously asserted the opposite for the ground-roll attitude, under the
+    name ``test_the_ground_roll_attitude_is_resolved_against_the_other_sign``,
+    and recorded a decision of 2026-08-15 to keep the manual's convention as a
+    faithful replication. That decision's own text named legible printed output
+    as the condition under which it would resume; Appendix A's braked-roll
+    construction figure (p235) is that output, and it prints lever arms of
+    77.052 / 17.760 / 94.811 where the p230 *table* -- program output -- prints
+    69.886 / 23.260 / 93.147. ``LANDLOAD.BAS`` carries the wrong sign in
+    ``BETA(2)``/``BETA(3)``; attitude 3 negates it back at both its use sites and
+    so came out right, attitude 2 at neither. The register entry that supersedes
+    the declined one is in ``docs/20_theory/02_approved_corrections.md``.
 
-    **Decision of record (user, 2026-08-15): keep the manual's convention -- this
-    is a faithful replication.** No deviation is taken, so this test asserts the
-    manual's own signs, ``+GRA`` on the ground-roll attitude included, and is the
-    thing that goes red if either ever moves. The reasoning, the exposure and the
-    conditions under which the question would resume are recorded under
-    "Considered and declined" in ``docs/20_theory/02_approved_corrections.md``,
-    which is the register the oracle-deviation policy points at.
+    Why this gate exists at all rather than G-6: G-6 recovers its reference from
+    the very resolutions it checks, so it is self-consistent by construction and
+    structurally cannot see a sign error. This one goes to ``ground_angles``
+    directly. Its assumption, stated so it is not inherited silently: the
+    nose-up sense of ``GRA`` is derived on **tricycle** geometry, the only
+    arrangement the suite models -- a tail-wheel configuration would re-open the
+    derivation, not inherit it.
     """
     project = _project(example)
     gra = ground_angles(project.landing, gear_geometry(project))
@@ -738,7 +743,7 @@ def test_the_ground_roll_attitude_is_resolved_against_the_other_sign(example):
             continue
         attitude = attitude_of(gear.case)[1]
         rho = ground_rotation_deg(gear)
-        want = gra[attitude] if attitude == 1 else -gra[attitude]
+        want = -gra[attitude]
         assert math.isclose(rho, want, rel_tol=1e-9, abs_tol=1e-9), (
             f"{example} case {gear.case}: rho {rho} against GRA {gra[attitude]}")
         seen.add(attitude)
@@ -1052,18 +1057,25 @@ def test_the_si_channel_states_si_units_and_converted_values():
 _WORKED_EXAMPLE = {
     4: dict(label="2-wheel level landing (nose clear)", weight_lb=3230.0,
             rho=-4.057, gear_fx=2042.3, gear_fz=8240.1, lift_lb=2154.4,
-            lift_fx=-152.4, fx=1889.9, fz=10389.1, my=-179232.0,
+            lift_fx=-152.4, fx=1889.9, fz=10389.1, my=-179232.1,
             nz=3.2165, nx=0.5851, ny=0.0, q_dot=-1.925e-2,
             nvp=3.1670, ndp=0.8112, lift_my=9787.0, lift_pct=1.360),
+    # Cases 13 and 19 moved on 2026-08-29 with the BETA(2) correction (design
+    # note 38 GF-1/GF-2', register 02_approved_corrections.md). The headline is
+    # ``my``: case 13's pre-closure residual pitching moment falls from -757.1
+    # to **-0.7 lb-in**, and its q_dot from -8.0e-5 to -7.4e-8. That is the
+    # independent confirmation of the correction -- the residual is measured
+    # against LANDLOAD's own unbalanced moments, not against anything the fix
+    # touches, and the wrong-signed lever arms were what it had been reading.
     13: dict(label="braked roll (nose down)", weight_lb=3400.0,
-             rho=4.724, gear_fx=2611.5, gear_fz=4321.6, lift_lb=0.0,
-             lift_fx=0.0, fx=2611.5, fz=4321.6, my=-757.1,
-             nz=1.2711, nx=0.7681, ny=0.0, q_dot=-8.016e-5,
-             nvp=1.3300, ndp=0.6608, lift_my=0.0, lift_pct=0.0),
+             rho=-4.724, gear_fx=2038.5, gear_fz=4705.9, lift_lb=0.0,
+             lift_fx=0.0, fx=2038.5, fz=4705.9, my=-0.7,
+             nz=1.3841, nx=0.5996, ny=0.0, q_dot=-7.445e-8,
+             nvp=1.3300, ndp=0.7115, lift_my=0.0, lift_pct=0.0),
     19: dict(label="side load", weight_lb=3400.0,
-             rho=4.724, gear_fx=372.4, gear_fz=4506.6, lift_lb=0.0,
-             lift_fx=0.0, fx=372.4, fz=4506.6, my=-70654.5,
-             nz=1.3255, nx=0.1095, ny=-0.8300, q_dot=-7.481e-3,
+             rho=-4.724, gear_fx=-372.4, gear_fz=4506.6, lift_lb=0.0,
+             lift_fx=0.0, fx=-372.4, fz=4506.6, my=-39838.1,
+             nz=1.3255, nx=-0.1095, ny=-0.8300, q_dot=-4.218e-3,
              nvp=1.3300, ndp=0.0, lift_my=0.0, lift_pct=0.0),
 }
 
@@ -1180,8 +1192,12 @@ def test_the_worked_examples_contact_patch_is_where_the_prose_says():
     # 23.485 family's side load is split across the pair by G-8's own rule.
     main = [ld for ld in case.loads if ld.source == "gear-main"]
     assert len(main) == 2
-    assert math.isclose(main[0].fz, 1307.0, abs_tol=0.5)
-    assert math.isclose(main[0].fx, 1235.0, abs_tol=0.5)
+    # Case 13's airplane-datum pair. p232 prints 1307 / 1235; these are the
+    # approved-deviation values (design note 38 GF-1/GF-2', 2026-08-29 --
+    # register 02_approved_corrections.md), the same resultant resolved through
+    # the corrected PHIM = atan(0.8) - GRA(2) = 33.936 deg rather than 43.387.
+    assert math.isclose(main[0].fz, 1606.5, abs_tol=0.5)
+    assert math.isclose(main[0].fx, 1081.0, abs_tol=0.5)
     side = next(c for c in build_balanced_cases(project)
                 if is_ground(c) and c.vn_case == 19)
     side_main = [ld for ld in side.loads if ld.source == "gear-main"]

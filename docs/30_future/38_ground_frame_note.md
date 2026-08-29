@@ -2,52 +2,33 @@
 
 **Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6)*
 
-**Status: AGREED on GF-1/GF-2′; GF-3′ WITHDRAWN 2026-08-28 and the note is
-AWAITING RE-AGREEMENT on the deviation surface (§1.11). A 2026-08-29 reading of
-the newly legible p232 force cells as *refuting* GF-1 was withdrawn the same day
-(§1.12) — the manual derives those cells from the angle they were taken to
-test — but that reading's byproduct, the first transcribed p231/p232 cells,
-is what GF-3″ was blocked on. **§1.13 (2026-08-29) then closed §1.11's open
-finding** — p231/p232/p233 are fully transcribed and locked, so GF-3″'s
-deviated-from set is executable — and found a **third instance** of the §4 class
-in p233's datum-moment transform, which rotates `+GRA` on *every* attitude.
-GF-1 stands on the tail-down row, which fixes the sense with no appeal to
-consistency; the open question is now whether GF-1 and GF-2′ are priced
-together, since only GF-2′ costs the p231/p233 agreements. **GF-3″ is DRAFTED (§5, 2026-08-29)** with the whole surface transcribed and priced; it awaits the owner's ruling on which of GF-1 / GF-2′ is approved. **§1.15 (2026-08-29) then closed the sign question from the
-manual's own construction figures**: p234 states the rule (`BETA = GAMMA − GRD ANGLE`, arms axle-to-axle
-normal to the resultant) and p235 prints braked-roll arms of 77.052 / 17.760 / 94.811 against the p230
-table's 69.886 / 23.260 / 93.147 — reproduced exactly by flipping `beta[1]`. GF-1 and GF-2′ are **one
-defect at one line**; positive ground angle is **nose up**; §1.10's DP argument is withdrawn though its
-conclusion held; and GF-3″ becomes a figure-versus-program record rather than an oracle deviation.** GF-3′ was agreed on a
-scope that understated the deviation — it named the p230 arm table, and the
-correction in fact moves printed **p231 ground-line reactions** by up to 40 %
-(§1.11). The owner stopped implementation at that measurement rather than
-proceed. **Nothing is built**: the GF-1/GF-2′ code and the GF-4 gate were
-written, measured, and reverted. The note was reopened the same day when the GF-2 fix
-site failed an existing closure gate (§1.8), then re-adjudicated from the
-Appendix C listing: GF-1 is confirmed from a second, independent direction,
-GF-2 is refuted and replaced by **GF-2′** (five tables, one sign — the
-ground-roll lever arms move with the resolution), and GF-3 grows into **GF-3′**
-(the deviation reaches the printed p230 arm row, where `DP` states a wheelbase
-of 93.147 between contact points that are 94.811 apart). §1.8–§1.10 carry the
-evidence and supersede §1.4.
-Milestone 0.8.1 (re-milestoned 2026-08-28 when the patch band opened ahead of
-0.9.0 — backlog re-cut 2026-08-28, ruling 1). Nothing built; the GF-1/GF-2 code
-change was written, measured against the gates, and reverted. GF-6/GF-7 (the
-reporting item, #134) are untouched by the reopening but are blocked behind it
-by GF-6's own ordering condition.** Proposed and amended the
-same day after the owner-directed Appendix C `.BAS` verification: GF-1 confirmed
-at source level, OQ-1 resolved (revealing a second instance of the sign error,
-§1.6), the application-point audit folded into GF-6, the flight-side α/β sweep
-rows added at the owner's direction. Raised from the
-owner's review of the ground/landing reference frames (in session, 2026-08-28),
-aimed at the 2-point braked roll. Two deliverables share this note because they
-share their machinery: **(a)** a first-order defect in the airplane-datum
-resolution of every attitude-1 ground case, inherited from LANDLOAD.BAS and
-adjudicated here against the manual's own printed output; **(b)** the
-dual-frame reporting the original program ships and the replication does not —
-the p231/p232 pair of tables, the per-case fuselage-axis angle, and the
-airplane-datum load factors.
+**Status: AGREED — GF-1 and GF-2′ approved by the owner 2026-08-29, GF-3″ with
+them.** The sign question is closed by the manual's own construction figures
+(§1.15): p234 states the rule (`BETA = GAMMA − GRD ANGLE`, arms axle-to-axle
+normal to the resultant) and p235 prints braked-roll arms of 77.052 / 17.760 /
+94.811 where the p230 table prints 69.886 / 23.260 / 93.147 — reproduced exactly
+by flipping `beta[1]`. **GF-1 and GF-2′ are one defect at one line**
+(`landing.py:229`), positive ground angle is **nose up**, and GF-3″ records that
+the replication follows the manual's figure over the manual's program rather
+than deviating from a printed oracle.
+
+*History of the adjudication, kept because most of it was wrong at least once:*
+GF-3′ was withdrawn 2026-08-28 for understating the deviation surface (§1.11).
+A 2026-08-29 reading of the newly legible p232 force cells as *refuting* GF-1 was
+withdrawn the same day (§1.12) — the manual derives those cells from the angle
+they were taken to test. §1.13 then closed §1.11's oracle-coverage hole (p231,
+p232 and p233 fully transcribed and locked) and found a **third instance** of the
+§4 class in p233's datum-moment transform. §1.14 recorded the owner's ruling on
+the #134 deliverable. §1.15 closed the question and **withdrew §1.10's `DP`
+argument**, whose conclusion held for a reason it did not give. GF-2 (PHIM-only
+fix site) remains refuted (§1.9), which §1.15 explains: it left the other use
+site reading the same wrong `beta`.
+
+Deliverables: **(a)** the defect — every attitude-1 ground case resolves and is
+levered off the wrong-signed `beta`, and the exported ground FORCE cards and gear
+reference-point loads carry it; **(b)** the dual-frame reporting the original
+ships and the replication does not, scope ruled at §1.14 (#134, GF-6/GF-7, still
+ordered behind (a)).
 
 **Scope.** LANDLOAD computes every ground reaction in the **ground line** frame
 (perpendicular/parallel to the ground through the contact patches) and then
@@ -71,7 +52,9 @@ DENOTED BY P (PRIME)", with its per-family FUSELAGE AXIS ANGLE column) and
 **p232** ("VALUES ARE WITH RESPECT TO AIRPLANE DATUM", with PHIN/PHIM and
 NR/NV/ND) — the p231–233 scan is OCR-garbled as text (recorded in
 `tests/test_landing.py`) but reads cleanly rendered at 200 dpi, which is what
-unlocked p232 for this note; Appendix C **LANDLOAD.BAS listing** (scan
+unlocked p232 for this note; **p234** ("3 WHEEL LEVEL LANDING") and **p235** ("BRAKED ROLL") — the two
+construction figures that state the lever-arm rule and settle the sign (§1.15);
+**p233** ("LIMIT UNBALANCED MOMENTS", both frames, §1.13); Appendix C **LANDLOAD.BAS listing** (scan
 pp. 343/347 — the BETA/PHIM/PHIN assignments and the NV/ND datum-factor
 equations, quoted in §1.1/§1.5). Code: `sloads/modules/landing.py` (`_geometry`,
 `ground_angles`, `landing_reactions` PHIM/PHIN at :469–494, `_case_values`,
@@ -877,7 +860,7 @@ derive from it still move, in the amounts §5 tabulates.
 | **GF-3** | **This is an approved oracle deviation**: an entry in [`../20_theory/02_approved_corrections.md`](../20_theory/02_approved_corrections.md) recording the printed p232 values deviated from (43.387 / −17.079 / +4.724 and the vm/dm rows of §1.3, **plus the ND/NR cells of the lift-carrying cases per §1.6** — case 1: ND 0.679 → 0.585, NR 3.287 → 3.269) and the corrected expectations, owner-approved in the PR. The p232 **level and tail-down force** rows, which are correct, become new oracle locks (±0.1 %); the wheels-only **NR** values lock as printed (frame-invariant, §1.6). The entry **supersedes the register's "Considered and declined" decision of 2026-08-15** on the same question (§1.2): the declined entry is converted in place (declined → approved deviation, with the new evidence and a pointer to this note), and its pin test `test_the_ground_roll_attitude_is_resolved_against_the_other_sign` is flipped to pin ρ = −GRA on every attitude, never deleted. | The register is the process for departing from a printed oracle (`CLAUDE.md` §Math fidelity). Locking the rows that are right while deviating from the rows that are wrong is exactly what the register exists to state — and the declined entry's own text names this note's evidence as its reopening condition. |
 | **GF-4** | **ρ gets an absolute gate**: `ground_rotation_deg(case) == −GRA(attitude of case)` for every case, against `ground_angles` directly, exact (1e-9), all bundled examples. The gate's docstring states its assumption: the nose-up sense of GRA (§1.2's proof) was derived on **tricycle geometry**, the only arrangement the suite models — a tail-wheel configuration would re-open the sign derivation, not inherit it. | §1.4 — the existing G-6 gate is self-consistent and structurally cannot catch a sign error. This converts the documented anomaly in `gear_loads.py:224–229` from prose into an assertion (practice 3), and that prose is rewritten to describe history, not behaviour. |
 | **GF-5** | **Downstream re-verification rides the existing CI gates**: the assembled ground cases re-close in six DOF from the corrected reactions; the sbeam round-trip stays green; the gear reference-point loads **and the patch-to-trunnion transfer couples** move with `vm/dm` (§1.6 — the couple is derived from the force, so it co-corrects with no additional code). No consumer needs code changes. | The consumers were built to trust `vm/dm`; correcting the producer corrects them all. G-7a is untouched (§1.4); the application-point chain itself is verified sound (§1.7). |
-| **GF-6** *(scope set by the owner 2026-08-29 — §1.14)* | **The delivered landing load is a body-frame force with a stated point of application, for every gear on every case.** Per case, per leg — **nose, left main, right main, all three always present, zeros included** — `run()` emits the signed body components **`Fx, Fy, Fz`** and the **location `x, y, z`** of that force, plus the strut state and reference node. The point is the manual's own printed column, not an inference: **axle centre** for cases 1–12, **ground contact point** for 13–24, **CL axle** for 25/26, 28/29, 31/32 and **ground contact point** for 27, 30, 33 (p231/p232/p233, §1.14). Also emitted: the fuselage-axis angle (units `deg`, never SF-scaled) and the NR/NV/ND datum factors per OQ-1's resolved formula **with the lift term's corrected sign** (§1.6). **The ground-line (primed) set stays in the text/report output and is excluded from the CSV** — the CSV is the body-frame deliverable. Lands **with or after GF-1** — never before, so the wrong-sign numbers are never promoted into the deliverable (owner confirmed 2026-08-29 that this item waits). | §1.5, §1.14. The replication's deliverable is thinner than the 1990 printout it replicates; M4-17e closed that gap for the primed set and stopped there. A stress model consumes a force and a point; a magnitude with an unnamed frame is not a load. Emitting all three legs on every case — rather than only the loaded ones — is what makes a case's free body readable without reconstructing which gear the family implies. |
+| **GF-6** *(scope set by the owner 2026-08-29 — §1.14)* | **The delivered landing load is a body-frame force with a stated point of application, for every gear on every case.** Per case, per leg — **nose, left main, right main, all three always present, zeros included** — `run()` emits the signed body components **`Fx, Fy, Fz`** and the **location `x, y, z`** of that force, plus the strut state and reference node. The point is the manual's own printed column, not an inference: **axle centre** for cases 1–12, **ground contact point** for 13–24, **CL axle** for 25/26, 28/29, 31/32 and **ground contact point** for 27, 30, 33 (p231/p232/p233, §1.14). Also emitted: the fuselage-axis angle (units `deg`, never SF-scaled) and the NR/NV/ND datum factors per OQ-1's resolved formula **with the lift term's corrected sign** (§1.6). **The ground-line (primed) set stays in the text/report output and is excluded from the CSV** — the CSV is the body-frame deliverable. Lands **with or after GF-1** — the condition is **discharged**: GF-1/GF-2′ landed 2026-08-29, so this item is unblocked and must be built on the corrected numbers, the contact-patch coordinates included (they are built from `GRA` and moved with it). | §1.5, §1.14. The replication's deliverable is thinner than the 1990 printout it replicates; M4-17e closed that gap for the primed set and stopped there. A stress model consumes a force and a point; a magnitude with an unnamed frame is not a load. Emitting all three legs on every case — rather than only the loaded ones — is what makes a case's free body readable without reconstructing which gear the family implies. |
 | **GF-7** | **Every reactions table names its frame, in both GUIs**, using the manual's own words — "with respect to ground line" / "with respect to airplane datum" — one caption owner in `app_shell` with a drift guard, not two prose copies. | §1.5 item 4; practice 3. The Oracle currently shows unlabeled ground-line numbers while the deck consumes body — a reader moving between them has no stated bridge. |
 | **GF-8** | **Split delivery: GF-1…GF-5 are the defect item (tier L); GF-6/GF-7 are the reporting item (tier M)**, ordered defect-first. | Rule 6: a first-order defect on shipped content outranks the fidelity item; and GF-6 must not ship the pre-fix numbers (GF-6's own condition). |
 
