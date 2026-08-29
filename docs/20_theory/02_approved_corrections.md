@@ -169,6 +169,73 @@ arrangement the suite models.
 Design note: [38](../30_future/38_ground_frame_note.md) §1.15 (AGREED
 2026-08-29), GF-1 / GF-2′ / GF-3″ / GF-4.
 
+### LANDLOAD's airplane-datum lift term and moment transform carry the same wrong sign *(approved 2026-08-29, issue #134)*
+
+**The same error, in the two places the #133 entry could not reach**, because
+neither quantity was in sloads until GF-6 built it. Both are the *airplane-datum*
+half of the printout, and both write the ground angle out longhand where the
+physics wants a rotation:
+
+```basic
+FOR L=1 TO 6:   ND(L) = LF*SIN(GRA(1)/57.3) + (DN(L)+2*DM(L))/WL(L)
+FOR L=10 TO 12: ND(L) = LF*SIN(GRA(1)/57.3) + DM(L)/WL(L)
+RMOM = RMOMP*COS(GA) + YMOMP*SIN(GA)
+YMOM = YMOMP*COS(GA) - RMOMP*SIN(GA)
+```
+
+**What is wrong.** The wing lift in a landing attitude is perpendicular to the
+flight path: it is a **ground-line vertical**, and it enters the airplane's own
+axes tilted by the same `ρ` every gear reaction is tilted by. With `ρ = −GRA`
+(the #133 entry above, approved the same day) its body drag component points
+**forward**, as sloads' own assembled deck has always applied it
+(`balance.py`, G-7a). `+LF·SIN(GRA)` puts it aft. The `RMOM`/`YMOM` transform is
+the same statement about a moment vector: a clean rotation of **+GRA**, on every
+attitude, where the force rows rotate by −GRA. A moment vector and a force vector
+rotate identically under one change of frame, so the two cannot both be right.
+
+**What sloads does instead.** Neither quantity restates a sign. `NV`/`ND` take
+the lift as `frames.to_airplane_datum(LF, 0, ρ)` and the datum moments as
+`frames.to_airplane_datum(YAWP, ROLLP, ρ)` — the rotation applied through the
+case's own measured `ρ` (`frames.rotation_deg`, taken from the case's two
+resolutions of one reaction). The corrected value is what a rotation gives; there
+is no second place where a `+` could be typed for a `−`.
+
+**Why it is believed, beyond the #133 argument it inherits.** Three checks the
+correction did not aim at, and passes:
+
+* **The tail-down family is unaffected — and the `.BAS` already agrees there.**
+  Its line reads `−LF*SIN(GRA(3))`, which is exactly what the rotation gives, so
+  cases 7–9 reproduce **all three printed cells exactly** (3.167 / 3.059 /
+  −0.820). The manual is internally inconsistent, and one of its attitudes is
+  right.
+* **`NV` does not move on cases 1–12.** The vertical term is a cosine, which is
+  even: a sign correction in the drag term cannot touch it, and it does not
+  (printed 3.216, sloads 3.216).
+* **`NR` is frame-invariant on the wheels-only families and stays printed.**
+  Cases 16–18 keep 1.703 and 19–24 keep 1.330 to the printed digit while `NV`/`ND`
+  move (1.238/1.170 → 1.413/0.951) — a rotation preserves a resultant, so a
+  correction that broke this would be the wrong correction. The datum moments
+  carry the same invariance: `|(ROLL, YAW)|` is preserved and `PITCH` does not
+  move at all, which is the manual's own `PMOM = PMOMP`.
+
+**Cells deviated from.** p232's NR/ND on cases 1–6 and 10–12 (the lift term
+alone: 3.287/0.679 → 3.269/0.585 on case 1) and NR/NV/ND on 13–24 (those follow
+their own force cells, already deviated under #133). p233's `RMOM`/`YMOM` on
+every case with a rolling or yawing moment — 10–12 and 19–24. **No printed cell
+is unlocked and the count does not fall**: the 72 factor cells join the page
+locks in `test_landing.py` (`_P232_FACTORS`, deviations in
+`_CORRECTED["p232_factors"]`, each derived from *this page's own force cells* by
+the printed loops with the one substitution, never from the module under test).
+
+Gates: `tests/test_landing.py::test_landload_p232_airplane_datum_load_factors`;
+`tests/test_landing_deliverable.py` —
+`test_the_datum_load_factors_are_the_printed_formula_on_the_printed_page`,
+`test_case_1_and_case_16_lock_at_the_ruled_numbers`,
+`test_the_datum_moments_are_a_rotation_of_the_printed_ground_line_ones`.
+
+Design note: [38](../30_future/38_ground_frame_note.md) §1.6 (OQ-1) and §1.13,
+GF-6; the disposition §5.4 recommended — registered with the item that built it.
+
 ---
 
 ## Withdrawn from scope

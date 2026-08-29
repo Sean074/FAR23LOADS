@@ -18,6 +18,7 @@ from typing import Callable, Dict, List, Optional
 
 from ..case_ids import NO_LOAD_ID, deck_load_id
 from ..constants import ULTIMATE_FACTOR
+from ..frames import is_report_only
 from ..load_keys import (
     FX_THRUST,
     FY_SIDE,
@@ -159,11 +160,21 @@ def results_to_rows(results: List[ConditionResult]) -> List[Dict[str, str]]:
     of carrying the load-case table's blank ID / Component / CG / Speed /
     Altitude / SF columns -- and a module whose conditions do carry case
     identity keeps exactly the columns its data fills.
+
+    **Frame floor (design note 38 GF-6):** a value stated in the ground-line
+    frame is the manual's analysis view, not a delivered load, and is dropped
+    here -- :func:`sloads.frames.is_report_only` is the one rule. This is the
+    **only** channel that drops it: :func:`module_text_report` renders
+    ``r.values`` whole, so the primed set stays in the text report beside the
+    body-frame deliverable rather than disappearing from the suite. A value with
+    no frame (a sink rate, a load factor, a ground angle) is delivered as before.
     """
     rows: List[Dict[str, str]] = []
     for r in results:
         ref = r.case_ref
         for v in r.values:
+            if is_report_only(v.frame):
+                continue
             is_load = _is_load_unit(v.units, v.quantity)
             value = v.value * r.safety_factor if is_load else v.value
             rows.append(

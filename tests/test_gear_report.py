@@ -58,14 +58,11 @@ from sloads.gear_loads import (
     attitude_of,
     gear_case_loads,
     ground_rotation_deg,
-    to_ground_line,
     transfer_couple,
 )
+from sloads.frames import to_ground_line
 from sloads.models import MissingInputError
 from sloads.modules.balance import (
-    GROUND_LIFT_CASES,
-    GROUND_ONE_WHEEL_CASES,
-    GROUND_SIDE_CASES,
     build_balanced_cases,
     is_ground,
     resultant6,
@@ -76,6 +73,9 @@ from sloads.modules.balance import (
 # computed at. Reaching for it is the alternative to keeping a second copy of that
 # resolution beside the test.
 from sloads.modules.landing import (
+    GROUND_LIFT_CASES,
+    GROUND_ONE_WHEEL_CASES,
+    GROUND_SIDE_CASES,
     build_landing,
     gear_geometry,
     ground_angles,

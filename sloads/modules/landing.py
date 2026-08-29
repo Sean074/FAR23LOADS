@@ -53,12 +53,19 @@ p230 (K 0.324 / GAMMA 17.978 / the AP-BP-DP-CP lever-arm table).
 from __future__ import annotations
 
 import math
-from typing import List, NamedTuple, Optional, Tuple
+from typing import TYPE_CHECKING, List, NamedTuple, Optional, Sequence, Tuple
 
 from ..basic import basic_trunc3
 from ..case_ids import CaseIdAllocator
 from ..cg_cases import landing_role_cases, max_landing_weight, max_takeoff_weight
 from ..constants import FAR23_473G_N_FLOOR, FAR23_473G_NLG_FLOOR, IN_PER_FT, G
+from ..frames import (
+    AIRPLANE_DATUM,
+    GROUND_LINE,
+    caption,
+    rotation_deg,
+    to_airplane_datum,
+)
 from ..models import (
     STRUT_TYPES,
     CaseRef,
@@ -75,6 +82,9 @@ from ..models import (
 )
 from ..picks import extreme
 from ..registry import register
+
+if TYPE_CHECKING:            # pragma: no cover - typing only
+    from ..gear_loads import DeliveredLeg
 
 MODULE_NAME = "landing"
 
@@ -317,6 +327,87 @@ _MAIN_FAMILIES = {
 _NOSE_FAMILY = ("supplementary nose-wheel", "23.499")
 
 
+#: The LANDLOAD case families, as ranges over the manual's own 1..33 numbering.
+#: They live here because this module *is* the case numbering -- ``_family``,
+#: ``_loading_index`` and the reaction loops below draw exactly these lines, and
+#: the ``lf*WL`` term in ``nvp`` is applied to precisely
+#: :data:`GROUND_LIFT_CASES`. They used to be declared in ``modules/balance.py``,
+#: beside the deck that consumes them and away from the code that draws them
+#: (design note 38 GF-6, #134: the datum load factors need the lift split, and a
+#: second copy of it in this file would have been the drift practice 3 forbids).
+#: ``balance`` and ``gear_loads`` import them from here.
+
+#: The families that carry wing lift: 23.479/481/483 (the airplane is still
+#: flying). **The regulation draws the same line** -- 23.473(a) lets these be met
+#: at the design landing weight, which is why LANDLOAD scales them differently
+#: from the gross-weight 23.485/23.493 families. The family split, the lift split
+#: and the weight split are one split.
+GROUND_LIFT_CASES = range(1, 13)
+
+#: The 23.483 one-wheel family: a single main gear carries the whole reaction, so
+#: the case has a hand and LANDLOAD supplies **neither** twin (there is no sign
+#: flip anywhere in cases 10-12 -- they are the three loadings, one hand each).
+GROUND_ONE_WHEEL_CASES = range(10, 13)
+
+#: The 23.485 side family: three loadings x **two drift directions**, so LANDLOAD
+#: supplies **both** hands. Only the odd member of each pair is assembled and the
+#: even one becomes an independent check on the reflection operator (G-8).
+GROUND_SIDE_CASES = range(19, 25)
+
+#: The ground families the assembled deck carries: 1-24. The 23.499 supplementary
+#: nose-wheel family (25-33) is deliberately absent -- it is a gear-design case
+#: with no airplane in equilibrium (``balance.SKIP_REASONS``' ``gear-design-only``),
+#: which is also why it carries no datum load factors.
+BALANCED_GROUND_CASES = range(1, 25)
+
+
+#: Which strut state and which ground angle each LANDLOAD case is computed at
+#: (G-12), beside the rest of the case-family knowledge it belongs with. It
+#: lived in ``gear_loads`` until design note 38 GF-6 (#134), which needs the
+#: attitude here to state p231's FUSELAGE AXIS ANGLE per case.
+#: ``(strut state, ground-angle index)`` where the index is into
+#: :func:`ground_angles`' ``(level, ground-roll, tail-down)``. Cases 1-12 are
+#: the landing attitudes and use the **compressed**
+#: axle; 13-33 are the handling ones and use the **static** axle -- the manual's
+#: own split, followed rather than re-decided.
+_ATTITUDES: Tuple[Tuple[range, str, int], ...] = (
+    (range(1, 7), "compressed", 0),      # level 3-/2-wheel
+    (range(7, 10), "compressed", 2),     # tail-down
+    (range(10, 13), "compressed", 0),    # one-wheel
+    (range(13, 34), "static", 1),        # braked roll, side, supplementary nose
+)
+
+
+def attitude_of(case: int) -> Tuple[str, int]:
+    """``(strut state, ground-angle index)`` for LANDLOAD case number ``case``.
+
+    Raises for a case outside 1-33 rather than defaulting: an unmapped case would
+    silently take the last attitude in the table, which is the class of error a
+    lookup with a fallback always produces.
+    """
+    for rng, state, gra_index in _ATTITUDES:
+        if case in rng:
+            return state, gra_index
+    raise ValueError(f"no ground attitude for LANDLOAD case {case!r} (expected 1-33)")
+
+
+def side_partner(case: int) -> Optional[int]:
+    """The other drift direction of a 23.485 pair, or ``None`` outside the family.
+
+    The pairs are ``(19, 20)``, ``(21, 22)``, ``(23, 24)`` -- three loadings x two
+    directions, so the partner of an odd member is the next case and of an even
+    member the previous one. LANDLOAD needs the pairing twice over: ``NNS`` is
+    ``(SMP - SMP_partner)/WL`` (the two wheels of one airplane carry *different*
+    side loads, 0.5 W inboard and 0.33 W outboard, acting the same way globally),
+    and the assembled deck reads the partner's ``SMP`` for its second wheel
+    rather than re-deriving the percentages. One owner, because ``case + 1`` is
+    right for half the family and wrong for the other half.
+    """
+    if case not in GROUND_SIDE_CASES:
+        return None
+    return case + 1 if case % 2 else case - 1
+
+
 def _family(case: int) -> Tuple[str, str]:
     for rng, fam in _MAIN_FAMILIES.items():
         if case in rng:
@@ -472,7 +563,9 @@ def landing_reactions(inp: LandingInput, gear: LandingGearGeometry,
     for m in range(13, 25):
         ndp[m] = (2 * dmp[m] + dnp[m]) / wl[m]
     ns = [0.0] * 25
-    for m, partner in ((19, 20), (20, 19), (21, 22), (22, 21), (23, 24), (24, 23)):
+    for m in GROUND_SIDE_CASES:
+        partner = side_partner(m)
+        assert partner is not None            # every side case has one
         ns[m] = (smp[m] - smp[partner]) / wl[m]
 
     # --- Unbalanced moments (ground line, about the airplane CG) ---------------
@@ -525,6 +618,64 @@ def landing_reactions(inp: LandingInput, gear: LandingGearGeometry,
     vn = [result[m] * math.cos(math.radians(phin[m])) for m in range(34)]
     dn = [result[m] * math.sin(math.radians(phin[m])) for m in range(34)]
 
+    # --- Airplane-datum load factors and moments (p232/p233; note 38 GF-6) ----
+    # ``rho``, the ground-line -> airplane-datum rotation, taken from each case's
+    # **own two resolutions** of one reaction rather than from ``GRA``
+    # (:func:`sloads.frames.rotation_deg`). Nothing below therefore restates a
+    # sign, which matters: the two sign errors design note 38 adjudicated (#133's
+    # PHIM and OQ-1's lift term) were both a ``GRA`` written out longhand with a
+    # ``+`` where the physics wanted a ``-``. The main pair resolves on every
+    # case 1-24; the 23.499 family (25-33) is nose-only, carries no airplane in
+    # equilibrium and so gets no datum factors at all -- as ``nvp``/``ndp`` do not.
+    rho = [0.0] * 25
+    for m in range(1, 25):
+        rho[m] = rotation_deg(vm[m], dm[m], vmp[m], dmp[m])
+
+    nv = [0.0] * 25
+    nd = [0.0] * 25
+    nr = [0.0] * 25
+    for m in range(1, 25):
+        # The main wheels the case puts on the ground. LANDLOAD.BAS writes the
+        # 23.483 family as ``VM(L)/WL(L)`` where every other line has ``2*VM(L)``
+        # -- one gear carries the whole reaction, which is the *definition* of
+        # the one-wheel condition rather than an exception to it.
+        mains = 1 if m in GROUND_ONE_WHEEL_CASES else 2
+        nv[m] = (vn[m] + mains * vm[m]) / wl[m]
+        nd[m] = (dn[m] + mains * dm[m]) / wl[m]
+    for m in GROUND_LIFT_CASES:
+        # G-7a / OQ-1: the lift is perpendicular to the flight path, so it is a
+        # ground-line **vertical**, and it enters the airplane's axes tilted by
+        # the same ``rho`` every reaction was tilted by. LANDLOAD.BAS writes the
+        # two components longhand as ``+LF*COS(GRA)`` and ``+LF*SIN(GRA)``, and
+        # the drag one carries the wrong sign -- the second instance of the #133
+        # class (design note 38 §1.6). Rotating the vector cannot carry that
+        # error: it is the corrected value by construction. The p232 cells this
+        # deviates from are registered in
+        # ``docs/20_theory/02_approved_corrections.md``.
+        lift_v, lift_d = to_airplane_datum(lf, 0.0, rho[m])
+        nv[m] += lift_v
+        nd[m] += lift_d
+    for m in range(1, 25):
+        nr[m] = (_sq(nv[m]) + _sq(nd[m])) ** 0.5
+    # ``NNS`` is not repeated in this frame: the side axis is normal to the
+    # rotation, so the ground-line and datum side factors are the same number.
+
+    # The same unbalanced moments in the airplane datum (p233's second table).
+    # A moment vector rotates exactly as a force vector does under the same
+    # change of frame, so this is ``to_airplane_datum`` again -- with the pairing
+    # ``v = YAW`` (yaw is about the vertical axis) and ``d = ROLL`` (roll is
+    # about the drag axis). The pitching moment is about the axis the rotation is
+    # taken around and is invariant, which is LANDLOAD.BAS's own ``PMOM =
+    # PMOMP``. Its ``RMOM``/``YMOM`` lines rotate the other way (+GRA) -- the
+    # third instance of the same sign class (note 38 §1.13), corrected here for
+    # the same reason and registered with the ND lift term.
+    pitch = [0.0] * 25
+    roll = [0.0] * 25
+    yaw = [0.0] * 25
+    for m in range(1, 25):
+        pitch[m] = pitchp[m]
+        yaw[m], roll[m] = to_airplane_datum(yawp[m], rollp[m], rho[m])
+
     # --- Assemble per-case records --------------------------------------------
     # LG- ids are minted here, in this loop's fixed 1..33 order (the manual's own
     # case numbering, unrelated to but reused for traceability in CaseRef.condition).
@@ -562,6 +713,16 @@ def landing_reactions(inp: LandingInput, gear: LandingGearGeometry,
             pitchp=pitchp[m] if m <= 24 else 0.0,
             rollp=rollp[m] if m <= 24 else 0.0,
             yawp=yawp[m] if m <= 24 else 0.0,
+            # p231's FUSELAGE AXIS ANGLE column: this case's attitude, stated
+            # per case rather than per family so a reader never has to know
+            # which family a case number belongs to.
+            fuselage_axis_angle_deg=geo.gra[attitude_of(m)[1]],
+            nr=nr[m] if m <= 24 else 0.0,
+            nv=nv[m] if m <= 24 else 0.0,
+            nd=nd[m] if m <= 24 else 0.0,
+            pitch=pitch[m] if m <= 24 else 0.0,
+            roll=roll[m] if m <= 24 else 0.0,
+            yaw=yaw[m] if m <= 24 else 0.0,
             case_ref=case_ref))
     return cases
 
@@ -749,35 +910,117 @@ def _critical(cases: List[GearReactionCase], far: str) -> Optional[GearReactionC
     return extreme(family, magnitude)
 
 
-def _case_values(c: GearReactionCase) -> List[LoadValue]:
-    """The per-case LoadValues for one LANDLOAD ground condition (M4-17e).
+def _case_values(c: GearReactionCase,
+                 legs: Sequence["DeliveredLeg"] = ()) -> List[LoadValue]:
+    """The per-case LoadValues for one LANDLOAD ground condition.
 
-    Forces (``lb``) and moments (``lb-in``) are load quantities: ``report.py`` marks
-    them ``lbs-ULT`` / ``lb-in-ULT`` and scales them by the case ``safety_factor``.
-    The ground-line inertia factors NVP/NDP/NS are **dimensionless** (units ``""``)
-    -- they are load *factors*, so per the CLAUDE.md ultimate-load rules they take no
-    ``-ULT`` marker, are never scaled, and render with a blank SF column.
+    Three sets, and the frame each is stated in is carried on the value itself
+    (:mod:`sloads.frames`, design note 38 GF-6/GF-7) rather than left to a column
+    header or a caption:
+
+    * **The delivered load** -- for each of the three wheels (nose, left main,
+      right main, in that order, *all three on every case*), the airplane-datum
+      force ``Fx, Fy, Fz``, the location ``x, y, z`` it acts at, and the gear
+      reference point it is delivered to. A wheel this case does not load is
+      emitted at **zero** rather than omitted: which gears a family lifts clear
+      is a fact about the case, and leaving it out makes the reader reconstruct
+      it. The point is the manual's own printed column, not an inference -- see
+      :func:`sloads.gear_loads.application_point_of` (design note 39).
+    * **The airplane-datum scalars** -- the ``NR``/``NV``/``ND`` load factors of
+      p232 and the unbalanced moments of p233's second table.
+    * **The ground-line ("prime") set** -- the frame the manual prints and a gear
+      engineer reads. Marked :data:`~sloads.frames.GROUND_LINE`, which keeps it
+      in the text report and out of the delivered CSV (GF-6): the CSV is the
+      body-frame deliverable, and the primed set is the analysis view beside it.
+
+    Forces (``lb``) and moments (``lb-in``) are load quantities: ``report.py``
+    marks them ``lbs-ULT`` / ``lb-in-ULT`` and scales them by the case
+    ``safety_factor``. Locations (``in``), the fuselage-axis angle (``deg``) and
+    the load factors (dimensionless) are **not** loads: they take no ``-ULT``
+    marker, are never scaled, and render with a blank SF column.
 
     Cases 25-33 are the 23.499 supplementary-nose family: they have no main-wheel
     reaction, no unbalanced moment and no inertia factor (all structurally zero in
-    ``landing_reactions``), so those rows are omitted rather than emitted as zeros.
+    ``landing_reactions``), so those *primed* rows are omitted rather than emitted
+    as zeros. The three-wheel delivered set is emitted for them like any other
+    case -- that is the point of it.
     """
-    nose = [LoadValue("Vertical nose", c.vnp, "lb", key="vertical_nose"),
-            LoadValue("Drag nose", c.dnp, "lb", key="drag_nose"),
-            LoadValue("Side nose", c.snp, "lb", key="side_nose"),
-            LoadValue("Resultant nose", c.result, "lb", key="resultant_nose")]
+    out: List[LoadValue] = []
+    for leg in legs:
+        stem = leg.key_stem
+        label = leg.name[0].upper() + leg.name[1:]
+        for axis, force, coord, node in zip("xyz", leg.force, leg.point, leg.node):
+            out.append(LoadValue(f"{label} F{axis}", force, "lb",
+                                 key=f"{stem}_f{axis}", frame=AIRPLANE_DATUM))
+            out.append(LoadValue(f"{label} {axis}", coord, "in",
+                                 key=f"{stem}_{axis}", frame=AIRPLANE_DATUM))
+            out.append(LoadValue(f"{label} node {axis}", node, "in",
+                                 key=f"{stem}_node_{axis}", frame=AIRPLANE_DATUM))
+    # p231's FUSELAGE AXIS ANGLE column. An attitude, in neither frame -- it is
+    # the angle *between* them -- so it names none and is delivered unscaled.
+    out.append(LoadValue("Fuselage axis angle", c.fuselage_axis_angle_deg, "deg",
+                         key="fuselage_axis_angle"))
+    nose = [LoadValue("Vertical nose", c.vnp, "lb", key="vertical_nose", frame=GROUND_LINE),
+            LoadValue("Drag nose", c.dnp, "lb", key="drag_nose", frame=GROUND_LINE),
+            LoadValue("Side nose", c.snp, "lb", key="side_nose", frame=GROUND_LINE),
+            LoadValue("Resultant nose", c.result, "lb", key="resultant_nose", frame=GROUND_LINE)]
     if c.case > 24:
-        return nose
-    return [LoadValue("Vertical main per wheel", c.vmp, "lb", key="vertical_main_per_wheel"),
-            LoadValue("Drag main per wheel", c.dmp, "lb", key="drag_main_per_wheel"),
-            LoadValue("Side main per wheel", c.smp, "lb", key="side_main_per_wheel"),
-            LoadValue("Resultant main per wheel", c.rmp, "lb", key="resultant_main_per_wheel")] + nose + [
-            LoadValue("Unbalanced pitching moment", c.pitchp, "lb-in", key="unbalanced_pitching_moment"),
-            LoadValue("Unbalanced rolling moment", c.rollp, "lb-in", key="unbalanced_rolling_moment"),
-            LoadValue("Unbalanced yawing moment", c.yawp, "lb-in", key="unbalanced_yawing_moment"),
-            LoadValue("Vertical inertia factor NVP", c.nvp, "", key="vertical_inertia_factor_nvp"),
-            LoadValue("Drag inertia factor NDP", c.ndp, "", key="drag_inertia_factor_ndp"),
-            LoadValue("Side inertia factor NS", c.ns, "", key="side_inertia_factor_ns")]
+        return out + nose
+    return out + [
+        LoadValue("Resultant load factor NR", c.nr, "", key="resultant_load_factor_nr",
+                  frame=AIRPLANE_DATUM),
+        LoadValue("Vertical load factor NV", c.nv, "", key="vertical_load_factor_nv",
+                  frame=AIRPLANE_DATUM),
+        LoadValue("Drag load factor ND", c.nd, "", key="drag_load_factor_nd",
+                  frame=AIRPLANE_DATUM),
+        LoadValue("Unbalanced pitching moment (datum)", c.pitch, "lb-in",
+                  key="unbalanced_pitching_moment_datum", frame=AIRPLANE_DATUM),
+        LoadValue("Unbalanced rolling moment (datum)", c.roll, "lb-in",
+                  key="unbalanced_rolling_moment_datum", frame=AIRPLANE_DATUM),
+        LoadValue("Unbalanced yawing moment (datum)", c.yaw, "lb-in",
+                  key="unbalanced_yawing_moment_datum", frame=AIRPLANE_DATUM),
+        # NS is common to both frames: the side axis is normal to the rotation,
+        # so there is one side inertia factor, not two. It is grouped with the
+        # ground-line set because that is where the manual prints it.
+        LoadValue("Vertical main per wheel", c.vmp, "lb", key="vertical_main_per_wheel",
+                  frame=GROUND_LINE),
+        LoadValue("Drag main per wheel", c.dmp, "lb", key="drag_main_per_wheel",
+                  frame=GROUND_LINE),
+        LoadValue("Side main per wheel", c.smp, "lb", key="side_main_per_wheel",
+                  frame=GROUND_LINE),
+        LoadValue("Resultant main per wheel", c.rmp, "lb", key="resultant_main_per_wheel",
+                  frame=GROUND_LINE),
+    ] + nose + [
+        LoadValue("Unbalanced pitching moment", c.pitchp, "lb-in",
+                  key="unbalanced_pitching_moment", frame=GROUND_LINE),
+        LoadValue("Unbalanced rolling moment", c.rollp, "lb-in",
+                  key="unbalanced_rolling_moment", frame=GROUND_LINE),
+        LoadValue("Unbalanced yawing moment", c.yawp, "lb-in",
+                  key="unbalanced_yawing_moment", frame=GROUND_LINE),
+        LoadValue("Vertical inertia factor NVP", c.nvp, "",
+                  key="vertical_inertia_factor_nvp", frame=GROUND_LINE),
+        LoadValue("Drag inertia factor NDP", c.ndp, "",
+                  key="drag_inertia_factor_ndp", frame=GROUND_LINE),
+        LoadValue("Side inertia factor NS", c.ns, "",
+                  key="side_inertia_factor_ns", frame=GROUND_LINE),
+    ]
+
+
+def case_note(legs: Sequence["DeliveredLeg"]) -> str:
+    """The in-band statement of *where* and *in what attitude* a case is applied.
+
+    The two facts a delivered ground load needs that are not numbers: the strut
+    state the geometry was taken at, and which of Appendix A's two application
+    points this family is applied at (design note 39). They ride on the condition
+    rather than in a document beside it, because a force and its point are one
+    statement and the point half is a word.
+    """
+    if not legs:
+        return ""
+    return (f"Applied at the {legs[0].point_name}, struts {legs[0].strut_state} "
+            f"(Appendix A's printed point-of-load column). Forces and locations "
+            f"are {caption(AIRPLANE_DATUM)}; the primed set is "
+            f"{caption(GROUND_LINE)}.")
 
 
 def run(project: Project) -> ModuleResult:
@@ -819,6 +1062,14 @@ def run(project: Project) -> ModuleResult:
         ],
         note=note,
     )]
+    # The delivered three-wheel set (design note 38 GF-6). ``gear_loads`` reads
+    # this module -- it needs ``build_landing``, ``attitude_of`` and the case
+    # families -- so the import is here rather than at the top: the deliverable
+    # is assembled *from* the free bodies, and assembling it a second time in
+    # this file to avoid the cycle is exactly the duplication that would drift.
+    from ..gear_loads import delivered_gear_legs, gear_case_loads
+    legs_by_case = delivered_gear_legs(gear_case_loads(project))
+
     # One summary condition per FAR ground-load family (the critical wheel reaction).
     for far, title in (("23.479(a)", "Level landing"), ("23.481", "Tail-down landing"),
                        ("23.483", "One-wheel landing"), ("23.485", "Side load"),
@@ -826,20 +1077,18 @@ def run(project: Project) -> ModuleResult:
         c = _critical(reactions, far)
         if c is None:
             continue
+        legs = legs_by_case.get(c.case, ())
+        # The summary states the *same* case the matrix row does, through the
+        # same builder -- it names which case governs the family, and a second
+        # hand-written value list beside it would be free to drift into a
+        # different frame or a different application point from the row it
+        # points at. Design note 38 GF-6: every channel, one statement.
         conditions.append(ConditionResult(
             title=f"{title} (critical reaction)",
             far_reference=far,
-            values=[
-                LoadValue("Case", float(c.case), "", key="case"),
-                LoadValue("Vertical main per wheel", c.vmp, "lb", key="vertical_main_per_wheel"),
-                LoadValue("Drag main per wheel", c.dmp, "lb", key="drag_main_per_wheel"),
-                LoadValue("Side main per wheel", c.smp, "lb", key="side_main_per_wheel"),
-                LoadValue("Resultant main per wheel", c.rmp, "lb", key="resultant_main_per_wheel"),
-                LoadValue("Vertical nose", c.vnp, "lb", key="vertical_nose"),
-                LoadValue("Drag nose", c.dnp, "lb", key="drag_nose"),
-                LoadValue("Side nose", c.snp, "lb", key="side_nose"),
-                LoadValue("Resultant nose", c.result, "lb", key="resultant_nose"),
-            ],
+            values=([LoadValue("Case", float(c.case), "", key="case")]
+                    + _case_values(c, legs)),
+            note=case_note(legs),
             case_ref=c.case_ref,
         ))
     # The full 33-case matrix (M4-17e), so the ULTIMATE deliverable (CSV / Results
@@ -849,10 +1098,12 @@ def run(project: Project) -> ModuleResult:
     # Each row reuses its own CaseRef, so a summary condition and its matrix row
     # share a case id: they are the same physical case.
     for c in reactions:
+        legs = legs_by_case.get(c.case, ())
         conditions.append(ConditionResult(
             title=f"{c.description} — case {c.case} ({c.cg_name})",
             far_reference=c.far_reference,
-            values=_case_values(c),
+            values=_case_values(c, legs),
+            note=case_note(legs),
             case_ref=c.case_ref,
         ))
     return ModuleResult(module=MODULE_NAME, conditions=conditions)

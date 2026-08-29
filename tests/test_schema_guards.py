@@ -314,7 +314,20 @@ def fields_hash() -> str:
 #: unfilled. It reproduces every NLG the reaction path read (ga6 p230 stays at
 #: 2.5), so no load number moves; the three concept fixtures were separately
 #: nudged to N = 2.67 (LF-10, a deliberate fixture edit stated in its diff).
-EXPECTED_FIELDS_HASH = "d43c387d783c2540"
+#: v58 (design note 38 GF-6/GF-7, #134): ``LoadValue`` gains ``frame`` -- the
+#: reference frame the value is stated in (``sloads/frames.py``). LANDLOAD prints
+#: every reaction twice, once with respect to the ground line and once with
+#: respect to the airplane datum, and until now the replication carried both sets
+#: and named neither; the render boundary reads the frame to keep the delivered
+#: CSV in the body frame while the text report keeps both. Additive with a ``""``
+#: default that means exactly what v57 meant, so the 57->58 hop is an identity --
+#: but a shape change all the same, because ``LoadValue`` is persisted inside
+#: ``critical.conditions[].loads`` (``asdict``). ``GearReactionCase`` gains seven
+#: fields in the same change (the fuselage-axis angle, NR/NV/ND and the datum
+#: unbalanced moments); it is a **result** type that ``io.py`` never writes, so it
+#: moves this hash without touching the on-disk shape -- the ``EnvelopeResult``
+#: precedent above.
+EXPECTED_FIELDS_HASH = "e3bcc7dfd130af41"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

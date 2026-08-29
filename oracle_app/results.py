@@ -59,6 +59,7 @@ from oracle_app.labels import pretty
 from sloads import UnitSystem, convert_results, mass_distribution, registry
 from sloads import io as sloads_io
 from sloads import workflow as wf
+from sloads.frames import AIRPLANE_DATUM, GROUND_LINE, caption
 from sloads.models import ConditionResult, LoadValue, Project
 from sloads.modules.body_loads import body_load_rows, build_body_loads
 from sloads.modules.net_loads import build_net_loads, wing_load_rows
@@ -402,10 +403,32 @@ def taildist_spanwise_advisory(_project: Project, _system: UnitSystem) -> str:
             "decks; it is not a McMaster program, so it has no oracle page.")
 
 
+def landing_frame_advisory(_project: Project, _system: UnitSystem) -> str:
+    """LANDLOAD's block caption: which frame each row is stated in (note 38 GF-7).
+
+    LANDLOAD prints its whole matrix twice and says which frame each table is in;
+    this GUI rendered the numbers with no frame at all, while the export deck
+    consumed the other one -- a reader moving between them had no stated bridge,
+    and the two differ by a rotation of the ground angle. The words are the
+    manual's own, from the one owner that has them
+    (:func:`sloads.frames.caption`), so the two GUIs cannot come to say it
+    differently.
+    """
+    return (f"Every row names its frame. The **delivered** per-wheel forces and "
+            f"their points of application, the NR/NV/ND load factors and the "
+            f"datum unbalanced moments are {caption(AIRPLANE_DATUM)} -- the "
+            f"frame the export deck applies. The primed set (VMP/DMP/SMP, "
+            f"VNP/DNP/SNP, NVP/NDP/NS and the unbalanced moments without "
+            f"'(datum)') is {caption(GROUND_LINE)}, which is how the manual "
+            f"prints it; it is in the text download and, by design, not in the "
+            f"CSV.")
+
+
 MODULE_ADVISORIES: Dict[str, Callable[[Project, UnitSystem], str]] = {
     "weight_estimate": weight_estimate_advisory,
     "select": select_inertia_advisory,
     "taildist": taildist_spanwise_advisory,
+    "landing": landing_frame_advisory,
 }
 
 

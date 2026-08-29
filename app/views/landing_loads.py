@@ -41,6 +41,7 @@ from sloads.cg_cases import (
 )
 from sloads.derived_geometry import wing_reference
 from sloads.export import sbeam_bridge as sb
+from sloads.frames import AIRPLANE_DATUM, GROUND_LINE, caption
 from sloads.gear_loads import UNSPRUNG_NOTE, gear_case_loads
 from sloads.models import MissingInputError
 from sloads.modules.landing import (
@@ -242,7 +243,7 @@ if _caution:
 for _w in landing_reaction_warnings(reactions):
     st.warning(_w.message)
 
-st.subheader("Gear reaction loads (ground line)")
+st.subheader(f"Gear reaction loads ({caption(GROUND_LINE)})")
 st.caption(
     "On-screen reactions are **LIMIT** (oracle values, traceable to the manual). "
     "The CSV download below and the **Review/Export** pages report **ULTIMATE** "
@@ -273,18 +274,56 @@ rows = [{
 st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 st.caption(
     f"VMP/DMP/SMP — vertical/drag/side main per wheel; VNP/DNP/SNP — nose; loads in "
-    f"{_lbf_lbl}, with respect to the ground line. PITCH/ROLL/YAW — the unbalanced "
+    f"{_lbf_lbl}, {caption(GROUND_LINE)}. PITCH/ROLL/YAW — the unbalanced "
     f"moments about the airplane CG ({_mom_lbl}). NVP/NDP/NS — the dimensionless "
     "ground-line inertia factors (limit basis; load factors are never scaled to "
     "ultimate). Cases 25–33 are the supplementary nose-wheel family: nose reactions "
     "only.")
 
+# The airplane-datum half of the printout (design note 38 GF-6). p232 prints the
+# whole matrix a second time in the airplane's own axes, and until #134 the
+# replication computed vm/dm/vn/dn and never showed them, so this page and the
+# deck that consumes them were single-frame and unlabelled.
+st.subheader(f"Gear reaction loads ({caption(AIRPLANE_DATUM)})")
+st.caption(
+    "The same 33 cases in the airplane's own axes — the frame a beam model "
+    "applies and the frame the export deck and the CSV carry. Reactions are "
+    "**LIMIT** here as above.")
+datum_rows = [{
+    "Case": c.case, "Condition": c.description, "CG": c.cg_name,
+    "Fuselage axis angle (deg)": round(c.fuselage_axis_angle_deg, 4),
+    f"VM ({_lbf_lbl}, LIMIT)": round(to_si_scalar(c.vm, "lbf", system), 1),
+    f"DM ({_lbf_lbl}, LIMIT)": round(to_si_scalar(c.dm, "lbf", system), 1),
+    f"VN ({_lbf_lbl}, LIMIT)": round(to_si_scalar(c.vn, "lbf", system), 1),
+    f"DN ({_lbf_lbl}, LIMIT)": round(to_si_scalar(c.dn, "lbf", system), 1),
+    f"PITCH ({_mom_lbl}, LIMIT)": round(to_si_scalar(c.pitch, "lb-in", system), 1),
+    f"ROLL ({_mom_lbl}, LIMIT)": round(to_si_scalar(c.roll, "lb-in", system), 1),
+    f"YAW ({_mom_lbl}, LIMIT)": round(to_si_scalar(c.yaw, "lb-in", system), 1),
+    "NR": round(c.nr, 3),
+    "NV": round(c.nv, 3),
+    "ND": round(c.nd, 3),
+} for c in reactions]
+st.dataframe(pd.DataFrame(datum_rows), width="stretch", hide_index=True)
+st.caption(
+    f"VM/DM — vertical/drag main per wheel; VN/DN — nose; PITCH/ROLL/YAW — the "
+    f"unbalanced moments about the CG, {caption(AIRPLANE_DATUM)}. The pitching "
+    f"moment is invariant under the rotation; roll and yaw mix. NR/NV/ND — the "
+    f"p232 datum load factors (NS is common to both frames and is shown above). "
+    f"Cases 25–33 carry no airplane in equilibrium and so no datum load factors "
+    f"or moments. The fuselage axis angle is the attitude's ground angle — an "
+    f"angle, never scaled.")
+
 st.download_button("Download landing loads (CSV)", io.load_cases_csv(mod, system=system),
                    file_name="landing_loads.csv", mime="text/csv")
 st.caption(
-    "The CSV carries **all 33 cases** — reactions, unbalanced moments and inertia "
-    "factors — plus the landing load factor and the six per-family critical-reaction "
-    "summaries, all ULTIMATE (M4-17e).")
+    f"The CSV carries **all 33 cases** — for each of the three wheels (nose, "
+    f"left main, right main, *all three on every case*, an unloaded gear at "
+    f"zero) the force and the point it acts at, plus the datum load factors and "
+    f"unbalanced moments — with the landing load factor and the six per-family "
+    f"critical-reaction summaries, all ULTIMATE. It is the deliverable, so it is "
+    f"{caption(AIRPLANE_DATUM)} throughout; the primed set above is the manual's "
+    f"analysis view and rides in the **text** report instead (design note 38 "
+    f"GF-6).")
 
 # --------------------------------------------------------------------------- #
 # The gear free body (decision G-12) -- both ends of the leg
@@ -354,8 +393,9 @@ else:
         sb.gear_report_csv(project, system=system),
         file_name="gear_loads.csv", mime="text/csv")
     st.caption(
-        "All **33 cases** × each loaded leg, ULTIMATE. Contact-patch components "
-        "are ground-line (as the manual prints them); reference-point components "
-        "are airplane-datum (as a beam model applies them). The assembled ground "
+        f"All **33 cases** × each loaded leg, ULTIMATE. Contact-patch components "
+        f"are {caption(GROUND_LINE)} (as the manual prints them); reference-point "
+        f"components are {caption(AIRPLANE_DATUM)} (as a beam model applies "
+        f"them). The assembled ground "
         "cases carry 24 — the 23.499 supplementary nose-wheel family is a "
         "gear-design case with no airplane equilibrium, and belongs here.")

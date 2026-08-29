@@ -82,8 +82,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
+from .frames import rotation_deg
 from .models import (
     CaseRef,
     GearCarrier,
@@ -94,16 +95,27 @@ from .models import (
     MissingInputError,
     Project,
 )
-from .modules.landing import build_landing, ground_angles
+from .modules.landing import (
+    GROUND_ONE_WHEEL_CASES,
+    attitude_of,
+    build_landing,
+    ground_angles,
+    side_partner,
+)
 
 __all__ = [
     "AXLE",
+    "DELIVERED_KEYS",
+    "DELIVERED_ORDER",
     "GROUND_CONTACT",
     "LEG_WEIGHT_UNSET_NOTE",
     "MAIN",
+    "MAIN_LEFT",
+    "MAIN_RIGHT",
     "NOSE",
     "UNSPRUNG_NOTE",
     "AppliedWheel",
+    "DeliveredLeg",
     "GearCaseLoads",
     "GearLegLoad",
     "application_point",
@@ -111,12 +123,12 @@ __all__ = [
     "applied_wheels",
     "attitude_of",
     "contact_patch",
+    "delivered_gear_legs",
+    "delivered_legs",
     "gear_case_loads",
     "ground_rotation_deg",
     "leg_weight",
     "strut_stroke",
-    "to_airplane_datum",
-    "to_ground_line",
     "transfer_couple",
 ]
 
@@ -145,33 +157,6 @@ LEG_WEIGHT_UNSET_NOTE = (
     "reference-point reaction differ by the leg's own inertia, which on a light "
     "single is around 6 % of the reaction. Enter the leg weight (whole leg, "
     "trunnion down) to close it")
-
-#: Which strut state and which ground angle each LANDLOAD case is computed at
-#: (G-12). ``(strut state, ground-angle index)`` where the index is into
-#: :func:`sloads.modules.landing.ground_angles`' ``(level, ground-roll,
-#: tail-down)``. Cases 1-12 are the landing attitudes and use the **compressed**
-#: axle; 13-33 are the handling ones and use the **static** axle -- the manual's
-#: own split, followed rather than re-decided.
-_ATTITUDES: Tuple[Tuple[range, str, int], ...] = (
-    (range(1, 7), "compressed", 0),      # level 3-/2-wheel
-    (range(7, 10), "compressed", 2),     # tail-down
-    (range(10, 13), "compressed", 0),    # one-wheel
-    (range(13, 34), "static", 1),        # braked roll, side, supplementary nose
-)
-
-
-def attitude_of(case: int) -> Tuple[str, int]:
-    """``(strut state, ground-angle index)`` for LANDLOAD case number ``case``.
-
-    Raises for a case outside 1-33 rather than defaulting: an unmapped case would
-    silently take the last attitude in the table, which is the class of error a
-    lookup with a fallback always produces.
-    """
-    for rng, state, gra_index in _ATTITUDES:
-        if case in rng:
-            return state, gra_index
-    raise ValueError(f"no ground attitude for LANDLOAD case {case!r} (expected 1-33)")
-
 
 def _axle(leg: LandingGearInput, state: str) -> Tuple[float, float]:
     return {"compressed": leg.axle_compressed,
@@ -265,62 +250,23 @@ def strut_stroke(leg: LandingGearInput, state: str,
 
 
 def ground_rotation_deg(case: GearReactionCase) -> float:
-    """``rho`` -- the angle from the ground line to the airplane datum, in degrees.
+    """``rho`` for one LANDLOAD case, from the case's **own two resolutions**.
 
-    Recovered from the case's **own two resolutions** of one reaction rather than
-    from ``GRA``:
+    The formula and what reads it are :func:`sloads.frames.rotation_deg`; this is
+    the case-level wrapper, and what it adds is the answer for a case that does
+    not resolve. It falls back to the nose resolution when the main reaction is
+    zero, and to ``0.0`` when neither leg carries a reaction -- a case with no
+    load has no frame to rotate, and returning an angle from ``atan2(0, 0)``
+    would be a number with no meaning behind it.
 
-        rho = atan2(dm, vm) - atan2(DMP, VMP)
-
-    i.e. the angle between the airplane-datum pair LANDLOAD resolves through
-    ``PHIM`` and the ground-line pair it resolved. Doing it this way means this
-    step never has to adjudicate a sign inconsistency that is in LANDLOAD.BAS
-    itself -- ``beta`` is ``gamma - GRA(1)`` for the level attitude but ``+GRA(2)``
-    for the ground-roll one, so ``rho`` comes out ``-GRA(1)`` on cases 1-12 and
-    ``+GRA(2)`` on 13-24. Measured on ``ga6_normal``: -4.0570, -15.0003 (tail
-    down) and +4.7253 / +4.7239 degrees, reproducing ``VMP``/``DMP`` from
-    ``vm``/``dm`` to five figures on every case.
-
-    Two things read it, and neither is the deck: **the ground-line lift axis**
-    (decision G-7a -- the lift is perpendicular to the flight path, so it lies
-    along the ground-line vertical and enters the airplane's axes tilted by
-    ``rho``), and **the closed-form load-factor gate** (G-6), where rotating the
-    solved rigid-body field back to the ground line must reproduce ``NVP``/``NDP``
-    exactly. The exported cards themselves take LANDLOAD's ``vm``/``dm`` directly
-    and never see this angle.
-
-    Falls back to the nose resolution when the main reaction is zero, and to
-    ``0.0`` when neither leg carries a reaction -- a case with no load has no
-    frame to rotate, and returning an angle from ``atan2(0, 0)`` would be a
-    number with no meaning behind it.
+    Measured on ``ga6_normal``: -4.0570, -15.0003 (tail down) and +4.7253 /
+    +4.7239 degrees before the GF-1 sign fix; ``-GRA`` on every attitude after it.
     """
-    for datum, prime in (((case.dm, case.vm), (case.dmp, case.vmp)),
-                         ((case.dn, case.vn), (case.dnp, case.vnp))):
+    for datum, prime in (((case.vm, case.dm), (case.vmp, case.dmp)),
+                         ((case.vn, case.dn), (case.vnp, case.dnp))):
         if any(datum) or any(prime):
-            return math.degrees(math.atan2(*datum) - math.atan2(*prime))
+            return rotation_deg(*datum, *prime)
     return 0.0
-
-
-def to_airplane_datum(v: float, d: float, rho_deg: float) -> Tuple[float, float]:
-    """Ground-line ``(V, D)`` -> airplane-datum ``(v, d)``, rotating by ``rho``.
-
-    The inverse of what :func:`ground_rotation_deg` measures, and the one place
-    the rotation is *applied*. Only the ground-line lift needs it (G-7a): every
-    gear reaction is taken from LANDLOAD's own ``vm``/``dm`` instead, which is why
-    this is a small function rather than the module's centre of gravity.
-    """
-    a = math.radians(rho_deg)
-    return (v * math.cos(a) - d * math.sin(a),
-            d * math.cos(a) + v * math.sin(a))
-
-
-def to_ground_line(v: float, d: float, rho_deg: float) -> Tuple[float, float]:
-    """Airplane-datum ``(v, d)`` -> ground-line ``(V, D)``. The exact inverse of
-    :func:`to_airplane_datum`, and what G-6's gate rotates the solved load-factor
-    field through before comparing it with ``NVP``/``NDP``."""
-    a = math.radians(rho_deg)
-    return (v * math.cos(a) + d * math.sin(a),
-            d * math.cos(a) - v * math.sin(a))
 
 
 def transfer_couple(point: Tuple[float, float, float],
@@ -603,4 +549,118 @@ def applied_wheels(legs: Sequence[GearLegLoad], *, one_wheel: bool = False,
             out.append(AppliedWheel(
                 leg.leg, side, node, force,
                 transfer_couple(point, node, force), leg.carrier, patch, point))
+    return out
+
+
+#: The three gear legs a delivered ground case names, in report order (design
+#: note 38 GF-6). ``MAIN``/``NOSE`` are LANDLOAD's own two *legs* -- one main row
+#: carrying the per-wheel reaction; these are the three *wheels* an airplane
+#: stands on, which is what a stress model needs and what makes a case's free
+#: body readable without reconstructing which gear the family implies.
+MAIN_LEFT = "main left"
+MAIN_RIGHT = "main right"
+DELIVERED_ORDER = (NOSE, MAIN_LEFT, MAIN_RIGHT)
+
+#: ``LoadValue`` key stems, in the same order. The emitted keys are
+#: ``<stem>_fx`` / ``_fy`` / ``_fz`` for the force and ``_x`` / ``_y`` / ``_z``
+#: for the point it acts at.
+DELIVERED_KEYS = {NOSE: "nose", MAIN_LEFT: "main_left", MAIN_RIGHT: "main_right"}
+
+
+@dataclass(frozen=True)
+class DeliveredLeg:
+    """One wheel of a ground case as the deliverable states it: force and point.
+
+    A load and its point of application are **one statement** (design note 39):
+    a magnitude with no point is not a load, and moving the point silently
+    changes every moment downstream. So this carries both, in the airplane datum
+    -- the frame a beam model applies -- together with the attitude the point was
+    taken at and the gear reference point the leg delivers to.
+
+    ``force`` is **LIMIT**, like every other calc-layer load quantity; the
+    ultimate factor is applied once at the render/export boundary.
+
+    A wheel this case does not load is present with a zero force rather than
+    absent (GF-6): three legs on every case, always.
+    """
+
+    name: str                              # NOSE | MAIN_LEFT | MAIN_RIGHT
+    #: This leg's ``LoadValue`` key stem, from :data:`DELIVERED_KEYS` -- carried
+    #: on the record so the producing module names the keys without importing
+    #: back into this one (``modules.landing`` is what ``gear_loads`` reads).
+    key_stem: str
+    force: Tuple[float, float, float]      # airplane-datum Fx, Fy, Fz (lb, LIMIT)
+    point: Tuple[float, float, float]      # where it acts (in)
+    point_name: str                        # AXLE | GROUND_CONTACT
+    node: Tuple[float, float, float]       # the gear reference point (G-2)
+    strut_state: str                       # "compressed" | "static"
+
+    @property
+    def carries_load(self) -> bool:
+        """Whether this wheel is loaded at all in this case."""
+        return any(self.force)
+
+
+def _mirrored(point: Tuple[float, float, float]) -> Tuple[float, float, float]:
+    x, y, z = point
+    return (x, -y, z)
+
+
+def delivered_legs(case: GearCaseLoads, *, partner_side_lb: Optional[float] = None
+                   ) -> Tuple[DeliveredLeg, ...]:
+    """The three wheels of one ground case, in :data:`DELIVERED_ORDER`.
+
+    Built **from** :func:`applied_wheels` rather than beside it, so the delivered
+    statement and the assembled deck cannot come to differ: every loaded wheel
+    here is the same wheel, with the same force and the same point, that the deck
+    applies. What this adds is the wheels ``applied_wheels`` drops -- the port
+    main of a 23.483 one-wheel case, both mains of the 23.499 supplementary-nose
+    family, the nose wheel of every case that lifts it clear -- which it emits at
+    zero, with its point and node still stated. An unloaded gear is a fact about
+    the case, and omitting it makes the reader reconstruct the family's rule.
+
+    ``partner_side_lb`` is the 23.485 family's second wheel, as
+    :func:`applied_wheels` documents; :func:`delivered_gear_legs` supplies it
+    from the pairing :func:`sloads.modules.landing.side_partner` owns.
+    """
+    one_wheel = case.case in GROUND_ONE_WHEEL_CASES
+    wheels = {(w.leg, w.side): w
+              for w in applied_wheels(case.legs, one_wheel=one_wheel,
+                                      partner_side_lb=partner_side_lb)}
+    by_leg = {leg.leg: leg for leg in case.legs}
+    out: List[DeliveredLeg] = []
+    for name, kind, side, mirror in ((NOSE, NOSE, "C", False),
+                                     (MAIN_LEFT, MAIN, "L", True),
+                                     (MAIN_RIGHT, MAIN, "R", False)):
+        leg = by_leg[kind]
+        wheel = wheels.get((kind, side))
+        if wheel is not None:
+            force, point, node = wheel.force, wheel.point, wheel.node
+        else:
+            force = (0.0, 0.0, 0.0)
+            point = _mirrored(leg.point) if mirror else leg.point
+            node = _mirrored(leg.node) if mirror else leg.node
+        out.append(DeliveredLeg(name=name, key_stem=DELIVERED_KEYS[name],
+                                force=force, point=point,
+                                point_name=leg.point_name, node=node,
+                                strut_state=leg.strut_state))
+    return tuple(out)
+
+
+def delivered_gear_legs(cases: Sequence[GearCaseLoads]
+                        ) -> "Dict[int, Tuple[DeliveredLeg, ...]]":
+    """:func:`delivered_legs` for a whole 33-case matrix, keyed by case number.
+
+    The list is needed rather than the case alone because the 23.485 side family
+    puts a *different* side load on each of the two wheels -- 0.5 W inboard and
+    0.33 W outboard, acting the same way globally -- and LANDLOAD carries the
+    second one on the paired case rather than on this one.
+    """
+    by_case = {c.case: c for c in cases}
+    out: "Dict[int, Tuple[DeliveredLeg, ...]]" = {}
+    for c in cases:
+        partner = side_partner(c.case)
+        twin = by_case.get(partner) if partner is not None else None
+        out[c.case] = delivered_legs(
+            c, partner_side_lb=twin.legs[0].ground_line[2] if twin else None)
     return out
