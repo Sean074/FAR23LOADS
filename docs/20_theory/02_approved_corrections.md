@@ -133,6 +133,15 @@ gets re-litigated by whoever next reads the source and thinks it is a bug.
 
 ### LANDLOAD's ground-roll attitude resolves at `+BETA(2)` *(declined 2026-08-15 — replicate as printed)*
 
+> **Question resumed 2026-08-28** — the reopening condition below has been met:
+> the p231–233 table now reads legibly (rendered at 200 dpi, bypassing the OCR
+> layer), the Appendix C `.BAS` lines are confirmed verbatim, and a second
+> instance of the same sign error was found in the datum load-factor lift term.
+> [Design note 38](../30_future/38_ground_frame_note.md) (AGREED 2026-08-28)
+> supersedes this decision: when issue #133 lands, this entry converts in place
+> to an approved deviation and its pin test flips to ρ = −GRA on every
+> attitude. Until then the code and pin test stand as described below.
+
 `LANDLOAD.BAS` resolves each case's wheel resultant into airplane axes through
 `PHIM`, and the three attitudes do not carry the ground angle with the same sign:
 
