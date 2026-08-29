@@ -78,7 +78,12 @@ _GA_CGS = [
            {AnalysisKind.GROUND}, GroundCaseRole.AFT_MAX_LANDING),
     CgCase("fwd max landing", 3230, 76.12, 93,
            {AnalysisKind.GROUND}, GroundCaseRole.FWD_MAX_LANDING),
-    CgCase("fwd light", 2803, 72.64, 92,
+    # 2800 lb is WTENV's forward-regardless weight, which is what
+    # ``cg_cases.seed_landing_cases`` gives this case and what p230 prints. It
+    # read 2803 until 2026-08-29: the weight had been back-solved from the p231
+    # side-load cell when that cell was OCR'd as 1864 (0.5*1.33*W), and the
+    # rendered page prints 1862 -- 1862/0.665 = 2800.0 exactly.
+    CgCase("fwd light", 2800, 72.64, 92,
            {AnalysisKind.GROUND}, GroundCaseRole.FWD_LIGHT),
 ]
 
@@ -204,6 +209,40 @@ def test_landload_legible_cells():
     assert math.isclose(rx[19].vmp, 2261, rel_tol=3e-3), rx[19].vmp
     assert math.isclose(rx[19].smp, -1700, rel_tol=3e-3), rx[19].smp
     assert math.isclose(rx[20].smp, 1122, rel_tol=3e-3), rx[20].smp
+
+
+def test_landload_braked_roll_printed_cells():
+    """Appendix A p231/p232, braked roll nose clear (23.493), read 2026-08-29.
+
+    The first printed-value oracle this family has had. ``theory_sources.md``
+    records p231-233 as OCR-garbled in the bundled PDF, so cases 13-24 were
+    held by internal identities alone -- which is why the ``WL(18)`` ``WR``
+    defect (#135) and the 2803 lb light-landing weight both survived. These
+    cells were transcribed from the rendered page, not extracted by OCR.
+
+    p231 ground line, per wheel:  case 16/17 VMP 2261 DMP 1808.8
+                                  case 18    VMP 1862 DMP 1490
+    p232 airplane datum, case 18: Fz 1733    Fx 1638
+
+    The datum pair is also the oracle that settles design note 38's GF-1: it
+    reproduces under the shipped ``PHIM = atan(0.8) + GRA2`` (1733.0 / 1637.9)
+    and not under ``atan(0.8) - GRA2`` (1978.4 / 1331.2), a 14 %/19 % split far
+    outside any rounding.
+    """
+    inp = _ga_landing()
+    lf = landing_load_factor(184.125, 3230, 7, 19, 7, 0.667, True)
+    rx = {c.case: c for c in landing_reactions(inp, _ga_gear(), lf, _GA_CGS,
+                                               mlw=_MLW, mtow=_MTOW)}
+    for m in (16, 17):
+        assert math.isclose(rx[m].vmp, 2261, rel_tol=REL), (m, rx[m].vmp)
+        assert math.isclose(rx[m].dmp, 1808.8, rel_tol=REL), (m, rx[m].dmp)
+        assert rx[m].vnp == 0.0, "the nose is clear in 16-18"
+    assert math.isclose(rx[18].vmp, 1862, rel_tol=REL), rx[18].vmp
+    assert math.isclose(rx[18].dmp, 1490, rel_tol=REL), rx[18].dmp
+    # The airplane-datum pair (G-12) -- computed today but not yet surfaced on
+    # ``ModuleResult`` (#134), so it is asserted on the reaction case itself.
+    assert math.isclose(rx[18].vm, 1733, rel_tol=REL), rx[18].vm
+    assert math.isclose(rx[18].dm, 1638, rel_tol=REL), rx[18].dm
 
 
 def test_the_light_loading_never_takes_the_gross_weight_ratio():

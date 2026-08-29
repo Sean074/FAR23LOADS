@@ -326,14 +326,47 @@ def test_every_fixture_case_sits_inside_its_wtenv_envelope(path):
     if limits is None:
         pytest.skip("no WTENV envelope on this fixture")
     _, aft = limits
-    # 0.05 in: the echo rounding of the seeded cases, and Appendix A's own
-    # ``fwd light`` (2803 lb at the printed 72.64) sits 0.03 in ahead of the
-    # forward line interpolated at 2803 rather than 2800 lb.
+    # 0.05 in: the echo rounding of the seeded cases. Until 2026-08-29 this
+    # slack also covered Appendix A's own ``fwd light``, which sat 0.03 in
+    # ahead of the forward line because its weight read 2803 lb rather than
+    # the 2800 the line is anchored at; that weight is corrected, so the
+    # remaining slack is the echo rounding alone.
     for case in project.weight.cg_cases:
         fwd = wtenv_fwd_cg_limit_at_weight(project, case.weight_lb)
         assert fwd is not None
         assert fwd - 0.05 <= case.xcg <= aft + 0.05, (
             f"{os.path.basename(path)} {case.name}: {case.xcg} outside {fwd:.2f}..{aft:.2f}")
+
+
+@pytest.mark.parametrize("path", _EXAMPLES, ids=lambda p: os.path.basename(p))
+def test_a_seeded_fwd_light_case_weighs_what_the_seed_gives_it(path):
+    """``seed_landing_cases`` takes the light loading's weight straight from
+    WTENV's forward-regardless weight, so a ``fwd_light`` case that states no
+    ``loading`` of its own must equal it -- there is nothing else it could be.
+
+    The GA6 fixture drifted 3 lb from its own seed for a year (2803 vs 2800,
+    back-solved from an OCR'd p231 cell) and nothing said so, because the
+    seed is only ever *offered* to the GUI, never checked against what a
+    project carries. This is that check (rule 3: a drift guard, not a prose
+    rule). A case that **states** a loading is exempt and must not be forced
+    to the anchor -- ``baron_58``'s fwd light is an entered D-25 loading
+    closing at 4,440 lb against a 4,200 lb forward-regardless weight, which
+    is a different quantity, not a drift (``examples/baron_58.sources.md``).
+    """
+    project = io.load_project(path)
+    env = project.weight.envelope if project.weight is not None else None
+    if env is None or not env.fwd_regardless_weight:
+        pytest.skip("no WTENV forward-regardless weight on this fixture")
+    light = [c for c in project.weight.cg_cases
+             if c.role == GroundCaseRole.FWD_LIGHT]
+    if not light:
+        pytest.skip("no roled fwd_light ground case on this fixture")
+    case = light[0]
+    if case.loading is not None:
+        return  # states its own loading -- authoritative under D-25
+    assert case.weight_lb == pytest.approx(env.fwd_regardless_weight), (
+        f"{os.path.basename(path)}: seeded fwd_light weighs {case.weight_lb}, "
+        f"but the seed gives it {env.fwd_regardless_weight}")
 
 
 @pytest.mark.parametrize("path", _EXAMPLES, ids=lambda p: os.path.basename(p))
