@@ -44,6 +44,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sloads import io
 from sloads.cg_cases import landing_role_cases
+from sloads.gear_loads import MAIN_RIGHT, delivered_gear_legs, gear_case_loads
 from sloads.models import (
     AnalysisKind,
     CgCase,
@@ -287,8 +288,9 @@ _P231_RES = dict(vnp=1, dnp=1, snp=1, result=1, vmp=1, dmp=1, smp=1, rmp=1,
                  nvp=1e-3, ndp=1e-3, ns=1e-2)
 
 #: p232 "VALUES ARE WITH RESPECT TO AIRPLANE DATUM" -- the force columns.
-#: The page's NR/NV/ND load-factor columns are transcribed in design note 38
-#: (GF-6/#134), not here: ``run()`` does not compute them yet.
+#: The page's NR/NV/ND load-factor columns follow in :data:`_P232_FACTORS`;
+#: they were transcribed in design note 38 §1.13 and locked here when #134 built
+#: them.
 _P232_COLS = ("vn", "dn", "vm", "dm", "sm")
 _P232 = {
     1: (1823, 452, 3208, 795, 0), 2: (2626, 651, 2807, 696, 0),
@@ -328,6 +330,21 @@ _P233 = {
     23: (-99232, -98238, -61927), 24: (-99232, 98238, 61927),
 }
 
+
+#: p232's right-hand NR/NV/ND columns -- the **airplane-datum load factors**,
+#: transcribed at 200 dpi 2026-08-29 (design note 38 §1.13) and built by #134.
+#: Constant within each family, printed to three decimals.
+_P232_FACTOR_COLS = ("nr", "nv", "nd")
+_P232_FACTORS = {
+    **{c: (3.287, 3.216, 0.679) for c in range(1, 7)},
+    **{c: (3.167, 3.059, -0.820) for c in range(7, 10)},
+    **{c: (1.975, 1.941, 0.363) for c in range(10, 13)},
+    13: (1.485, 1.271, 0.768), 14: (1.452, 1.277, 0.691),
+    15: (1.442, 1.280, 0.665),
+    **{c: (1.703, 1.238, 1.170) for c in range(16, 19)},
+    **{c: (1.330, 1.325, 0.110) for c in range(19, 25)},
+}
+_P232_FACTOR_RES = dict(nr=1e-3, nv=1e-3, nd=1e-3)
 
 #: **The approved deviation** (design note 38 GF-1/GF-2', AGREED 2026-08-29;
 #: register: docs/20_theory/02_approved_corrections.md). Where a cell appears
@@ -384,6 +401,42 @@ _CORRECTED = {
         31: {"vn": 1504.4748, "dn": 1012.3259},
         32: {"vn": 1364.5329, "dn": -681.0903},
         33: {"vn": 1411.1802, "dn": -116.6182, "sm": 991.1934},
+    },
+    "p232_factors": {
+        # The datum load factors follow their own force cells, so every
+        # deviation above propagates here -- plus one of its own: the ND lift
+        # term. LANDLOAD.BAS writes it as ``+LF*SIN(GRA)``, putting the lift's
+        # body drag component aft where the nose-up convention (and the deck's
+        # own ground lift) put it forward -- the second instance of the #133
+        # sign class (design note 38 §1.6, OQ-1). These values are derived from
+        # **this page's own force cells** by the printed NV/ND/NR loops with
+        # that one substitution, never from ``landing.py``; the two agree to
+        # better than 0.06 %, inside the 0.1 % band a deviated cell locks at.
+        # Two invariants survive the correction untouched and are the reason to
+        # believe it: NV is a cosine and does not move on 1-12, and NR is
+        # frame-invariant on the wheels-only families, so cases 16-24 keep their
+        # printed 1.703 / 1.330 exactly.
+        1: {"nr": 3.268877, "nd": 0.585013},
+        2: {"nr": 3.269237, "nd": 0.585322},
+        3: {"nr": 3.269160, "nd": 0.584957},
+        4: {"nr": 3.269182, "nd": 0.585013},
+        5: {"nr": 3.269182, "nd": 0.585013},
+        6: {"nr": 3.269511, "nd": 0.584957},
+        10: {"nr": 1.959412, "nd": 0.268914},
+        11: {"nr": 1.959412, "nd": 0.268914},
+        12: {"nr": 1.959579, "nd": 0.268886},
+        13: {"nr": 1.508368, "nv": 1.384082, "nd": 0.599576},
+        14: {"nr": 1.473626, "nv": 1.377743, "nd": 0.522873},
+        15: {"nr": 1.462382, "nv": 1.375555, "nd": 0.496396},
+        16: {"nv": 1.413111, "nd": 0.950849},
+        17: {"nv": 1.413111, "nd": 0.950849},
+        18: {"nv": 1.413111, "nd": 0.950849},
+        19: {"nd": -0.109536},
+        20: {"nd": -0.109536},
+        21: {"nd": -0.109536},
+        22: {"nd": -0.109536},
+        23: {"nd": -0.109536},
+        24: {"nd": -0.109536},
     },
     "p233": {
         16: {"pitchp": -192649.109},
@@ -465,6 +518,22 @@ def test_landload_p232_airplane_datum_table():
     is a rotation about the y axis, so SM is frame-invariant by construction.
     """
     assert _assert_page(_P232, _P232_COLS, "p232") == 147
+
+
+def test_landload_p232_airplane_datum_load_factors():
+    """Appendix A p232's NR/NV/ND columns: all 24 balanced cases (#134, GF-6).
+
+    The last part of the printout the replication did not compute. They are
+    ``NV = (VN + n*VM)/WL + LF*cos(rho)``, ``ND = (DN + n*DM)/WL + LF*sin(rho)``
+    and ``NR = hypot(NV, ND)`` -- LANDLOAD.BAS's own loops, with ``n = 1`` on the
+    one-wheel family, and with the lift term rotated through the case's own
+    ``rho`` instead of written longhand with the manual's wrong sign.
+
+    The 23.499 family (25-33) is not in the table: it carries no airplane in
+    equilibrium, so LANDLOAD zeroes its factors and so does the port.
+    """
+    assert _assert_page(_P232_FACTORS, _P232_FACTOR_COLS, "p232_factors",
+                        _P232_FACTOR_RES) == 72
 
 
 def test_landload_p233_unbalanced_moments_table():
@@ -849,13 +918,25 @@ def test_run_emits_full_case_matrix():
     keys = {v.key for v in matrix[0].values}
     for expected in ("unbalanced_pitching_moment", "unbalanced_rolling_moment",
                      "unbalanced_yawing_moment", "vertical_inertia_factor_nvp",
-                     "drag_inertia_factor_ndp", "side_inertia_factor_ns"):
+                     "drag_inertia_factor_ndp", "side_inertia_factor_ns",
+                     # The airplane-datum half of the printout (note 38 GF-6).
+                     "resultant_load_factor_nr", "vertical_load_factor_nv",
+                     "drag_load_factor_nd", "unbalanced_pitching_moment_datum",
+                     "unbalanced_rolling_moment_datum",
+                     "unbalanced_yawing_moment_datum", "fuselage_axis_angle"):
         assert expected in keys, expected
-    # Cases 25-33 are nose-only (no main reaction, moment or inertia factor).
+    # Cases 25-33 are nose-only: no main reaction, moment or inertia factor in
+    # the *primed* set. The delivered three-wheel set is emitted for them like
+    # any other case -- with both mains at zero, which is the point of it (GF-6).
     nose_only = [c for c in matrix if c.title.startswith("supplementary")]
     assert len(nose_only) == 9
-    assert {v.key for v in nose_only[0].values} == {
-        "vertical_nose", "drag_nose", "side_nose", "resultant_nose"}
+    assert {v.key for v in nose_only[0].values} == (
+        {"vertical_nose", "drag_nose", "side_nose", "resultant_nose",
+         "fuselage_axis_angle"}
+        | {f"{stem}_{part}"
+           for stem in ("nose", "main_left", "main_right")
+           for part in ("fx", "fy", "fz", "x", "y", "z",
+                        "node_x", "node_y", "node_z")})
     # One uniform factor across the module (14 CFR 23.303).
     assert {c.safety_factor for c in mod.conditions} == {1.5}
 
@@ -878,15 +959,27 @@ def test_landing_csv_is_ultimate_and_carries_moments_and_factors():
     rows = list(_csv.DictReader(io.load_cases_csv(mod).splitlines()))
     matrix = [r for r in rows if " — case 16 " in r["Condition"]]
     quantities = {r["Quantity"]: r for r in matrix}
-    force = quantities["Vertical main per wheel"]
+    # The CSV is the **body-frame** deliverable (note 38 GF-6): the primed set
+    # is a report view and is not here -- ``test_the_delivered_csv_is_body_frame
+    # _and_the_text_report_keeps_both`` guards that split both ways.
+    legs = delivered_gear_legs(gear_case_loads(p))[16]
+    right = next(leg for leg in legs if leg.name == MAIN_RIGHT)
+    force = quantities["Main right Fz"]
     assert force["Units"] == "lbs-ULT" and force["SF"] == "1.5"
-    assert math.isclose(float(force["Value"]), by_case[16].vmp * 1.5, rel_tol=1e-3)
-    moment = quantities["Unbalanced pitching moment"]
+    assert math.isclose(float(force["Value"]), right.force[2] * 1.5, rel_tol=1e-3)
+    where = quantities["Main right z"]
+    assert where["Units"] == "in" and where["SF"] == "", where
+    assert math.isclose(float(where["Value"]), right.point[2], rel_tol=1e-3)
+    moment = quantities["Unbalanced pitching moment (datum)"]
     assert moment["Units"] == "lb-in-ULT" and moment["SF"] == "1.5"
-    assert math.isclose(float(moment["Value"]), by_case[16].pitchp * 1.5, rel_tol=1e-3)
-    factor = quantities["Vertical inertia factor NVP"]
+    assert math.isclose(float(moment["Value"]), by_case[16].pitch * 1.5, rel_tol=1e-3)
+    factor = quantities["Vertical load factor NV"]
     assert factor["Units"] == "" and factor["SF"] == "", factor
-    assert math.isclose(float(factor["Value"]), by_case[16].nvp, rel_tol=1e-3)
+    assert math.isclose(float(factor["Value"]), by_case[16].nv, rel_tol=1e-3)
+    angle = quantities["Fuselage axis angle"]
+    assert angle["Units"] == "deg" and angle["SF"] == "", angle
+    assert math.isclose(float(angle["Value"]),
+                        by_case[16].fuselage_axis_angle_deg, rel_tol=1e-3)
 
 
 def test_critical_ranking_includes_side_load():

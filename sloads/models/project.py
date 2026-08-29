@@ -270,7 +270,13 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # lift_factor where the old override was non-zero (its 0.0 sentinel meant
 # unset -> None). It reproduces every NLG the reaction path read, so no load
 # number moves.
-SCHEMA_VERSION = 57
+# v58 (design note 38 GF-6, #134): ``LoadValue`` gains ``frame`` -- the reference
+# frame the value is stated in (sloads/frames.py), which the render boundary reads
+# to keep the delivered CSV in the airplane datum while the ground-line set stays
+# in the text report. Additive with a ``""`` default that means exactly what v57
+# meant, so the 57->58 hop is an identity; it is a shape change all the same,
+# because ``LoadValue`` is persisted inside ``critical.conditions[].loads``.
+SCHEMA_VERSION = 58
 
 
 @dataclass

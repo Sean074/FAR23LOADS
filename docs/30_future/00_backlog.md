@@ -44,7 +44,9 @@ synced per the closure tier.
 patch band (**B1**) opened 2026-08-28 against defects the 0.8.0 cut shipped
 (re-cut below): the attitude-1 airplane-datum sign error and the dual-frame
 landing output that makes it visible (#133/#134, design note 38 AGREED
-2026-08-28), the blank-derive crash pair (#121/#122), and **#132** — the
+2026-08-28 — **both closed 2026-08-29**, along with #139, the application-point
+defect that opening #134 uncovered, [note 39](39_application_point_note.md)),
+the blank-derive crash pair (#121/#122), and **#132** — the
 released distribution claims Python 3.9 while its own dependency floor refuses
 to resolve there, which is why `main`'s full-matrix run is red at the tag —
 closed on the milestone branch 2026-08-28, before the band was named; the branch
@@ -136,13 +138,16 @@ a verified fidelity fix its own release signal. Four rulings:
    this band was named; the branch is renamed rather than re-cut, so the fix
    reaches users at 0.8.1 instead of waiting for 0.9.0. It carries no row here
    (it is closed) and no history is rewritten.
-3. **#134 rides the patch band, and that is a stretch taken deliberately.**
-   §1's table calls a new emitted quantity MINOR, and #134 emits three (both
+3. **#134 rode the patch band, and that was a stretch taken deliberately.**
+   §1's table calls a new emitted quantity MINOR, and #134 emitted three (both
    frames, the fuselage-axis angle, NR/NV/ND). Design note 38 GF-6 permits
    "with or after", so the split was available and was declined: shipping the
    corrected sign without the p232 tables would deliver a load change no output
    lets the reader see. Recorded here as an owner ruling so the release-cut
-   block can restate it, not as an oversight.
+   block can restate it, not as an oversight. *(Closed 2026-08-29; it grew a
+   fourth emitted quantity — p233's datum moments — because the primed set
+   could not leave the CSV without them, and a schema hop, v57→v58, for the
+   frame the value now names.)*
 4. **The `app/views/` freeze does not lift for this band.** #121 moves ahead of
    #29 with its scope cut at the seam its own body already describes — the
    *survives it* half plus the rule-4 sweep — and the layout half stays with
@@ -369,7 +374,6 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
 | **B1 — 0.8.1: released-defect correction (re-cut 2026-08-28)** ||||||
-| 1 | **The landing output is single-frame and unlabeled where the original prints two tables** — `run()` ships only the ground-line set: `vm/dm/vn/dn` exist on `GearReactionCase` but never reach `ModuleResult`, no per-case fuselage-axis angle is emitted (p231 prints one per family), the p232 airplane-datum load factors NR/NV/ND are not computed, no application point is identified (patch, strut state and reference node live only in the gear free-body report and the deck), and the Oracle's per-case tables name no frame while the deck consumes the other one. Design note **38** (GF-6/GF-7, G-GF-6); OQ-1 resolved 2026-08-28 from the Appendix C `.BAS` — the datum factors carry a rotated lift term whose sign is a second instance of the #133 error (note 38 §1.6), so they build with the corrected sign and their p232 cells join the GF-3 register (#134) | **Scope ruled by the owner 2026-08-29 (note 38 §1.14).** Every case emits **all three legs** — nose, left main, right main, an unloaded gear at zero rather than omitted — each carrying signed body-frame **`Fx, Fy, Fz`** and the **location `x, y, z`** it acts at, plus strut state and reference node. The point is the manual's own printed column, not an inference: **axle** for cases 1–12, **ground contact point** for 13–24, **CL axle** for 25/26, 28/29, 31/32 and **ground** for 27, 30, 33 (p231/p232/p233 — the column the OCR lost, recovered 2026-08-29). **The CSV carries the body frame only; the ground-line (primed) set stays in the text report and leaves the CSV**, drift-guarded both ways. Plus the fuselage-axis angle (`deg`, never SF-scaled) and NR/NV/ND per OQ-1's resolved formula with the corrected lift sign (case 1 locks at 3.269/3.216/0.585; wheels-only NR as printed, case 16: 1.703; the printed column is transcribed in note 38 §1.13). Both GUIs caption every reactions table "with respect to ground line" / "with respect to airplane datum" from one caption owner with a drift guard. **The #133 ordering condition was DISCHARGED 2026-08-29** (the `BETA` sign landed the same day), and a second one took its place the same session and was **DISCHARGED the same day**: opening this item found that the deck transferred cases 1–12 from the contact patch where the manual applies them at the axle ([note 39](39_application_point_note.md), #139), and that landed 2026-08-29. Both conditions are now clear: GF-6 ships on the corrected sign **and** the corrected point, the contact-patch coordinates included (they are built from `GRA` and moved with the sign fix too) | V | M / S–M | — |
 | 2 | **flight_envelope view crashes on a blank `full_down_aileron_deg` — the note-36 derive default is unrenderable in the main GUI** — `select_input.full_down_aileron_deg` defaults to `None`, a documented, meaningful state (the registry's sentinel-default class, #98/C210-49) the oracle GUI renders and SELECT derives, but the view dies with `TypeError: float(...)` on `NoneType`; baron_58 enters 14.0 (= its aileron limit) to keep the suite green, so **no shipped fixture exercises the blank and no guard covers it** *(found 2026-08-27 building the guide's baron_58, #96 stage 2)* (#121) | The view renders the blank as the oracle GUI does (empty widget + the derived value stated) or at minimum survives it; the rule-4 sweep of `app/views/` for the same `float(field)` pattern over other sentinel-default registry fields; the blank-field case added to the views dirty-flag/smoke sweep. **The `app/views/` freeze stays shut:** 0.8.1 takes the *at minimum survives it* half — the named refusal, the rule-4 `float(field)` sweep and the smoke case — and leaves the render-it-as-the-oracle-GUI-does half to #29's freeze lift, where the layout question belongs (re-cut 2026-08-28) | V | S / S | — |
 | 3 | **A blank `limit_load_factor` derives through a half-entered planform and escapes as a raw `TypeError` instead of a named refusal (#71 class)** — `engine.effective_engine` derives blank LIMNZ from the FAR 23.337 limit through `design_speed_values(project)` (note 36 OV-7), and with the planform half-entered (the #71 mutation set) the derivation escapes as a traceback; every shipped fixture enters LIMNZ explicitly, so **the derive path is unexercised by any shipped fixture** *(found 2026-08-27 building the guide's baron_58, #96 stage 2)* (#122) | The OV-7 derive chain refuses by name when its planform inputs are unresolvable (the same statement the direct consumers make); the #71 mutation guard gains a fixture-independent blank-LIMNZ case over the mutation set — a property of the resolver, not of one field (rule 4) | V | S / S | — |
 | **B2 — 0.9.0: main-GUI development and bug correction** ||||||

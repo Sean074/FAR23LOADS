@@ -92,6 +92,19 @@ def _hop_56(d: Dict[str, Any]) -> Dict[str, Any]:
     return d
 
 
+def _hop_57(d: Dict[str, Any]) -> Dict[str, Any]:
+    """v57 -> v58 (design note 38 GF-6/GF-7, #134): **identity**.
+
+    v58 adds ``LoadValue.frame`` -- the reference frame a value is stated in
+    (:mod:`sloads.frames`), which the delivered CSV reads to keep the ground-line
+    set out of it. ``""`` (no frame named) is exactly the v57 meaning, and it is
+    the default, so a v57 file loads bit-identical. ``LoadValue`` is persisted
+    inside ``critical.conditions[].loads``, which is why an added display-neutral
+    field is still a shape change and still gets a hop.
+    """
+    return d
+
+
 #: ``{from_version: hop}`` -- applied in ascending order, each turning a file of
 #: version *n* into version *n+1* shape. A version that changes shape adds its
 #: hop here; :data:`SUPPORTED_FLOOR` names the oldest version the chain starts
@@ -99,6 +112,7 @@ def _hop_56(d: Dict[str, Any]) -> Dict[str, Any]:
 MIGRATIONS: Dict[int, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     55: _hop_55,
     56: _hop_56,
+    57: _hop_57,
 }
 
 #: The oldest project version this build reads. It sat at ``SCHEMA_VERSION``

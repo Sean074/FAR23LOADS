@@ -61,14 +61,26 @@ class LoadValue:
     pounds-*mass* for a weight (→ kg). A weight sets ``quantity="mass"``; loads
     leave it blank and convert by unit string. See :mod:`sloads.units`.
 
-    ``key`` is declared last so the long-standing positional calls
-    ``LoadValue(label, value, units)`` keep working; producers pass it by keyword.
+    ``frame`` names the reference frame the value is stated in, for the
+    quantities that have one: :mod:`sloads.frames` owns the vocabulary and the
+    words, and the ground-load matrix is the reason it exists -- LANDLOAD prints
+    every reaction twice, once with respect to the ground line and once with
+    respect to the airplane datum, and until design note 38 GF-6/GF-7 the
+    replication carried both sets and named neither. A frame is *not* a label:
+    :func:`sloads.report.render.results_to_rows` reads it to keep the delivered
+    CSV in the body frame alone, while the text report keeps both. Blank is the
+    right answer for a sink rate or a load factor and is therefore the default.
+
+    ``key`` is declared before it so the long-standing positional calls
+    ``LoadValue(label, value, units)`` keep working; producers pass both by
+    keyword.
     """
     label: str
     value: float
     units: str = ""
     quantity: str = ""
     key: str = ""
+    frame: str = ""
 
 
 @dataclass
@@ -979,6 +991,23 @@ class GearReactionCase:
     pitchp: float = 0.0
     rollp: float = 0.0
     yawp: float = 0.0
+    # --- The airplane-datum half of the printout (design note 38 GF-6, #134) ---
+    #: p231's FUSELAGE AXIS ANGLE column: the attitude's ground angle ``GRA``, in
+    #: degrees. An angle, never a load -- it carries no safety factor.
+    fuselage_axis_angle_deg: float = 0.0
+    #: The airplane-datum load factors of p232: resultant, vertical and drag.
+    #: Zero on the 23.499 supplementary-nose family (25-33), which carries no
+    #: airplane in equilibrium -- exactly as ``nvp``/``ndp`` are. ``ns`` is
+    #: common to both frames (the side axis is normal to the rotation) and is
+    #: therefore not repeated here.
+    nr: float = 0.0
+    nv: float = 0.0
+    nd: float = 0.0
+    #: The same unbalanced moments, in the airplane datum (p233's second table).
+    #: The pitching moment is invariant under the rotation; roll and yaw mix.
+    pitch: float = 0.0
+    roll: float = 0.0
+    yaw: float = 0.0
     case_ref: Optional[CaseRef] = None
 
 

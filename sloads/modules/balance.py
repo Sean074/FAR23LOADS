@@ -263,6 +263,12 @@ from ..rigid_body import (
 )
 from ..tail_geometry import HTAIL, VTAIL
 from .airloads import air_load_distribution
+from .landing import (
+    BALANCED_GROUND_CASES,
+    GROUND_LIFT_CASES,
+    GROUND_ONE_WHEEL_CASES,
+    GROUND_SIDE_CASES,
+)
 from .select import default_critical, default_envelope
 from .tail_span import build_tail_span
 from .wing_inertia import inertia_units, resolve_wing_cases
@@ -2180,30 +2186,14 @@ def build_balanced_cases(
 # --------------------------------------------------------------------------- #
 # The ground families (step 10 piece 3 -- decisions G-1, G-6, G-7/G-7a, G-8)
 # --------------------------------------------------------------------------- #
-#: LANDLOAD cases that carry wing lift: the **landing** families (23.479 level
-#: 3-/2-wheel, 23.481 tail-down, 23.483 one-wheel). Decision G-7, and it is the
-#: manual's own split rather than a new one -- ``landing.landing_reactions``
-#: includes the ``lf*WL`` term in ``nvp`` for exactly these cases and omits it for
-#: 13-24. **The regulation draws the same line**: 23.473(a) lets 23.479/481/483
-#: be met at the design landing weight, which is why those are the families
-#: LANDLOAD scales differently, and 23.485/23.493 are the gross-weight ones. The
-#: family split, the lift split and the weight split are one split.
-GROUND_LIFT_CASES = range(1, 13)
-
-#: The 23.483 one-wheel family: a single main gear carries the whole reaction, so
-#: the case has a hand and LANDLOAD supplies **neither** twin (there is no sign
-#: flip anywhere in cases 10-12 -- they are the three loadings, one hand each).
-GROUND_ONE_WHEEL_CASES = range(10, 13)
-
-#: The 23.485 side family: three loadings x **two drift directions**, so LANDLOAD
-#: supplies **both** hands. Only the odd member of each pair is assembled and the
-#: even one becomes an independent check on the reflection operator (G-8).
-GROUND_SIDE_CASES = range(19, 25)
-
-#: The ground families the assembled deck carries: 1-24. The 23.499 supplementary
-#: nose-wheel family (25-33) is deliberately absent -- see
-#: :data:`SKIP_REASONS`'s ``gear-design-only``.
-BALANCED_GROUND_CASES = range(1, 25)
+# The LANDLOAD case families -- ``GROUND_LIFT_CASES``,
+# ``GROUND_ONE_WHEEL_CASES``, ``GROUND_SIDE_CASES`` and
+# ``BALANCED_GROUND_CASES`` -- were declared here until design note 38 GF-6
+# (#134). They are now owned by ``modules/landing.py``, which *is* the case
+# numbering: it draws exactly these lines in ``_family``, ``_loading_index``
+# and the reaction loops, and applies the ``lf*WL`` term in ``nvp`` to
+# precisely the lift family. The deck reads them from there (imported above)
+# rather than restating them beside the code that consumes them.
 
 #: The G-7a statement of record, carried in-band on every ground case that
 #: carries lift. The tilt is small and the reason it exists is not obvious from
