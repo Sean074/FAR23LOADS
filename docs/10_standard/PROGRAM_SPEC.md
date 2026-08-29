@@ -642,7 +642,9 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
 
 ### gear_loads — the landing gear as a free body (Step 10 piece 3)
 - **FAR §:** none of its own — it re-presents 23.473–23.499 (LANDLOAD's own
-  conditions). 23.485(d) is what puts the reaction at the contact patch.
+  conditions). 23.485(d) is what puts the *side* reaction at the contact point;
+  the point for every other family is Appendix A's own printed column (design
+  note 39 AP-1).
 - **Source:** `sloads/gear_loads.py`. Decision **G-12** of
   [`../40_history/23_step10_ground_cases_plan.md`](../40_history/23_step10_ground_cases_plan.md).
   **No physics of its own:** every reaction is `modules/landing.py`'s, unchanged
@@ -653,7 +655,9 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   `Project.landing` (the strut stroke and tail-down angle) and `build_landing`'s
   reaction table.
 - **Writes:** `GearCaseLoads` / `GearLegLoad` — per case and per leg: the contact
-  patch, the ground-line and airplane-datum component triples, the strut state,
+  patch **and the point the reaction is applied at** (`point` / `point_name`, the
+  two equal on the ground-contact families and a rolling radius apart on the
+  rest), the ground-line and airplane-datum component triples, the strut state,
   ground angle and stroke, the reference point, the transfer couple, and the leg's
   own inertia. Plus `AppliedWheel` (`applied_wheels`), the per-wheel form an
   assembled ground case applies. The companion CSV channel
@@ -681,11 +685,23 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   rather than only self-consistently. That rotation appears in the *checks* and
   in G-7a's lift axis; never in the load path. `SMP` passes through unrotated, being normal to the
   pitch rotation — asserted, not assumed.
+- **The load is applied where Appendix A applies it** (design note 39 AP-1, #139,
+  2026-08-29): the **axle** on cases 1–12 and 25/26, 28/29, 31/32, the **ground
+  contact point** on 13–24 and 27, 30, 33 — the manual's own column, and a
+  physical split (level-landing drag is a spin-up load reacted through the
+  bearing; braking torque is internal to the wheel/leg free body). One owner,
+  `application_point`, is read by the transfer, this report and the landing
+  module's emitted location, guarded structurally. Applying every case at the
+  patch, as this module did until then, invented up to 524,302 lb-in of pitching
+  moment on the landing attitudes.
 - **The transfer is exact, not approximate.** `transfer_couple` is
-  `M = (patch − node) × F`, so force-plus-couple at the reference point has the
-  identical resultant about **every** reference as the force at the patch. Gated
+  `M = (point − node) × F`, so force-plus-couple at the reference point has the
+  identical resultant about **every** reference as the force at the point. Gated
   at `rel_tol 1e-12` about a deliberately arbitrary point (about the CG a dropped
-  couple could cancel), with a negative control that drops the couple.
+  couple could cancel), with a negative control that drops the couple. Exactness
+  is not correctness: this gate was green throughout the year the transfer ran
+  from the wrong point, which is why #139 needed an external witness
+  (LANDLOAD's own `PITCHP`) and not an internal one.
 - **Validation:** `tests/test_gear_report.py`. Reproduces the design note's own
   measurements: ga6's contact patches differ by 0.49 in in `x` and 3.71 in in `z`
   between the landing and handling attitudes; the main leg sits at 24 % of its

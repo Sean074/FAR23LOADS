@@ -97,6 +97,8 @@ from .models import (
 from .modules.landing import build_landing, ground_angles
 
 __all__ = [
+    "AXLE",
+    "GROUND_CONTACT",
     "LEG_WEIGHT_UNSET_NOTE",
     "MAIN",
     "NOSE",
@@ -104,6 +106,8 @@ __all__ = [
     "AppliedWheel",
     "GearCaseLoads",
     "GearLegLoad",
+    "application_point",
+    "application_point_of",
     "applied_wheels",
     "attitude_of",
     "contact_patch",
@@ -188,6 +192,55 @@ def contact_patch(leg: LandingGearInput, state: str,
     a = math.radians(ground_angle_deg)
     return (x + leg.rolling_radius_in * math.sin(a),
             z - leg.rolling_radius_in * math.cos(a))
+
+
+#: The two points LANDLOAD applies a reaction at, spelled as the report prints
+#: them (design note 39 AP-1). Strings rather than an enum for the same reason
+#: :data:`MAIN`/:data:`NOSE` are: they are also column values.
+AXLE = "axle"
+GROUND_CONTACT = "ground contact point"
+
+#: **Where each case's reaction acts** -- Appendix A's own printed column, not a
+#: choice this replication makes (design note 39, AP-1; the column is transcribed
+#: in design note 38 s1.14). p231/p233 head cases 1-12 "CENTER OF EACH WHEEL" and
+#: 13-24 "GROUND CONTACT POINT"; p232 heads 25/26, 28/29, 31/32 "CL AXLE" and
+#: 27, 30, 33 "GROUND".
+#:
+#: The split is physical. The level-landing drag is a **spin-up** load -- the
+#: patch friction accelerates the wheel's rotation and what the leg carries
+#: arrives through the bearing, at the axle -- while braking torque is internal
+#: to the wheel/leg free body and leaves the patch force where it acts. That is
+#: why applying every case at the patch does not merely relocate ``r x F`` on
+#: cases 1-12: it invents it. Measured on the six bundled fixtures, the manual's
+#: own unbalanced pitching moment is reproduced to <=62 lb-in at this column's
+#: point and missed by 20,964-665,862 lb-in at the other one (note 39 s2).
+_GROUND_CONTACT_CASES = frozenset(range(13, 25)) | {27, 30, 33}
+
+
+def application_point_of(case: int) -> str:
+    """:data:`AXLE` or :data:`GROUND_CONTACT` for LANDLOAD case ``case`` (AP-1).
+
+    Raises for a case outside 1-33 for :func:`attitude_of`'s reason: a lookup
+    with a fallback answers confidently for a case it has never heard of.
+    """
+    if not 1 <= case <= 33:
+        raise ValueError(f"no application point for LANDLOAD case {case!r} (expected 1-33)")
+    return GROUND_CONTACT if case in _GROUND_CONTACT_CASES else AXLE
+
+
+def application_point(leg: LandingGearInput, case: int, state: str,
+                      ground_angle_deg: float) -> Tuple[float, float]:
+    """The ``(x, z)`` this case's reaction is applied at, per :data:`AXLE` /
+    :data:`GROUND_CONTACT` (AP-2 -- the **one** owner).
+
+    Everything that names a point reads this: the transfer to the reference
+    node, the gear free-body report and the landing module's emitted location.
+    A load and its point are one statement, and two constructions is how they
+    come apart.
+    """
+    return (contact_patch(leg, state, ground_angle_deg)
+            if application_point_of(case) == GROUND_CONTACT
+            else _axle(leg, state))
 
 
 def strut_stroke(leg: LandingGearInput, state: str,
@@ -316,8 +369,16 @@ class GearLegLoad:
     far_reference: str
     cg_name: str
     leg: str                              # MAIN | NOSE
-    #: Where the reaction acts: the tyre contact patch, per this case's attitude.
+    #: The tyre contact patch, per this case's attitude -- **geometry**, and the
+    #: boundary condition a gear analysis starts from, so it is reported on every
+    #: case whether or not the reaction is applied there (design note 39, AP-3).
     patch: Tuple[float, float, float]
+    #: **Where the reaction is applied** -- :data:`AXLE` or :data:`GROUND_CONTACT`
+    #: per Appendix A's printed column (AP-1), and the point :attr:`couple`
+    #: transfers from. Equal to :attr:`patch` on the ground-contact families and
+    #: to the axle at this case's strut state on the rest.
+    point: Tuple[float, float, float]
+    point_name: str                       # AXLE | GROUND_CONTACT
     #: Ground-line ("prime") components at the patch -- the frame the manual
     #: prints and a gear engineer reads: vertical, drag, side.
     ground_line: Tuple[float, float, float]
@@ -391,6 +452,7 @@ def _leg_load(case: GearReactionCase, leg_name: str, leg: LandingGearInput,
     state, gra_index = attitude_of(case.case)
     angle = gra[gra_index]
     px, pz = contact_patch(leg, state, angle)
+    ax, az = application_point(leg, case.case, state, angle)
     stroke, fraction = strut_stroke(leg, state, inp.strut_stroke_in)
     rho = ground_rotation_deg(case)
 
@@ -408,17 +470,24 @@ def _leg_load(case: GearReactionCase, leg_name: str, leg: LandingGearInput,
         py = 0.0
 
     patch = (px, py, pz)
+    point = (ax, py, az)
     node = (leg.attach[0], leg.attach[1], leg.attach[2])
     force = (fx, s, fz)
     weight = leg_weight(leg)
     return GearLegLoad(
         case=case.case, description=case.description,
         far_reference=case.far_reference, cg_name=case.cg_name,
-        leg=leg_name, patch=patch, ground_line=(v, d, s), airplane=force,
+        leg=leg_name, patch=patch, point=point,
+        point_name=application_point_of(case.case),
+        ground_line=(v, d, s), airplane=force,
         strut_state=state, ground_angle_deg=angle, rotation_deg=rho,
         stroke_in=stroke, stroke_fraction=fraction,
         node=node, carrier=leg.carrier,
-        couple=transfer_couple(patch, node, force),
+        # From the **applied** point, not the patch: on cases 1-12 the two are a
+        # rolling radius apart and the difference is a pitching moment the
+        # airplane never sees (AP-1/AP-4 -- the force is untouched, the arm is
+        # what was wrong).
+        couple=transfer_couple(point, node, force),
         leg_weight_lb=weight,
         # The leg rides the airplane's own vertical ground-line factor. ``NVP`` is
         # zero on the 23.499 family (25-33), which carries no airplane
@@ -480,7 +549,11 @@ class AppliedWheel:
     force: Tuple[float, float, float]
     couple: Tuple[float, float, float]
     carrier: Optional[GearCarrier]
+    #: This wheel's contact patch (geometry, AP-3) and the point its reaction is
+    #: applied at (AP-1) -- equal on the ground-contact families, a rolling
+    #: radius apart on the rest. The couple transfers from :attr:`point`.
     patch: Tuple[float, float, float]
+    point: Tuple[float, float, float]
 
 
 def applied_wheels(legs: Sequence[GearLegLoad], *, one_wheel: bool = False,
@@ -513,17 +586,21 @@ def applied_wheels(legs: Sequence[GearLegLoad], *, one_wheel: bool = False,
         fx, fy, fz = leg.airplane
         if leg.leg == NOSE:
             out.append(AppliedWheel(leg.leg, "C", leg.node, leg.airplane,
-                                    leg.couple, leg.carrier, leg.patch))
+                                    leg.couple, leg.carrier, leg.patch, leg.point))
             continue
         ax, ay, az = leg.node
         px, py, pz = leg.patch
-        wheels = [("R", (ax, ay, az), (px, py, pz), fy)]
+        qx, qy, qz = leg.point
+        wheels = [("R", (ax, ay, az), (px, py, pz), (qx, qy, qz), fy)]
         if not one_wheel:
             port_fy = -partner_side_lb if partner_side_lb is not None else fy
-            wheels.append(("L", (ax, -ay, az), (px, -py, pz), port_fy))
-        for side, node, patch, side_lb in wheels:
+            wheels.append(("L", (ax, -ay, az), (px, -py, pz), (qx, -qy, qz), port_fy))
+        for side, node, patch, point, side_lb in wheels:
             force = (fx, side_lb, fz)
+            # The transfer is from the **applied** point (AP-1/AP-2), which is
+            # the axle on the landing attitudes; ``patch`` rides along as the
+            # gear-side geometry it always was (AP-3).
             out.append(AppliedWheel(
                 leg.leg, side, node, force,
-                transfer_couple(patch, node, force), leg.carrier, patch))
+                transfer_couple(point, node, force), leg.carrier, patch, point))
     return out
