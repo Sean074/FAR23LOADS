@@ -24,6 +24,7 @@ from functools import lru_cache
 from typing import (
     Any,
     Dict,
+    FrozenSet,
     List,
     Optional,
     Tuple,
@@ -146,9 +147,25 @@ from .validation import safety_factor_valid
 # with a ``warnings.warn`` the GUI shows as a toast (``project_state.safe_load``,
 # the #66/PB-7 channel), and text that does not parse raises ``ValueError`` naming
 # the field and the member -- one of the types the load path already catches and
-# shows as ``st.error``. Scalars are deliberately NOT in scope here: this is the
+# shows as ``st.error``. Scalars are deliberately NOT *coerced* here: this is the
 # grid-writable container class, and a blanket coercion of every numeric field
 # would have to reason about ``Optional``, enums and bools as well.
+# --------------------------------------------------------------------------- #
+# A JSON ``null`` is refused where ``None`` is not a value (#121). The scalar
+# half of the same boundary, and the one thing about a scalar this module *can*
+# decide without reasoning about coercion: whether the field's own annotation
+# admits ``None``. It did not look, so ``"full_down_aileron_deg": null`` loaded
+# into a field declared ``float = 0.0`` and the main GUI died three modules away
+# on ``float(None)`` -- a raw ``TypeError`` out of a widget, on a file this
+# module had already accepted. ``None`` is not repairable the way text is (the
+# author's intent -- the default, or a value they meant to type -- is not
+# recoverable from the file), so it is refused by name rather than defaulted:
+# defaulting is the silent zeroing the LIMNZ derive refuses for the same reason
+# (#122). The nullable set is read off the annotations, so an ``Optional`` field
+# keeps its meaningful ``None`` and a new field is covered the day it is added;
+# an unresolvable annotation stays permissive. No project this app writes can
+# trip it -- every model field whose default is ``None`` is annotated
+# ``Optional`` (guarded in ``tests/test_io_nulls.py``).
 # --------------------------------------------------------------------------- #
 _NUMBER_TYPES = (float, int)
 
@@ -231,11 +248,59 @@ def _coerced(value: Any, shape: str, where: str) -> Any:
     return out
 
 
+@lru_cache(maxsize=None)
+def _nullable_fields(cls: Any) -> FrozenSet[str]:
+    """The fields of ``cls`` whose annotation admits ``None``.
+
+    ``Optional[X]`` (where ``None`` is a meaningful state -- "not entered", "not
+    stated"), plus ``Any``/``object``, which say nothing and so are not this
+    module's to refuse. An unresolvable annotation set makes every field
+    nullable: the guard stays permissive rather than refusing a file it cannot
+    reason about.
+    """
+    try:
+        hints = get_type_hints(cls)
+    except Exception:  # pragma: no cover - unresolvable forward ref
+        return frozenset(cls.__dataclass_fields__)
+    out = set()
+    for name in cls.__dataclass_fields__:
+        hint = hints.get(name, Any)
+        if hint is Any or hint is object or (
+                get_origin(hint) is Union and type(None) in get_args(hint)):
+            out.add(name)
+    return frozenset(out)
+
+
+def _reject_nulls(cls: Any, d: Dict[str, Any], where: str = "") -> Dict[str, Any]:
+    """``d`` unchanged, or ``ValueError`` naming a ``null`` that is not a value.
+
+    The scalar half of this module's read boundary (#121; see the block comment
+    above). Called by :func:`_filtered` for the splat path and by hand at the
+    head of the ``*_from_dict`` builders that name their fields explicitly, so
+    the rule has one owner and one message wherever a raw dict becomes a
+    dataclass. ``where`` overrides the class name in the message for a nested
+    record whose class name is not what the user sees in the file.
+    """
+    nullable = _nullable_fields(cls)
+    fields = cls.__dataclass_fields__
+    for key, value in d.items():
+        if value is None and key in fields and key not in nullable:
+            raise ValueError(
+                f"{where or cls.__name__}.{key} is null, and that field has no "
+                "'not entered' state -- null is not one of its values. Give it a "
+                "number in the project file, or delete the key to take the "
+                "field's default."
+            )
+    return d
+
+
 def _filtered(cls: Any, d: Dict[str, Any]) -> Dict[str, Any]:
     """Keep only the keys of ``d`` that are fields of dataclass ``cls``, with
-    every numeric container coerced to numbers (see the block comment above)."""
+    every numeric container coerced to numbers and every non-``Optional``
+    ``null`` refused (see the block comment above)."""
     fields = cls.__dataclass_fields__
     shapes = _numeric_containers(cls)
+    _reject_nulls(cls, d)
     out: Dict[str, Any] = {}
     for k, v in d.items():
         if k not in fields:
@@ -258,6 +323,7 @@ def _case_ref_from_dict(raw) -> Any:
 
 
 def _rotor_from_dict(d: Dict[str, Any]) -> Rotor:
+    _reject_nulls(Rotor, d)
     return Rotor(
         diameter_in=d["diameter_in"],
         weight_lb=d["weight_lb"],
@@ -455,6 +521,7 @@ def _opt_float(raw) -> Optional[float]:
 
 
 def _surface_from_dict(d: Dict[str, Any]) -> SurfaceInput:
+    _reject_nulls(SurfaceInput, d)
     return SurfaceInput(
         name=d["name"],
         leading_edge=_points(d.get("leading_edge"), "SurfaceInput.leading_edge"),
@@ -481,11 +548,13 @@ def _fuselage_outline_from_dict(d: Dict[str, Any]) -> FuselageOutline:
     return FuselageOutline(sections=[
         FuselageSection(x=s["x"], width=s["width"], height=s["height"],
                         z_centre=_opt_float(s.get("z_centre")))
-        for s in d.get("sections", []) or []
+        for s in (_reject_nulls(FuselageSection, sec, "FuselageOutline.sections[]")
+                  for sec in d.get("sections", []) or [])
     ])
 
 
 def _landing_gear_from_dict(d: Dict[str, Any]) -> LandingGearGeometry:
+    _reject_nulls(LandingGearGeometry, d)
     return LandingGearGeometry(
         main_gear=_gear_from_dict(d.get("main_gear") or {}),
         nose_gear=_gear_from_dict(d.get("nose_gear") or {}),
@@ -507,6 +576,7 @@ def geometry_from_dict(d: Dict[str, Any]) -> GeometryInput:
     parametric length/width/height scalars when the file predates it;
     ``empennage`` (Step G6) the single-source tail + elevator/rudder geometry.
     """
+    _reject_nulls(GeometryInput, d)
     parametric_raw = d.get("parametric")
     parametric = configuration_from_dict(parametric_raw) if parametric_raw else None
 
@@ -523,6 +593,7 @@ def geometry_from_dict(d: Dict[str, Any]) -> GeometryInput:
     htail_raw, vtail_raw = emp_raw.get("htail"), emp_raw.get("vtail")
     empennage = None
     if htail_raw is not None or vtail_raw is not None or emp_raw.get("airplane_length_in"):
+        _reject_nulls(EmpennageInput, emp_raw)
         empennage = EmpennageInput(
             htail=tail_loads_from_dict(htail_raw) if htail_raw else None,
             vtail=vtail_loads_from_dict(vtail_raw) if vtail_raw else None,
@@ -611,6 +682,7 @@ def geometry_to_dict(inp: GeometryInput) -> Dict[str, Any]:
 # Aero slice <-> dict
 # --------------------------------------------------------------------------- #
 def _aero_surface_from_dict(d: Dict[str, Any]) -> AeroSurfaceInput:
+    _reject_nulls(AeroSurfaceInput, d)
     return AeroSurfaceInput(
         name=d.get("name", "wing"),
         section_slope=d.get("section_slope", 0.1075),
@@ -693,6 +765,7 @@ def _coeff5(raw, where: str = "AeroCoeffSet") -> tuple:
 def _aero_coeff_set_from_dict(d: Dict[str, Any]) -> AeroCoeffSet:
     # stall_cl/neg_stall_cl are derived from the parent's clmax_* (M1-1b); accept
     # a legacy per-config value if present, else default and let __post_init__ sync.
+    _reject_nulls(AeroCoeffSet, d)
     return AeroCoeffSet(
         name=d.get("name", "CRUISE"),
         stall_cl=d.get("stall_cl", 0.0),
@@ -722,6 +795,7 @@ def _aero_coeff_set_to_dict(c: AeroCoeffSet) -> Dict[str, Any]:
 
 def flight_loads_from_dict(d: Dict[str, Any]) -> FlightLoadsInput:
     """Build a :class:`FlightLoadsInput` from a plain dict."""
+    _reject_nulls(FlightLoadsInput, d)
     return FlightLoadsInput(
         xtc=d.get("xtc", 0.0),
         xtf=d.get("xtf", 0.0),
@@ -755,8 +829,11 @@ def flight_loads_to_dict(inp: FlightLoadsInput) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 def aero_coefficients_from_dict(d: Dict[str, Any]) -> AeroCoefficientsInput:
     """Build an :class:`AeroCoefficientsInput` from a plain dict."""
-    fm = d.get("fuselage_moment")
-    lb = d.get("lateral_body_aero")
+    fm = _reject_nulls(FuselageMomentInput, d.get("fuselage_moment") or {},
+                       "AeroCoefficientsInput.fuselage_moment") if d.get("fuselage_moment") else None
+    lb = _reject_nulls(LateralBodyAeroInput, d.get("lateral_body_aero") or {},
+                       "AeroCoefficientsInput.lateral_body_aero") if d.get("lateral_body_aero") else None
+    _reject_nulls(AeroCoefficientsInput, d)
     return AeroCoefficientsInput(
         cruise=_aero_coeff_set_from_dict(d["cruise"]) if d.get("cruise") else None,
         flaps_down=_aero_coeff_set_from_dict(d["flaps_down"]) if d.get("flaps_down") else None,
@@ -931,6 +1008,7 @@ def mass_to_dict(inp: MassResult) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 def fuselage_mass_from_dict(d: Dict[str, Any]) -> FuselageMassInput:
     """Build a :class:`FuselageMassInput` from a plain dict."""
+    _reject_nulls(FuselageMassInput, d)
     return FuselageMassInput(
         stations=[FuselageStation(**_filtered(FuselageStation, s))
                   for s in d.get("stations", []) or []],

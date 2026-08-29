@@ -82,6 +82,66 @@ def test_render_leaves_project_unchanged(view, example):
     )
 
 
+def _blank_every_optional_scalar(obj, blanked=None):
+    """Every ``Optional`` scalar on the project set to ``None``, in place.
+
+    The blank state a view has to render, taken from the annotations rather than
+    from a fixture: a shipped example types most of these, so a sweep that only
+    loads the files never walks the blank leg -- which is exactly how #121 hid
+    (``baron_58`` enters 14.0 for the SELECT aileron, and the suite stayed
+    green). Reading the set off the schema means a field added later is covered
+    the day it is added.
+    """
+    import dataclasses
+    import typing
+
+    blanked = [] if blanked is None else blanked
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+        hints = typing.get_type_hints(type(obj))
+        for field in dataclasses.fields(obj):
+            hint = hints.get(field.name)
+            args = typing.get_args(hint)
+            inner = [a for a in args if a is not type(None)]
+            if (typing.get_origin(hint) is typing.Union and type(None) in args
+                    and len(inner) == 1 and inner[0] in (float, int, str, bool)):
+                setattr(obj, field.name, None)
+                blanked.append(f"{type(obj).__name__}.{field.name}")
+            else:
+                _blank_every_optional_scalar(getattr(obj, field.name), blanked)
+    elif isinstance(obj, (list, tuple)):
+        for item in obj:
+            _blank_every_optional_scalar(item, blanked)
+    return blanked
+
+
+@pytest.mark.parametrize("view", _VIEWS)
+@pytest.mark.parametrize("example", _EXAMPLES, ids=_ids(_EXAMPLES))
+def test_render_survives_every_optional_blank(view, example):
+    """A view must render the blank states, not only the typed ones (#121).
+
+    ``float(field)`` on a field that is legitimately empty is the #121 crash;
+    the loader now refuses a ``null`` where ``None`` is not a value
+    (``tests/test_io_nulls.py``), which leaves the ``Optional`` fields -- where
+    ``None`` *is* the answer and no loader guard can help -- as the live half of
+    the class. Asserted per view rather than per field so a new widget over an
+    Optional is covered the day it is written.
+    """
+    from streamlit.testing.v1 import AppTest
+
+    from sloads import io
+
+    project = io.load_project(example)
+    blanked = _blank_every_optional_scalar(project)
+    assert blanked, "no Optional scalar to blank -- the sweep would prove nothing"
+
+    at = AppTest.from_file(os.path.join(_VIEWS_DIR, view), default_timeout=60)
+    at.session_state["project"] = project
+    at.run()
+    assert not at.exception, (
+        f"{view} raised on a project with its Optional fields blank "
+        f"({os.path.basename(example)}): {[e.message for e in at.exception]}")
+
+
 _GA6 = os.path.join(_ROOT, "examples", "ga6_normal.project.json")
 
 
@@ -501,6 +561,7 @@ if __name__ == "__main__":  # zero-dependency-ish fallback (needs streamlit)
     for _view in _VIEWS:
         for _ex in _EXAMPLES:
             test_render_leaves_project_unchanged(_view, _ex)
+            test_render_survives_every_optional_blank(_view, _ex)
     test_mach_limit_persists_only_on_apply()
     test_flight_loads_persists_only_on_apply()
     test_landing_cases_are_seeded_from_wtenv_only_on_the_button()

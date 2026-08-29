@@ -398,8 +398,24 @@ So that every module is copy-of-the-pattern, these are fixed once:
   member. This exists because a grid rendered from an object-typed column writes
   its cells back as text, so a project can be *saved* with string wing corners;
   the loader is the one boundary both GUIs and the CLI share. **Scalars are not
-  in scope** — the class is grid-writable containers, and a blanket coercion
+  *coerced*** — that class is grid-writable containers, and a blanket coercion
   would have to reason about `Optional`, enums and bools.
+- **A `null` is refused where `None` is not a value (the scalar half of the same
+  boundary, #121).** The one thing the loader can decide about a scalar without
+  reasoning about coercion is whether the field's own annotation admits `None`.
+  A JSON `null` on a non-`Optional` field raises `ValueError` naming the record
+  and the key (`io._reject_nulls`, called by `_filtered` and by hand at the head
+  of every reader that names its fields explicitly — one owner, one message);
+  an `Optional` field keeps its `null`, because there "not entered" / "not
+  stated" is the answer. The nullable set is read off the annotations
+  (`io._nullable_fields`), so a field added to the model is covered the day it
+  is added, and an unresolvable annotation stays permissive. It is **refused,
+  never defaulted**: the author's intent — the default, or a value they meant to
+  type — is not recoverable from the file, and reading it as the default is the
+  silent zeroing the LIMNZ derive refuses for the same reason (#122). This app
+  cannot write a file it would then refuse to read: every model field defaulting
+  to `None` is annotated `Optional`, guarded rather than asserted
+  (`tests/test_io_nulls.py`).
 - **Deliverables state their own basis.** Anything that leaves the tool as a file
   (CSV, BDF, zip, workbook, report) carries the methods & limitations statement
   in band — `report.csv_comment_block` (`#`) or `report.bdf_comment_block` (`$`),
