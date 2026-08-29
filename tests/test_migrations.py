@@ -2,8 +2,10 @@
 
 Pre-production a project file is read at the current ``SCHEMA_VERSION`` or a
 version the hop chain reaches it from — v55, through the additive-identity
-55→56 hop (note 36 OV-10, #97) and the semantic 56→57 landing-N hop (note 37
-LF-8, #123) — and `sloads.migrations.migrate`
+55→56 hop (note 36 OV-10, #97), the semantic 56→57 landing-N hop (note 37
+LF-8, #123) and the two additive-identity ``LoadValue`` hops that follow it
+(57→58 ``frame``, note 38 GF-6/#134; 58→59 ``point``, #141) — and
+`sloads.migrations.migrate`
 raises `SchemaVersionError` for anything else: older than the floor, newer, or
 unversioned. This file pins that gate, and pins that the hop chain works
 (`migrations.py` module docstring).
@@ -38,7 +40,7 @@ from sloads.models import SCHEMA_VERSION
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _FIXTURES = os.path.join(_HERE, "fixtures_schema")
 _EXAMPLES = os.path.join(os.path.dirname(_HERE), "examples")
-_CURRENT = "v58_current.json"
+_CURRENT = "v59_current.json"
 
 
 def _load(name=_CURRENT):
@@ -143,7 +145,7 @@ def test_a_v55_file_loads_through_the_identity_hop_unchanged():
     assert v55["schema_version"] == 55
     hopped = MIGRATIONS[55](copy.deepcopy(v55))
     assert hopped == v55, "the 55->56 identity hop moved something"
-    assert applied_hops(55) == [55, 56, 57]
+    assert applied_hops(55) == [55, 56, 57, 58]
     assert io.project_to_dict(io.project_from_dict(v55)) == \
            io.project_to_dict(io.project_from_dict(_load()))
 
@@ -160,7 +162,7 @@ def test_the_v56_hop_inverts_the_landing_override():
     assert out["schema_version"] == SCHEMA_VERSION
     assert "gear_load_factor" not in out["landing"]
     assert out["landing"]["airplane_load_factor"] == 3.167
-    assert applied_hops(56) == [56, 57]
+    assert applied_hops(56) == [56, 57, 58]
     # The 0.0 sentinel meant "unset": it loads to an unfilled Optional.
     sentinel = copy.deepcopy(v56)
     sentinel["landing"]["gear_load_factor"] = 0.0
@@ -190,8 +192,26 @@ def test_a_v57_file_loads_through_the_identity_hop_unchanged():
     assert v57["schema_version"] == 57
     hopped = MIGRATIONS[57](copy.deepcopy(v57))
     assert hopped == v57, "the 57->58 identity hop moved something"
-    assert applied_hops(57) == [57]
+    assert applied_hops(57) == [57, 58]
     assert io.project_to_dict(io.project_from_dict(v57)) == \
+           io.project_to_dict(io.project_from_dict(_load()))
+
+
+def test_a_v58_file_loads_through_the_identity_hop_unchanged():
+    """#141: the 58->59 hop is an identity, on the 57->58 precedent above.
+
+    v59 adds ``LoadValue.point``, whose ``""`` default means exactly what v58
+    meant -- no application point named. The field is persisted for the same
+    reason ``frame`` is (``LoadValue`` rides inside
+    ``critical.conditions[].loads``), so the display-neutral addition is still a
+    shape change and still gets a hop; what the hop has to do is nothing.
+    """
+    v58 = _load("v58_current.json")
+    assert v58["schema_version"] == 58
+    hopped = MIGRATIONS[58](copy.deepcopy(v58))
+    assert hopped == v58, "the 58->59 identity hop moved something"
+    assert applied_hops(58) == [58]
+    assert io.project_to_dict(io.project_from_dict(v58)) == \
            io.project_to_dict(io.project_from_dict(_load()))
 
 
@@ -210,7 +230,7 @@ def test_migrate_is_idempotent():
 
 def test_applied_hops_matches_the_chain():
     assert applied_hops(SCHEMA_VERSION) == []            # nothing at/above current
-    assert applied_hops(SUPPORTED_FLOOR) == sorted(MIGRATIONS) == [55, 56, 57]
+    assert applied_hops(SUPPORTED_FLOOR) == sorted(MIGRATIONS) == [55, 56, 57, 58]
 
 
 # --------------------------------------------------------------------------- #

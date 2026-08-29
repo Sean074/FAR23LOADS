@@ -949,11 +949,18 @@ def _case_values(c: GearReactionCase,
     for leg in legs:
         stem = leg.key_stem
         label = leg.name[0].upper() + leg.name[1:]
+        # The point rides on the value, not only in the note (#141): the note is
+        # the reader's sentence and the CSV drops it, so a delivered force and
+        # the *named* point it acts at travel together to every channel.
+        at = leg.point_name
         for axis, force, coord, node in zip("xyz", leg.force, leg.point, leg.node):
             out.append(LoadValue(f"{label} F{axis}", force, "lb",
-                                 key=f"{stem}_f{axis}", frame=AIRPLANE_DATUM))
+                                 key=f"{stem}_f{axis}", frame=AIRPLANE_DATUM, point=at))
             out.append(LoadValue(f"{label} {axis}", coord, "in",
-                                 key=f"{stem}_{axis}", frame=AIRPLANE_DATUM))
+                                 key=f"{stem}_{axis}", frame=AIRPLANE_DATUM, point=at))
+            # The node is the leg's reference point the reaction is transferred
+            # *to*, not the point the force acts at, so it names none: stamping
+            # it ``at`` would say the force is applied in two places at once.
             out.append(LoadValue(f"{label} node {axis}", node, "in",
                                  key=f"{stem}_node_{axis}", frame=AIRPLANE_DATUM))
     # p231's FUSELAGE AXIS ANGLE column. An attitude, in neither frame -- it is

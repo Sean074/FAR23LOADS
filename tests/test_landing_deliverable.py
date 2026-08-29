@@ -43,6 +43,7 @@ from sloads.gear_loads import (
     MAIN_LEFT,
     MAIN_RIGHT,
     NOSE,
+    POINTS,
     application_point_of,
     delivered_gear_legs,
     gear_case_loads,
@@ -473,6 +474,80 @@ def test_the_case_note_states_the_point_and_the_attitude():
         assert application_point_of(case) in condition.note, condition.title
         assert attitude_of(case)[0] in condition.note, condition.title
         assert caption(AIRPLANE_DATUM) in condition.note
+
+
+def test_the_delivered_csv_states_its_frame_and_its_application_point():
+    """#141: a CSV forwarded on its own says which frame and which point.
+
+    The point used to be carried **numerically only** -- x/y/z per gear -- with
+    the word ``axle`` living in the condition note and the GUI captions, both of
+    which this channel drops. A standalone consumer could not tell case 1 acts
+    at the axle except by comparing coordinates back to the geometry, and the
+    two points are 15-25 in apart on a light single, which is a moment arm.
+    Every delivered force row therefore names both, from the value itself.
+    """
+    for name in _FIXTURES:
+        result = _landing_result(_project(name))
+        rows = list(_csv.DictReader(_io.StringIO(io.load_cases_csv(result))))
+        assert "Frame" in rows[0] and "Applied at" in rows[0], sorted(rows[0])
+        forces = [r for r in rows if r["Units"].startswith("lbs-")
+                  and " F" in r["Quantity"]]
+        assert len(forces) >= 33 * 3 * 3, (name, len(forces))
+        for row in forces:
+            assert row["Frame"] == AIRPLANE_DATUM, (name, row)
+            assert row["Applied at"] in (AXLE, GROUND_CONTACT), (name, row)
+
+
+def test_the_csv_point_is_appendix_as_printed_column_case_by_case():
+    """The column is the manual's, not a constant: cases 1-12 are the axle and
+    13-24 the ground contact point, so a fixed word in either cell would read
+    correct on half the matrix and wrong on the other half."""
+    result = _landing_result(_project("ga6_normal"))
+    rows = list(_csv.DictReader(_io.StringIO(io.load_cases_csv(result))))
+    checked = 0
+    for row in rows:
+        if " — case " not in row["Condition"] or not row["Applied at"]:
+            continue
+        case = int(row["Condition"].split(" — case ")[1].split(" ")[0])
+        assert row["Applied at"] == application_point_of(case), row
+        checked += 1
+    assert checked >= 33 * 3 * 6, checked
+
+
+def test_the_reference_node_names_no_application_point():
+    """The node is the leg reference point the reaction is transferred *to*,
+    not the point the force acts at. Stamping it would say one force is applied
+    in two places at once -- and its coordinates differ from the point's, which
+    is the whole reason the transfer couple exists."""
+    result = _landing_result(_project("ga6_normal"))
+    rows = list(_csv.DictReader(_io.StringIO(io.load_cases_csv(result))))
+    nodes = [r for r in rows if " node " in r["Quantity"]]
+    assert len(nodes) >= 33 * 3 * 3, len(nodes)
+    for row in nodes:
+        assert row["Applied at"] == "", row
+        assert row["Frame"] == AIRPLANE_DATUM, row
+
+
+def test_every_landing_value_names_a_known_point_or_none():
+    """A point is a vocabulary, not free text (the ``frame`` argument one step
+    further): a typo delivers a load to a point that does not exist, and is
+    indistinguishable downstream from delivery to the other point."""
+    for name in _FIXTURES:
+        for c in _landing_result(_project(name)).conditions:
+            for v in c.values:
+                assert v.point in ("",) + POINTS, (name, c.title, v.label, v.point)
+
+
+def test_a_module_that_names_neither_gets_neither_column():
+    """The two columns are ordinary columns under the data-shaped floor, so the
+    all-empty prune removes them from every module that names no frame and no
+    point -- #141 states the landing output, it does not widen every CSV."""
+    project = _project("ga6_normal")
+    import sloads.modules  # noqa: F401  (registers every module)
+    result = registry.get("weight_estimate")(project)
+    rows = list(_csv.DictReader(_io.StringIO(io.load_cases_csv(result))))
+    assert rows, "weight_estimate produced no rows"
+    assert "Frame" not in rows[0] and "Applied at" not in rows[0], sorted(rows[0])
 
 
 if __name__ == "__main__":

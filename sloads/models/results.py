@@ -71,6 +71,20 @@ class LoadValue:
     CSV in the body frame alone, while the text report keeps both. Blank is the
     right answer for a sink rate or a load factor and is therefore the default.
 
+    ``point`` names the **application point** a force is delivered to, for the
+    quantities that have one: the word beside the coordinates, not a second
+    location. :mod:`sloads.gear_loads` owns the vocabulary and the words
+    (:data:`~sloads.gear_loads.AXLE` / :data:`~sloads.gear_loads.GROUND_CONTACT`,
+    design note 39 AP-1) -- the model holds the string only, exactly as it does
+    for ``frame``, because a result type that imported a load module would
+    invert the package's dependency direction. It is the same argument ``frame``
+    made one step further (#141): the delivered CSV carried the point
+    numerically -- ``x``/``y``/``z`` per gear -- and never said which point it
+    was, so a standalone consumer could not tell case 1 acts at the axle except
+    by comparing coordinates back to the geometry. Blank is the right answer for
+    a load factor, a sink rate or any force whose point is not a named one, and
+    is therefore the default.
+
     ``key`` is declared before it so the long-standing positional calls
     ``LoadValue(label, value, units)`` keep working; producers pass both by
     keyword.
@@ -81,6 +95,7 @@ class LoadValue:
     quantity: str = ""
     key: str = ""
     frame: str = ""
+    point: str = ""
 
 
 @dataclass
