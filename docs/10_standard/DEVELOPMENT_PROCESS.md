@@ -121,20 +121,20 @@ main (always releasable)  ->  release manager cuts release/x.y.z per RELEASE_PRO
     every line, so under the solo profile either setting would block **every**
     merge — the milestone PR included — until a second collaborator exists.
     Turning all three on is part of the switch-over, beside restoring
-    squash-merge. Until 2026-08-26 this bullet stated the three as live; nothing
-    could see the difference, because `required_pull_request` was true the moment
-    a review block existed at all and the snapshot tracked nothing finer. It now
-    tracks `required_approving_review_count`, `required_code_owner_reviews`,
-    `dismiss_stale_reviews` and `required_conversation_resolution`, and
+    squash-merge. The snapshot tracks `required_approving_review_count`,
+    `required_code_owner_reviews`, `dismiss_stale_reviews` and
+    `required_conversation_resolution` individually, and
     `tests/test_ci_conformance.py` asserts this prose against them — CR-D-4's own
-    class, one field deeper.
+    class, one field deeper. A snapshot that tracked only `required_pull_request`
+    could not see any of these three, because that field is true the moment a
+    review block exists at all.
   - **Why only three, and why they are the same three under §0:** the 3.10/3.11
     legs and `sbeam-roundtrip (3.11)` **do not run on a pull request at all**
     (`ci.yml`'s matrix keys on push-to-`main`), so they cannot be required checks
-    — a check that never reports blocks the PR forever. This bullet listed all
-    six until 2026-08-25, contradicting §0's table on the same page and the live
-    setting alike (2026-08-20 review, CR-D-4). The compatibility legs are a
-    *fixed-forward* claim measured on the merge push, not a gate.
+    — a check that never reports blocks the PR forever. Listing all six here
+    would contradict §0's table on the same page and the live setting alike
+    (2026-08-20 review, CR-D-4). The compatibility legs are a *fixed-forward*
+    claim measured on the merge push, not a gate.
   - **What §0 does change** is the merge *method* — squash here, **rebase** under
     the solo profile, so the milestone PR keeps one commit per item and still
     satisfies linear history. The protection settings and the required-check set

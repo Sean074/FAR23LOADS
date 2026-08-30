@@ -130,9 +130,9 @@ it is part of the record:
    The FLTLOADS trim balances the airplane-less-tail drag from the *polar*; the
    assembled model's only `fx` is the wing strips' own chordwise force. The
    difference is the fuselage, the nacelles and the rest of the parasite drag,
-   and until 2026-08-15 nothing carried it — `residual_fx` *equalled* the wing's
-   drag, and the couple the missing force left about the CG was the whole pitch
-   residual. It is now the `body-axial` load. Two things about it are worth
+   and it is carried by the `body-axial` load. Leave it out and `residual_fx`
+   *equals* the wing's drag, with the couple the missing force leaves about the
+   CG standing as the whole pitch residual. Two things about it are worth
    stating here because neither is obvious:
 
    - **It is genuinely parasite drag.** Both models resolve through the same `α`,
@@ -841,16 +841,15 @@ manual). MAC 69.246 in throughout.
 | `q̈` (1/in) | **−1.701e-2** | **−7.4e-8** | **−4.218e-3** |
 | G-7a lift moment | +9,787 lb-in (1.360 % `n·W·MAC`) | — | — |
 
-> **Updated 2026-08-29, twice.** First for the `BETA(2)` correction (design note
-> 38 GF-1/GF-2′; register
-> [`02_approved_corrections.md`](02_approved_corrections.md)), which moved the
-> `LG-13` and `LG-19` columns and left `LG-04` alone — the level attitude was
-> never affected by the sign. Then for the **application point** ([design note
-> 39](../30_future/39_application_point_note.md), #139), which moved `LG-04`
-> alone: the level attitude is applied at the **axle**, where the deck had been
-> transferring it from the tyre. Only `My` and `q̈` move — the forces are
-> LANDLOAD's own and were never touched by either fix, which is why `n_z`, `n_x`
-> and the rotated `NVP`/`NDP` are the same figures throughout.
+> **Reading the table.** Two conventions set it. `LG-13` and `LG-19` resolve at
+> `ρ = −GRA(2)` under the `BETA(2)` deviation (design note 38 GF-1/GF-2′;
+> register [`02_approved_corrections.md`](02_approved_corrections.md)), which the
+> level attitude is not subject to; `LG-04` is applied at the **axle** and not at
+> the tyre ([design note 39](../30_future/39_application_point_note.md), #139),
+> which is where the landing families act. Only `My` and `q̈` are sensitive to
+> either — the forces are LANDLOAD's own and neither convention touches them,
+> which is why `n_z`, `n_x` and the rotated `NVP`/`NDP` agree with the printed
+> row throughout.
 
 Three things to read off it. `n_z` is an **output** — 3.2165 in body axes,
 LANDLOAD's 3.1670 once rotated, and the case reports the solved value rather than
@@ -862,7 +861,7 @@ is LANDLOAD's own `PITCHP` (−168,057) plus the G-7a lift moment (+9,787) that 
 manual nets at the CG and this suite distributes on the wing, and the two agree
 to **1.1 lb-in**. Applying the case at the tyre made that agreement −20,962 —
 which is what #139 was. **This figure is the correction's independent
-witness:** it read −757.1 lb-in until 2026-08-29, and the residual is measured
+witness:** it reads −757.1 lb-in on the uncorrected `BETA(2)`, and the residual is measured
 against LANDLOAD's own unbalanced moments, which the correction does not touch.
 A thousand-fold fall in `q̈` (−8.0e-5 → −7.4e-8) is what a wrong lever arm
 looks like when it stops being wrong. And `LG-19`'s `n_y` is
