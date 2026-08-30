@@ -8,7 +8,8 @@ questions were answered the same day and are recorded as OR-10 … OR-12 (§5),
 on the same footing as OR-1 … OR-9. §6 (2026-08-30) adds the milestone's
 development constraints (OR-13 … OR-15) and §7 (2026-08-30) settles the report
 file and the report page (OR-16 … OR-21) ahead of iteration 1, and §8
-(2026-08-30) settles the issue package the build produces (OR-22 … OR-27). This note settles the shape of an
+(2026-08-30) settles the issue package the build produces (OR-22 … OR-27); §9 (2026-08-30)
+settles iteration 1 and supersedes OR-24 (OR-28 … OR-37). This note settles the shape of an
 **automatic technical report generated from the oracle GUI's analysis** — what
 document it is, where its content comes from, where it is triggered, and the
 unusual development protocol (one section at a time, each agreed by the owner
@@ -295,9 +296,10 @@ message. Nothing else in that file moves.
 A report is a **document instance**, not a property of the airplane: one project
 yields many issues (different customers, revisions, scope selections). Metadata
 therefore lives in a **new `ReportSpec` dataclass** with its own
-`REPORT_SCHEMA_VERSION`, serialised to a **`<stem>.report.json`** file beside the
-existing `<stem>.project.json`, mapped in `sloads/io.py` (`load_report`,
-`save_report`) — which stays the only dataclass↔JSON mapping. **`Project` and
+`REPORT_SCHEMA_VERSION`, serialised to a **`report.json`** file mapped in
+`sloads/io.py` (`load_report`, `save_report`) — **amended 2026-08-30 (§9,
+OR-28): that file lives inside the issue package directory, not beside
+`<stem>.project.json`** — — which stays the only dataclass↔JSON mapping. **`Project` and
 `SCHEMA_VERSION` are not touched**, so note 32's OG-13/G6 promise (a project
 saved by either GUI opens in the other unchanged) is untouched, and no migration
 is owed.
@@ -421,9 +423,10 @@ the directory name is derived from the report number and revision
 ```
 LR-0142_RevB/
   report.tex          the document (OR-4)
-  report.json         the spec as built, stamped (OR-24)
+  report.json         the spec the page edits (OR-28; never machine-written)
+  build.json          the as-built stamp: fingerprint, timestamp, generator (OR-30)
   project.json        a copy of the airplane definition it was built from
-  MANIFEST.txt        every file in the package with its SHA-256
+  MANIFEST.txt        a full SUMMARY_REPORT.md §4.7 manifest (OR-35)
   data/<step_key>.csv one file per table or plot the document draws (OR-23)
   report.pdf          present only after a local compile (OR-26)
 ```
@@ -451,6 +454,10 @@ self-describing, which is what `SUMMARY_REPORT.md` §3.1 requires of every
 load-bearing number. **G-OR-15**; no orphans in either direction, **G-OR-17**.
 
 ### OR-24 — The package's `report.json` is a snapshot; the working spec stays put
+
+**Superseded 2026-08-30 by OR-28 (§9): the package directory is the spec's home,
+and the as-built stamp moved to `build.json` (OR-30). The reasoning below is kept
+because it is what OR-28 had to answer, not because it still governs.**
 
 OR-17's placement stands: the **working** spec lives at `<stem>.report.json`
 beside the project, and is what the page loads and edits. The build **copies it
@@ -520,7 +527,150 @@ meanings collide on one page.
 
 | Gate | Statement |
 |---|---|
-| **G-OR-14** | The package contains exactly the files its `MANIFEST.txt` lists, with matching hashes — no engine aux files, no strays, nothing listed but absent. |
+| **G-OR-14** | The package contains exactly the files its `MANIFEST.txt` lists, with matching hashes — no engine aux files, no strays, nothing listed but absent. **Widened 2026-08-30 (§9, OR-35): the manifest also meets `SUMMARY_REPORT.md` §4.7.** |
 | **G-OR-15** | Every shipped data file's header states its units string (with the `-ULT` marker), safety factor and basis, step key and fingerprint (`SUMMARY_REPORT.md` §3.1 applied to detached files). |
 | **G-OR-16** | Two builds of the same project and the same report spec produce byte-identical **packages**, file for file — G-OR-5 extended from the document to the tree. |
 | **G-OR-17** | Every file in `data/` is referenced by the `.tex`, and every table or plot in the `.tex` is backed by a file in `data/` — no orphans in either direction. |
+
+---
+
+## 9. Iteration 1 — amendments settled in planning (OR-28 … OR-37)
+
+*Owner rulings 2026-08-30, in session, settling iteration 1 before it is built.
+Several of these **override** §7 and §8 as written; where they conflict, §9 wins
+and the superseded text says so. Decisions on the same footing as OR-1 … OR-27.*
+
+### OR-28 — The package directory is the spec's home
+
+**Supersedes OR-24, and amends OR-17 and OR-22.** The working `report.json`
+lives **inside the package directory** and is what the page loads and edits.
+There is no `<stem>.report.json` beside the project.
+
+OR-24 split the spec in two — an editable recipe beside the project, an immutable
+snapshot in the package — and gave them different jobs. In practice the split
+costs more than it buys: a user with six issues of one report keeps six spec
+files in the project folder with no directory to disambiguate them, and every
+build has to answer *which* spec it came from. One issue, one directory, holding
+everything about that issue, is the model the analyst already has in their head.
+
+A real consequence, and a gain: `MANIFEST.txt` must match the tree (G-OR-14), and
+`report.json` is now in the tree. A stale manifest hash for `report.json`
+therefore means **the spec has been edited since the last build** — a
+freshness signal that would otherwise have had to be invented, and that the
+preflight block states rather than computing separately.
+
+### OR-29 — Report root, and how a package is opened
+
+Packages live under **`<project dir>/reports/`** by default, overridable by a
+path field on the page. The page lists the report directories it finds there in a
+selectbox, plus *New*.
+
+Streamlit has no directory picker and the file uploader returns files, not
+folders — so discovery plus a path override is not a compromise, it is the only
+mechanism available to a locally-run app. It is also what makes the page testable
+without a browser: a test points the root at `tmp_path`.
+
+### OR-30 — The as-built stamp is `build.json`; `report.json` is never machine-written
+
+**Amends OR-24's stamping.** The fingerprint, the caller-supplied build timestamp
+and the generator version go in a **`build.json`** the builder owns. `report.json`
+holds only what the user typed.
+
+With OR-28 putting one `report.json` in the tree, stamping it in place would mean
+the build writes the file the user edits — and G-OR-16 (byte-identical rebuilds)
+would then need a by-name exclusion list for the stamped fields, maintained
+forever as the spec grows. Separating the two files removes the carve-out instead
+of maintaining it, and keeps `report.json` diffable as a record of human intent.
+
+### OR-31 — Iteration 1 is the front matter, and the abstract is the spec's
+
+Iteration 1 delivers: cover/title page, **abstract** (OR-18's free text), table of
+contents, list of figures, list of tables, and **section 1 Introduction**.
+
+The **governing-loads summary is not this iteration.** It is computed from
+delivered loads and cannot honestly exist before the sections it summarises; OR-19
+already rules it never-selectable for that reason. Naming both "the summary" is
+what made this worth stating.
+
+### OR-32 — Not-yet-built is a third state, distinct from excluded and absent
+
+A derived analysis section that the generator does not yet build renders its
+heading and *"not yet implemented in this revision of the report generator"*.
+
+This is a **third state**, and the document and the preflight table both keep the
+three apart:
+
+| State | Means | Ruled by |
+|---|---|---|
+| **Excluded** | a user deselected it for this issue | OR-19 |
+| **Absent** | the inputs it needs are missing | OR-5 |
+| **Not yet implemented** | the tool cannot produce it yet | OR-32 |
+
+Collapsing the third into either of the others would be a false statement about
+whose decision produced the gap — the reader would be told a person chose to omit
+a section, or that their data was incomplete, when neither is true. It also lets
+**G-OR-2 hold from the first commit** rather than waiting for the last section:
+every derived step has a section throughout, and the section says what it is.
+
+### OR-33 — `REPORT_SCHEMA_VERSION` stays at 1 for the milestone
+
+Sections will add spec fields as they are agreed. The version stays **1** until
+the 0.8.2 cut: no report file has shipped, so there is nothing to migrate, and
+bumping a version against no readership teaches the number to mean nothing. It
+starts carrying information at the cut.
+
+### OR-34 — The empty lists still render
+
+`\listoffigures` and `\listoftables` are emitted from iteration 1, empty. A
+document that silently drops its own front matter while incomplete is harder to
+trust than one showing an empty list — and the empty list is itself accurate.
+
+### OR-35 — `MANIFEST.txt` is a full `SUMMARY_REPORT.md` §4.7 manifest
+
+**Widens OR-22 and G-OR-14.** OR-22 described `MANIFEST.txt` as every file with
+its SHA-256. That is not enough: the §2 *Data reference* clause (OR-26) conditions
+the packaged-report permission on the package "carrying a manifest (**§4.7**)",
+so §4.7 binds — per-file contents, units, sign and axis conventions and the
+section that summarises it, under an opening statement of the package's unit
+system, with section references from the numbering owner and never a literal
+`§N`, exhaustive **in both directions**.
+
+Both of §4.7's SHALLs were written after real defects (CR-C-1, an artifact
+shipped with no row; CR-C-3, a basis cell wrong through two reviews), so this is
+not ceremony. The shape is already built: `content._section_manifest` renders
+**File / Contents / Units / Conventions / Summarised in**, and
+`tests/test_bundle_manifest.py` holds it in both directions. The issue package
+reuses that shape rather than inventing a lighter one.
+
+### OR-36 — The PDF compile is a later iteration
+
+`sloads/export/pdf.py`'s `compile_pdf` takes the LaTeX **source string** and
+compiles it in a temporary directory — which is exactly OR-26's out-of-tree
+requirement, and exactly why it cannot compile this document: a `.tex` that
+`\input`s `data/*.tex` and reads `data/*.csv` will not find them there.
+
+Extending it to compile a package tree is its own change with its own gate, and
+it is not on iteration 1's critical path: CI asserts the `.tex` build (OR-10), and
+front matter is reviewable as source. G-OR-1's PDF leg lands with that change.
+
+### OR-37 — No example report file
+
+The note's §4 commit-1 row called for `examples/ga6_normal.report.json`. OR-28
+leaves nowhere beside the project for it to live, and an example *package
+directory* checked into `examples/` would be a build product in source control.
+Tests construct a spec with `default_spec()` into `tmp_path` instead. The headless
+build path (OR-17's `sloads oracle-report`) is unaffected — it will take a
+package directory.
+
+### Gates
+
+| Gate | Statement |
+|---|---|
+| **G-OR-14** | **Widened by OR-35:** the package contains exactly the files `MANIFEST.txt` lists, with matching hashes, and the manifest meets `SUMMARY_REPORT.md` §4.7 — the five columns, the opening unit-system statement, section references from the numbering owner, exhaustive both ways. |
+| **G-OR-18** | The three gap states (OR-32) are distinguishable in the rendered document and in the page's preflight: no state's wording can be produced by another's cause. |
+| **G-OR-19** | `report.json` is byte-identical before and after a build — the builder never writes the user's spec (OR-30). |
+
+**Note on vacuous gates.** G-OR-15 (data-file headers) and G-OR-17 (no orphans)
+are written in iteration 1 but have no `data/` files to act on until the first
+analysis section. Their tests say so in the docstring: a gate that passes because
+there is nothing to check must not read as a gate that passed.

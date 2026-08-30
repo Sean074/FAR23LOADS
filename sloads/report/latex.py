@@ -128,7 +128,7 @@ def _title_page(doc: ReportDocument) -> str:
     ])
 
 
-def _paragraphs(text: str) -> str:
+def paragraphs_tex(text: str) -> str:
     """Escaped prose, preserving the statement's paragraphs and indented lines.
 
     The methods statement is a plain-text block with meaning in its layout (an
@@ -258,7 +258,7 @@ def _cell(table: Table, column: str, value: str) -> str:
     return text
 
 
-def _table_tex(table: Table) -> str:
+def table_tex(table: Table) -> str:
     """One table as a ``longtable`` (booktabs rules, repeated header on a break)."""
     if not table.rows:
         return ""
@@ -270,6 +270,15 @@ def _table_tex(table: Table) -> str:
                  for i in range(min(ncols, len(row)))]
         cells += [""] * (ncols - len(cells))
         body.append(" & ".join(cells) + r" \\")
+    if table.data_ref:
+        # A packaged report ships the table's body as a generated fragment and
+        # reads it here (OR-23). The document therefore cannot disagree with the
+        # data it ships, because it is the same bytes -- which is why no
+        # drift-guard between two renderings is owed. Permitted by
+        # ``SUMMARY_REPORT.md`` §2 *Data reference* for a manifest-carrying
+        # package only; a standalone ``.tex`` sets no ``data_ref`` and is
+        # guarded to keep it that way.
+        return r"\input{" + table.data_ref + "}"
     size, spec = _table_size_and_spec(table)
     out = [
         "{" + size,
@@ -287,7 +296,7 @@ def _table_tex(table: Table) -> str:
     return "\n".join(out)
 
 
-def _figure_tex(figure: Figure) -> str:
+def figure_tex(figure: Figure) -> str:
     body = figure_body_tex(figure)
     if not body:
         # An absent figure states why in place of the axis (§3.4). The reason is
@@ -306,7 +315,7 @@ def _figure_tex(figure: Figure) -> str:
     return "\n".join(parts)
 
 
-def _section_tex(section: Section, level: int) -> str:
+def section_tex(section: Section, level: int) -> str:
     r"""One section (and its subsections), unnumbered but present in the ToC.
 
     ``\section*`` rather than ``\section`` because the content model already
@@ -318,15 +327,16 @@ def _section_tex(section: Section, level: int) -> str:
     out = [f"\\{command}*{{{title}}}",
            f"\\addcontentsline{{toc}}{{{command}}}{{{title}}}"]
     if section.absent_reason:
-        out.append(r"\textbf{Not analysed.} " + escape(section.absent_reason))
+        out.append(r"\textbf{" + escape(section.absent_lead) + ".} "
+                   + escape(section.absent_reason))
     for paragraph in section.body:
-        out.append(_paragraphs(paragraph))
+        out.append(paragraphs_tex(paragraph))
     for figure in section.figures:
-        out.append(_figure_tex(figure))
+        out.append(figure_tex(figure))
     for table in section.tables:
-        out.append(_table_tex(table))
+        out.append(table_tex(table))
     for sub in section.subsections:
-        out.append(_section_tex(sub, level + 1))
+        out.append(section_tex(sub, level + 1))
     return "\n\n".join(p for p in out if p)
 
 
@@ -340,7 +350,7 @@ def render_document(doc: ReportDocument) -> str:
         r"\tableofcontents",
         r"\newpage",
     ]
-    parts += [_section_tex(s, 0) for s in doc.sections]
+    parts += [section_tex(s, 0) for s in doc.sections]
     parts.append(r"\end{document}")
     return "\n\n".join(parts).rstrip() + "\n"
 
@@ -360,6 +370,10 @@ def render_report(project, **kwargs) -> str:
 __all__ = [
     "PREAMBLE",
     "escape",
+    "figure_tex",
+    "paragraphs_tex",
     "render_document",
     "render_report",
+    "section_tex",
+    "table_tex",
 ]

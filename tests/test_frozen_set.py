@@ -65,7 +65,7 @@ MANIFEST: dict[str, str] = {
     "sloads/modules/wing_geometry.py": "0cc54b5291c3243a16ae9331289813212c7c8ad0ae18c0e56b4d598b4618d6cc",
     "sloads/modules/wing_inertia.py": "2bf2f00614725a842f0a75a5e213669cdbdf3b0199313fa22c7dc5096df44f81",
     # --- the existing oracle GUI (OR-13, row 2) ---------------------------
-    "oracle_app/Oracle.py": "be441d135b117e61178d6b218abce74a2ebf5d57ec55e4420995fb14e366e42e",
+    "oracle_app/Oracle.py": "b478bf06fd1c998ffa9ee1eebbc51225c24a26a813840529105779b51f5085a1",
     "oracle_app/__init__.py": "bb3135345b421b8fac0f02226050b821770a53c647c4ead72c8dfbd2d156f3d0",
     "oracle_app/form.py": "d5a34df08c76a4e16ac70f1c83ac8fff175d35794390b22dffb177ad83ea76fb",
     "oracle_app/labels.py": "93e442a1fff2174fdd17dd56f8d0b5f91e071641ead341be3dc5b71ede7cebf9",

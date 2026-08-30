@@ -187,6 +187,29 @@ def test_figures_do_not_float_away_from_their_corner_table():
     assert r"\begin{figure}[htbp]" not in tex
 
 
+def test_the_summary_content_sets_no_data_ref():
+    """The structural half of the standalone rule.
+
+    ``Table.data_ref`` is what makes a table read a shipped fragment instead of
+    inlining its rows (design note 44, OR-23) -- correct for the oracle report's
+    issue package, wrong for a report delivered as a bare ``.tex`` download.
+    Asserting it over the content model says *why* the string scan below passes,
+    and it keeps saying so if the renderer's syntax ever changes.
+    """
+    from sloads.report.content import build_report
+
+    for path in (_GA, _CONCEPT):
+        doc = build_report(io.load_project(path), tool_version="test")
+        stack = list(doc.sections)
+        while stack:
+            section = stack.pop()
+            stack.extend(section.subsections)
+            for table in section.tables:
+                assert not table.data_ref, (
+                    f"{table.title!r} would read an external fragment, and the "
+                    "summary report is delivered as a standalone .tex")
+
+
 def test_the_standalone_tex_references_no_external_file():
     """SUMMARY_REPORT.md §2 *Data reference*: a report delivered as a standalone
     ``.tex`` -- which this one is, via the Export page's own download button --

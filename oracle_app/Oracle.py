@@ -18,9 +18,16 @@ no per-page view files either: every page is :func:`oracle_app.form.render_step`
 bound to a step key, and what it shows comes from
 :mod:`sloads.field_registry` — which is why fourteen pages cost one renderer.
 
-**What it deliberately does not have.** Plots, the sbeam decks, the workbook, the
-LaTeX report, the concept-mode pages and every sloads-only field: all still fully
-available in ``app/``, none of them reachable from here. A project saved by
+**What it deliberately does not have.** Plots, the sbeam decks, the workbook,
+``app/``'s summary report, the concept-mode pages and every sloads-only field:
+all still fully available in ``app/``, none of them reachable from here.
+**Amended for milestone 0.8.2 (design note 44, OR-3/OR-16):** this GUI now
+carries one page that is not a workflow step -- ``Report``, which generates a
+formal technical report of *this* front end's own analysis and writes it as an
+issue package. It is registered on ``st.navigation`` below and deliberately not
+in ``register_pages``: that mapping is the derived step set (gate G2) and stays
+exactly that, so the report page can never be mistaken for an analysis step or
+be reached by a cross-page step link. A project saved by
 either GUI opens in the other unchanged (OG-13, gate G6) — this front-end asks
 for less, it does not store anything different.
 """
@@ -33,6 +40,8 @@ from app_shell.nav import register_pages
 from app_shell.project_state import ensure_project
 from app_shell.sidebar import render_shell_sidebar
 from oracle_app.form import render_step
+from oracle_app.report import PAGE_TITLE as REPORT_TITLE
+from oracle_app.report import render_report_page
 from sloads import workflow as wf
 
 # The first Streamlit call, and the ONLY set_page_config in this entry point --
@@ -68,7 +77,10 @@ _pages = {step.key: _page(step, default_key=_steps[0].key) for step in _steps}
 # carries rather than to app/'s directory layout (note 32, OG-F).
 register_pages(_pages)
 
-pg = st.navigation(list(_pages.values()), expanded=True)
+# The report page is appended to the navigation only -- ``register_pages``
+# above still receives exactly ``oracle_steps()``, in order (note 44, OR-16).
+_report_page = st.Page(render_report_page, title=REPORT_TITLE, url_path="report")
+pg = st.navigation(list(_pages.values()) + [_report_page], expanded=True)
 # The sidebar wraps the page: its project-file block renders *after* the page
 # has persisted this rerun's edit, so the download and the dirty flag are
 # never one keystroke stale (#64, PB-4).

@@ -35,7 +35,7 @@ from typing import (
 )
 
 from .constants import ULTIMATE_FACTOR
-from .migrations import migrate
+from .migrations import SchemaVersionError, migrate
 from .models import (
     SCHEMA_VERSION,
     AeroCoefficientsInput,
@@ -115,6 +115,14 @@ from .models import (
     WingMassInput,
     WingStationLoad,
     default_fuselage_outline,
+)
+from .models.report import (
+    REPORT_SCHEMA_VERSION,
+    ProjectIdentity,
+    ReportSpec,
+    RevisionRow,
+    SignatureRow,
+    default_spec,
 )
 from .report import summary_rows
 from .units import UnitSystem, convert_results, unit_system_from
@@ -1691,3 +1699,180 @@ def write_load_cases_csv(
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write(load_cases_csv(results, header_comment=header_comment,
                                 system=system))
+
+
+# --------------------------------------------------------------------------- #
+# The report spec and the issue package (design note 44, OR-17/OR-28 … OR-30)
+#
+# A report is a document instance, not a property of the airplane, so its
+# metadata is its own artifact with its own schema version -- and this stays the
+# only dataclass<->JSON mapping in the package, report spec included.
+#
+# Every *path* the issue package needs is owned here too, beside
+# ``project_filename``, so that the report page computes none of them: the oracle
+# GUI may not import ``os`` at all (gate G1, ``tests/test_oracle_gui.py``), which
+# turns "the page owns no filesystem knowledge" from a convention into something
+# the import gate enforces.
+# --------------------------------------------------------------------------- #
+
+#: The user's editable spec, inside the issue package directory (OR-28).
+REPORT_SPEC_FILENAME = "report.json"
+
+#: The builder's as-built stamp -- fingerprint, timestamp, generator (OR-30).
+#: Separate from the spec so the build never writes the file the user edits, and
+#: G-OR-16's byte-identical rebuild needs no field-exclusion carve-out.
+BUILD_STAMP_FILENAME = "build.json"
+
+#: Where issue packages live under a project's directory (OR-29).
+REPORT_ROOT_DIRNAME = "reports"
+
+#: Longest package directory name :func:`report_package_dirname` produces.
+REPORT_DIR_MAX = 64
+
+
+def report_spec_to_dict(spec: ReportSpec) -> Dict[str, Any]:
+    """``ReportSpec`` -> JSON dict, omitting anything empty.
+
+    Same omit-falsy rule as :func:`project_to_dict`: an absent key and an empty
+    value are the same statement, so a spec round-trips byte-identically and a
+    file gains keys only as its author fills them in. G-OR-11 and G-OR-16 both
+    rest on that.
+    """
+    out: Dict[str, Any] = {"report_schema_version": REPORT_SCHEMA_VERSION}
+    for key in ("title", "report_number", "revision", "issue_date",
+                "organisation", "customer", "abstract", "distribution",
+                "marking"):
+        value = getattr(spec, key)
+        if value:
+            out[key] = value
+    if spec.revisions:
+        out["revisions"] = [asdict(r) for r in spec.revisions]
+    for key in ("prepared", "checked", "approved"):
+        row: SignatureRow = getattr(spec, key)
+        if row.name or row.role or row.date:
+            out[key] = asdict(row)
+    # Written only when it is not the default, exactly as ``project_to_dict``
+    # treats ``unit_system``.
+    if spec.unit_system != UnitSystem.IMPERIAL:
+        out["unit_system"] = spec.unit_system.value
+    if spec.excluded_steps:
+        out["excluded_steps"] = list(spec.excluded_steps)
+    ident = spec.identity
+    if any((ident.project_name, ident.designation, ident.fingerprint)):
+        out["identity"] = {
+            k: v for k, v in {
+                "project_name": ident.project_name,
+                "designation": ident.designation,
+                "fingerprint": ident.fingerprint,
+                "fingerprint_version": ident.fingerprint_version,
+            }.items() if v
+        }
+    return out
+
+
+def report_spec_from_dict(d: Dict[str, Any]) -> ReportSpec:
+    """JSON dict -> ``ReportSpec``.
+
+    Unknown keys are dropped rather than refused: a spec written by a later
+    milestone that added a field must still open here as the report it is, minus
+    what this build cannot show. That is the opposite of ``project_from_dict``'s
+    posture, and deliberately so -- a project carries numbers that drive a
+    structural result, where a report carries the prose around them.
+    """
+    version = int(d.get("report_schema_version", REPORT_SCHEMA_VERSION))
+    if version > REPORT_SCHEMA_VERSION:
+        raise SchemaVersionError(
+            f"report.json is schema version {version}; this build reads up to "
+            f"{REPORT_SCHEMA_VERSION}. Upgrade sloads to open it.")
+    ident_d = d.get("identity") or {}
+    identity = ProjectIdentity(
+        project_name=str(ident_d.get("project_name", "")),
+        designation=str(ident_d.get("designation", "")),
+        fingerprint=str(ident_d.get("fingerprint", "")),
+        fingerprint_version=int(ident_d.get("fingerprint_version", 0)),
+    )
+
+    def _row(key: str) -> SignatureRow:
+        raw = d.get(key) or {}
+        return SignatureRow(name=str(raw.get("name", "")),
+                            role=str(raw.get("role", "")),
+                            date=str(raw.get("date", "")))
+
+    return ReportSpec(
+        title=str(d.get("title", "")),
+        report_number=str(d.get("report_number", "")),
+        revision=str(d.get("revision", "")),
+        issue_date=str(d.get("issue_date", "")),
+        organisation=str(d.get("organisation", "")),
+        customer=str(d.get("customer", "")),
+        abstract=str(d.get("abstract", "")),
+        distribution=str(d.get("distribution", "")),
+        marking=str(d.get("marking", "")),
+        revisions=[RevisionRow(**_filtered(RevisionRow, r))
+                   for r in d.get("revisions", [])],
+        prepared=_row("prepared"), checked=_row("checked"),
+        approved=_row("approved"),
+        unit_system=UnitSystem(d.get("unit_system", UnitSystem.IMPERIAL.value)),
+        excluded_steps=tuple(str(k) for k in d.get("excluded_steps", [])),
+        identity=identity,
+    )
+
+
+def report_spec_to_json(spec: ReportSpec) -> str:
+    """The exact bytes :func:`save_report` writes.
+
+    The package builder ships this string as the package's ``report.json``, so
+    "the build never rewrites the user's spec" (OR-30) is literally true rather
+    than merely intended -- there is one serialiser and both callers use it.
+    """
+    return json.dumps(report_spec_to_dict(spec), indent=2) + "\n"
+
+
+def load_report(path: str) -> ReportSpec:
+    """Read a ``report.json``.
+
+    Raises like any other loader on a file that exists but cannot be read --
+    the error contract (``00_program_overview.md``) is unchanged, and the GUI's
+    ``safe_load`` reports it without a new branch. **A file that is simply not
+    there is not an error**: G-OR-11 requires a project with no report yet to
+    open a blank unsigned draft rather than a traceback, and that is every
+    project the first time.
+    """
+    if not os.path.isfile(path):
+        return default_spec()
+    with open(path, "r", encoding="utf-8") as fh:
+        return report_spec_from_dict(json.load(fh))
+
+
+def save_report(spec: ReportSpec, path: str) -> None:
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(report_spec_to_json(spec))
+
+
+def report_package_dirname(report_number: str, revision: str) -> str:
+    """``LR-0142_RevB`` -- the issue package's directory name (OR-22).
+
+    Derived from the report number and revision and **never from the clock**: a
+    rebuild of the same issue must land on the same directory (OR-25), which a
+    timestamped name makes impossible. Sanitised on ``project_filename``'s rules,
+    for its reasons -- a report number is at least as likely as a project name to
+    carry a slash or a quote.
+    """
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "_", (report_number or "").strip())
+    stem = re.sub(r"_+", "_", stem).strip("._-")
+    rev = re.sub(r"[^A-Za-z0-9._-]+", "_", (revision or "").strip()).strip("._-")
+    name = f"{stem or 'report'}{('_Rev' + rev) if rev else ''}"
+    return name[:REPORT_DIR_MAX].rstrip("._-") or "report"
+
+
+def default_report_root(project_path: Optional[str] = None) -> str:
+    """``<project dir>/reports`` -- where issue packages live (OR-29).
+
+    Beside the airplane they document, so a report travels with its subject
+    rather than accumulating in one global folder divorced from it. Falls back to
+    :func:`default_projects_dir` for a project that has never been saved, so the
+    page always has a root to offer and never has to compute one itself.
+    """
+    base = (os.path.dirname(os.path.abspath(project_path)) if project_path
+            else default_projects_dir())
+    return os.path.join(base, REPORT_ROOT_DIRNAME)

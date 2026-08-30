@@ -260,6 +260,29 @@ Every figure the report prints comes from the modules cited in the table above,
 through the same pure builders the GUI uses; the limit→ultimate boundary is
 `report/render.py`'s, unchanged.
 
+## Oracle-report provenance (milestone 0.8.2, design note 44)
+
+The oracle technical report adds **no physics**: it recomputes nothing (OR-6) and
+every number it will print is a value a `ModuleResult` already produced. Its
+citations are therefore the *document's* sources, not equations of its own, and
+they are the three the §1 Introduction names:
+
+- **`reference/FAR23Loads_Code.pdf`** — McMaster's theory manual, the method the
+  report documents, with Appendix A (p131) the printed oracle the replication is
+  held to within ±0.1%.
+- **`reference/FAR23Loads_UserGuide.pdf`** — DOT/FAA/AR-96/46, whose Table 2.2 is
+  the module data flow the report's section order follows.
+- **14 CFR Part 23 Subpart C** — the certification basis the loads are computed
+  against.
+
+Per-section method citations accrue with each OR-8 iteration, in
+`docs/10_standard/ORACLE_REPORT.md`'s section register rather than here: the
+report's own standard is where its per-section agreements live, and duplicating
+them would give the same statement two owners.
+
+The report's verification wording is `methods.py`'s, quoted rather than restated,
+for the reason above — a second copy is a second thing to keep true.
+
 ## Base-method uncertainty (the effect-vs-error-bar datum) <a id="base-method-uncertainty"></a>
 
 The suite's own fidelity ceiling, stated once so that scope decisions can be

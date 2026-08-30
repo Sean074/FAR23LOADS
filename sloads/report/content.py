@@ -137,6 +137,15 @@ class Table:
     note: str = ""
     small: bool = False
     status_column: str = ""
+    #: Relative path of a generated ``.tex`` fragment holding this table's body,
+    #: for a report delivered as a **package** (design note 44 OR-23). Empty --
+    #: the default, and what every summary-report table uses -- means the rows
+    #: are written inline, which is what ``SUMMARY_REPORT.md`` §2 requires of a
+    #: standalone ``.tex``. Carrying the mode on the table rather than on the
+    #: document is deliberate: a packaged report still writes its title-block and
+    #: control tables inline, so "external" is a property of one table's data,
+    #: never of the document.
+    data_ref: str = ""
 
 
 @dataclass(frozen=True)
@@ -169,6 +178,12 @@ class Figure:
 
     ``data is None`` means the figure could not be built; ``absent_reason`` then
     says why, and the section renders that sentence instead of an empty axis.
+
+    There is deliberately no ``data_ref`` here yet, though :attr:`Table.data_ref`
+    exists: an axis that reads a shipped CSV has to name the *columns* it plots,
+    and that schema is defined by the emitter that writes the first plotted
+    section's data. Adding the field before the schema exists would be guessing
+    at it in the one place a wrong guess is expensive to undo.
     """
 
     key: str
@@ -188,6 +203,15 @@ class Section:
     figures: List[Figure] = field(default_factory=list)
     subsections: List["Section"] = field(default_factory=list)
     absent_reason: str = ""
+    #: The bold lead the renderer puts in front of ``absent_reason``.
+    #:
+    #: Defaults to the summary report's single reason for a missing section --
+    #: it was not analysed. The oracle report has *four* section states (design
+    #: note 44 OR-32) that must not borrow each other's wording, because each
+    #: names a different party's decision: leading a not-yet-implemented section
+    #: with "Not analysed" tells the reader their data was incomplete when it was
+    #: the tool that was.
+    absent_lead: str = "Not analysed"
 
     @property
     def table(self) -> Optional[Table]:

@@ -191,6 +191,7 @@ FAR23LOADS/
 │   │   ├── enums.py              # schema enumerations (categories, kinds, tail types)
 │   │   ├── inputs.py             # per-module input dataclasses
 │   │   ├── project.py            # the Project aggregate root + SCHEMA_VERSION
+│   │   ├── report.py             # ReportSpec + REPORT_SCHEMA_VERSION: one report issue's metadata, not a Project slice (note 44, OR-17)
 │   │   └── results.py            # result dataclasses (ConditionResult/LoadValue, per-module results)
 │   ├── io.py                     # the only dataclass<->JSON mapping; project.json + load-case CSV
 │   ├── migrations.py             # normalise any historical project.json to the current schema
@@ -227,8 +228,12 @@ FAR23LOADS/
 │   │   ├── bundle.py             # THE Export zip's member list: every file it carries, with the manifest row that names it (CR-C-1)
 │   │   ├── results_zip.py        # the sidebar's whole-project results zip: every module run, skip-and-manifest (C210-45)
 │   │   ├── conventions_tex.py    # the report's "Axes and sign conventions" section, from CONVENTIONS.md's owners
-│   │   ├── latex.py              # ReportDocument → .tex (escaping, longtable, document control)
-│   │   └── plots_tex.py          # pgfplots figures: V-n, weight/CG, speed–altitude
+│   │   ├── latex.py              # ReportDocument → .tex (escaping, longtable, document control); THE table/figure/section emitters, shared by both reports
+│   │   ├── plots_tex.py          # pgfplots figures: V-n, weight/CG, speed–altitude
+│   │   ├── fingerprint.py        # the oracle report's provenance: anchors + the versioned fingerprint over the oracle-consumed projection (note 44, OR-21)
+│   │   ├── oracle_content.py     # the oracle technical report's content model: the derived section set and its four states (note 44, OR-2/OR-32)
+│   │   ├── oracle_latex.py       # the oracle report's furniture — title page, classification footer, DRAFT overlay — borrowing latex.py's emitters
+│   │   └── oracle_package.py     # THE issue package's member list + its SUMMARY_REPORT §4.7 manifest (note 44, OR-22/OR-35)
 │   ├── export/                   # output bridges to external tools (renderers, NOT registered modules)
 │   │   ├── bands.py              # THE GID/EID/SID band registry: one owner per id run, disjointness proved by test
 │   │   ├── coordinates.py        # SLOADS axes -> sbeam CID 0 map + the reflection operator (single edit-point)
@@ -240,6 +245,7 @@ FAR23LOADS/
 │   │   ├── equilibrium.py        # deck-derived force/moment resultants: the export-boundary closure gate
 │   │   ├── workbook.py           # multi-sheet .xlsx workbook (Step D8.2): one tab per module/component + case index
 │   │   ├── roundtrip.py          # solve an exported deck in the real sbeam (step 2; test-only use)
+│   │   ├── report_package.py     # ⚠ impure: writes the oracle report's issue package to disk and discovers existing ones (note 44, OR-22/OR-29)
 │   │   └── pdf.py                # ⚠ the ONE impure export helper: TeX engine discovery + subprocess compile (G8.6)
 │   └── modules/                  # one file per suite program + the modern additions; each self-registers on import
 │       ├── configuration.py      # Geometry (modern; no .BAS) -> Project.geometry.{parametric,empennage,landing_gear} (G1/G6/G6b)
