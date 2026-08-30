@@ -291,14 +291,14 @@ gets re-litigated by whoever next reads the source and thinks it is a bug.
 > legible output would be a *construction figure* contradicting the program's own
 > table, not another table.
 >
-> **Question resumed 2026-08-28** — the reopening condition below has been met:
-> the p231–233 table now reads legibly (rendered at 200 dpi, bypassing the OCR
-> layer), the Appendix C `.BAS` lines are confirmed verbatim, and a second
-> instance of the same sign error was found in the datum load-factor lift term.
-> [Design note 38](../30_future/38_ground_frame_note.md) (AGREED 2026-08-28)
-> supersedes this decision: when issue #133 lands, this entry converts in place
-> to an approved deviation and its pin test flips to ρ = −GRA on every
-> attitude. Until then the code and pin test stand as described below.
+> **What met the reopening condition**, per [design note
+> 38](../30_future/38_ground_frame_note.md): the p231–233 tables read legibly
+> when rendered at 200 dpi, bypassing the OCR layer; the Appendix C `.BAS` lines
+> are confirmed verbatim; and a second instance of the same sign error was found
+> in the datum load-factor lift term. The deviation that replaced this decision,
+> and the pin at `ρ = −GRA` on every attitude, are stated in the approved entry
+> above. **Everything below this banner is the 2026-08-15 text unchanged** and
+> describes the code and the pin test as they stood under that decision.
 
 `LANDLOAD.BAS` resolves each case's wheel resultant into airplane axes through
 `PHIM`, and the three attitudes do not carry the ground angle with the same sign:

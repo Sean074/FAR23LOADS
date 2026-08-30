@@ -180,9 +180,9 @@ file + symbol is the anchor.
   (13–24) and on 27, 30, 33. The split is physical — the level-landing drag is a
   *spin-up* load reacted through the bearing at the axle, while braking torque is
   internal to the wheel/leg free body and leaves the patch force where it acts —
-  and it is measurable: applying every case at the patch, as the deck did until
-  2026-08-29, invents up to 524,302 lb-in of pitching moment on the landing
-  attitudes (#139). The move to the trunnion
+  and it is measurable: applying every case at the patch instead invents up to
+  524,302 lb-in of pitching moment on the landing attitudes (#139).
+  The move to the trunnion
   is ours and carries the lever-arm couple, which makes it a change of
   *description* and not of load. The reference point is an **explicit input**
   with an explicit carrier (`BODY`/`WING`): a wing-carried reaction relieves or
