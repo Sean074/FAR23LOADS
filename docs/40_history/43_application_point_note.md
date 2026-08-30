@@ -2,8 +2,8 @@
 
 **Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6)*
 
-**Status: AGREED and BUILT — the owner agreed AP-1…AP-6 and G-AP-1…G-AP-5 in
-session 2026-08-29; implemented and closed the same day.** Issue **#139**. Blocks **#134**
+**Status: SHIPPED in 0.8.1 (2026-08-29) — the owner agreed AP-1…AP-6 and
+G-AP-1…G-AP-5 in session 2026-08-29; implemented and closed the same day.** Issue **#139**. Blocks **#134**
 (design note 38 GF-6), which emits the application point as a deliverable and
 must not emit a point the deck does not transfer from.
 

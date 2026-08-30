@@ -845,7 +845,7 @@ manual). MAC 69.246 in throughout.
 > `ρ = −GRA(2)` under the `BETA(2)` deviation (design note 38 GF-1/GF-2′;
 > register [`02_approved_corrections.md`](02_approved_corrections.md)), which the
 > level attitude is not subject to; `LG-04` is applied at the **axle** and not at
-> the tyre ([design note 39](../30_future/39_application_point_note.md), #139),
+> the tyre ([design note 39](../40_history/43_application_point_note.md), #139),
 > which is where the landing families act. Only `My` and `q̈` are sensitive to
 > either — the forces are LANDLOAD's own and neither convention touches them,
 > which is why `n_z`, `n_x` and the rotated `NVP`/`NDP` agree with the printed

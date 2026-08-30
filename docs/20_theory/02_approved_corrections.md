@@ -166,7 +166,7 @@ digest are re-generated with this entry cited. Assumption recorded on the gate:
 the nose-up sense of `GRA` is derived on **tricycle** geometry, the only
 arrangement the suite models.
 
-Design note: [38](../30_future/38_ground_frame_note.md) §1.15 (AGREED
+Design note: [38](../40_history/42_ground_frame_note.md) §1.15 (AGREED
 2026-08-29), GF-1 / GF-2′ / GF-3″ / GF-4.
 
 ### LANDLOAD's airplane-datum lift term and moment transform carry the same wrong sign *(approved 2026-08-29, issue #134)*
@@ -233,7 +233,7 @@ Gates: `tests/test_landing.py::test_landload_p232_airplane_datum_load_factors`;
 `test_case_1_and_case_16_lock_at_the_ruled_numbers`,
 `test_the_datum_moments_are_a_rotation_of_the_printed_ground_line_ones`.
 
-Design note: [38](../30_future/38_ground_frame_note.md) §1.6 (OQ-1) and §1.13,
+Design note: [38](../40_history/42_ground_frame_note.md) §1.6 (OQ-1) and §1.13,
 GF-6; the disposition §5.4 recommended — registered with the item that built it.
 
 ---
@@ -292,7 +292,7 @@ gets re-litigated by whoever next reads the source and thinks it is a bug.
 > table, not another table.
 >
 > **What met the reopening condition**, per [design note
-> 38](../30_future/38_ground_frame_note.md): the p231–233 tables read legibly
+> 38](../40_history/42_ground_frame_note.md): the p231–233 tables read legibly
 > when rendered at 200 dpi, bypassing the OCR layer; the Appendix C `.BAS` lines
 > are confirmed verbatim; and a second instance of the same sign error was found
 > in the datum load-factor lift term. The deviation that replaced this decision,

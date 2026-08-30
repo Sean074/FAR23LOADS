@@ -2,8 +2,8 @@
 
 **Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6)*
 
-**Status: AGREED — GF-1 and GF-2′ approved by the owner 2026-08-29, GF-3″ with
-them.** The sign question is closed by the manual's own construction figures
+**Status: SHIPPED in 0.8.1 (2026-08-29) — GF-1 and GF-2′ approved by the owner
+2026-08-29, GF-3″ with them; implemented and closed the same day.** The sign question is closed by the manual's own construction figures
 (§1.15): p234 states the rule (`BETA = GAMMA − GRD ANGLE`, arms axle-to-axle
 normal to the resultant) and p235 prints braked-roll arms of 77.052 / 17.760 /
 94.811 where the p230 table prints 69.886 / 23.260 / 93.147 — reproduced exactly
