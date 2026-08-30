@@ -125,7 +125,8 @@ per-section method citations rather than gaining new equations (the report adds
 no physics).
 
 **Milestone 0.8.2, one backlog row, solo profile.** The whole report is **one
-backlog item** pointing at this note, worked on `dev/v0.8.2`. Issues are not
+backlog item** pointing at this note — **issue #151**, the row's owning issue —
+worked on `dev/v0.8.2`. Issues are not
 opened per section (`DEVELOPMENT_PROCESS.md` §0: the backlog is the record;
 OR-9's accruing standard doc is the per-section register). Delivery follows
 OR-8 as **one commit per agreed iteration** — ordinary work commits, keeping
@@ -175,3 +176,79 @@ The default stands: analysis-body sections are developed in
 sample values are values the already-agreed sections produced (the note 34
 UG-10 lesson — writing a downstream section first means inventing numbers the
 tool later contradicts).
+
+---
+
+## 6. Development constraints for milestone 0.8.2 (OR-13 … OR-15)
+
+*Owner ruling 2026-08-30, in session (`CLAUDE.md` rule 1's working-alone path).
+Milestone-scoped: these constraints govern `dev/v0.8.2` only, and lapse at the
+0.8.2 cut. They are decisions on the same footing as OR-1 … OR-12; §3's gate
+discipline applies to them via G-OR-9.*
+
+The report is a **view** of an analysis that is already oracle-locked and
+already agreed (OR-6, OR-7). Building a view is therefore not an occasion to
+adjust what is being viewed. These three rules make that structural rather than
+a matter of restraint.
+
+### OR-13 — The frozen set: solver and existing oracle GUI, additive-only
+
+For the duration of 0.8.2 the following are **frozen** — no edit, including
+refactors, renames, formatting and type-annotation churn:
+
+| Frozen | Why |
+|---|---|
+| `sloads/modules/**` | The solver. Appendix A holds it to ±0.1 %, but an oracle test only catches a change that moves a printed number; the freeze also catches the ones that do not. |
+| `oracle_app/Oracle.py`, `form.py`, `labels.py`, `results.py`, `__init__.py` | Every existing oracle GUI page and its input/output behaviour. The C210-15 fidelity ruling makes these the consumed-value contract the report reads from. |
+
+**Permitted, and only these:**
+
+1. **New files** — `sloads/report/oracle_content.py`, the new `oracle_app`
+   report page, `docs/10_standard/ORACLE_REPORT.md`, new tests. Additive work in
+   `oracle_app` is the milestone's own first commit (OR-3) and is not a change
+   to the frozen set.
+2. **The one OR-3 docstring amendment** in `oracle_app/Oracle.py` — note 32's
+   "deliberately does not have" statement, updated to record the amendment.
+3. **A blocking-defect fix admitted under OR-15**, which carries its issue
+   number and updates the manifest in the same commit.
+
+Shared code outside the frozen set (`sloads/report/*.py`, `sloads/workflow.py`)
+stays open under the ordinary rules — but a change there that alters the
+**summary report's** output is a behaviour change to a delivered capability
+(tier M), not report plumbing, and is ticketed like any other.
+
+### OR-14 — A defect found in frozen code is filed, not fixed
+
+Reading the solver and the oracle GUI closely is the point of writing this
+report, so it will surface defects. Every one is **written up as a GitHub issue
+with a body** the session it is found (`CLAUDE.md` rule 5), and left in place.
+Diagnosing a suspected defect far enough to file it accurately is expected; the
+line is the edit, not the investigation. The report renders what the frozen code
+actually produces — a document that quietly papers over a defect is worse than
+one that exposes it, and the issue is the exposure.
+
+This does not weaken `CLAUDE.md` rule 4 (generalize on first find): the sweep of
+the defect class is part of the *ticketed* fix, wherever that fix lands.
+
+### OR-15 — Triage of what is found
+
+| Finding | Milestone |
+|---|---|
+| **Prevents progress** — the report cannot be built, or cannot be built truthfully, without the fix | **0.8.2**, admitted by explicit owner decision, with an issue number and a manifest update in the fixing commit |
+| Concerns **oracle GUI output** — a value, label, unit, frame or presentation the report consumes — but the report can be written correctly around it | **0.8.3** |
+| Anything else — solver fidelity, main GUI, concept mode, hygiene | **0.9.0** |
+
+"Prevents progress" is deliberately narrow: a wrong number the report can state
+accurately (because the report states what the analysis produced) does **not**
+prevent progress — it is an 0.8.3 or 0.9.0 ticket and, where the error is
+material, a `Methods and limitations` entry in the back matter until it is
+fixed.
+
+### G-OR-9 — the freeze is a test, not a promise
+
+`tests/test_frozen_set.py` holds a SHA-256 manifest of every frozen path and
+fails on any change to one. Updating the manifest is the deliberate act that
+records an OR-13 exception: the commit that changes a frozen file updates the
+manifest beside it and names its authority (OR-13 item 2, or an OR-15 issue
+number) in the commit message. `CLAUDE.md` rule 3 — a cross-cutting convention
+gets a code owner and a drift guard, never a prose rule alone.
