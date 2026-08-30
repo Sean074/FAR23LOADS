@@ -5,7 +5,9 @@
 **Status: AGREED 2026-08-29 (owner, in session — `CLAUDE.md` rule 1's
 working-alone path); nothing built. Milestone: 0.8.2.** The three §5 open
 questions were answered the same day and are recorded as OR-10 … OR-12 (§5),
-on the same footing as OR-1 … OR-9. This note settles the shape of an
+on the same footing as OR-1 … OR-9. §6 (2026-08-30) adds the milestone's
+development constraints (OR-13 … OR-15) and §7 (2026-08-30) settles the report
+file and the report page (OR-16 … OR-21) ahead of iteration 1. This note settles the shape of an
 **automatic technical report generated from the oracle GUI's analysis** — what
 document it is, where its content comes from, where it is triggered, and the
 unusual development protocol (one section at a time, each agreed by the owner
@@ -110,7 +112,7 @@ section to it.
 | **G-OR-2** | Every result-producing step in `sloads.workflow.oracle_steps()` has exactly one analysis section, and every analysis section maps to a step. Guard test (the G2 inheritance, OR-2). |
 | **G-OR-3** | Every load table value equals the corresponding `ModuleResult` value × its case's SF — asserted through the content model, never by matching LaTeX strings (OR-6). |
 | **G-OR-4** | Every load carries `-ULT` and a stated SF; no non-load quantity is scaled or marked. Reuses the summary report's marking checks (OR-5). |
-| **G-OR-5** | Two builds of the same project at the same unit selection are byte-identical (OR-5). |
+| **G-OR-5** | Two builds of the same project at the same unit selection are byte-identical (OR-5). **Amended 2026-08-30 (§7, OR-20):** the unit selection is a `ReportSpec` field, so the statement is *two builds of the same project **and the same report spec** are byte-identical* — the spec plus the project is the complete recipe. |
 | **G-OR-6** | The report contains no concept-mode or sloads-only content: building from a project with concept fields populated yields the same oracle-scope document as the same project with them absent. Guard test — this is the scope rule made structural. |
 | **G-OR-7** | A half-filled project yields a complete document with `absent_reason` sections, never a traceback and never a silently missing section (OR-5, absence-is-content). |
 | **G-OR-8** | Each agreed section's SHALL list in `ORACLE_REPORT.md` (OR-9) has a corresponding assertion in the report tests — an agreement without a guard is prose, not a gate. Checked at each section's closure. |
@@ -139,7 +141,7 @@ report is B2's declared starting point.
 
 | Commit | Contents |
 |---|---|
-| 1 | `oracle_content.py` skeleton + section derivation + the oracle_app report page + `ORACLE_REPORT.md` created + gates G-OR-1/2/5/6/7 |
+| 1 | `oracle_content.py` skeleton + section derivation + the oracle_app report page + `ORACLE_REPORT.md` created + gates G-OR-1/2/5/6/7. **Amended 2026-08-30 (§7):** also `ReportSpec` + `REPORT_SCHEMA_VERSION` + the `io` load/save/fingerprint owners (OR-17, OR-21), `examples/ga6_normal.report.json`, and gates G-OR-10 … G-OR-13 |
 | 2 | Front matter (title, §1–§3) — the register-setting iteration |
 | 3… | Analysis-body sections, one OR-8 iteration each, in workflow order; G-OR-3/4 land with the first results section |
 | final | Governing summary, methods & limitations, input echo appendix, note-32 cross-link, tier-L closure |
@@ -209,8 +211,12 @@ refactors, renames, formatting and type-annotation churn:
    report page, `docs/10_standard/ORACLE_REPORT.md`, new tests. Additive work in
    `oracle_app` is the milestone's own first commit (OR-3) and is not a change
    to the frozen set.
-2. **The one OR-3 docstring amendment** in `oracle_app/Oracle.py` — note 32's
+2. **The one OR-3 amendment** to `oracle_app/Oracle.py` — note 32's
    "deliberately does not have" statement, updated to record the amendment.
+   **Widened 2026-08-30 (§7, OR-16):** the amendment is the docstring **and** the
+   report page's registration in the page dict / `st.navigation`, since a derived
+   page set has no other way to carry a non-step page. One commit, one manifest
+   update, the authority named in the message.
 3. **A blocking-defect fix admitted under OR-15**, which carries its issue
    number and updates the manifest in the same commit.
 
@@ -254,3 +260,137 @@ records an OR-13 exception: the commit that changes a frozen file updates the
 manifest beside it and names its authority (OR-13 item 2, or an OR-15 issue
 number) in the commit message. `CLAUDE.md` rule 3 — a cross-cutting convention
 gets a code owner and a drift guard, never a prose rule alone.
+
+---
+
+## 7. The report file and the report page (OR-16 … OR-21)
+
+*Owner rulings 2026-08-30, in session (`CLAUDE.md` rule 1's working-alone path),
+settling the shape of the OR-3 page and the artifact it edits before iteration 1
+is built. Decisions on the same footing as OR-1 … OR-15; §3's gate discipline
+applies via G-OR-10 … G-OR-13.*
+
+### OR-16 — The trigger page, and what OR-13 admits
+
+The OR-3 page is a **new file, `oracle_app/report.py`**, appended after the
+derived analysis pages (title *Report*, url_path `report`). Its blocks, top to
+bottom: report file (load / download / new); document identity; abstract;
+signatures; distribution and marking; content selection; preflight; generate and
+download.
+
+A derived page set has no way to carry a non-step page except through the entry
+point, so registering it necessarily touches a frozen file. **OR-13 item 2 is
+widened accordingly**: the admitted OR-3 amendment to `oracle_app/Oracle.py` is
+the docstring statement **and** the page's registration in the page dict /
+`st.navigation` — one commit, one manifest update, the authority named in the
+message. Nothing else in that file moves.
+
+### OR-17 — Report metadata is its own artifact, not a `Project` slice
+
+A report is a **document instance**, not a property of the airplane: one project
+yields many issues (different customers, revisions, scope selections). Metadata
+therefore lives in a **new `ReportSpec` dataclass** with its own
+`REPORT_SCHEMA_VERSION`, serialised to a **`<stem>.report.json`** file beside the
+existing `<stem>.project.json`, mapped in `sloads/io.py` (`load_report`,
+`save_report`) — which stays the only dataclass↔JSON mapping. **`Project` and
+`SCHEMA_VERSION` are not touched**, so note 32's OG-13/G6 promise (a project
+saved by either GUI opens in the other unchanged) is untouched, and no migration
+is owed.
+
+The page holds one active spec at a time in session state; the user swaps files
+to switch issues. The file widget is **page-local**, deliberately not in the
+shared `app_shell` sidebar: that sidebar is shared with `app/`, and the report
+file belongs to the report page. Editing the spec marks the session dirty by the
+same rule the project file uses.
+
+The artifact is also what makes a headless build expressible later
+(`sloads oracle-report <project> --report <spec>`). Not iteration 1; the door is
+open rather than walled.
+
+### OR-18 — Title block, and DRAFT until signed off
+
+`ReportSpec` carries: title, report number, revision/issue, issue date, issuing
+organisation, customer/programme, abstract, revision history (rows of date /
+revision / description / by), distribution statement, classification marking
+(rendered in every page footer), and three signature rows — **prepared, checked,
+approved**, each name / role / date.
+
+**Any empty signature name makes the document a draft**: a DRAFT watermark and a
+footer marking, still fully buildable and downloadable. All three names present
+clears it. The document never silently presents itself as approved, and the page
+never blocks the build to force the point.
+
+### OR-19 — Section selection is stated exclusion, never omission
+
+The user selects which analysis sections an issue carries. **Every derived
+section always exists** — G-OR-2 stays literally true. A deselected section
+renders its heading and *"not included in this issue — excluded by user
+selection at report generation"*, and the title page lists the exclusions: this
+is `SUMMARY_REPORT.md` §3.4's filtered-export rule applied at section level, and
+an analyst never receives a reduced document without being told.
+
+Selection is limited to **analysis-body sections and the Appendix A input echo**.
+Front matter, the governing-loads summary and methods & limitations are never
+selectable — they carry the load basis and traceability statements. Exclusions
+are stored **by workflow step key**, never by section number, which moves as
+steps are added.
+
+**Absent is not excluded.** A step whose inputs are missing renders its
+`absent_reason` (OR-5) whether or not it was selected; the two states are
+distinct in the preflight table and in the document.
+
+### OR-20 — The document's unit system is a `ReportSpec` field
+
+`spec.unit_system` governs the document, so a report file plus a project is a
+complete, reproducible recipe. The sidebar toggle continues to govern what the
+**analysis pages display**; the report page carries its own control bound to the
+spec field and states the split in a caption.
+
+That is a second owner of a selection the sidebar otherwise owns alone, so it is
+made structural rather than remembered (`CLAUDE.md` rule 3): **G-OR-12**. And
+**G-OR-5 is reworded** to fold the qualifier in — *two builds of the same project
+and the same report spec are byte-identical*.
+
+### OR-21 — Provenance: identity, anchors, fingerprint — stamp and warn
+
+The spec records what airplane definition it was written for, and the document
+prints it. Two questions are answered by two different things, and the stamp
+carries both:
+
+| Question | Answered by |
+|---|---|
+| *Is this the same airplane?* | **Human identity** — project name, aircraft designation, and anchor values (MTOW, wing area, design speeds). This is what a reader of the PDF actually checks; a hex string tells them nothing. |
+| *Has the definition changed since this issue was signed?* | **The fingerprint** — nothing else answers it cheaply. |
+
+The fingerprint is a SHA-256 over a **canonical projection of the inputs the
+oracle report consumes** — the slices behind `oracle_steps()`, sorted keys,
+round-trip float repr — **not** over the project file. Hashing the whole file
+would fire on a concept-mode field, an sloads-only field or a re-save with
+different key ordering: a warning about a document none of them can affect, and a
+warning that fires on noise is ignored on signal. The scope boundary is asserted,
+not described: **G-OR-13**.
+
+The stamp carries its own **`fingerprint_version`**. When a later milestone adds a
+field to an oracle-consumed slice, every existing report's fingerprint goes stale;
+on a version mismatch the page states *"cannot compare — stamped by an earlier
+fingerprint definition"* rather than crying wolf, and the human anchors still
+compare.
+
+On load against a different project the page **warns and builds anyway** — a
+banner naming both sides, and a note in the document's identity block. It never
+refuses: a project is legitimately revised under the same report number, and
+refusing would obstruct the normal case to police the rare one.
+
+The fingerprint is **not a signature** — there is no key, so it detects accident,
+not tampering. And it is not the record of what was analysed: the **Appendix A
+input echo is** the definitive record; the fingerprint is the fast comparator that
+says *go read Appendix A, something moved*.
+
+### Gates added by this section
+
+| Gate | Statement |
+|---|---|
+| **G-OR-10** | No `ReportSpec` field reaches any `ModuleResult` or any load value — document metadata cannot move a number. |
+| **G-OR-11** | `ReportSpec` round-trips through `save_report`/`load_report` stably; a missing or unreadable report file yields a default unsigned draft, never a traceback. |
+| **G-OR-12** | The report build path reads `spec.unit_system` and never `active_system()` — the document's unit owner asserted, not conventional. |
+| **G-OR-13** | Mutating any oracle-consumed field changes the fingerprint; mutating any field outside the oracle scope does not (the OR-21 scope boundary, the same structural move as G-OR-6). |
