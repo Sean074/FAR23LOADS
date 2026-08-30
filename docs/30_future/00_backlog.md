@@ -11,7 +11,7 @@ and [`../../CHANGELOG.md`](../../CHANGELOG.md); the pre-2026-08-16 running
 [`../40_history/10_backlog_state_narrative_to_2026-08-16.md`](../40_history/10_backlog_state_narrative_to_2026-08-16.md).
 Narratives and plans: [`01_concept_loads_plan.md`](01_concept_loads_plan.md)
 (concept mode), [`03_gui_rework_plan.md`](03_gui_rework_plan.md) (GUI),
-design notes per step (open ones here — 09/11/21/24/32/34/38/39; notes 35/36/37
+design notes per step (open ones here — 09/11/21/24/32/34/44; notes 35/36/37
 shipped 2026-08-27 and rolled to
 [`../40_history/`](../00_INDEX.md#40_history--historic-record) at the 0.8.0 cut); architecture
 [`../10_standard/PROJECT_GUIDE.md §7`](../10_standard/PROJECT_GUIDE.md); per-module
@@ -40,8 +40,11 @@ closure gate in CI, benchmark-first); a page in `workflow.py`; the `Project`
 schema round-trips with `SCHEMA_VERSION` bumped and older files loading; docs
 synced per the closure tier.
 
-**Where things stand (2026-08-29):** **0.9.0 (band B2, main-GUI development,
-anchored by #29) is the milestone in flight.** Before it: **0.8.1 is cut** —
+**Where things stand (2026-08-29):** **0.8.2 (band B3, the oracle technical
+report — design note 44, AGREED 2026-08-29) is the milestone in flight**,
+inserted deliberately ahead of 0.9.0: the oracle report is developed and agreed
+section by section first, then becomes the starting point for B2's main-report
+rebuild. **0.9.0 (band B2, main-GUI development, anchored by #29) follows.** Before it: **0.8.1 is cut** —
 `v0.8.1`, 2026-08-29, schema v59 (release-cut block in
 [`../40_history/00_completed_development.md`](../40_history/00_completed_development.md)).
 The released-defect-correction milestone: a
@@ -474,6 +477,8 @@ traceability with plans 09/11/12/13; the **Pri** column is ordinal only.
 
 | Pri | Item (detail below / in its plan) | What ships | Tag | Tier / effort | Depends on |
 |---|---|---|---|---|---|
+| **B3 — 0.8.2: the oracle technical report (design note 44; worked ahead of B2)** ||||||
+| 24 | **Oracle technical report** — a clean, modern formal LaTeX report of the oracle GUI's analysis, generated from a new `oracle_app` page (amending note 32's exclusion list): derived section per `oracle_steps()` result step, computed pgfplots figures, `SUMMARY_REPORT.md` §2–§3 rules by citation, nothing recomputed. Built **one section at a time, owner-agreed per section** (OR-8), each agreement accruing in the new `10_standard/ORACLE_REPORT.md` with its guard (OR-9/G-OR-8). Decisions OR-1…OR-12, gates G-OR-1…G-OR-8: [note 44](44_oracle_report_note.md), AGREED 2026-08-29 (#152) | The report page in `oracle_app`; `sloads/report/oracle_content.py` over the existing renderer; `.tex` (+ locally compiled PDF) from `ga6_normal` and `baron_58` in CI, byte-deterministic, ULT-marked, concept-content-free by guard. **The starting point for B2's main-report rebuild** | V | L / L | 0.8.1 cut; whole milestone is this one row |
 | **B2 — 0.9.0: main-GUI development and bug correction** ||||||
 | 7 | **GUI review resumption** — the five unswept sections (Flight, Other, Ground, Plotting, Export) against the 0.7.2 deliverables; findings filed at close (rule 5); re-cut follows (#29) | The review body completed; the UI freeze on `app/views/` re-opened to the extent the findings justify — a reviewed list, not a rework. **The anchor of 0.9.0**, and the re-cut that promotes the parked main-GUI rows: **L-8c** (Results Review omits the 8 folded modules' results), **L-8e** (uncovered input fields + UX nits), **L-8f** (display-only nits), **M4-11b** (the six F/E-complexity view functions) and the **mutation half of L-8d** — which the 2026-08-24 code review showed is a live mechanism, not a theoretical one (a retained widget beat a model grown underneath it; the row-counter fix closed that instance, the class stays open) | V | S (review) / M | 0.8.1 cut |
 | 8 | **Seeding the item table from the estimate is destructive, and its rows are silently zero-stationed** — the oracle half shipped **2026-08-25** (`changes/weight-estimate-advisory.changed.md`): WTESTIMA's block captioned with what reads it (nothing — WTONECG and WTENV read the itemized data base) and the estimate shown beside the entered empty weight and MTOW with the delta. The **seed button itself already exists** and has since before the review (`app/views/weight_mass.py`, `weight_estimate.estimate_to_mass_items`, specified in `PROGRAM_SPEC.md` §WTESTIMA) — C210-9, issue #78 and the 2026-08-24 re-cut all recorded it as unbuilt because the whole C210 build was in the oracle GUI, which has no such button. What is open is the #62-class hardening the issue actually asked for *(C210-9, class c; build review 2026-08-23)* (#78) | Seeded rows **loudly incomplete** until positioned and tagged, rather than arriving at station 0 and untagged — `mass_distribution.infer_component` then lumps every one of them on the fuselage beam, the defect `fuselage_mass_warnings` already reports from the other side; and the button either merges, refuses, or says before the click that it **replaces every item already entered** (its caption says so today, after the fact). Main GUI, so it lands with the `app/views/` freeze lift | V | S–M / S–M | #29 |
