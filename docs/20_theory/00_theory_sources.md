@@ -34,9 +34,12 @@ do not restate it elsewhere.**
   plus physics/integration closure, with the printed twin oracle recorded as a
   deferred item. This covers `one_engine_out` (no printed oracle) and the
   turbopropeller engine-mount cases (`engine` `23.361(a)(3)`, formula-checked).
-- **A few Appendix-A cases are only *partially* oracle-locked** where the bundled
-  scan is OCR-garbled — e.g. LANDLOAD's p231–233 wheel-load table (formula-closure +
-  legible-cell spot-check). Called out per-module below.
+- **An Appendix-A page that will not extract is not an Appendix-A page that
+  cannot be read.** The two are recorded separately (see *Oracle provenance*
+  below), because conflating them cost LANDLOAD its oracle for a year: p231–233
+  was carried as unusable on the strength of a garbled text layer, and rendering
+  it at 200 dpi produced a clean transcription of all three pages. Any cell still
+  genuinely unavailable is called out per-module below with which of the two it is.
 
 ## Limit vs. ultimate loads (ALL output is ULTIMATE)
 
@@ -109,6 +112,81 @@ them: the migration is claimed *output-neutral*, so the gate is that every
 Appendix-A oracle and every fixture digest is unchanged, and that the
 `FLIGHT`-tagged case set after migration equals the pre-hop `flight_loads.cg_cases`
 exactly, per fixture (`tests/test_cg_cases.py`).
+
+## Oracle provenance and gate independence <a id="provenance"></a>
+
+**"An oracle test exists, ±0.1 %" is a binary where two further facts decide
+whether the test can fail.** Both were unstated until 2026-08-29, and the three
+worst defects the 0.8.0 cut shipped share the same mechanism — *the oracle
+silently shrank* — rather than any error of physics:
+
+* **#133** — an illegible column was carried as a *missing* oracle when it was an
+  OCR failure over a legible page, so 21 of LANDLOAD's 33 cases ran on internal
+  identities and a sign error lived in the gap.
+* **#137** — a fixture's light-landing weight was **back-solved** from a
+  mis-OCR'd printed cell and then used as an input to the check that cell was
+  meant to make, so an input had become a function of the output it validated.
+* **#139** — the rotational gate moved the applied load from the tyre to the axle
+  *inside the test* before comparing, recording the 12 % it was worth as
+  bookkeeping. A gate that corrects the code before comparing is not testing the
+  code; it is agreeing with it.
+
+Two rules follow. Both are checklist items in
+[`CODE_REVIEW_PROCESS.md`](../10_standard/CODE_REVIEW_PROCESS.md) Step 3.
+
+### P-1 — Every oracle cell states its provenance
+
+A citation says *where the number came from*, in these words:
+
+| Provenance | Meaning |
+|---|---|
+| **transcription** | read off the rendered page by eye and typed in. The strongest, and the default expectation: if a page renders, transcribe it. |
+| **OCR extraction** | taken from the PDF's text layer. Weaker — a mis-read digit is silent — and never a reason to call a page unusable without rendering it first. |
+| **absent — not printed** | the manual ships no such figure (Appendix B, and every module with no `.BAS`). Honest, and it selects a closure gate instead. |
+| **absent — illegible** | the page exists, renders, and still cannot be read. Rare, and it must say what was tried. |
+| **back-solved** | derived from the port's own output, or from another figure by inverting the relation under test. **Disqualified** as the oracle for anything downstream of what it was solved from — it cannot disagree with the thing that produced it. |
+
+The rule binds every cell **written or touched from here on**, and the LANDLOAD
+row below is the worked example — it states that its p231/p232/p233 cells are
+transcriptions rather than OCR extractions, and why the distinction is part of
+the citation. The rest of the table is not retro-fitted cell by cell: the sweep
+two subsections down is the standing statement for it, and it answers the
+question the words would have answered.
+
+### P-2 — No gate re-derives the rule it checks
+
+Promoted from design note 39's **G-AP-2**, whose one-line statement is the whole
+rule: *two copies of one rule cannot disagree.* A gate must compare the code
+against something that does not share the code's derivation — a printed figure, a
+transcription made independently of the code, an external solver, a physical
+invariant the code nowhere encodes as a rule. A gate that applies the rule under
+test before comparing, or that reads the same `.BAS` line the port was written
+from, will pass whatever the code does.
+
+This is a statement about **independence**, not about strength: a closure gate
+with an independent witness (`gear_loads`, where LANDLOAD reaches the same load
+factors through lever arms with no mass matrix anywhere in it) is worth more than
+a printed cell transcribed out of the listing the port was typed from.
+
+### The families still running on internal identities only
+
+The bounded sweep of the table below, 2026-08-29. Every family with no printed
+oracle, classified by whether its gate has a witness independent of the code:
+
+| Family | Gate | Independent witness? |
+|---|---|---|
+| `gear_loads` + ground families | LANDLOAD's own `NVP`/`NDP`/`NS`, and `PITCHP` for the application point | **Yes** — a second producer sharing no derivation |
+| `export/sbeam_bridge`, `export/lra_model` | the real sbeam solving SOL 101; support reaction = −applied resultant | **Yes** — an external solver |
+| `fuselage_moment` | the closed form on a known cylinder | **Yes** — an external analytic result |
+| `lateral_body_aero` | DATCOM's own printed examples | **Yes** — a printed oracle outside Ref 1 |
+| `body_loads` | `ΣFz = 0`, running shear and terminal `Myy` → 0 | **Yes** — a physical invariant the module nowhere encodes |
+| `one_engine_out` | sub-formula exactness against `ONENGOUT.BAS` | **No** — the gate reads the listing the port was written from. The most exposed family here, and the one whose printed twin oracle is deferred; treat a change to it as unguarded until Appendix B is in hand. |
+| `airloads` AIRLOAD4 swept branch | reduction invariant + swept-CL renormalization closure | **Partly** — the Λ=0 reduction is independent (it lands on the locked unswept oracle); the swept-CL closure checks the renormalizer against its own target. |
+| `engine` FAR 25 supplemental | formula closure | **No** — formula against formula |
+| `configuration`, `vn_diagram`, `validation`, airspeed conversions | sanity, geometry and ordering closures | **No** — and none of them is a load. Ranked accordingly: a wrong V-n *drawing* is visible; a wrong `one_engine_out` is not. |
+
+Nothing in this table is a defect. It is the statement the citations were missing:
+where a family sits, so a reviewer knows which of them a change can hide in.
 
 ## How to cite
 
