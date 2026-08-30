@@ -12,6 +12,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from app_shell import optional_slice
 from app_shell.components import active_system, gate, stop_page
 from app_shell.widget_keys import widget_key
 from sloads import (
@@ -47,6 +48,9 @@ if project.speeds is None:
     gate("Define the **Structural Speeds** (VC) first.", "structural_speeds")
     stop_page()
 
+# Captured before the form mutates ``inp`` in place: ``store`` needs to
+# know whether the project *had* this Optional slice (#145).
+_existing_slice = project.tab_loads
 inp = project.tab_loads or TabLoadsInput()
 existing = [
     {"surface": t.surface, "mac_in": to_display(t.mac_in, "length", system),
@@ -86,7 +90,7 @@ if applied:
         for row in edited.itertuples()
         if to_imperial_scalar(float(row.area_sqft), "area_sqft", system) > 0
     ]
-    project.tab_loads = inp
+    project.tab_loads = optional_slice.store(inp, _existing_slice)
     st.session_state["project"] = project
     st.success("Tabs applied.")
 

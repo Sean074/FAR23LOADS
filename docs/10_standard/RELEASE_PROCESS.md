@@ -78,6 +78,8 @@ in `CLAUDE.md`, not re-audited at release time.
 ### 3.5 GUI / CLI smoke test
 - [ ] `scripts/smoke_test.sh` exits 0 — it starts **both** GUI entry points headless and checks each root page renders (HTTP 200, no traceback in the server log): `app/Home.py`, and `oracle_app/Oracle.py` through the `sloads-oracle` console script (the launcher is run, not path-checked). It then runs `sloads engine examples/ga6_normal.project.json -o out.csv` and checks the CSV.
 - [ ] Two front-ends, two boots: the entry points named here and the ones the script boots are compared by `tests/test_ci_conformance.py` — a GUI this gate never starts is a GUI no release gate starts (#127, 2026-08-28).
+- [ ] **The boot gate proves boot, not use.** `tests/test_gui_journey.py` is the second line and runs in the ordinary (fast) CI gate, so it is green before the cut rather than checked at it: every bundled example loaded, every `workflow.py` step visited in order, one no-op interaction with every editable block, every module run — and the project asserted unchanged across the whole walk, because nothing was entered. The defects that motivated it were two and three pages downstream of an interaction, where no boot check reaches (#145, 2026-08-29). Its `KNOWN_OPEN` list is the standing set of accepted no-op-Apply writes; each entry has a backlog row, and the file fails if one stops reproducing.
+- [ ] **Walk it by hand once.** Load one bundled example in `app/Home.py`, move through the sidebar top to bottom, and open Results Review and Export at the end. The automated journey drives widgets, not a browser; this is the line that sees a page render wrong rather than raise.
 
 ---
 

@@ -13,6 +13,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from app_shell import optional_slice
 from app_shell.components import active_system, gate, stop_page
 from app_shell.widget_keys import widget_key
 from sloads import OneEngineOutInput, Project, UnitSystem, convert_results, to_si_scalar
@@ -61,6 +62,9 @@ if project.mass is None or not project.mass.cases:
          "the mass slice ONENGOUT reads IZZ from.", "weight_mass")
     stop_page()
 
+# Captured before the form mutates ``inp`` in place: ``store`` needs to
+# know whether the project *had* this Optional slice (#145).
+_existing_slice = project.one_engine_out
 inp = project.one_engine_out or OneEngineOutInput()
 
 with st.form("one_engine_out_form"):
@@ -97,7 +101,7 @@ if applied:
     inp.time_step_s = time_step_s
     inp.failed_engine_index = failed_engine_index
     inp.use_takeoff_power = use_takeoff_power
-    project.one_engine_out = inp
+    project.one_engine_out = optional_slice.store(inp, _existing_slice)
     st.session_state["project"] = project
     st.success("Failure-transient inputs applied.")
 
