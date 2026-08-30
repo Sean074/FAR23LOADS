@@ -13,6 +13,7 @@ stay distinguishable).
 
 import ast
 import dataclasses
+import datetime
 import os
 import sys
 
@@ -114,6 +115,33 @@ def test_the_gap_states_have_distinct_wording():
     assert len(reasons) == len(set(reasons))
     assert all(lead.strip() and text.strip()
                for lead, text in oc.STATE_TEXT.values())
+    # The renderer prints the sentence after the bold lead and a full stop, so
+    # a lower-case first word reads as a typesetting fault -- which is how it
+    # reached the page: the sentences were written to follow a colon.
+    for state, (_lead, text) in oc.STATE_TEXT.items():
+        assert text[0].isupper(), (
+            f"{state.value}'s sentence follows a full stop and must open a "
+            f"sentence: {text!r}")
+
+
+def test_the_default_introduction_claims_nothing_about_omitted_sections():
+    """Deselection is silent now, so the introduction must not promise a list.
+
+    Its predecessor said sections not carried were "listed on the title page",
+    kept saying it after they moved to the introduction, and would have kept
+    saying it after they stopped being printed at all -- a cross-reference a
+    reader follows and finds nothing at. The text is the author's to edit, so
+    what is guarded is the *default* the generator ships.
+    """
+    default = oc.default_introduction().lower()
+    # Narrowly the *omission* claim. The airplane really is identified on the
+    # title page, so banning that phrase outright would be wrong -- it is the
+    # promise of a list of what is missing that has nothing left to point at.
+    for claim in ("listed at the end", "does not carry", "not carried",
+                  "silently omitted", "reduced document"):
+        assert claim not in default, (
+            f"the default introduction still promises {claim!r}, which no "
+            "longer appears anywhere in the document")
 
 
 def test_each_gap_state_renders_under_its_own_lead():
@@ -123,11 +151,10 @@ def test_each_gap_state_renders_under_its_own_lead():
     defect lived entirely in the renderer -- the model was already right.
     """
     step = oc.analysis_steps()[1]
+    # EXCLUDED is not here: a deselected section is not printed at all, so it
+    # has no rendered lead to be distinct from (owner's decision, 2026-08-30).
     cases = {
         oc.SectionState.NOT_IMPLEMENTED: _doc(),
-        oc.SectionState.EXCLUDED: _doc(
-            spec=_spec(excluded_steps=(step.key,)),
-            implemented=frozenset({step.key})),
         oc.SectionState.ABSENT: oc.build_oracle_document(
             Project(), _spec(), implemented=frozenset({step.key})),
     }
@@ -142,40 +169,76 @@ def test_each_gap_state_renders_under_its_own_lead():
     assert len(set(seen.values())) == len(seen)
 
 
-def test_not_implemented_outranks_selection_and_absence():
-    """While a section has no builder, its state is that -- not "you excluded it"
-    and not "your inputs are missing", neither of which is true."""
-    spec = _spec(excluded_steps=tuple(s.key for s in oc.analysis_steps()))
+def test_deselection_is_decided_before_every_other_state():
+    """Deselection outranks the rest, because it is the one that stops printing.
+
+    Once a section is not printed there is no reader to owe a reason to, so the
+    other three states have nothing to say about it. Before the 2026-08-30
+    change this ordering was the opposite way round -- NOT_IMPLEMENTED first --
+    and it mattered then because an excluded section still appeared.
+    """
+    steps = oc.analysis_steps()
+    spec = _spec(excluded_steps=tuple(s.key for s in steps))
+    # Every state's cause is present at once: nothing implemented, no inputs,
+    # and everything deselected.
     plan = oc.section_plan(Project(name="barely started"), spec)
     body = [e for e in plan if e.step_key]
-    assert all(e.state is oc.SectionState.NOT_IMPLEMENTED for e in body)
-    # ...but the user's choice is still visible, which is what the preflight
-    # column exists for.
+    assert body and all(e.state is oc.SectionState.EXCLUDED for e in body)
+    # The choice is still visible to the preflight, which is what the column
+    # exists for -- the state hides the section, not the author's decision.
     assert all(e.selected is False for e in body)
 
 
-def test_once_implemented_absence_outranks_exclusion():
-    """OR-19's rule takes over as soon as a section can be built: *absent is not
-    excluded*, and a reader is owed the reason that is true of their project."""
-    step = oc.analysis_steps()[1]          # one with a `requires`
+def test_among_printed_sections_not_implemented_outranks_absence():
+    """A section the tool cannot build must not claim the reader's inputs are
+    missing. Once every section is implemented this ordering stops mattering,
+    which is the point at which ABSENT is the only one left."""
+    step = oc.analysis_steps()[1]
     assert step.requires, "pick a step whose inputs can be missing"
-    spec = _spec(excluded_steps=(step.key,))
-    plan = oc.section_plan(Project(name="empty"), spec,
-                           implemented=frozenset({step.key}))
-    entry = next(e for e in plan if e.step_key == step.key)
+    empty = Project(name="empty")
+    unbuilt = oc.section_plan(empty, _spec())
+    assert next(e for e in unbuilt if e.step_key == step.key).state \
+        is oc.SectionState.NOT_IMPLEMENTED
+    built = oc.section_plan(empty, _spec(), implemented=frozenset({step.key}))
+    entry = next(e for e in built if e.step_key == step.key)
     assert entry.state is oc.SectionState.ABSENT
-    assert entry.selected is False and entry.inputs_present is False
+    assert entry.inputs_present is False
 
 
-def test_a_deselected_section_is_still_in_the_document():
-    """OR-19: stated exclusion, never omission. An analyst never receives a
-    shortened document without being told it is one."""
+def test_a_deselected_section_is_omitted_entirely_and_numbering_closes_up():
+    """A deselected section is not printed, and leaves no gap behind it.
+
+    This **reverses** OR-19 and the filtered-export rule ``ORACLE_REPORT.md``
+    inherits from ``SUMMARY_REPORT.md`` §3.4 (owner's decision, 2026-08-30):
+    deselection is now silent. Recorded as a deviation in `ORACLE_REPORT.md` §3
+    rather than by editing `SUMMARY_REPORT.md`, which governs a different
+    document.
+
+    The numbering half is the part that bites: sections are numbered by
+    position among those that *render*, so dropping one must renumber the rest.
+    Numbering by workflow position would leave a hole in the printed sequence
+    and every reference after it would name the wrong section.
+    """
     step = oc.analysis_steps()[0]
     doc = _doc(spec=_spec(excluded_steps=(step.key,)),
                implemented=frozenset({step.key}))
     titles = [section.title for section in doc.sections]
-    assert any(step.title in title for title in titles)
-    assert any(step.title == title for title, _ in doc.gaps)
+    assert not any(step.title in title for title in titles), (
+        "a deselected section was printed")
+    tex = ol.render_oracle_document(doc)
+    assert step.title not in tex
+    assert "excluded by user selection" not in tex.lower()
+
+    # The printed numbers run 1..N with no hole, and the plan agrees with them.
+    numbers = [int(e.number) for e in doc.plan if e.number]
+    assert numbers == list(range(1, len(numbers) + 1)), (
+        f"deselection left a hole in the section numbering: {numbers}")
+    assert len(doc.sections) == len(numbers)
+    # The excluded step keeps its plan row, so the page's preflight can still
+    # show the author that their choice registered.
+    excluded = [e for e in doc.plan if e.step_key == step.key]
+    assert len(excluded) == 1 and excluded[0].state is oc.SectionState.EXCLUDED
+    assert excluded[0].number == ""
 
 
 # --------------------------------------------------------------------------- #
@@ -405,6 +468,210 @@ def test_the_spec_is_carried_whole_and_not_copied_field_by_field():
     assert dataclasses.is_dataclass(spec)
 
 
+
+def test_a_date_is_stored_as_an_iso_string_and_a_non_date_survives():
+    """The spec is a JSON file a person edits, so a hand-typed value that is not
+    a date must load rather than crash -- ``parse_date`` says which it is, and
+    the page keeps what it cannot parse."""
+    from sloads.models.report import parse_date
+
+    assert parse_date("2026-08-30") == datetime.date(2026, 8, 30)
+    for bad in ("TBD", "30/08/2026", "", "   ", "August 30"):
+        assert parse_date(bad) is None
+
+
+def test_an_unsigned_row_prints_no_date():
+    """A date beside a ruled name blank asserts an approval that did not happen.
+
+    The stored value is kept -- a planned date is legitimate -- but printing it
+    against an absent name is not, and the picker added in the GUI review makes
+    setting one without a name a single click.
+    """
+    spec = _spec(
+        prepared=SignatureRow(name="A Engineer", role="Stress", date="2026-08-01"),
+        checked=SignatureRow(name="", role="Stress", date="2026-08-02"),
+        approved=SignatureRow(name="", role="", date="2026-08-03"))
+    tex = ol.title_page_tex(_doc(spec=spec))
+    assert "2026-08-01" in tex, "a signed row keeps its date"
+    for orphan in ("2026-08-02", "2026-08-03"):
+        assert orphan not in tex, (
+            "an unsigned signature row printed a date, which reads as an "
+            "approval that happened and was signed illegibly")
+    # The role of an unsigned row is still shown: naming who is due to sign
+    # claims nothing about whether they have.
+    assert "Stress" in tex
+
+
+def test_the_report_page_never_defaults_a_date_to_today():
+    """``st.date_input`` defaults its value to *today*.
+
+    Left alone, that stamps the current date onto an issue date and three
+    signature dates nobody filled in, and the title page then states that the
+    report was issued and signed today. Every call must pass ``value=``
+    explicitly, which is what the shared ``_date`` helper is for.
+    """
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(root, "oracle_app/report.py"), encoding="utf-8") as fh:
+        tree = ast.parse(fh.read())
+    calls = [node for node in ast.walk(tree)
+             if isinstance(node, ast.Call)
+             and isinstance(node.func, ast.Attribute)
+             and node.func.attr == "date_input"]
+    assert calls, "the date fields are no longer pickers -- retire this guard"
+    for call in calls:
+        assert any(kw.arg == "value" for kw in call.keywords), (
+            "a date_input with no explicit value= silently defaults to today")
+
+
+def test_the_cover_carries_identity_and_signatures_and_nothing_to_read_through():
+    """The analysis basis and the not-carried list are in the introduction.
+
+    On the cover they pushed the signature block onto a second sheet, so the
+    approval record sat on a page carrying none of the document's identity --
+    the one page that must never travel alone. The guard is on the *cover*
+    rather than on the introduction because the failure is additive: a block
+    added back here breaks the layout silently, and the page still renders.
+    """
+    spec = _spec(marking="COMMERCIAL IN CONFIDENCE",
+                 distribution="Approved for programme use.",
+                 excluded_steps=("wing_loads",))
+    doc = _doc(spec=spec, anchors=[("Design weight", "3400 lb")],
+               fingerprint="deadbeefdeadbeef", fingerprint_version=1)
+    cover = ol.title_page_tex(doc)
+    for banned, why in (("Analysis basis", "the anchors block"),
+                        ("deadbeefdeadbeef", "the fingerprint"),
+                        ("3400 lb", "an anchor value"),
+                        ("Limitations and scope", "the limitations subsection")):
+        assert banned not in cover, f"{why} is back on the cover"
+    # ...and the things the cover exists for are still on it.
+    assert "COMMERCIAL IN CONFIDENCE" in cover
+    assert "Prepared by" in cover and "Approved by" in cover
+    assert "Approved for programme use." in cover
+
+    # The moved blocks are in the document, immediately after the introduction.
+    tex = ol.render_oracle_document(doc)
+    assert (tex.index("Introduction") < tex.index("Analysis basis")
+            < tex.index("Limitations and scope")), (
+        "the analysis basis and the limitations subsection must follow the "
+        "introduction, ahead of any analysis section")
+
+
+def test_an_empty_front_matter_list_says_so():
+    """A heading with nothing under it is a *silent* absence.
+
+    It is the one thing this document does not do anywhere else -- a section the
+    generator cannot build still appears, saying so -- and a reader facing an
+    empty "List of Figures" cannot tell "there are none" from "it failed to
+    generate". The contents entry is asserted for the same reason the abstract
+    has one: two kinds of front matter treated differently reads as an
+    oversight.
+    """
+    tex = ol.render_oracle_document(_doc())
+    for title, noun in (("List of Figures", "figures"), ("List of Tables", "tables")):
+        assert f"This issue contains no {noun}." in tex
+        assert r"\addcontentsline{toc}{section}{" + title + "}" in tex
+
+
+def test_a_populated_front_matter_list_does_not_claim_to_be_empty():
+    """The emptiness test looks into subsections too: a table one level down
+    still puts a line in the list, and the document would otherwise state the
+    opposite of what the reader is looking at."""
+    from sloads.report.content import Section, Table
+
+    doc = _doc()
+    nested = Section("Nested", tables=[Table(title="A table", columns=["x"],
+                                             rows=[["1"]])])
+    doc.sections[0].subsections.append(nested)
+    tex = ol.render_oracle_document(doc)
+    assert "This issue contains no tables." not in tex
+    assert "This issue contains no figures." in tex, (
+        "the figures list is genuinely empty and must still say so")
+
+
+def test_the_footer_names_the_issuing_organisation():
+    """A loose page must say who issued it.
+
+    The footer centre carried the load basis, which the introduction already
+    states and which every units string carries as its ``-ULT`` marker -- so it
+    restated something self-evident from the numbers, in the one slot that could
+    carry something a reader cannot recover from a photocopied page.
+    """
+    tex = ol.headers_tex(_doc(spec=_spec(organisation="Sean Inv",
+                                         marking="COMMERCIAL IN CONFIDENCE")))
+    assert "Sean Inv" in tex
+    assert "ULTIMATE loads" not in tex
+    assert "COMMERCIAL IN CONFIDENCE" in tex, "the marking is still owed (§4)"
+    # An empty organisation leaves the slot blank rather than printing a stand-in
+    # that would name an issuer the spec never stated.
+    blank = ol.headers_tex(_doc(spec=_spec(organisation="")))
+    assert "&  &" in blank.replace("{}", "") or "& &" in blank
+
+
+def test_the_limitations_prefill_drops_the_tool_blocks_but_the_owner_keeps_them():
+    """Six blocks are filtered out of the report's pre-fill (owner, 2026-08-30).
+
+    The filtering is asserted **in both places**: gone from the report's default,
+    and still present in :func:`sloads.report.methods.methods_statement`. That
+    second half is the one that matters -- the statement is the single owner for
+    the CSV and deck exports too, and dropping blocks at the source would
+    silently thin what a forwarded file carries, which is precisely what an
+    in-band self-describing block exists to prevent.
+    """
+    from sloads.report.methods import methods_statement
+
+    project = io.load_project(_GA)
+    prefill = oc.default_limitations(project)
+    shared = methods_statement(project)
+
+    def labels(text):
+        return {para.strip().split(":")[0].split("(")[0].strip()
+                for para in text.split("\n\n") if para.strip()}
+
+    dropped = {"PROVENANCE", "UNITS", "CATEGORY", "VERIFICATION", "MATH",
+               "APPROVED CORRECTIONS"}
+    assert labels(prefill) == {"STATUS", "BASIS", "KNOWN LIMITATIONS"}
+    assert not (labels(prefill) & dropped)
+    assert dropped <= labels(shared), (
+        "a block was dropped from the shared statement instead of from the "
+        "report's pre-fill -- the CSV and deck exports carry it too")
+    # The statement's own banner is stripped: the subsection carries the title.
+    assert "METHODS AND LIMITATIONS" not in prefill
+
+
+def test_an_edited_limitations_text_is_used_verbatim():
+    """Once written, it is the author's -- the generator does not merge into it.
+
+    This is the snapshot the owner asked for: a signed issue keeps saying what
+    it said when it was signed, so nothing may re-derive the text at render.
+    """
+    mine = "SCOPE: wing only.\n\nCAVEAT: preliminary."
+    doc = _doc(spec=_spec(limitations=mine))
+    assert doc.limitations == mine
+    tex = ol.render_oracle_document(doc)
+    assert "wing only" in tex and "KNOWN LIMITATIONS" not in tex
+
+
+def test_the_analysis_basis_records_the_tool_and_the_schema_it_read():
+    """Which build wrote the document, and which shape of input it read.
+
+    Both are what a reader needs when a result cannot be reproduced years later.
+    The version is *handed in*, never looked up here: reading installed package
+    metadata is filesystem work this package does not do, and the build already
+    resolves it once for ``build.json`` -- resolving it twice is how a document
+    and its own stamp come to disagree.
+    """
+    from sloads.models.project import SCHEMA_VERSION
+    from sloads.report import fingerprint as fpm
+
+    project = io.load_project(_GA)
+    rows = dict(fpm.anchors(project, tool_version="9.9.9"))
+    assert rows["sloads version"] == "9.9.9"
+    assert rows["Project schema"] == f"version {SCHEMA_VERSION}"
+    # No version passed: the row is omitted rather than invented. A document
+    # that names a build it did not come from is worse than one that is silent.
+    assert "sloads version" not in dict(fpm.anchors(project))
+    assert "Project schema" in dict(fpm.anchors(project))
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))
 
@@ -439,9 +706,9 @@ def test_the_report_page_renders_every_block():
     assert [w.value for w in at.title] == ["Report"]
     headings = [s.value for s in at.subheader]
     assert headings == ["Report package", "Document identity", "Abstract",
-                        "Signatures", "Distribution and marking",
-                        "Sections in this issue", "Preflight", "Provenance",
-                        "Build"]
+                        "Introduction", "Signatures",
+                        "Distribution and marking", "Sections in this issue",
+                        "Preflight", "Provenance", "Build"]
     assert "Build issue package" in [b.label for b in at.button]
 
 

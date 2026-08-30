@@ -73,58 +73,86 @@ Numbering has one owner, `oracle_content.section_number`, derived from position.
 Section references **SHALL** be built from it. A reference that does not move
 when a section is inserted above it is a reference to the wrong section.
 
-### 3.1 The four section states
+### 3.1 The section states
 
-Every derived section always exists. What varies is whether it carries its
-analysis, and **why** — four states, kept apart because each names a different
-party's decision (OR-32):
+A section that is **deselected is not printed at all** — no heading, no reason,
+and the sections after it renumber to close the gap. Numbering is by position
+among the sections that *render*: numbering by workflow position would leave a
+hole in the printed sequence and every reference after it would name the wrong
+section.
+
+> **Documented deviation (2026-08-30, owner's decision).** This reverses OR-19
+> and departs from `SUMMARY_REPORT.md` §3.4, which this document otherwise
+> inherits verbatim under OR-5, and whose stated purpose is that an analyst
+> never receives a reduced document without being told. It is recorded here
+> rather than by amending `SUMMARY_REPORT.md`, which governs a different
+> document and is unchanged. The reasoning is that deselection is the reader's
+> own act in this tool, so there is no second party to inform.
+
+Of the sections that **do** print, the state says why it carries no analysis —
+three states, kept apart because each names a different cause (OR-32):
 
 | State | Means | Bold lead | Sentence |
 |---|---|---|---|
 | **Included** | the section carries its analysis | — | the analysis |
-| **Not yet implemented** | the generator cannot build it yet | *Not yet implemented.* | this revision of the report generator does not yet produce this section. Nothing about this project or this issue is missing. |
-| **Excluded** | a person deselected it for this issue | *Not included in this issue.* | excluded by user selection at report generation. |
-| **Absent** | the inputs it needs are missing | *Not analysed.* | the inputs this section needs are not present in the project. |
+| **Not yet implemented** | the generator cannot build it yet | *Not yet implemented.* | This revision of the report generator does not yet produce this section. Nothing about this project or this issue is missing. |
+| **Absent** | the inputs it needs are missing | *Not analysed.* | The inputs this section needs are not present in the project. |
 
-No state's wording **SHALL** be produced by another's cause. Collapsing any two
-would tell the reader that a colleague chose to omit a section, or that their own
-data was incomplete, when neither is true.
+No state's wording **SHALL** be produced by another's cause. Collapsing the two
+would tell a reader their own data was incomplete when it was the generator that
+was.
 
 **The lead is part of the rule, not presentation.** It is printed in bold ahead
-of the sentence and is what a reader skimming the document takes in, so three
-states sharing one lead say the same thing three times however carefully the
-sentences differ. The first build of this document gave the three states
-distinct sentences and then printed all of them under a hard-coded
-*"Not analysed"* — absence's wording — telling readers their inputs were missing
-when it was the generator that was incomplete. The guard therefore asserts the
-**rendered** lead, not the model's strings.
+of the sentence and is what a reader skimming the document takes in, so two
+states sharing one lead say the same thing twice however carefully the sentences
+differ. The first build of this document gave each state a distinct sentence and
+then printed all of them under a hard-coded *"Not analysed"* — absence's wording
+— telling readers their inputs were missing when the generator was incomplete.
+The guard therefore asserts the **rendered** lead, not the model's strings. The
+sentences are capitalised: they follow the lead and a full stop.
 
-The title page **SHALL NOT** itemise not-yet-implemented sections alongside
-excluded and absent ones. An exclusion or an absence is a fact about *this
-issue*, which a reader checks; a section the generator cannot build is a fact
-about the tool, identical in every issue, and itemising thirteen of them buries
-the ones that are about the reader's own report.
-
-**Precedence, and that it changes.** While a section has no builder,
-*not yet implemented* outranks everything: a section the tool cannot produce must
-not claim the reader's inputs are missing. Once implemented, `SUMMARY_REPORT.md`
-§3.4's rule takes over and *absent* outranks *excluded* — **absent is not
-excluded**.
+**Precedence.** Deselection is decided first, because it is the state that stops
+the section printing and there is then no reader to owe a reason to. Among the
+states that print, *not yet implemented* outranks *absent*. When every section
+is implemented that ordering stops mattering and *absent* is the only one left.
 
 Selection is limited to analysis-body sections and the input echo. Front matter,
 the governing-loads summary and methods & limitations are never selectable: they
 carry the load basis and the traceability statements.
 
-Sections not carried **SHALL** be stated on the title page — itemised for the
-per-issue states, summarised in one sentence for the tool-wide one, per the rule
-above. An analyst never receives a reduced document without being told on the
-face of it.
+The cover carries identity and the approval record and nothing that has to be
+read through. With the analysis basis and a thirteen-item list of unbuilt
+sections on it, the signature block was pushed onto a second sheet, leaving the
+approval record on a page carrying none of the document's identity — the one
+page that must never travel alone.
+
+## 3.2 Section 1: introduction, analysis basis, limitations
+
+Section 1 carries the introduction prose, then two unnumbered subsections:
+**Analysis basis** (§5) and **Limitations and scope**. Both appear in the
+contents.
+
+- The introduction prose and the limitations text are **the author's**. The GUI
+  pre-fills each with the generator's default; from then on the spec carries what
+  was typed, and a later change to a default **SHALL NOT** reword a report that
+  has already been written. Each is a snapshot, deliberately: a signed issue must
+  keep saying what it said when it was signed.
+- The limitations default **SHALL** come from
+  `sloads.report.methods.methods_statement` — the single owner of that statement
+  across every export channel — so the report opens saying what the CSVs and the
+  decks say. Its own banner is stripped; the subsection already carries the title.
+- An empty field means *not yet edited*, not *empty section*: the renderer falls
+  back to the same default, so a spec written before these fields existed still
+  produces a complete document.
 
 ## 4. Identity, signatures and DRAFT
 
 The title block carries report number, revision, issue date, issuing
 organisation, customer/programme, classification marking, distribution statement
-and three signature rows — prepared, checked, approved.
+and three signature rows — prepared, checked, approved. It carries **only**
+those: the analysis basis and the not-carried list belong to the introduction
+(§3), so the signature block stays on the same sheet as the identity it signs
+for.
 
 - **Any empty signature name makes the document a DRAFT**: a watermark and a
   footer sentence. All three present clears it. The build **SHALL NOT** be
@@ -133,6 +161,18 @@ and three signature rows — prepared, checked, approved.
   the draft state; it is a fact about the signatures.
 - An unsigned signature row **SHALL** still be rendered, with a ruled blank. The
   reader must see *that* a signature is missing.
+- An unsigned row **SHALL NOT** print a date. A date beside a ruled name blank
+  reads as an approval that happened on that day and was signed illegibly — the
+  document asserting an event that did not occur, on the page a reader trusts
+  most. The value is kept in the spec (a planned date is legitimate); it is the
+  printing of it against an absent name that is refused. The role is not
+  suppressed: naming who is due to sign claims nothing about whether they have.
+- Dates **SHALL** be entered through a picker and stored as ISO `YYYY-MM-DD`, so
+  one document cannot carry `30/8/26` and `Aug 30 2026` in the same block. The
+  picker **SHALL** open empty rather than at today: a control that defaults to
+  the current date puts an issue date and three signature dates into the
+  document that nobody stated. A stored value that is not a date is preserved
+  and reported, never silently replaced — the spec is a file a person edits.
 - The classification marking **SHALL** appear on every page, not only the cover.
   A marking that appears once is one photocopied page away from being absent.
 - The DRAFT mark **SHALL NOT** be the sole carrier of its meaning: the footer
@@ -150,8 +190,17 @@ The spec records what airplane definition the report was authored against, and
 the document prints it. Two questions, two answers, and the document carries
 both:
 
-- **Anchors** — project name, category, design weight, wing area, design speeds —
-  answer *is this the same airplane* for a reader holding a drawing. They
+Both are printed in the **introduction**, under *Analysis basis* — not on the
+cover, per §4.
+
+- **Anchors** — project name, FAR 23 category (spelled out from
+  `models.inputs.CATEGORIES` rather than left as a letter to look up), the
+  sloads version that wrote the document and the schema version of the project
+  definition it read — answer *is this the same airplane, produced by what* for
+  a reader holding a drawing. The tool version is **handed to** the anchors, not
+  looked up by them: the build resolves it once for `build.json`, and resolving
+  it twice is how a document and its own stamp come to disagree. Where no
+  version is supplied the row is omitted rather than invented. They
   **SHALL** be computed at build time, never stored: stored text goes stale
   exactly when it matters, and would be frozen in whichever unit system was
   selected when it was written.
@@ -169,6 +218,11 @@ both:
 - The fingerprint is **not a signature** — there is no key, so it detects
   accident, not tampering — and it is not the record of what was analysed. The
   input echo is that.
+- **The anchors were reduced from six rows to two** on 2026-08-30 (design
+  weight, wing area, VC and VD removed as analysis outputs a reader meets in the
+  body). The consequence is stated rather than glossed: name and category are a
+  weak answer to *is this the same airplane*, so the fingerprint is now the only
+  thing printed in the document that detects a changed input.
 
 ## 6. Units and determinism
 
@@ -192,18 +246,23 @@ without a guard is prose, not a gate).
 
 | Section | Agreed | Guarded by |
 |---|---|---|
+| Dates and signatures | 2026-08-30 | `test_oracle_report.py::test_an_unsigned_row_prints_no_date`, `::test_the_report_page_never_defaults_a_date_to_today`, `::test_a_date_is_stored_as_an_iso_string_and_a_non_date_survives` |
 | Cover / title block | 2026-08-30 | `test_oracle_report.py::test_the_draft_mark_follows_the_signatures`, `::test_the_classification_marking_is_on_every_page` |
 | Abstract | 2026-08-30 | `test_oracle_report.py::test_it_builds_for_both_example_airplanes` |
 | Contents, figures, tables | 2026-08-30 | `test_oracle_report.py::test_it_builds_for_both_example_airplanes` |
 | 1. Introduction | 2026-08-30 | `test_oracle_report.py::test_section_numbers_come_from_the_owner_not_from_literals` |
+| 1. Introduction prose and limitations | 2026-08-30 | `test_oracle_report.py::test_the_default_introduction_claims_nothing_about_omitted_sections`, `::test_the_report_page_renders_every_block` |
+| Deselection is silent | 2026-08-30 | `test_oracle_report.py::test_a_deselected_section_is_omitted_entirely_and_numbering_closes_up` |
 | Analysis-body placeholders | 2026-08-30 | `test_oracle_report.py::test_every_result_producing_oracle_step_has_exactly_one_section`, `::test_the_gap_states_have_distinct_wording`, `::test_each_gap_state_renders_under_its_own_lead` |
 
 ## 8. Conformance
 
 - [x] The section set is `oracle_steps()`'s result-producing steps, both
       directions — `test_oracle_report.py`
-- [x] The four section states are distinct in wording, in rendered lead, and in
-      precedence — `test_oracle_report.py`
+- [x] The printing section states are distinct in wording, in rendered lead, and
+      in precedence — `test_oracle_report.py`
+- [x] A deselected section is omitted and the numbering closes up behind it —
+      `test_oracle_report.py`
 - [x] The document numbers its pages continuously and marks every page —
       verified at each iteration's local compile
 - [x] No report metadata reaches a `ModuleResult` or a table cell —

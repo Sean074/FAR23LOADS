@@ -1754,8 +1754,8 @@ def report_spec_to_dict(spec: ReportSpec) -> Dict[str, Any]:
     """
     out: Dict[str, Any] = {"report_schema_version": REPORT_SCHEMA_VERSION}
     for key in ("title", "report_number", "revision", "issue_date",
-                "organisation", "customer", "abstract", "distribution",
-                "marking"):
+                "organisation", "customer", "abstract", "introduction",
+                "limitations", "distribution", "marking"):
         value = getattr(spec, key)
         if value:
             out[key] = value
@@ -1820,6 +1820,8 @@ def report_spec_from_dict(d: Dict[str, Any]) -> ReportSpec:
         organisation=str(d.get("organisation", "")),
         customer=str(d.get("customer", "")),
         abstract=str(d.get("abstract", "")),
+        introduction=str(d.get("introduction", "")),
+        limitations=str(d.get("limitations", "")),
         distribution=str(d.get("distribution", "")),
         marking=str(d.get("marking", "")),
         revisions=[RevisionRow(**_filtered(RevisionRow, r))

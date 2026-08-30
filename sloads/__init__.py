@@ -12,6 +12,7 @@ from . import (
     modules,  # noqa: F401  (side effect: module registration)
     registry,
 )
+from ._version import __version__
 from .aero_curves import (
     AeroCurves,
     ClosureResult,
@@ -202,6 +203,7 @@ __all__ = [
     "WingLoadResult",
     "WingMassInput",
     "WingStationLoad",
+    "__version__",
     "build_aero_curves",
     "build_vn_diagram",
     "consistency_warnings",

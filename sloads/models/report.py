@@ -37,7 +37,8 @@ name: ``from sloads.models.report import ReportSpec``.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Tuple
+from datetime import date
+from typing import List, Optional, Tuple
 
 from ..units import UnitSystem
 
@@ -48,6 +49,31 @@ from ..units import UnitSystem
 #: to migrate and a version bumped against no readership teaches the number to
 #: mean nothing. It starts carrying information at the 0.8.2 cut.
 REPORT_SCHEMA_VERSION = 1
+
+
+#: The window a report date may fall in.
+#:
+#: Explicit because ``st.date_input`` derives its own bounds from the value it is
+#: given, and a picker opened empty would otherwise refuse a date more than a
+#: decade away -- an as-built revision of an old airplane is a normal thing to
+#: write up.
+DATE_MIN = date(1980, 1, 1)
+DATE_MAX = date(2100, 12, 31)
+
+
+def parse_date(text: str) -> Optional[date]:
+    """``text`` as a date, or ``None`` if it is not one.
+
+    Dates are stored as ISO strings, not :class:`date` objects: the spec is a
+    JSON document that a person is expected to be able to open and edit, and a
+    hand-typed value that is not a date must survive being loaded rather than
+    crash the page that shows it. The GUI turns the string into a picker and
+    back; this is the only place that knows the format.
+    """
+    try:
+        return date.fromisoformat(text.strip())
+    except (AttributeError, TypeError, ValueError):
+        return None
 
 
 @dataclass(frozen=True)
@@ -123,6 +149,16 @@ class ReportSpec:
     #: OR-31: the author's abstract. *Not* the computed governing-loads summary,
     #: which is built from delivered loads and is never user-selectable (OR-19).
     abstract: str = ""
+    #: The report's section 1 prose. Empty means "use the generator's
+    #: default"; the GUI pre-fills it, so a saved spec carries the text
+    #: verbatim and a later change to the default cannot silently reword
+    #: a report that has already been issued.
+    introduction: str = ""
+    #: The limitations and scope subsection. Pre-filled from
+    #: :func:`sloads.report.methods.methods_statement`, then owned by the
+    #: author -- it is a snapshot, and deliberately so: a signed issue
+    #: must keep saying what it said when it was signed.
+    limitations: str = ""
     distribution: str = ""
     #: Classification marking, rendered in every page footer (OR-18).
     marking: str = ""
@@ -165,6 +201,8 @@ def is_draft(spec: ReportSpec) -> bool:
 
 
 __all__ = [
+    "DATE_MAX",
+    "DATE_MIN",
     "REPORT_SCHEMA_VERSION",
     "ProjectIdentity",
     "ReportSpec",
@@ -172,4 +210,5 @@ __all__ = [
     "SignatureRow",
     "default_spec",
     "is_draft",
+    "parse_date",
 ]

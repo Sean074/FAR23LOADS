@@ -3,9 +3,10 @@
 Design note 44, OR-21. Two different questions are answered by two different
 things, and the report carries both:
 
-* *Is this the same airplane?* -- the **anchors**: project name, category, design
-  weight, wing area, design speeds. This is what a reader of the PDF actually
-  checks, and a hex string tells them nothing.
+* *Is this the same airplane?* -- the **anchors**: project name and FAR 23
+  category. This is what a reader of the PDF actually checks, and a hex string
+  tells them nothing. Reduced from six rows to two in the 2026-08-30 GUI
+  review; see :func:`anchors` for what that costs.
 * *Has the definition changed since this issue was authored?* -- the
   **fingerprint**, because nothing else answers it cheaply.
 
@@ -35,7 +36,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from ..models import Project
 
@@ -96,59 +97,57 @@ def fingerprint(project: Project) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def _fmt(value: Optional[float], unit: str) -> str:
-    if value is None:
+def category_name(code: str) -> str:
+    """``"N"`` -> ``"Normal / commuter (N)"``, from the one category owner.
+
+    :data:`sloads.models.inputs.CATEGORIES` is that owner -- the same table the
+    input widgets offer and ``normalise_code`` checks against. A second mapping
+    here would be a place for the two to disagree, and the failure mode is a
+    document that names a certification category the analysis did not use.
+    """
+    from ..models.inputs import CATEGORIES
+
+    code = (code or "").strip().upper()
+    if not code:
         return "not stated"
-    text = f"{value:g}"
-    return f"{text} {unit}".strip()
+    name = CATEGORIES.get(code)
+    return f"{name} ({code})" if name else code
 
 
-def _wing_area_sqft(project: Project) -> Optional[float]:
-    """The wing area the analysis would use, entered or resolved.
+def anchors(project: Project, *, tool_version: str = "") -> List[Tuple[str, str]]:
+    """The human identity rows printed beside the fingerprint.
 
-    ``speeds.wing_area_sqft`` is optional because STRSPEED resolves the planform
-    when it is blank (``field_registry._speeds_wing_area``). An anchor that read
-    the field alone would print "not stated" for the common case of a project
-    that entered a planform instead -- the identity check would be blank exactly
-    where the geometry is best defined.
+    Four rows: what the project is called, what it is being certificated as,
+    which build of sloads wrote the document, and which schema version the
+    project definition was written by.
+    The category is **spelled out** rather than left as its code -- "N" is a
+    letter a reader has to look up, and looking it up wrongly is how an analysis
+    gets read as Utility.
+
+    It used to carry design weight, wing area, VC and VD as well (GUI review,
+    2026-08-30). Those are analysis outputs a reader meets in the body, and
+    repeating them on the way in invited two statements of the same number.
+    The consequence is recorded rather than glossed: with four rows gone, name
+    and category are a weak answer to *is this the same airplane*, so the
+    fingerprint beneath them is now the only thing in the document that detects
+    a changed input (``ORACLE_REPORT.md`` §5).
     """
-    entered = getattr(getattr(project, "speeds", None), "wing_area_sqft", None)
-    if entered:
-        return float(entered)
-    from ..derived_geometry import planform_area_sqft
-
-    surface = getattr(getattr(project, "speeds", None), "wing_surface", None) or "wing"
-    try:
-        return planform_area_sqft(project, surface)
-    except (ValueError, ZeroDivisionError):
-        # A half-entered planform is not an error here: the anchor says "not
-        # stated" and the fingerprint still answers the question it exists for.
-        return None
-
-
-def anchors(project: Project) -> List[Tuple[str, str]]:
-    """The human identity rows the title page prints beside the fingerprint.
-
-    Computed at build time, never stored in the spec: stored text goes stale as
-    soon as the project moves, which is precisely the condition these rows exist
-    to reveal.
-
-    Values are the project's own canonical Imperial (a stored project is never
-    converted), and each row says its unit. Kept deliberately short -- five rows
-    a reader can check against a drawing beats twenty they will skip.
-    """
-    speeds = project.speeds
-    rows: List[Tuple[str, str]] = [
+    rows = [
         ("Project", project.name or "unnamed"),
-        ("FAR 23 category", getattr(speeds, "category", "") or "not stated"),
-        ("Design weight", _fmt(getattr(speeds, "weight_lb", None), "lb")),
-        # "sq ft", not "ft^2": these rows are plain text that must survive being
-        # typeset, pasted into an email and printed on a fax cover -- a caret is
-        # a superscript in the first and a literal in the others.
-        ("Wing area", _fmt(_wing_area_sqft(project), "sq ft")),
-        ("Design cruising speed VC", _fmt(getattr(speeds, "chosen_vc", None), "KEAS")),
-        ("Design diving speed VD", _fmt(getattr(speeds, "chosen_vd", None), "KEAS")),
+        ("FAR 23 category",
+         category_name(getattr(project.speeds, "category", ""))),
     ]
+    # What produced the document, and what the definition it read was written
+    # by. Both are provenance a reader needs when a result cannot be reproduced
+    # years later: "which build of the tool" and "which shape of the input".
+    #
+    # ``tool_version`` is handed in rather than looked up. Reading installed
+    # package metadata is filesystem work, which this package does not do, and
+    # the build already resolves it once for ``build.json`` -- resolving it
+    # twice is how the document and its own stamp come to disagree.
+    if tool_version:
+        rows.append(("sloads version", tool_version))
+    rows.append(("Project schema", f"version {project.schema_version}"))
     return rows
 
 
@@ -184,6 +183,7 @@ __all__ = [
     "FINGERPRINT_VERSION",
     "METADATA_KEYS",
     "anchors",
+    "category_name",
     "fingerprint",
     "identity_matches",
     "oracle_projection",

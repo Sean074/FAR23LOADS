@@ -191,8 +191,8 @@ def package_members(
     # ship a fingerprint with nothing a reader can check it against -- which is
     # the half that actually gets used.
     doc = document if document is not None else build_oracle_document(
-        project, spec, anchors=anchor_rows(project), fingerprint=fingerprint,
-        fingerprint_version=fingerprint_version)
+        project, spec, anchors=anchor_rows(project, tool_version=tool_version),
+        fingerprint=fingerprint, fingerprint_version=fingerprint_version)
 
     intro = section_ref(doc.plan, "") if doc.plan else "section 1"
     members = [
@@ -222,7 +222,7 @@ def package_members(
                                 built=built, tool_version=tool_version),
             contents="The as-built stamp: what produced this package, when, and "
                      "the fingerprint of the analysis inputs it read.",
-            summarised_in="the title page's analysis basis block",
+            summarised_in=f"{intro}, analysis basis",
         ),
         PackageMember(
             name=PACKAGE_PROJECT,

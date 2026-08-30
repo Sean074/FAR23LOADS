@@ -4,7 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sloads"
-version = "0.8.1"
+# The version lives in ``sloads/_version.py`` -- one owner, read both here and
+# by the report generator, so a bump cannot leave the two disagreeing
+# (RELEASE_PROCESS.md; guard: tests/test_version_owner.py).
+dynamic = ["version"]
 description = "Modern Python/Streamlit replication of the FAR 23 LOADS suite (McMaster) — FAR Part 23 Subpart C structural design loads."
 readme = "README.md"
 # 3.10 floor: streamlit>=1.51 (the width= layout API, #129) declares
@@ -121,6 +124,9 @@ include = ["sloads*", "app_shell*", "oracle_app*"]
 
 [tool.setuptools]
 py-modules = ["cli", "oracle"]
+
+[tool.setuptools.dynamic]
+version = {attr = "sloads._version.__version__"}
 
 [tool.ruff]
 line-length = 120

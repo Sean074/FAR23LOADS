@@ -74,17 +74,21 @@ class SectionState(Enum):
 #: document did exactly that: every placeholder read "Not analysed", which is
 #: *absence*'s wording, telling the reader their inputs were missing when it was
 #: the generator that was incomplete.
+#:
+#: The sentences open a sentence, capitalised: the renderer prints them after
+#: the bold lead and a full stop, so a lower-case first word reads as a
+#: typesetting fault on the page a reader is being asked to trust.
 STATE_TEXT = {
     SectionState.NOT_IMPLEMENTED: (
         "Not yet implemented",
-        "this revision of the report generator does not yet produce this "
+        "This revision of the report generator does not yet produce this "
         "section. Nothing about this project or this issue is missing."),
     SectionState.EXCLUDED: (
         "Not included in this issue",
-        "excluded by user selection at report generation."),
+        "Excluded by user selection at report generation."),
     SectionState.ABSENT: (
         "Not analysed",
-        "the inputs this section needs are not present in the project."),
+        "The inputs this section needs are not present in the project."),
 }
 
 #: Just the sentences, for the preflight table and anything showing one alone.
@@ -154,33 +158,42 @@ def section_plan(project: Project, spec: ReportSpec, *,
                  implemented: FrozenSet[str] = IMPLEMENTED) -> List[SectionPlan]:
     """The whole document's sections, front matter first (G-OR-2).
 
-    **Precedence, and why it changes.** While a section has no builder,
-    ``NOT_IMPLEMENTED`` outranks everything: a section the tool cannot produce
-    must not claim the reader's inputs are missing, nor that somebody chose to
-    leave it out. Once it is implemented the OR-19 precedence takes over --
-    ``ABSENT`` outranks ``EXCLUDED``, because *"absent is not excluded"* and a
-    reader is owed the reason that is actually true of their project rather than
-    the one that happens to be checked first.
+    **Precedence.** ``EXCLUDED`` is decided first, because a deselected section
+    is not printed at all and there is no reader to owe a reason to (GUI review,
+    2026-08-30). Among the states that *do* print, ``NOT_IMPLEMENTED`` outranks
+    ``ABSENT``: a section the tool cannot produce must not claim the reader's
+    inputs are missing. Once every section is implemented that ordering stops
+    mattering and ``ABSENT`` is the only one left.
     """
     plan: List[SectionPlan] = []
     for offset, title in enumerate(FRONT_SECTIONS):
         plan.append(SectionPlan(step_key="", number=section_number(offset),
                                 title=title, state=SectionState.INCLUDED,
                                 reason=""))
-    base = len(FRONT_SECTIONS)
-    for offset, step in enumerate(analysis_steps()):
+    # The number is assigned from position among the sections that will
+    # *render*, not from position in the workflow. A deselected section is
+    # omitted entirely (GUI review, 2026-08-30), so numbering by workflow
+    # position would leave a gap in the printed sequence and every cross
+    # reference after it would name the wrong section.
+    printed = len(FRONT_SECTIONS)
+    for step in analysis_steps():
         selected = step.key not in spec.excluded_steps
         present = _inputs_present(project, step)
-        if step.key not in implemented:
+        if not selected:
+            state = SectionState.EXCLUDED
+        elif step.key not in implemented:
             state = SectionState.NOT_IMPLEMENTED
         elif not present:
             state = SectionState.ABSENT
-        elif not selected:
-            state = SectionState.EXCLUDED
         else:
             state = SectionState.INCLUDED
+        if state is SectionState.EXCLUDED:
+            number = ""
+        else:
+            number = section_number(printed)
+            printed += 1
         plan.append(SectionPlan(
-            step_key=step.key, number=section_number(base + offset),
+            step_key=step.key, number=number,
             title=step.title, state=state, reason=STATE_REASON.get(state, ""),
             lead=STATE_TEXT.get(state, ("", ""))[0],
             selected=selected, inputs_present=present))
@@ -200,10 +213,10 @@ class OracleDocument:
     anchors: List[Tuple[str, str]] = field(default_factory=list)
     fingerprint: str = ""
     fingerprint_version: int = 0
-    #: (section title, reason) for every section not carrying its analysis --
-    #: printed on the title page so a reduced document announces itself (OR-19).
-    gaps: List[Tuple[str, str]] = field(default_factory=list)
     abstract: str = ""
+    #: The limitations and scope subsection's text, already resolved to either
+    #: the author's version or the generator's default.
+    limitations: str = ""
     units_note: str = ""
     plan: List[SectionPlan] = field(default_factory=list)
     sections: List[Section] = field(default_factory=list)
@@ -230,11 +243,64 @@ _INTRODUCTION = [
     "the safety factor applied to it together with the basis of that factor. "
     "Quantities that are not loads are neither scaled nor marked.",
 
-    "Sections that this issue does not carry are listed on the title page and "
-    "still appear in the body, each stating why it is not present. A section is "
-    "never silently omitted: a reader who is handed a reduced document is told "
-    "that it is one, and told whose decision reduced it.",
 ]
+
+
+def default_introduction() -> str:
+    """The introduction the GUI pre-fills, as editable text.
+
+    Returned as one string rather than the paragraph list because that is what
+    the author edits and what the spec stores. The generator's copy is a
+    *starting point*: once a report is issued, its introduction is whatever its
+    author wrote, and a later improvement here must not silently reword a
+    document somebody has already signed.
+    """
+    return "\n\n".join(_INTRODUCTION)
+
+
+#: The statement's own heading, stripped from the report's copy.
+_LIMITATIONS_BANNER = "METHODS AND LIMITATIONS"
+
+#: Blocks of the shared statement the report does not pre-fill (owner's
+#: decision, 2026-08-30). Four of them describe the *tool* -- how it is verified,
+#: how its arithmetic is done, which oracle deviations are approved, where it
+#: came from -- rather than the limits of this issue; the other two are already
+#: stated in the document, the category in the analysis basis and the units in
+#: the manifest's opening statement.
+#:
+#: **Filtered here, never in** :mod:`sloads.report.methods`. That statement is
+#: the single owner for the CSV and deck exports as well, and dropping blocks at
+#: the source would silently thin what a forwarded file carries -- which is the
+#: one thing an in-band self-describing block exists to prevent. This is the
+#: report's *pre-fill*, and the author can put any of it back.
+_LIMITATIONS_DROPPED = (
+    "PROVENANCE", "UNITS", "CATEGORY", "VERIFICATION", "MATH",
+    "APPROVED CORRECTIONS",
+)
+
+
+def default_limitations(project: Project) -> str:
+    """The limitations and scope text the GUI pre-fills.
+
+    Taken from :func:`sloads.report.methods.methods_statement` -- the single
+    owner of that statement across every export channel -- so the report opens
+    saying the same thing the CSVs and the decks say. Its own
+    "METHODS AND LIMITATIONS" banner is stripped: the subsection already carries
+    that title, and printing it twice reads as a paste.
+
+    From then on the author owns the text (owner's decision, 2026-08-30). That
+    makes it a **snapshot**: it will not track a later change to the project or
+    to the shared statement, which is the price of a signed issue continuing to
+    say what it said when it was signed.
+    """
+    from .methods import methods_statement
+
+    text = methods_statement(project)
+    kept = [para for para in text.split("\n\n")
+            if para.strip()
+            and not para.lstrip().startswith(_LIMITATIONS_BANNER)
+            and not para.lstrip().startswith(_LIMITATIONS_DROPPED)]
+    return "\n\n".join(kept).strip()
 
 
 def build_oracle_document(
@@ -260,10 +326,17 @@ def build_oracle_document(
     plan = section_plan(project, spec, implemented=implemented)
     system = spec.unit_system
 
+    intro_text = spec.introduction.strip() or default_introduction()
     sections: List[Section] = [
-        Section(f"{plan[0].number}. Introduction", body=list(_INTRODUCTION)),
+        Section(f"{plan[0].number}. Introduction",
+                body=[p for p in intro_text.split("\n\n") if p.strip()]),
     ]
     for entry in plan[len(FRONT_SECTIONS):]:
+        # A deselected section is not printed at all -- no heading, no reason
+        # (owner's decision, GUI review 2026-08-30). It keeps its row in the
+        # plan so the page's preflight still shows the choice registering.
+        if entry.state is SectionState.EXCLUDED:
+            continue
         sections.append(Section(
             f"{entry.number}. {entry.title}",
             absent_reason="" if entry.included else entry.reason,
@@ -277,8 +350,6 @@ def build_oracle_document(
         ("Issuing organisation", spec.organisation or "not stated"),
         ("Customer / programme", spec.customer or "not stated"),
     ]
-    gaps = [(entry.title, entry.reason) for entry in plan if not entry.included]
-
     return OracleDocument(
         title=spec.title or "FAR 23 structural design loads",
         spec=spec,
@@ -287,8 +358,9 @@ def build_oracle_document(
         anchors=list(anchors or []),
         fingerprint=fingerprint,
         fingerprint_version=fingerprint_version,
-        gaps=gaps,
         abstract=spec.abstract,
+        limitations=(spec.limitations.strip()
+                     or default_limitations(project)),
         units_note=("All values are stated in SI units." if system is UnitSystem.SI
                     else "All values are stated in Imperial units."),
         plan=plan,
@@ -307,6 +379,8 @@ __all__ = [
     "SectionState",
     "analysis_steps",
     "build_oracle_document",
+    "default_introduction",
+    "default_limitations",
     "section_number",
     "section_plan",
     "section_ref",

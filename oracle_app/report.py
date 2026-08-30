@@ -32,7 +32,15 @@ from sloads import io as sloads_io
 from sloads import workflow as wf
 from sloads.export import directory_dialog as dialog
 from sloads.export import report_package as pkg
-from sloads.models.report import ReportSpec, SignatureRow, default_spec, is_draft
+from sloads.models.report import (
+    DATE_MAX,
+    DATE_MIN,
+    ReportSpec,
+    SignatureRow,
+    default_spec,
+    is_draft,
+    parse_date,
+)
 from sloads.report import fingerprint as fingerprint_owner
 from sloads.report import oracle_content as oc
 from sloads.units import UnitSystem
@@ -60,6 +68,7 @@ _SPEC_WIDGETS = (
     "report_title", "report_number", "report_revision", "report_issue_date",
     "report_org", "report_customer", "report_abstract", "report_marking",
     "report_distribution", "report_units",
+    "report_introduction", "report_limitations",
     "report_prepared_name", "report_prepared_role", "report_prepared_date",
     "report_checked_name", "report_checked_role", "report_checked_date",
     "report_approved_name", "report_approved_role", "report_approved_date",
@@ -190,6 +199,35 @@ def _browse_block() -> str:
     return st.session_state[_ROOT]
 
 
+def _date(label: str, value: str, key: str, *, help_text: str = "") -> str:
+    """A date picker that stores an ISO string -- and starts **empty**.
+
+    ``st.date_input`` defaults its value to *today*. Left alone it would stamp
+    the current date onto an issue date and three signature dates that nobody
+    filled in, and the document would then assert, on its title page, that it
+    was issued and signed today. That is the same class as the placeholder that
+    printed "Not analysed" over the generator's own gap: a control quietly
+    putting words in the author's mouth. So the value is always passed
+    explicitly, and an unset date stays unset.
+
+    A stored value that is **not** a date is preserved rather than eaten. The
+    spec is a JSON file a person is meant to be able to edit, so a hand-typed
+    "TBD" has to survive being loaded; the picker shows empty, the page says
+    what is in the file, and the string stands until a real date replaces it.
+    """
+    parsed = parse_date(value)
+    if value and parsed is None:
+        st.caption(f"⚠ `{value}` is not a date. Pick one to replace it.")
+    chosen = st.date_input(label, value=parsed, key=widget_key(key),
+                           min_value=DATE_MIN, max_value=DATE_MAX,
+                           format="YYYY-MM-DD", help=help_text or None)
+    if chosen is None:
+        # Cleared, or never set. Keep an unparseable stored value; a real date
+        # that the user has just cleared is genuinely cleared.
+        return "" if parsed is not None else value
+    return chosen.isoformat()
+
+
 def _location_block() -> None:
     """Where packages live, and which one is open (OR-28, OR-29)."""
     st.subheader("Report package")
@@ -238,7 +276,9 @@ def _identity_block() -> None:
                                  "lands on the same directory.")
         revision = _text("Revision", spec.revision, "report_revision")
     with right:
-        issue_date = _text("Issue date", spec.issue_date, "report_issue_date")
+        issue_date = _date("Issue date", spec.issue_date, "report_issue_date",
+                           help_text="The date this issue is released. "
+                                     "Left empty until it is.")
         organisation = _text("Issuing organisation", spec.organisation,
                              "report_org")
         customer = _text("Customer / programme", spec.customer, "report_customer")
@@ -256,6 +296,34 @@ def _abstract_block() -> None:
         "Abstract", spec.abstract, "report_abstract", area=True)))
 
 
+def _prose_block(project) -> None:
+    """Section 1's prose: the introduction, and limitations and scope.
+
+    Both open **pre-filled** with the generator's text and are the author's
+    from then on (owner's decision, 2026-08-30). That makes each a snapshot:
+    a later improvement to the default will not reach a report already written,
+    which is the price of a signed issue continuing to say what it said when it
+    was signed. The empty spec field means "not yet edited", so the renderer
+    falls back to the same default and an old spec still produces a full
+    document.
+    """
+    spec = _spec()
+    st.subheader("Introduction")
+    st.caption("Section 1 of the report. Pre-filled with the standard text -- "
+               "edit it freely; what you leave here is what the document says.")
+    introduction = _text("Introduction", spec.introduction or oc.default_introduction(),
+                         "report_introduction", area=True)
+    st.caption("Limitations and scope appears as a subsection of the "
+               "introduction. It is pre-filled from the same methods and "
+               "limitations statement the CSV and deck exports carry, so the "
+               "report opens saying what they say. Once edited it is yours, and "
+               "will not track later changes to the project.")
+    limitations = _text("Limitations and scope",
+                        spec.limitations or oc.default_limitations(project),
+                        "report_limitations", area=True)
+    _set_spec(replace(spec, introduction=introduction, limitations=limitations))
+
+
 def _signature_row(label: str, row: SignatureRow, key: str) -> SignatureRow:
     a, b, c = st.columns([2, 2, 1])
     with a:
@@ -263,7 +331,7 @@ def _signature_row(label: str, row: SignatureRow, key: str) -> SignatureRow:
     with b:
         role = _text(f"{label} - function", row.role, f"{key}_role")
     with c:
-        date = _text(f"{label} - date", row.date, f"{key}_date")
+        date = _date(f"{label} - date", row.date, f"{key}_date")
     return SignatureRow(name=name, role=role, date=date)
 
 
@@ -354,7 +422,8 @@ def _provenance_block(project) -> str:
     (st.success if ok else st.warning)(message)
     st.dataframe(
         pd.DataFrame([{"Anchor": label, "Value": value}
-                      for label, value in fingerprint_owner.anchors(project)]),
+                      for label, value in fingerprint_owner.anchors(
+                          project, tool_version=pkg.tool_version())]),
         width="stretch", hide_index=True)
     if st.button("Baseline this report against the current project",
                  key=widget_key("report_baseline"),
@@ -430,6 +499,8 @@ def render_report_page() -> None:
     _identity_block()
     st.divider()
     _abstract_block()
+    st.divider()
+    _prose_block(project)
     st.divider()
     _signature_block()
     st.divider()

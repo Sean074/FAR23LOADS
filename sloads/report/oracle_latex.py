@@ -65,31 +65,46 @@ def headers_tex(doc: OracleDocument) -> str:
     The marking is rendered on **every page** (OR-18): a classified document
     whose marking appears only on the cover is one photocopied page away from
     being an unmarked document.
+
+    **The footer is one full-width table, not three slots.** ``fancyhdr`` places
+    ``[L]``, ``[C]`` and ``[R]`` independently, so nothing stops them printing
+    on top of one another -- and a real marking does: "COMMERCIAL IN CONFIDENCE"
+    ran straight through the load-basis sentence, leaving the two statements a
+    reader most needs to trust illegible. Allocating the width with
+    ``tabular*`` + ``\extracolsep{\fill}`` makes the columns share the line by
+    construction rather than by fitting, so a longer marking wraps the layout's
+    spacing instead of overprinting its neighbour.
+
+    The centre names the **issuing organisation**, not the load basis. Only the
+    marking and the draft sentence are owed on every page (``ORACLE_REPORT.md``
+    §4); the load basis is already stated in the introduction, and the ``-ULT``
+    marker is part of every units string by ``CONVENTIONS.md``, so each number
+    is self-marking and a page-level restatement bought nothing. Who issued a
+    loose page is the thing a reader cannot recover from the page itself.
     """
     marking = doc.spec.marking.strip()
-    # Three statements are owed on every page -- the marking, the load basis and
-    # (when unsigned) DRAFT -- and three of them will not fit across one footer
-    # line: the first attempt overprinted the marking and the draft sentence on
-    # top of each other. The centre slot is therefore stacked, and each line is
-    # kept short enough to clear the left and right slots.
-    basis = "ULTIMATE loads --- SF stated per case"
-    centre_lines = ([r"\textbf{DRAFT --- not approved}"] if doc.draft else []) + [
-        escape(basis)]
-    centre = (r"\shortstack{" + r"\\".join(centre_lines) + "}"
-              if len(centre_lines) > 1 else centre_lines[0])
+    origin = doc.spec.organisation.strip()
+    page = r"Page \thepage\ of \pageref{LastPage}"
+    rows = []
+    if doc.draft:
+        rows.append(r"\multicolumn{3}{c}{\textbf{DRAFT --- not approved}} \\")
+    rows.append(" & ".join([escape(marking) if marking else "",
+                            escape(origin) if origin else "",
+                            page]) + r" \\")
+    footer = (r"\footnotesize\begin{tabular*}{\textwidth}"
+              r"{@{\extracolsep{\fill}}lcr@{}}"
+              + "".join(rows) + r"\end{tabular*}")
     return "\n".join([
         r"\pagestyle{fancy}",
         r"\fancyhf{}",
-        # The footer grows a line on a draft, so make room for it rather than
-        # letting the stack ride up into the text block.
+        # The footer grows a row on a draft, so make room for it rather than
+        # letting the table ride up into the text block.
         r"\setlength{\footskip}{" + ("34pt" if doc.draft else "26pt") + "}",
         r"\fancyhead[L]{\small " + escape(doc.spec.report_number or doc.title) + "}",
         r"\fancyhead[C]{" + (r"\sldraftmark" if doc.draft else "") + "}",
         r"\fancyhead[R]{\small " + escape(
             ("Rev " + doc.spec.revision) if doc.spec.revision else "") + "}",
-        r"\fancyfoot[L]{\small " + (escape(marking) if marking else "") + "}",
-        r"\fancyfoot[C]{\small " + centre + "}",
-        r"\fancyfoot[R]{\small Page \thepage\ of \pageref{LastPage}}",
+        r"\fancyfoot[C]{" + footer + "}",
         r"\renewcommand{\headrulewidth}{0.4pt}",
     ])
 
@@ -99,6 +114,14 @@ def _signature_block(doc: OracleDocument) -> str:
 
     An unsigned row is *rendered*, not skipped: the reader must see that a
     signature is missing rather than see nothing where one belongs.
+
+    **An unsigned row carries no date.** A date printed beside a ruled name
+    blank reads as an approval that happened on that day and was signed
+    illegibly -- the document asserting an event that did not occur, on the page
+    a reader trusts most. The stored value is kept in the spec (a planned issue
+    date is a legitimate thing to hold); it is the *printing* of it next to an
+    absent name that is refused. The role is left alone: naming who is due to
+    sign claims nothing about whether they have.
     """
     spec = doc.spec
     rows = [("Prepared by", spec.prepared), ("Checked by", spec.checked),
@@ -110,11 +133,12 @@ def _signature_block(doc: OracleDocument) -> str:
              r"\midrule"]
     blank = r"\rule{0pt}{2.2ex}\hrulefill"
     for label, row in rows:
+        signed = bool(row.name.strip())
         lines.append(" & ".join([
             escape(label),
-            escape(row.name) if row.name.strip() else blank,
+            escape(row.name) if signed else blank,
             escape(row.role) if row.role.strip() else blank,
-            escape(row.date) if row.date.strip() else blank,
+            escape(row.date) if signed and row.date.strip() else blank,
         ]) + r" \\")
     lines += [r"\bottomrule", r"\end{tabular}"]
     return "\n".join(lines)
@@ -131,6 +155,7 @@ def _provenance_block(doc: OracleDocument) -> str:
     if not doc.anchors and not doc.fingerprint:
         return ""
     parts = [r"\subsection*{Analysis basis}",
+             r"\addcontentsline{toc}{subsection}{Analysis basis}",
              _control_table(doc.anchors)]
     if doc.fingerprint:
         parts.append(
@@ -143,48 +168,34 @@ def _provenance_block(doc: OracleDocument) -> str:
     return "\n\n".join(p for p in parts if p)
 
 
-def _gaps_block(doc: OracleDocument) -> str:
-    """What this issue does not carry, stated on the title page (OR-19).
+def _limitations_tex(doc: OracleDocument) -> str:
+    """The limitations and scope subsection (owner's decision, 2026-08-30).
 
-    ``SUMMARY_REPORT.md`` §3.4's filtered-export rule at section level: an
-    analyst never receives a reduced document without being told on the face of
-    it, rather than by noticing an absence.
-
-    **The three gap states are not listed alike.** An exclusion and an absence
-    are facts about *this issue* -- somebody's choice, or this project's data --
-    and belong itemised where a reader checks what they were sent. A section the
-    generator cannot build yet is a fact about the *tool*, identical in every
-    issue it produces, and itemising thirteen of them would bury the two that
-    are about the reader's own report under a list that says the same thing
-    thirteen times.
+    Pre-filled by the GUI from :func:`sloads.report.methods.methods_statement`
+    and owned by the author thereafter, so what is rendered here is simply the
+    text the spec carries -- this function does not reach for the generator's
+    copy, because the resolution already happened in
+    :func:`sloads.report.oracle_content.build_oracle_document` and doing it in
+    two places is how the page and the document come to disagree.
     """
-    from .oracle_content import SectionState
-
-    per_issue = [(entry.title, entry.reason) for entry in doc.plan
-                 if entry.state in (SectionState.EXCLUDED, SectionState.ABSENT)]
-    pending = [entry.title for entry in doc.plan
-               if entry.state is SectionState.NOT_IMPLEMENTED]
-    parts = []
-    if per_issue:
-        items = "\n".join(r"\item " + escape(f"{title} --- {reason}")
-                          for title, reason in per_issue)
-        parts += [r"\subsection*{Sections not carried by this issue}",
-                  r"\begin{itemize}\setlength{\itemsep}{0pt}", items,
-                  r"\end{itemize}"]
-    if pending:
-        parts += [
-            r"\subsection*{Sections not yet produced by this tool}",
-            escape(
-                f"{len(pending)} analysis sections are not yet implemented in "
-                "this revision of the report generator. Each appears in the body "
-                "below, saying so in place of its analysis: ")
-            + escape(", ".join(pending)) + ".",
-        ]
-    return "\n\n".join(parts)
+    if not doc.limitations.strip():
+        return ""
+    return "\n\n".join([
+        r"\subsection*{Limitations and scope}",
+        r"\addcontentsline{toc}{subsection}{Limitations and scope}",
+        paragraphs_tex(doc.limitations),
+    ])
 
 
 def title_page_tex(doc: OracleDocument) -> str:
-    """The cover: identity, control block, provenance, exclusions, signatures."""
+    """The cover: marking, identity, document control, signatures, distribution.
+
+    Deliberately *not* the analysis basis or the not-carried list. Those moved
+    to the introduction in the 2026-08-30 GUI review: both are read rather than
+    glanced at, and on the cover they pushed the signature block onto a second
+    sheet -- leaving the approval record on a page carrying none of the
+    document's identity, which is the one page that must never travel alone.
+    """
     # Deliberately **not** ``\begin{titlepage}``. That environment resets the
     # page counter when it ends, so a cover that runs to two sheets makes the
     # next page "Page 1 of 4" on the third sheet -- and it suppresses the page
@@ -203,9 +214,14 @@ def title_page_tex(doc: OracleDocument) -> str:
     ]
     if doc.draft:
         parts.append(r"{\large\bfseries DRAFT --- not approved}\par\vspace{4mm}")
-    parts += [_control_table(doc.control), r"\vspace{8mm}",
-              _provenance_block(doc), r"\vspace{6mm}",
-              _gaps_block(doc), r"\vspace{6mm}",
+    # The analysis basis and the not-carried list live in the introduction, not
+    # here (GUI review, 2026-08-30). Both are things a reader works *through*
+    # -- five anchor rows, a fingerprint, a list of section titles -- and on the
+    # cover they pushed the signature block onto a second sheet, which put the
+    # approval record on a page that carries none of the document's identity.
+    # The cover states who the document is and who signed it; the introduction
+    # states what it was built from and what it does not carry.
+    parts += [_control_table(doc.control), r"\vspace{10mm}",
               _signature_block(doc)]
     if doc.spec.distribution.strip():
         parts += [r"\vspace{6mm}", r"{\footnotesize\textbf{Distribution:} "
@@ -228,6 +244,36 @@ def _abstract_tex(doc: OracleDocument) -> str:
                         paragraphs_tex(body)])
 
 
+def _listing_tex(doc: OracleDocument, command: str, title: str,
+                 noun: str) -> str:
+    """A front-matter list, and a sentence when it is empty.
+
+    An empty list under a bare heading is a **silent** absence, which is the one
+    thing this document does not do anywhere else: it is why a section the
+    generator cannot build still appears, saying so, instead of being omitted.
+    A reader looking at a heading with nothing under it cannot tell "this issue
+    has no figures" from "the list failed to generate", and the second is what
+    they will suspect.
+
+    The entry is added to the contents for the same reason the abstract's is:
+    two kinds of front matter treated differently in the same document reads as
+    an oversight rather than a decision.
+    """
+    def holds_any(section) -> bool:
+        # Recursive: a table one level down still puts a line in the list, and
+        # a document that then printed "contains no tables" would be stating
+        # the opposite of what the reader is looking at.
+        return bool(getattr(section, noun, None)) or any(
+            holds_any(child) for child in getattr(section, "subsections", ()))
+
+    empty = not any(holds_any(section) for section in doc.sections)
+    parts = [command, r"\addcontentsline{toc}{section}{" + escape(title) + "}"]
+    if empty:
+        parts.append(r"{\small\itshape This issue contains no "
+                     + escape(noun) + r".}")
+    return "\n\n".join(parts)
+
+
 def render_oracle_document(doc: OracleDocument) -> str:
     """The whole ``.tex`` source for ``doc``.
 
@@ -244,12 +290,26 @@ def render_oracle_document(doc: OracleDocument) -> str:
         title_page_tex(doc),
         _abstract_tex(doc),
         r"\newpage",
+        # The document sets \parskip to 0.6em, and a contents list inherits it --
+        # seventeen entries spaced like paragraphs filled the page on their own
+        # and pushed the List of Tables onto a sheet of its own. Confined to a
+        # group so the body's paragraph spacing is untouched.
+        r"{\setlength{\parskip}{0pt}",
         r"\tableofcontents",
-        r"\listoffigures",
-        r"\listoftables",
+        _listing_tex(doc, r"\listoffigures", "List of Figures", "figures"),
+        _listing_tex(doc, r"\listoftables", "List of Tables", "tables"),
+        r"}",
         r"\newpage",
     ]
-    parts += [section_tex(s, 0) for s in doc.sections]
+    # Section 1 is the introduction; the analysis basis and the not-carried
+    # list follow it as unnumbered subsections. Unnumbered because
+    # ``oracle_content.section_number`` owns numbering and a hand-numbered
+    # "1.1" here would be a second numbering scheme that cannot renumber
+    # itself when a section is inserted above it.
+    for index, section in enumerate(doc.sections):
+        parts.append(section_tex(section, 0))
+        if index == 0:
+            parts += [_provenance_block(doc), _limitations_tex(doc)]
     parts.append(r"\end{document}")
     return "\n\n".join(p for p in parts if p).rstrip() + "\n"
 

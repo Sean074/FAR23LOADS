@@ -14,7 +14,13 @@ Semantic versioning: `MAJOR.MINOR.PATCH`.
 | `MINOR` | A new module ported (a new suite program runs), or a new GUI/CLI capability |
 | `PATCH` | Bug fix that does not change the public interface |
 
-The version lives in `pyproject.toml` under `version =`. The `project.json`
+The version lives in **`sloads/_version.py`** under `__version__`, and nowhere
+else: `pyproject.toml` declares `dynamic = ["version"]` and reads that attribute,
+and the report generator's provenance stamp reads it too (guard:
+`tests/test_version_owner.py`). It moved there on 2026-08-30 because the stamp
+used to ask `importlib.metadata`, which reads install-time `PKG-INFO` — so after
+the 0.8.1 bump every report stamped 0.8.0 until somebody reinstalled. The
+`project.json`
 schema has its own `SCHEMA_VERSION` (in `sloads/models/project.py`) — bump it
 when the input schema changes, and ensure `io.py` still loads older saves.
 
@@ -112,7 +118,7 @@ tags `main` after the merge, unchanged. The issues of this milestone are
 already closed, each in its own commit, so the PR body carries **no**
 `Closes #N`.
 
-1. **Bump the version** in `pyproject.toml`. Commit: `Bump version to X.Y.Z`.
+1. **Bump the version** in `sloads/_version.py` (`__version__`). `pyproject.toml` reads it and needs no edit. Commit: `Bump version to X.Y.Z`.
 2. **Build the changelog and roll the history fragments** — `.venv/bin/python scripts/build_changelog.py X.Y.Z --date YYYY-MM-DD` assembles the `changes/` fragments into `## [X.Y.Z] — YYYY-MM-DD` (Breaking / Added / Changed / Fixed / Removed), inserts every `changes/*.history.md` entry at the top of `docs/40_history/00_completed_development.md` (design note 28 MD-4), opens a fresh empty `[Unreleased]`, and deletes the consumed fragments. Then write the release-cut block in the history file by hand (the one entry that is not a fragment). Run `scripts/backlog_issues.py check` — every priority-table row names an open issue and vice versa (MD-5). Never hand-edit `[Unreleased]`; fix a fragment and re-run instead. Commit: `Changelog for X.Y.Z`.
 3. **Roll the history (mechanical, bounded — design note 26, 2026-08-16):**
    - move every plan/design note in `docs/30_future/` whose status header reads *shipped* to `docs/40_history/` (next free number; update its `docs/00_INDEX.md` row);

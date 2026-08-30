@@ -43,21 +43,24 @@ def build_timestamp() -> str:
 
 
 def tool_version() -> str:
-    """The installed ``sloads`` version, for ``build.json``.
+    """The running ``sloads`` version, for ``build.json`` and the analysis basis.
 
-    Here for the same reason :func:`build_timestamp` is: the report page may not
-    import ``importlib`` (the oracle GUI's import gate), and a stamp that records
-    the generator without recording *which* generator answers half the question a
-    reader of an archived package is asking.
+    Read from :mod:`sloads._version`, the single owner, and **not** from
+    ``importlib.metadata``. That reads ``PKG-INFO``, a snapshot written when the
+    package was installed, so in an editable checkout it goes stale the moment
+    the version is bumped and stays stale until somebody reinstalls. It did:
+    the 0.8.1 bump landed and reports carried on stamping 0.8.0, naming a build
+    they did not come from. A provenance field that is wrong but plausible is
+    worse than one that is absent.
+
+    Here rather than in the page for the same reason :func:`build_timestamp` is:
+    the oracle GUI may not import anything outside ``sloads`` and the
+    presentation layer, and a stamp recording the generator without recording
+    *which* generator answers half the question an archive reader is asking.
     """
-    from importlib.metadata import PackageNotFoundError, version
+    from .._version import __version__
 
-    try:
-        return version("sloads")
-    except PackageNotFoundError:
-        # Running from a source tree with no install. Say so rather than
-        # inventing a number the package would then claim it was built by.
-        return "unknown"
+    return __version__
 
 
 # --- choosing where a report is written -----------------------------------
