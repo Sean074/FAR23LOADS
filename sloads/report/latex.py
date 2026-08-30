@@ -38,6 +38,10 @@ from .plots_tex import escape, figure_body_tex
 #: Packages the ``.tex`` needs. All are in a standard TeX distribution and in the
 #: tectonic bundle -- SUMMARY_REPORT.md §2 forbids anything more exotic, and
 #: forbids external image files (hence pgfplots rather than \includegraphics).
+#: §2's *Data reference* clause (amended 2026-08-30) lets a report delivered as a
+#: **package** read manifest-listed data files from inside it; this report is also
+#: offered as a standalone ``.tex`` download, so it references no external file at
+#: all -- everything it draws is inline (guarded in ``test_report_latex.py``).
 PREAMBLE = r"""\documentclass[11pt,a4paper]{article}
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}

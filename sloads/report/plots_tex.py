@@ -4,7 +4,10 @@ Decision G8-2: the report's figures are **source, not images**. Each one is a
 ``tikzpicture`` written as text, so it is deterministic, unit-testable the same
 way a BDF card is, vector in the final PDF, and set in the document's own fonts —
 with no plotly, no ``kaleido``, and no image file for the ``.tex`` to depend on
-(SUMMARY_REPORT.md §2 requires the source be self-contained).
+(SUMMARY_REPORT.md §2 forbids external *image* files, which is what protects those
+properties). §2's *Data reference* clause permits a **packaged** report to read
+plain-text data from inside its own package; this report is also delivered as a
+standalone ``.tex``, so its figures carry their coordinates inline.
 
 The plot *data* arrives as a :class:`~sloads.report.content.PlotData` built from
 the same pure functions the Streamlit pages plot (``build_vn_diagram``,

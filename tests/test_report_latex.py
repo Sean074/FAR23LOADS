@@ -187,6 +187,26 @@ def test_figures_do_not_float_away_from_their_corner_table():
     assert r"\begin{figure}[htbp]" not in tex
 
 
+def test_the_standalone_tex_references_no_external_file():
+    """SUMMARY_REPORT.md §2 *Data reference*: a report delivered as a standalone
+    ``.tex`` -- which this one is, via the Export page's own download button --
+    SHALL NOT reference any external file. The packaged-report permission (design
+    note 44 OR-23) is scoped to reports that travel with a manifest, so the
+    summary report keeps every table and every figure coordinate inline.
+    """
+    tex = _tex()
+    for command in (r"\includegraphics", r"\input{", r"\include{",
+                    r"\pgfplotstableread", r"\lstinputlisting", r"\subfile"):
+        assert command not in tex, (
+            f"{command} makes the standalone .tex depend on a file the Export "
+            f"page's '.tex' download does not carry (SUMMARY_REPORT.md §2)")
+    # ``addplot table {file}`` is the pgfplots form of the same dependency;
+    # ``addplot table[...] {x y ...}`` with inline rows is the permitted one.
+    for match in re.finditer(r"\\addplot[^;]*?table[^;{]*\{([^{}]*)\}", tex):
+        assert "\n" in match.group(1) or match.group(1).strip() == "", (
+            "an addplot table reads an external data file: " + match.group(1)[:60])
+
+
 def test_render_document_and_render_report_agree():
     project = io.load_project(_GA)
     doc = build_report(project, tool_version="test")

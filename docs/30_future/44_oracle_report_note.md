@@ -7,7 +7,8 @@ working-alone path); nothing built. Milestone: 0.8.2.** The three §5 open
 questions were answered the same day and are recorded as OR-10 … OR-12 (§5),
 on the same footing as OR-1 … OR-9. §6 (2026-08-30) adds the milestone's
 development constraints (OR-13 … OR-15) and §7 (2026-08-30) settles the report
-file and the report page (OR-16 … OR-21) ahead of iteration 1. This note settles the shape of an
+file and the report page (OR-16 … OR-21) ahead of iteration 1, and §8
+(2026-08-30) settles the issue package the build produces (OR-22 … OR-27). This note settles the shape of an
 **automatic technical report generated from the oracle GUI's analysis** — what
 document it is, where its content comes from, where it is triggered, and the
 unusual development protocol (one section at a time, each agreed by the owner
@@ -112,7 +113,7 @@ section to it.
 | **G-OR-2** | Every result-producing step in `sloads.workflow.oracle_steps()` has exactly one analysis section, and every analysis section maps to a step. Guard test (the G2 inheritance, OR-2). |
 | **G-OR-3** | Every load table value equals the corresponding `ModuleResult` value × its case's SF — asserted through the content model, never by matching LaTeX strings (OR-6). |
 | **G-OR-4** | Every load carries `-ULT` and a stated SF; no non-load quantity is scaled or marked. Reuses the summary report's marking checks (OR-5). |
-| **G-OR-5** | Two builds of the same project at the same unit selection are byte-identical (OR-5). **Amended 2026-08-30 (§7, OR-20):** the unit selection is a `ReportSpec` field, so the statement is *two builds of the same project **and the same report spec** are byte-identical* — the spec plus the project is the complete recipe. |
+| **G-OR-5** | Two builds of the same project at the same unit selection are byte-identical (OR-5). **Amended 2026-08-30 (§7, OR-20):** the unit selection is a `ReportSpec` field, so the statement is *two builds of the same project **and the same report spec** are byte-identical* — the spec plus the project is the complete recipe. **Extended 2026-08-30 (§8, OR-26):** G-OR-16 carries the same statement to every file of the issue package, not the `.tex` alone. |
 | **G-OR-6** | The report contains no concept-mode or sloads-only content: building from a project with concept fields populated yields the same oracle-scope document as the same project with them absent. Guard test — this is the scope rule made structural. |
 | **G-OR-7** | A half-filled project yields a complete document with `absent_reason` sections, never a traceback and never a silently missing section (OR-5, absence-is-content). |
 | **G-OR-8** | Each agreed section's SHALL list in `ORACLE_REPORT.md` (OR-9) has a corresponding assertion in the report tests — an agreement without a guard is prose, not a gate. Checked at each section's closure. |
@@ -141,7 +142,7 @@ report is B2's declared starting point.
 
 | Commit | Contents |
 |---|---|
-| 1 | `oracle_content.py` skeleton + section derivation + the oracle_app report page + `ORACLE_REPORT.md` created + gates G-OR-1/2/5/6/7. **Amended 2026-08-30 (§7):** also `ReportSpec` + `REPORT_SCHEMA_VERSION` + the `io` load/save/fingerprint owners (OR-17, OR-21), `examples/ga6_normal.report.json`, and gates G-OR-10 … G-OR-13 |
+| 1 | `oracle_content.py` skeleton + section derivation + the oracle_app report page + `ORACLE_REPORT.md` created + gates G-OR-1/2/5/6/7. **Amended 2026-08-30 (§7):** also `ReportSpec` + `REPORT_SCHEMA_VERSION` + the `io` load/save/fingerprint owners (OR-17, OR-21), `examples/ga6_normal.report.json`, and gates G-OR-10 … G-OR-13. **Amended 2026-08-30 (§8):** also the issue-package builder + `MANIFEST.txt` + the `data/` emitters (OR-22, OR-23) and gates G-OR-14 … G-OR-17 |
 | 2 | Front matter (title, §1–§3) — the register-setting iteration |
 | 3… | Analysis-body sections, one OR-8 iteration each, in workflow order; G-OR-3/4 land with the first results section |
 | final | Governing summary, methods & limitations, input echo appendix, note-32 cross-link, tier-L closure |
@@ -164,6 +165,8 @@ has in fact compiled. This matches the summary report's existing practice: the
 (`tectonic`, `latexmk`, `pdflatex` — `SUMMARY_REPORT.md` §2). Adding a
 `tectonic` compile job to CI is a candidate 0.9.0 improvement, not a
 prerequisite here.
+
+**Amended 2026-08-30 (§8, OR-22/OR-26):** the CI leg builds the **issue package** and asserts its manifest (G-OR-14), the `.tex` being one file of it; and self-containment is read at package level (OR-26), the `.tex` reading `data/` at compile time.
 
 ### OR-11 — Both examples build the report in CI
 
@@ -394,3 +397,128 @@ says *go read Appendix A, something moved*.
 | **G-OR-11** | `ReportSpec` round-trips through `save_report`/`load_report` stably; a missing or unreadable report file yields a default unsigned draft, never a traceback. |
 | **G-OR-12** | The report build path reads `spec.unit_system` and never `active_system()` — the document's unit owner asserted, not conventional. |
 | **G-OR-13** | Mutating any oracle-consumed field changes the fingerprint; mutating any field outside the oracle scope does not (the OR-21 scope boundary, the same structural move as G-OR-6). |
+
+---
+
+## 8. The issue package (OR-22 … OR-27)
+
+*Owner rulings 2026-08-30, in session, settling what the report page's build
+button actually produces. A report issue is a **package**, not a file: the
+document plus the data behind every table and plot plus the definition it was
+built from, in one directory that can be archived, signed and re-opened years
+later. Decisions on the same footing as OR-1 … OR-21; gates G-OR-14 … G-OR-17.*
+
+### OR-22 — Build produces a directory, not a download
+
+The page's build action writes an **issue package** — a real directory on the
+local filesystem, since the oracle GUI is a locally-run tool (`sloads-oracle`)
+and the user's machine is the server. The page carries an output-root control;
+the directory name is derived from the report number and revision
+(`LR-0142_RevB/`), never from the clock.
+
+```
+LR-0142_RevB/
+  report.tex          the document (OR-4)
+  report.json         the spec as built, stamped (OR-24)
+  project.json        a copy of the airplane definition it was built from
+  MANIFEST.txt        every file in the package with its SHA-256
+  data/<step_key>.csv one file per table or plot the document draws (OR-23)
+  report.pdf          present only after a local compile (OR-26)
+```
+
+`app/`'s export page delivers a zip through the browser instead
+(`export_report.py`, "Download all"); that is the right shape for a page that
+may be served remotely, and the wrong shape here. A zip of the same tree is a
+candidate convenience later, built from the same builder — not iteration 1.
+
+### OR-23 — The shipped data is the document's source, not a copy of it
+
+Tables are generated `.tex` fragments the document `\input`s; plots are
+pgfplots reading `data/<step_key>.csv` at compile time. **The document therefore
+cannot disagree with the shipped data, because it is reading it** — the
+architecture is the guarantee, so no drift-guard between two renderings is owed
+(`CLAUDE.md` rule 3 is satisfied by removing the duplication rather than
+policing it). It also makes OR-6 auditable from outside: a reviewer diffs the
+CSV against the analysis page instead of trusting the sentence.
+
+Files are named by **workflow step key**, never by section number, for OR-19's
+reason. Each carries a comment header stating the **units string including the
+`-ULT` marker, the safety factor and its basis, the step key, and the
+fingerprint** — a data file lifted out of the folder and mailed onward is still
+self-describing, which is what `SUMMARY_REPORT.md` §3.1 requires of every
+load-bearing number. **G-OR-15**; no orphans in either direction, **G-OR-17**.
+
+### OR-24 — The package's `report.json` is a snapshot; the working spec stays put
+
+OR-17's placement stands: the **working** spec lives at `<stem>.report.json`
+beside the project, and is what the page loads and edits. The build **copies it
+into the package**, stamped with the OR-21 fingerprint and the build timestamp
+supplied by the caller. The two copies have different jobs — one is the editable
+recipe for the next issue, the other is the immutable record of this one — and
+loading a package's `report.json` back into the page is reading history, not
+resuming work.
+
+`project.json` is copied in for the same reason: anyone holding the folder can
+rebuild the document without hunting for the airplane file, and the fingerprint
+has its subject present to compare against rather than merely named.
+
+### OR-25 — Rebuild clobbers the revision; a new revision is a new directory
+
+Building again into the same report number and revision **overwrites in place,
+silently** — it is a build product, and the edit-build-read loop must not carry
+friction. Bumping the revision in the spec produces a **new directory beside**
+the old one, so an issued revision is never destroyed by continued work. The
+package is disposable; the revision history in the spec (OR-18) is not.
+
+### OR-26 — Self-containment is a property of the package
+
+**Superseded by an amendment to the standard itself, 2026-08-30 (owner).** This
+section first recorded a *reading* of `SUMMARY_REPORT.md` §2 — that a CSV is not
+an image, so OR-23 was already permitted. A rule that says one thing and means
+another leaves the next person to re-derive the reading from a design note, which
+is the prose-rule-without-an-owner failure `CLAUDE.md` rule 3 exists to prevent.
+So §2 was amended instead, tier M, and OR-26 is now a **citation** of it:
+
+- The **image prohibition is unchanged and absolute** — figures are pgfplots/TikZ
+  source, never `\includegraphics`. Every property that rule protects
+  (deterministic, diffable, unit-testable as text, vector in the document's own
+  fonts, no non-TeX toolchain) is untouched by reading a text data file.
+- A new **§2 *Data reference*** clause permits a report **delivered as a package**
+  to read plain-text data from inside it, on four conditions the issue package
+  already meets: the file is in the manifest (G-OR-14), the path is relative and
+  stays inside the package root, the file is self-describing to §3.1 (G-OR-15),
+  and determinism holds for the whole package (G-OR-16).
+- A report **delivered as a standalone `.tex`** — which `app/`'s summary report
+  still is, via its own download button — **SHALL NOT** reference any external
+  file, and now has the guard that says so
+  (`test_report_latex.py::test_the_standalone_tex_references_no_external_file`).
+
+The amendment is not a liberty taken for this milestone: §1.5, §4.7 and §5 already
+require the report to travel with companion data files and to point the reader at
+them. Reading them makes that reference **mechanical instead of editorial**, so the
+document cannot misquote its own companion — §4.7's intent, finally with teeth.
+
+The PDF (OR-10, local) is **compiled out of tree** and only the PDF copied back:
+no `.aux`, `.log`, `.out` or engine cache ever enters the package, or the
+determinism gate becomes a fight with the toolchain. **G-OR-14**.
+
+Determinism now applies to the whole tree: **G-OR-16** extends G-OR-5 from the
+`.tex` to every file in the package. CI's OR-10 leg builds the **package** and
+asserts its manifest, not the `.tex` alone.
+
+### OR-27 — The button is *Build*; DRAFT stays the unsigned state
+
+OR-18 already gives DRAFT a meaning — the document is unsigned. The build action
+is therefore called **Build issue package**, and it fires identically for signed
+and unsigned specs: a signed report is built by the same button, and an unsigned
+one is built with the watermark. Naming the button *Draft* would make the two
+meanings collide on one page.
+
+### Gates added by this section
+
+| Gate | Statement |
+|---|---|
+| **G-OR-14** | The package contains exactly the files its `MANIFEST.txt` lists, with matching hashes — no engine aux files, no strays, nothing listed but absent. |
+| **G-OR-15** | Every shipped data file's header states its units string (with the `-ULT` marker), safety factor and basis, step key and fingerprint (`SUMMARY_REPORT.md` §3.1 applied to detached files). |
+| **G-OR-16** | Two builds of the same project and the same report spec produce byte-identical **packages**, file for file — G-OR-5 extended from the document to the tree. |
+| **G-OR-17** | Every file in `data/` is referenced by the `.tex`, and every table or plot in the `.tex` is backed by a file in `data/` — no orphans in either direction. |

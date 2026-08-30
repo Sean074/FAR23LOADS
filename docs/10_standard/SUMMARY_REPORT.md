@@ -40,8 +40,23 @@ its own text (§4.6).
   compiled to PDF when a TeX engine is available. The `.tex` is the primary
   artifact and is always delivered; the PDF is the reading copy.
 - **Self-containment.** The `.tex` SHALL depend only on packages available in a
-  standard TeX distribution, and SHALL NOT reference external image files —
-  figures are generated as pgfplots/TikZ source inside the document.
+  standard TeX distribution, and SHALL NOT reference external **image** files —
+  figures are generated as pgfplots/TikZ source inside the document. This is what
+  keeps a figure deterministic, diffable, unit-testable as text, and vector in the
+  document's own fonts; it is the property the rule exists to hold.
+- **Data reference.** A report delivered as a **package** — its own directory or
+  archive, carrying a manifest (§4.7) — **MAY** read plain-text data files from
+  inside that package, so that a table or figure is drawn from the delivered data
+  rather than restating it. Every such file SHALL appear in the manifest; every
+  path SHALL be relative and SHALL stay inside the package root; every file SHALL
+  be self-describing to §3.1 (units, `-ULT` marker, safety factor and its basis);
+  and determinism SHALL hold for the whole package, not the `.tex` alone. A report
+  delivered as a **standalone `.tex`** SHALL NOT reference any external file.
+  *(Amended 2026-08-30, tier M, design note 44 OR-23/OR-26: the standard already
+  required the report to travel alongside the data files it references — §1.5,
+  §4.7, §5 and the Companionship clause below. Reading them makes the reference
+  mechanical instead of editorial, so the document cannot misquote its own
+  companion; the image prohibition and every property it protects are unchanged.)*
 - **Determinism.** Two renders of the same project **at the same unit selection**
   SHALL be byte-identical (the unit system is an input to the render, like the
   project itself). Any
@@ -475,6 +490,10 @@ A report conforms when all of the following hold. Each is held by a named test
       `test_report_content.py::test_si_report_carries_si_markers_and_converts_the_loads`,
       `::test_speeds_and_altitudes_are_not_converted_in_si`,
       `::test_geometry_areas_and_lengths_convert_with_their_labels_in_si`.
+- [x] A standalone `.tex` references no external file; a packaged report
+      references only manifest-listed, relative, in-package data files (§2 *Data
+      reference*) — `test_report_latex.py` for the standalone summary report,
+      the oracle report's package gates for the packaged case.
 - [x] Two renders of the same project at the same unit selection are byte-identical,
       and an Imperial → SI → Imperial round trip is lossless to display precision —
       `test_report_latex.py::test_two_renders_are_byte_identical`,
