@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sloads"
-version = "0.8.0"
+version = "0.8.1"
 description = "Modern Python/Streamlit replication of the FAR 23 LOADS suite (McMaster) — FAR Part 23 Subpart C structural design loads."
 readme = "README.md"
 # 3.10 floor: streamlit>=1.51 (the width= layout API, #129) declares
