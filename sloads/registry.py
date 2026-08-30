@@ -8,7 +8,7 @@ program #2..#22 is then just a new module file that registers itself.
 
 from __future__ import annotations
 
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Tuple
 
 from .models import MissingInputError, ModuleResult, Project
 
@@ -60,3 +60,36 @@ def run_all_modules(project: Project) -> List[ModuleResult]:
     # project carries an override.
     stamp(project, *[r.conditions for r in results])
     return results
+
+
+def run_all_modules_reporting(project: Project) -> Tuple[List[ModuleResult],
+                                                         List[Tuple[str, Exception]]]:
+    """:func:`run_all_modules`, with the invalid-input failures handed back.
+
+    ``run_all_modules`` lets a plain :class:`ValueError` propagate on purpose
+    (M2R-8): an invalid domain input and an absent one are different answers, and
+    the invalid one must not vanish. That is right for the CLI and the export,
+    which should fail the run — but a *page* that renders every module's results
+    then dies whole on one bad slice, showing a traceback instead of the twenty
+    modules that are fine. Three of the seven bundled examples carry an aileron
+    or flap slice with no area, and both the Results Review and Export pages were
+    dead on all three (#145).
+
+    So the failure is neither swallowed nor fatal here: each module that raises is
+    returned with its exception, for the caller to show by name beside the results
+    that did compute. ``MissingInputError`` is still simply skipped — that is
+    "not my turn", not a failure.
+    """
+    from .safety_factors import stamp
+
+    results: List[ModuleResult] = []
+    failures: List[Tuple[str, Exception]] = []
+    for name in available():
+        try:
+            results.append(_REGISTRY[name](project))
+        except MissingInputError:
+            continue
+        except Exception as exc:  # reported, by name, to the caller
+            failures.append((name, exc))
+    stamp(project, *[r.conditions for r in results])
+    return results, failures

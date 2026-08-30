@@ -100,7 +100,17 @@ st.header("All results by section")
 st.caption("Every module whose inputs are present, grouped by workflow section.")
 
 step_by_module = {s.module: s for s in wf.STEPS if s.module}
-module_results = registry.run_all_modules(project)
+# A module with an *invalid* input raises, and that must stay visible (M2R-8) --
+# but not by killing a page that renders every other module's results. Reported
+# by name below instead (#145).
+module_results, _module_failures = registry.run_all_modules_reporting(project)
+
+if _module_failures:
+    st.error(
+        "These modules could not run — their inputs are present but not valid. "
+        "Fix them on their own pages; every other result below is unaffected:\n\n"
+        + "\n".join(f"- **{step_by_module[n].title if n in step_by_module else n}** — {e}"
+                     for n, e in _module_failures))
 by_phase: dict = {p: [] for p in wf.PHASES}
 for mr in module_results:
     step = step_by_module.get(mr.module)

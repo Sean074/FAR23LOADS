@@ -13,6 +13,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from app_shell import optional_slice
 from app_shell.components import gate, page_header, stop_page, unit_number_input
 from app_shell.widget_keys import widget_key
 from sloads import (
@@ -47,6 +48,9 @@ if project.speeds is None:
     gate("Define the **Structural Speeds** (VS/VSF/VF, weight) first.", "structural_speeds")
     stop_page()
 
+# Captured before the form mutates ``inp`` in place: ``store`` needs to
+# know whether the project *had* this Optional slice (#145).
+_existing_slice = project.flap_loads
 inp = project.flap_loads or FlapLoadsInput()
 with st.form("flap_loads_form"):
     st.subheader("Flap geometry & deflection")
@@ -89,7 +93,7 @@ if applied:
     inp.gust_load_factor = gust_load_factor
     inp.nacelle_frontal_area_sqft = nacelle_frontal_area_sqft
     inp.engine_butt_line_in = engine_butt_line_in
-    project.flap_loads = inp
+    project.flap_loads = optional_slice.store(inp, _existing_slice)
     st.session_state["project"] = project
     st.success("Flap geometry applied.")
 

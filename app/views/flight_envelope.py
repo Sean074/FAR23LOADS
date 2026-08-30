@@ -27,6 +27,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from app_shell import optional_slice
 from app_shell.components import active_system, gate, stop_page, unit_number_input
 from app_shell.widget_keys import widget_key
 from sloads import (
@@ -337,6 +338,8 @@ def _select_inputs_form() -> None:
     torsion drivers (23.349(b)) and the critical-fuselage wing weight. Previously
     defaulted silently (0 / 0 / 0.09·MTOW) with no visible knob. Form + Apply, so a
     plain render never dirties the project."""
+    # Captured before the form mutates ``si`` in place (#145).
+    _existing_select = project.select_input
     si = project.select_input or SelectInput()
     with st.expander("SELECT search inputs (wing torsion & critical fuselage)"), st.form("select_inputs_form"):
         c1, c2, c3 = st.columns(3)
@@ -367,9 +370,10 @@ def _select_inputs_form() -> None:
             # (fl_effective), breaking the M2-3 persist-only-on-Apply
             # contract for that other form. ``project`` (the probe) is
             # updated too so the rest of this render sees the new input.
-            session_project.select_input = si
+            _stored = optional_slice.store(si, _existing_select)
+            session_project.select_input = _stored
             st.session_state["project"] = session_project
-            project.select_input = si
+            project.select_input = _stored
             st.success("SELECT search inputs applied.")
 
 

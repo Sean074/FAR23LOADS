@@ -542,11 +542,20 @@ def _tab_payload_cases(project: Project, system: UnitSystem, U: dict) -> None:
         applied = st.form_submit_button("Apply", type="primary")
 
     if applied:
+        # The editor has a column per CgCase field it shows -- and ``loading``
+        # (the D-25 explicit useful-load statement) is not one of them, because
+        # it is a nested record and not a cell. Rebuilding from the columns alone
+        # therefore *deleted* it: three of baron_58's six cases lost the loading
+        # that produces their mass model, on an Apply that entered nothing
+        # (#145, the class the Aero page's own rebuild carried). Carried by name,
+        # the table's stable identity; a renamed or new row has none to carry.
+        _loading_by_name = {c.name: c.loading for c in (existing or [])}
         cases = [
             CgCase(name=str(r["name"]), weight_lb=to_imperial_scalar(float(r["weight_lb"]), "weight", system),
                    xcg=to_imperial_scalar(float(r["xcg"]), "length", system),
                    zcg=to_imperial_scalar(float(r["zcg"]), "length", system),
-                   analyses=_analyses(r), role=_role(r))
+                   analyses=_analyses(r), role=_role(r),
+                   loading=_loading_by_name.get(str(r["name"])))
             for _, r in rows.iterrows()
             if pd.notna(r["weight_lb"]) and pd.notna(r["xcg"]) and str(r["name"]).strip()
         ]

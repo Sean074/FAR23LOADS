@@ -17,6 +17,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from app_shell import optional_slice
 from app_shell.components import (
     LANDING_L_FAR_CAPTION,
     page_header,
@@ -74,6 +75,9 @@ st.caption(
     "(FAR 23.473–23.499)."
 )
 
+# Captured before the form mutates ``inp`` in place: ``store`` needs to
+# know whether the project *had* this Optional slice (#145).
+_existing_slice = project.landing
 inp = project.landing or LandingInput()
 
 with st.form("landing_loads_form"):
@@ -176,7 +180,7 @@ if applied:
     inp.lift_factor = lift_factor
     inp.airplane_load_factor = None if use_computed_n else entered_n
     inp.tail_down_angle_deg = tail_down_angle_deg
-    project.landing = inp
+    project.landing = optional_slice.store(inp, _existing_slice)
     st.session_state["project"] = project
     st.success("Landing/ground inputs applied.")
 

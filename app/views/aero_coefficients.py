@@ -101,6 +101,26 @@ def _row(df: pd.DataFrame, label: str) -> tuple:
     return tuple(float(r[str(i)]) for i in range(5))
 
 
+def _stall_clamps(existing) -> dict:
+    """The per-config stall clamps of ``existing``, to carry onto its rebuild.
+
+    ``stall_cl``/``neg_stall_cl`` are the FLTLOADS balance clamp and are *not*
+    on this page's form: the form enters the CLmax scalars, which are the stall
+    *speed* source. ``AeroCoefficientsInput.normalize()`` fills each from the
+    other only when one is missing and never overwrites -- so a rebuild that
+    leaves the clamps at their ``0.0`` default is read as missing and refilled
+    from CLmax, silently moving the clamp wherever the two legitimately differ
+    (Appendix A ga6 enters 1.41 against a CLmax of 1.4068; on ``atr42_100`` the
+    same Apply moved 1.55 to 2.009). Carrying them makes the rebuild rewrite
+    what the form actually entered and nothing else (#145). The sibling
+    fuselage-moment form has carried its own siblings for the same reason since
+    #81.
+    """
+    if existing is None:
+        return {}
+    return {"stall_cl": existing.stall_cl, "neg_stall_cl": existing.neg_stall_cl}
+
+
 with st.form("aero_coefficients_form"):
     st.subheader("Maximum lift coefficients (CLmax)")
     st.caption(
@@ -159,10 +179,16 @@ with st.form("aero_coefficients_form"):
     applied = st.form_submit_button("Apply", type="primary")
 
 if applied:
+    # A wholesale replace is right here -- this form owns the coefficient sets --
+    # but the replacement has to carry every field the form does not render, or
+    # Apply deletes it. Both sub-slices below have their own form further down
+    # the page and neither appears on this one, so both are carried; omitting
+    # ``lateral_body_aero`` destroyed an enabled L-7 block outright (#145).
     cruise = AeroCoeffSet(
         name=cruise_name or "CRUISE",
         lift=_row(cruise_df, "lift (CL vs α)"), drag=_row(cruise_df, "drag (CD vs CL)"),
         moment=_row(cruise_df, "moment (CM vs α)"), flaps_down=False,
+        **_stall_clamps(aero.cruise if aero else None),
     )
     flaps = None
     if include_flaps_down:
@@ -170,16 +196,13 @@ if applied:
             name=flaps_name or "LANDING",
             lift=_row(flaps_df, "lift (CL vs α)"), drag=_row(flaps_df, "drag (CD vs CL)"),
             moment=_row(flaps_df, "moment (CM vs α)"), flaps_down=True,
+            **_stall_clamps(aero.flaps_down if aero else None),
         )
-    # This page owns the whole aero_coeffs slice, so a wholesale replace on
-    # Apply is correct here (unlike a slice shared with other pages/edits) --
-    # but carry the fuselage-moment sub-slice through unchanged (its own form
-    # below owns it; omitting it here would silently reset it). The CLmax scalars
-    # are the single stall source; __post_init__ stamps the per-config stall_cl.
     project.aero_coeffs = AeroCoefficientsInput(
         cruise=cruise, flaps_down=flaps,
         clmax_clean=clmax_clean, clmax_clean_neg=clmax_clean_neg, clmax_flap=clmax_flap,
         fuselage_moment=aero.fuselage_moment if aero else None,
+        lateral_body_aero=aero.lateral_body_aero if aero else None,
     )
     st.session_state["project"] = project
     st.success("Aero coefficients applied.")

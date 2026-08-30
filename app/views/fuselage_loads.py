@@ -56,6 +56,8 @@ if project.flight_loads is None:
          "flight_envelope")
     stop_page()
 
+# Captured before the form builds a replacement (#145).
+_existing_fuselage_mass = project.fuselage_mass
 fm = project.fuselage_mass or FuselageMassInput()
 
 # The beam is derived from the itemized weight database (the mass SSOT, step B1);
@@ -115,9 +117,16 @@ if applied:
         for _, r in df.iterrows()
         if pd.notna(r["x"]) and pd.notna(r["weight_lb"])
     ]
-    project.fuselage_mass = FuselageMassInput(
-        stations=stations, ref_waterline=fm.ref_waterline,
-        stations_are_override=bool(override))
+    # ``mass_distribution`` reads ``stations`` only when ``stations_are_override``
+    # is set, so persisting a non-override table writes a copy of the derived
+    # distribution that nothing ever reads -- and on a project with no slice at
+    # all that was an Apply attaching one out of derived data nobody entered
+    # (#145). The override switch is this page's named gesture; an existing
+    # slice is still written back, so unticking it lands.
+    _built = FuselageMassInput(stations=stations, ref_waterline=fm.ref_waterline,
+                               stations_are_override=bool(override))
+    project.fuselage_mass = (
+        _built if _existing_fuselage_mass is not None or override else None)
     st.session_state["project"] = project
     st.success("Fuselage mass distribution applied"
                + (" (overriding the weight database)." if override else

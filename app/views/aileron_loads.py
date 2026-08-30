@@ -12,6 +12,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from app_shell import optional_slice
 from app_shell.components import active_system, gate, stop_page, unit_number_input
 from app_shell.widget_keys import widget_key
 from sloads import (
@@ -44,6 +45,9 @@ if project.speeds is None:
     gate("Define the **Structural Speeds** (VA/VC/VD) first.", "structural_speeds")
     stop_page()
 
+# Captured before the form mutates ``inp`` in place: ``store`` needs to
+# know whether the project *had* this Optional slice (#145).
+_existing_slice = project.aileron_loads
 inp = project.aileron_loads or AileronLoadsInput()
 with st.form("aileron_loads_form"):
     st.subheader(f"Aileron geometry & deflection ({U['area_sqft']})")
@@ -68,7 +72,7 @@ if applied:
     inp.up_deflection_deg = up_deflection_deg
     inp.area_fwd_hinge_sqft = area_fwd_hinge_sqft
     inp.area_aft_hinge_sqft = area_aft_hinge_sqft
-    project.aileron_loads = inp
+    project.aileron_loads = optional_slice.store(inp, _existing_slice)
     st.session_state["project"] = project
     st.success("Aileron geometry applied.")
 

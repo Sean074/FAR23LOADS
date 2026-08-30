@@ -17,6 +17,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from app_shell import optional_slice
 from app_shell.components import active_system, stop_page
 from app_shell.widget_keys import widget_key
 from sloads import (
@@ -43,6 +44,19 @@ st.caption(
     "Python/Streamlit port of ENGLOADS.BAS (Hal C. McMaster, v3.0). "
     "Computes engine-mount design loads per FAR Part 23 Subpart C."
 )
+
+
+def _stated(entered, previous):
+    """``entered``, or ``None`` when the widget is at zero and nothing was stated.
+
+    Every Optional scalar on this form is seeded ``cur.x or 0``, so a field the
+    project leaves unset renders as 0 and comes back as a *stated* zero. Keeping
+    it unset unless a value is actually entered is what makes an Apply over an
+    untouched form a no-op (#145).
+    """
+    if previous is None and not entered:
+        return None
+    return entered
 
 
 def blank_engine() -> EngineInput:
@@ -413,13 +427,20 @@ if applied:
         takeoff_rpm=takeoff_rpm,
         max_cont_rpm=max_cont_rpm,
         prop_cg=(xprop, yprop, zprop),
-        takeoff_hp=takeoff_hp,
-        max_cont_hp=max_cont_hp,
-        cylinders=int(cylinders) if cylinders is not None else None,
-        max_engine_torque=max_engine_torque,
-        cruise_torque=cruise_torque,
-        hub_weight_lb=hub_weight_lb,
-        stop_time_s=stop_time_s,
+        # ``_stated`` on every Optional scalar whose widget seeds ``cur.x or 0``:
+        # the widget cannot tell "not stated" from "zero", so taking its value
+        # straight turned an unset field into a stated 0 on any Apply. That is
+        # #121's class from the writing side -- and a stated ``cylinders = 0``
+        # is what made a blank engine fail "Reciprocating engines must have at
+        # least 2 cylinders" on the Results Review and Export pages (#145).
+        takeoff_hp=_stated(takeoff_hp, cur.takeoff_hp),
+        max_cont_hp=_stated(max_cont_hp, cur.max_cont_hp),
+        cylinders=_stated(int(cylinders) if cylinders is not None else None,
+                          cur.cylinders),
+        max_engine_torque=_stated(max_engine_torque, cur.max_engine_torque),
+        cruise_torque=_stated(cruise_torque, cur.cruise_torque),
+        hub_weight_lb=_stated(hub_weight_lb, cur.hub_weight_lb),
+        stop_time_s=_stated(stop_time_s, cur.stop_time_s),
         rotors=rotors,
         max_accel_torque=max_accel_torque,
         design_yaw_rate_rad_s=design_yaw_rate,
@@ -435,11 +456,21 @@ if applied:
         mounted_on=engines_working[idx].mounted_on,
     )
     engines_working[idx] = to_imperial(inp_display, system)
-    project.engines = engines_working
-    project.engine_layout = layout
-    project.include_far25 = include_far25
-    st.session_state["project"] = project
-    st.success(f"Engine {idx + 1} applied.")
+    # An Apply may fill an engine in and may change one; it may not create the
+    # *first* one out of a form nobody filled in. On a project with no engines
+    # that attached a blank engine plus an ``engine_layout`` to match, and the
+    # blank engine's zero cylinder count then took Results Review and Export
+    # down on ``concept_heavy`` (#145 — the same rule as
+    # ``app_shell.optional_slice``, which owns it for the record-shaped slices).
+    if project.engines or optional_slice.store(
+            engines_working[idx], None, seed=cur) is not None:
+        project.engines = engines_working
+        project.engine_layout = layout
+        project.include_far25 = include_far25
+        st.session_state["project"] = project
+        st.success(f"Engine {idx + 1} applied.")
+    else:
+        st.warning("Nothing entered — fill the engine in above, then Apply.")
 
 # --------------------------------------------------------------------------- #
 # Results (against the committed Project.engines, not the unapplied working copy)
