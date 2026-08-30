@@ -1613,13 +1613,27 @@ def default_projects_dir() -> str:
 
 def list_saved_projects(directory: str) -> List[Tuple[str, float]]:
     """``(filename, mtime)`` for every ``*.project.json`` in ``directory``,
-    newest first. Returns ``[]`` if the directory does not exist yet."""
+    newest first. Returns ``[]`` if the directory does not exist yet.
+
+    A directory that exists but **cannot be read** answers empty too: it holds no
+    projects this process can open, which is the question the sidebar is asking.
+    macOS keeps ``~/Desktop`` and friends behind TCC, so an unguarded ``listdir``
+    there raises ``PermissionError`` into a page render -- the same defect the
+    report page's folder browser hit, swept here in the same change.
+    """
     if not os.path.isdir(directory):
         return []
     entries = []
-    for fname in os.listdir(directory):
+    try:
+        names = os.listdir(directory)
+    except OSError:
+        return []
+    for fname in names:
         if fname.endswith(PROJECT_SUFFIX):
-            mtime = os.path.getmtime(os.path.join(directory, fname))
+            try:
+                mtime = os.path.getmtime(os.path.join(directory, fname))
+            except OSError:
+                continue
             entries.append((fname, mtime))
     entries.sort(key=lambda e: e[1], reverse=True)
     return entries

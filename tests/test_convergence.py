@@ -59,6 +59,11 @@ _NO_REFUSAL_NEEDED = {
         "WTESTIMA's 1 % take-off-weight inflation has no trip bound to exhaust -- "
         "options/misc grows without limit while the structural fractions sum to "
         "less than one, so the loop ends or the fraction table is degenerate",
+    "export/report_package.py:browse_start":
+        "a walk up the filesystem to the nearest directory that exists, not a "
+        "numerical search: the loop is bounded by the path's own depth and "
+        "falling out at the filesystem root is the correct answer, which is the "
+        "value it then returns",
 }
 
 

@@ -495,7 +495,10 @@ def test_every_spec_widget_is_retired_when_a_package_is_opened():
     # Session-state keys and controls that hold no spec field: they carry
     # nothing that a different issue would make stale.
     not_spec = {"report_root", "report_dirname", "report_spec",
-                "report_spec_saved", "report_open", "report_baseline",
+                "report_spec_saved", "report_open", "report_open_btn",
+                "report_anchor", "report_anchor_btn", "report_up_btn",
+                "report_subdir", "report_down_btn", "report_mkdir",
+                "report_mkdir_btn", "report_pick_btn", "report_baseline",
                 "report_save", "report_build", "report_sel_"}
     retired = set(page._SPEC_WIDGETS)
 

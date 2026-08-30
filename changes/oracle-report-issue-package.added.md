@@ -15,3 +15,10 @@
   list and manifest (`sloads/report/oracle_package.py`), and the package writer
   (`sloads/export/report_package.py`). The report's content rules accrue in the
   new `docs/10_standard/ORACLE_REPORT.md`.
+  The page chooses **where** packages are written with the operating system's own
+  folder dialog (`sloads/export/directory_dialog.py`) — reachable because the
+  oracle GUI runs locally, so the machine serving the page is the machine the
+  user is at — with an in-app folder browser as the fallback for a machine that
+  has no dialog. A folder that this process cannot write to is reported when it
+  is chosen, not when the build fails: choosing a folder on macOS is not being
+  granted it.

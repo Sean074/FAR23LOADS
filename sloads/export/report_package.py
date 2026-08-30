@@ -18,7 +18,7 @@ from __future__ import annotations
 import os
 import shutil
 from datetime import datetime
-from typing import List, Optional, Sequence
+from typing import List, Optional, Sequence, Tuple
 
 from .. import io as io_
 from ..models import Project
@@ -60,6 +60,120 @@ def tool_version() -> str:
         return "unknown"
 
 
+# --- choosing where a report is written -----------------------------------
+#
+# Streamlit has no directory picker, and a browser cannot hand a server-side
+# process a folder path -- so "select the location" has to be *browsing*, done
+# on the server, one level at a time. The report page may not import ``os``
+# (gate G1, ``tests/test_oracle_gui.py``), so the whole of that browse lives
+# here: the page holds a string and presses buttons, and every question about
+# what that string means is answered in this module.
+
+
+def browse_start(path: str) -> str:
+    """``path`` if it exists, else its nearest ancestor that does.
+
+    The default report root usually does *not* exist yet -- it is created by the
+    first build. Starting the browser at a directory that is not there would
+    show an empty folder list and no way out, so the browse opens at the deepest
+    real directory on the way to it.
+    """
+    current = os.path.abspath(path or os.path.expanduser("~"))
+    while current and not os.path.isdir(current):
+        parent = os.path.dirname(current)
+        if parent == current:
+            break
+        current = parent
+    return current
+
+
+def list_subdirs(path: str) -> List[str]:
+    """The visible child directories of ``path``, sorted.
+
+    Hidden entries are dropped: a user choosing where to file a signed report is
+    not looking for ``.git``, and listing it invites writing into it. A path
+    that cannot be read (permissions, a folder deleted under the session) lists
+    empty rather than raising -- the browser must always render.
+    """
+    try:
+        names = os.listdir(path)
+    except OSError:
+        return []
+    return sorted(n for n in names
+                  if not n.startswith(".") and os.path.isdir(os.path.join(path, n)))
+
+
+def parent_of(path: str) -> str:
+    """The parent of ``path``, or ``path`` itself at the filesystem root."""
+    parent = os.path.dirname(os.path.abspath(path))
+    return parent or path
+
+
+def child_of(path: str, name: str) -> str:
+    return os.path.join(path, name)
+
+
+def is_root(path: str) -> bool:
+    """Whether ``path`` has no parent left to go up to."""
+    return parent_of(path) == os.path.abspath(path)
+
+
+def is_writable(path: str) -> bool:
+    """Whether this process can actually create something in ``path``.
+
+    Being *shown* a folder is not being *granted* it. The OS chooser will return
+    ``~/Desktop`` quite happily, and on macOS that directory is behind TCC, so
+    the write then fails at the end of a page the user has already filled in.
+    Asked up front instead, so the warning arrives before the work.
+    """
+    return os.path.isdir(path) and os.access(path, os.W_OK | os.X_OK)
+
+
+def create_subdir(path: str, name: str) -> str:
+    """Make ``name`` inside ``path`` and return it.
+
+    ``name`` is a single directory name, not a path: anything carrying a
+    separator or a ``..`` is refused rather than normalised, because a
+    "new folder" control that can silently walk out of the folder it is shown in
+    is not the control the user thinks they are using.
+    """
+    clean = name.strip()
+    if not clean:
+        raise ValueError("a folder needs a name")
+    if clean in (".", "..") or os.sep in clean or (os.altsep and os.altsep in clean):
+        raise ValueError(
+            f"{name!r} is not a folder name -- type a single name, not a path")
+    target = os.path.join(path, clean)
+    os.makedirs(target, exist_ok=True)
+    return target
+
+
+def location_anchors(project_path: Optional[str] = None) -> List[Tuple[str, str]]:
+    """``(label, path)`` starting points for the browser, nearest first.
+
+    Browsing one level at a time is fine for a nearby folder and hopeless for a
+    distant one, so the browser opens on a short list of the places a report
+    actually goes. The first is the OR-29 default; the others exist so a user
+    filing into a customer or programme folder elsewhere has somewhere to start
+    that is not their filesystem root.
+    """
+    anchors = [("Beside the project (default)", default_report_root(project_path)),
+               ("The app's projects folder", io_.default_projects_dir()),
+               ("Home folder", os.path.expanduser("~"))]
+    seen, unique = set(), []
+    for label, path in anchors:
+        resolved = os.path.abspath(path)
+        if resolved not in seen:
+            seen.add(resolved)
+            unique.append((label, resolved))
+    return unique
+
+
+def default_report_root(project_path: Optional[str] = None) -> str:
+    """Re-exported from :mod:`sloads.io` so the page has one import for paths."""
+    return io_.default_report_root(project_path)
+
+
 def package_dir(root: str, dirname: str) -> str:
     return os.path.join(root, dirname)
 
@@ -70,11 +184,22 @@ def discover_packages(root: str) -> List[str]:
     A directory counts as a package if it holds a ``report.json`` -- the spec is
     the thing that makes it one (OR-28). A missing root is not an error: it is a
     project that has no reports yet, which is every project the first time.
+
+    **Nor is an unreadable one.** macOS puts ``~/Desktop``, ``~/Documents`` and
+    ``~/Downloads`` behind TCC, so ``listdir`` there raises ``PermissionError``
+    for a process that has not been granted access -- and browsing to such a
+    folder crashed the report page outright. A directory this process cannot
+    read contains no packages *it can open*, which is what the caller is asking,
+    so it answers empty. The write path still reports its own failure loudly.
     """
     if not os.path.isdir(root):
         return []
     names = []
-    for name in os.listdir(root):
+    try:
+        entries = os.listdir(root)
+    except OSError:
+        return []
+    for name in entries:
         if os.path.isfile(os.path.join(root, name, PACKAGE_SPEC)):
             names.append(name)
     return sorted(names)
@@ -159,10 +284,19 @@ def build_package(project: Project, spec: ReportSpec, *, root: str,
 
 
 __all__ = [
+    "browse_start",
     "build_package",
     "build_timestamp",
+    "child_of",
+    "create_subdir",
+    "default_report_root",
     "discover_packages",
+    "is_root",
+    "is_writable",
+    "list_subdirs",
+    "location_anchors",
     "package_dir",
+    "parent_of",
     "read_spec",
     "tool_version",
     "write_members",

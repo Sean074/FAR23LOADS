@@ -246,6 +246,7 @@ FAR23LOADS/
 │   │   ├── workbook.py           # multi-sheet .xlsx workbook (Step D8.2): one tab per module/component + case index
 │   │   ├── roundtrip.py          # solve an exported deck in the real sbeam (step 2; test-only use)
 │   │   ├── report_package.py     # ⚠ impure: writes the oracle report's issue package to disk and discovers existing ones (note 44, OR-22/OR-29)
+│   │   ├── directory_dialog.py   # ⚠ impure: the OS folder chooser, by subprocess — where a report package is written (note 44, OR-29)
 │   │   └── pdf.py                # ⚠ the ONE impure export helper: TeX engine discovery + subprocess compile (G8.6)
 │   └── modules/                  # one file per suite program + the modern additions; each self-registers on import
 │       ├── configuration.py      # Geometry (modern; no .BAS) -> Project.geometry.{parametric,empennage,landing_gear} (G1/G6/G6b)

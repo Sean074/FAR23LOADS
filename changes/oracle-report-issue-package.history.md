@@ -98,3 +98,57 @@ state and ignores a later `value=`, so opening a second issue would have redrawn
 the first one's fields over it and saved them back. The page retires its spec
 widgets on a switch, with a drift guard over the retirement list — the failure
 mode of forgetting one is silent data loss, not an error.
+
+**Found by using the page.** A GUI review against `ga6_normal` changed how the
+report's location is chosen, twice. The first build offered a free-text path
+box, which is the one control the rest of the app deliberately does not have:
+the sidebar's *Save to disk* offers no location choice at all (#94, C210-48)
+because a browser page cannot open an OS dialog for a server-side write. That
+was replaced with a resolved root and a click-through folder browser — and the
+answer was still wrong, because a new report has to be able to go somewhere the
+browser cannot reach in a reasonable number of clicks.
+
+The resolution takes the constraint apart rather than working around it: the
+oracle GUI is run **locally**, so the machine serving the page is the machine
+the user is sitting at (OR-22), and the operating system's own folder chooser is
+reachable after all. `sloads/export/directory_dialog.py` runs it in a
+subprocess — `osascript` on macOS, `FolderBrowserDialog` on Windows,
+`zenity`/`kdialog` otherwise — on the same footing as `export/pdf.py` shelling
+out to a TeX engine. Not `tkinter`: this interpreter has no `_tkinter`, and on
+macOS Tk must own the main thread, which a Streamlit script never does, so an
+in-process dialog would abort the app rather than open one. Every non-answer —
+no helper, Cancel, timeout, a path that is not a directory — returns `None`
+alike, because the caller's response to all four is to leave the folder alone;
+the click-through browser stays as the fallback, since a chooser that silently
+does nothing would leave no way to set the location at all.
+
+Three defects came out of the same review, one of them shipped:
+
+1. **Browsing to `~/Desktop` crashed the page.** macOS keeps Desktop, Documents
+   and Downloads behind TCC, and `discover_packages` called `listdir`
+   unguarded. The first fix was worse than none: it hardened the sibling
+   `list_subdirs` and left `discover_packages` bare, which is precisely the
+   half-swept fix rule 4 exists to forbid. Swept properly, the same shape turned
+   up in shipped code — `io.list_saved_projects` guarded a *missing* projects
+   directory and not an unreadable one, carrying the identical crash into the
+   sidebar for anyone whose projects folder sat somewhere protected. Both now
+   answer "no packages / no projects *that this process can open*", which is the
+   question the caller is actually asking, and both are held by a test that
+   `chmod 000`s a real directory.
+2. **Choosing a folder is not being granted it.** The OS chooser returns a
+   TCC-protected path quite happily and the write then fails at the end of a
+   page the user has already filled in. `is_writable` is checked when the folder
+   is chosen, and the warning names the remedy; `Save spec` now reports that
+   failure as a message, which only *Build* did before.
+3. **Opening a package discarded unsaved spec edits silently.** Selection change
+   loaded immediately, where the sidebar puts the same act behind a button and a
+   guard. Selecting is now browsing, an explicit **Open** does the discard, and
+   an unsaved spec warns first.
+
+And one caught before it could ship: the first test written for the folder
+dialog *called it*, which on any machine with a desktop session opens a Finder
+window and holds the suite behind it — visible only as a jump from 2 s to 31 s.
+It is stubbed at the subprocess boundary now, testing the decision logic without
+opening a window. The same test carried an `assert x is None or True`, which
+would have passed for ever.
+

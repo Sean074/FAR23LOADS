@@ -15,6 +15,7 @@ table lands, not because they currently prove anything about shipped data.
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import tempfile
 
@@ -322,6 +323,202 @@ def test_no_orphan_data_files_in_either_direction():
         assert "\\input{" not in tex or data, (
             "the document reads a fragment the package does not carry")
 
+
+
+# --- choosing the location (the report page's folder browser) --------------
+
+
+def test_the_browse_opens_at_a_folder_that_exists():
+    """A root that has not been created yet browses from its nearest ancestor.
+
+    The default report root usually does *not* exist -- the first build makes
+    it. Opening the browser there would show an empty folder list with no way
+    out, which is a dead end rather than a starting point.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        deep = os.path.join(tmp, "not", "made", "yet")
+        assert pkg.browse_start(deep) == os.path.abspath(tmp)
+        real = os.path.join(tmp, "real")
+        os.makedirs(real)
+        assert pkg.browse_start(real) == os.path.abspath(real)
+
+
+def test_the_folder_list_hides_dot_directories_and_files():
+    """Only visible subdirectories: a user filing a signed report is not
+    looking for ``.git``, and listing it invites writing into it."""
+    with tempfile.TemporaryDirectory() as tmp:
+        os.makedirs(os.path.join(tmp, "Programme-X"))
+        os.makedirs(os.path.join(tmp, ".hidden"))
+        with open(os.path.join(tmp, "a-file.txt"), "w") as fh:
+            fh.write("x")
+        assert pkg.list_subdirs(tmp) == ["Programme-X"]
+
+
+def test_an_unreadable_folder_lists_empty_rather_than_raising():
+    """The browser must always render. A folder deleted under the session, or
+    one the process cannot read, is an empty list and not a traceback."""
+    assert pkg.list_subdirs(os.path.join("/nonexistent", "nowhere")) == []
+
+
+def test_new_folder_refuses_a_path_instead_of_normalising_one():
+    """``create_subdir`` takes a *name*, and says so on a path.
+
+    A "new folder here" control that silently accepts ``../../elsewhere`` is not
+    the control the user believes they are using -- so a separator or a ``..``
+    is refused rather than quietly walked.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        for bad in ("../escape", "a/b", "..", "", "   "):
+            with pytest.raises(ValueError):
+                pkg.create_subdir(tmp, bad)
+        made = pkg.create_subdir(tmp, " Programme-X ")
+        assert made == os.path.join(tmp, "Programme-X")
+        assert os.path.isdir(made)
+
+
+def test_going_up_terminates_at_the_filesystem_root():
+    """``is_root`` is what disables the Up button; without it the browser
+    offers a level above the top that quietly goes nowhere."""
+    top = os.path.abspath(os.sep)
+    assert pkg.is_root(top)
+    assert pkg.parent_of(top) == top
+    with tempfile.TemporaryDirectory() as tmp:
+        assert not pkg.is_root(tmp)
+
+
+def test_the_anchors_start_with_the_default_root_and_do_not_repeat():
+    """The OR-29 default is offered first, and a duplicate anchor is dropped --
+    two identically-pathed entries in the jump list are a UI that looks like it
+    has two answers to one question."""
+    anchors = pkg.location_anchors(None)
+    labels = [label for label, _path in anchors]
+    paths = [path for _label, path in anchors]
+    assert "default" in labels[0]
+    assert paths[0] == os.path.abspath(pkg.default_report_root(None))
+    assert len(paths) == len(set(paths))
+
+
+def test_an_unreadable_folder_lists_no_packages_rather_than_crashing():
+    """The defect that took the report page down, held open.
+
+    Browsing to ``~/Desktop`` on macOS raised ``PermissionError`` straight
+    through a page render: TCC blocks ``listdir`` there for a process that has
+    not been granted access. A folder this process cannot read holds no packages
+    *it can open*, which is what the caller is asking, so it answers empty.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        blocked = os.path.join(tmp, "blocked")
+        os.makedirs(os.path.join(blocked, "LR-0001_RevA"))
+        with open(os.path.join(blocked, "LR-0001_RevA", op.PACKAGE_SPEC), "w") as fh:
+            fh.write("{}")
+        assert pkg.discover_packages(blocked) == ["LR-0001_RevA"]
+        os.chmod(blocked, 0o000)
+        try:
+            assert pkg.discover_packages(blocked) == []
+            assert pkg.list_subdirs(blocked) == []
+        finally:
+            os.chmod(blocked, 0o755)
+
+
+def test_saved_projects_survives_an_unreadable_directory():
+    """The same defect class, swept where it also lived (CLAUDE.md rule 4).
+
+    ``list_saved_projects`` guarded a *missing* directory and not an unreadable
+    one, so the sidebar carried the identical crash for anyone whose projects
+    folder sat somewhere protected.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        blocked = os.path.join(tmp, "blocked")
+        os.makedirs(blocked)
+        os.chmod(blocked, 0o000)
+        try:
+            assert io.list_saved_projects(blocked) == []
+        finally:
+            os.chmod(blocked, 0o755)
+
+
+def test_a_folder_that_cannot_be_written_is_reported_before_the_build():
+    """Being shown a folder is not being granted it.
+
+    The OS chooser returns a TCC-protected path quite happily; the write then
+    fails at the end of a page the user has already filled in. ``is_writable``
+    is what lets the page say so up front.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        assert pkg.is_writable(tmp)
+        assert not pkg.is_writable(os.path.join(tmp, "does-not-exist"))
+        blocked = os.path.join(tmp, "ro")
+        os.makedirs(blocked)
+        os.chmod(blocked, 0o500)
+        try:
+            assert not pkg.is_writable(blocked)
+        finally:
+            os.chmod(blocked, 0o755)
+
+
+def test_the_folder_dialog_never_raises_and_never_invents_a_path(monkeypatch):
+    """Every non-answer is ``None``: no dialog, Cancel, timeout, a bad path.
+
+    The caller's response to all of them is identical -- leave the current
+    folder alone -- and the in-app browser remains the way through, so a machine
+    without a dialog degrades rather than breaks.
+
+    **The real dialog is never opened here.** It waits for a human, so a test
+    that called it would hang the suite behind a Finder window on any developer
+    machine with a desktop session. The subprocess is stubbed and the decision
+    logic is what gets tested.
+    """
+    from sloads.export import directory_dialog as dlg
+
+    class _Result:
+        def __init__(self, code, out):
+            self.returncode, self.stdout, self.stderr = code, out, ""
+
+    def stub(result):
+        monkeypatch.setattr(dlg.subprocess, "run",
+                            lambda *a, **k: result if not isinstance(result, Exception)
+                            else (_ for _ in ()).throw(result))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        stub(_Result(0, tmp + "\n"))
+        assert dlg.choose_directory() == os.path.abspath(tmp)
+        # Cancel: non-zero exit is the normal "user said no" on every helper.
+        stub(_Result(1, ""))
+        assert dlg.choose_directory() is None
+        # A path that came back but is not a directory is not a folder choice.
+        stub(_Result(0, os.path.join(tmp, "nope")))
+        assert dlg.choose_directory() is None
+        # A helper that is missing, or that hangs until the timeout.
+        stub(OSError("no such helper"))
+        assert dlg.choose_directory() is None
+        stub(subprocess.TimeoutExpired("osascript", 1))
+        assert dlg.choose_directory() is None
+
+
+def test_no_folder_dialog_is_available_where_the_platform_has_no_helper(monkeypatch):
+    """``native_picker_available`` is asked before the button is drawn, so a
+    machine without a helper shows the browser instead of a dead control."""
+    from sloads.export import directory_dialog as dlg
+
+    monkeypatch.setattr(dlg.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(dlg.platform, "system", lambda: "Linux")
+    assert dlg.native_picker_available() is False
+    assert dlg.choose_directory("/tmp") is None
+
+
+def test_the_dialog_escapes_a_quoted_path_into_applescript():
+    """A folder name may legally contain a quote or a backslash.
+
+    Interpolated raw, it would end the AppleScript string literal early -- at
+    best a failed dialog, at worst a script that does something else. The
+    command is asserted rather than the escaping helper, so the guard covers the
+    place the string is actually built.
+    """
+    from sloads.export import directory_dialog as dlg
+
+    command = dlg._darwin_command("", 'say "hi" \\ now')
+    assert r'\"hi\"' in command[-1]
+    assert command[-1].count('"') % 2 == 0
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))

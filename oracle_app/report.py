@@ -30,6 +30,7 @@ from app_shell.project_state import saved_path
 from app_shell.widget_keys import widget_key
 from sloads import io as sloads_io
 from sloads import workflow as wf
+from sloads.export import directory_dialog as dialog
 from sloads.export import report_package as pkg
 from sloads.models.report import ReportSpec, SignatureRow, default_spec, is_draft
 from sloads.report import fingerprint as fingerprint_owner
@@ -101,6 +102,94 @@ def _text(label: str, value: str, key: str, *, help_text: str = "",
     return widget(label, value=value, key=widget_key(key), help=help_text or None)
 
 
+def _browse_block() -> str:
+    """Choose the folder reports are written to.
+
+    **The OS dialog is the control; the in-app browser is the fallback.** The
+    oracle GUI runs locally, so the machine serving this page is the machine the
+    user is sitting at (OR-22) and the operating system's own folder chooser is
+    reachable through :mod:`sloads.export.directory_dialog`. It is what the user
+    already knows how to drive, and it can reach anywhere on the disk in one
+    gesture rather than one directory per click.
+
+    The click-through browser stays for the machine that has no dialog, and for
+    the case where the dialog cannot be raised. It is not dead code: a folder
+    chooser that silently does nothing would leave no way to set the location at
+    all, and this page's whole job is to write somewhere.
+
+    The page holds only the current path as a string. Every question about what
+    that string *means* -- does it exist, what is inside it, may we read it --
+    is answered in :mod:`sloads.export`, because this page may not import ``os``
+    (gate G1).
+    """
+    anchors = pkg.location_anchors(saved_path())
+    if _ROOT not in st.session_state:
+        st.session_state[_ROOT] = pkg.browse_start(anchors[0][1])
+    here = st.session_state[_ROOT]
+
+    shown, chooser = st.columns([3, 1])
+    shown.markdown(f"**Saving reports to**  \n`{here}`")
+    if chooser.button("📂 Choose folder…", key=widget_key("report_pick_btn"),
+                      width="stretch", disabled=not dialog.native_picker_available()):
+        picked = dialog.choose_directory(
+            here, prompt="Choose the folder to write report packages into")
+        if picked:
+            st.session_state[_ROOT] = picked
+            st.rerun()
+        # No message on ``None``: Cancel is a normal answer, and saying
+        # "no folder chosen" to someone who deliberately pressed Cancel is noise.
+
+    with st.expander("Or browse to it here", expanded=False):
+        labels = [label for label, _path in anchors]
+        jump = st.selectbox("Start from", labels, key=widget_key("report_anchor"))
+        if st.button("Go", key=widget_key("report_anchor_btn"), width="stretch"):
+            st.session_state[_ROOT] = pkg.browse_start(dict(anchors)[jump])
+            st.rerun()
+
+        up, into = st.columns([1, 2])
+        with up:
+            if st.button("⬆ Up one level", key=widget_key("report_up_btn"),
+                         width="stretch", disabled=pkg.is_root(here)):
+                st.session_state[_ROOT] = pkg.parent_of(here)
+                st.rerun()
+        subdirs = pkg.list_subdirs(here)
+        with into:
+            chosen = st.selectbox("Folders here", subdirs or ["(no subfolders)"],
+                                  key=widget_key("report_subdir"),
+                                  disabled=not subdirs, label_visibility="collapsed")
+            if st.button("Open folder ▶", key=widget_key("report_down_btn"),
+                         width="stretch", disabled=not subdirs):
+                st.session_state[_ROOT] = pkg.child_of(here, chosen)
+                st.rerun()
+
+        made = st.text_input("New folder here", key=widget_key("report_mkdir"),
+                             placeholder="e.g. Programme-X")
+        if st.button("Create and use", key=widget_key("report_mkdir_btn"),
+                     width="stretch", disabled=not made.strip()):
+            # A folder name, not a path -- ``create_subdir`` refuses a separator
+            # rather than normalising one, so this control cannot walk out of
+            # the folder it is displayed in.
+            try:
+                st.session_state[_ROOT] = pkg.create_subdir(here, made)
+            except (ValueError, OSError) as exc:
+                st.error(str(exc))
+            else:
+                st.rerun()
+
+    if not pkg.is_writable(here):
+        # Choosing a folder is not being granted it: macOS keeps ~/Desktop and
+        # friends behind TCC, and the OS dialog hands back a path this process
+        # may still not be allowed to write. Said here, before the build, rather
+        # than as a failure after the user has filled the whole page in.
+        st.warning(
+            f"`{here}` cannot be written to by this app. On macOS, Desktop, "
+            "Documents and Downloads need permission granted to the terminal "
+            "running sloads (System Settings ▸ Privacy & Security ▸ Files and "
+            "Folders, or Full Disk Access). Choose another folder, or grant it "
+            "and reopen this page.")
+    return st.session_state[_ROOT]
+
+
 def _location_block() -> None:
     """Where packages live, and which one is open (OR-28, OR-29)."""
     st.subheader("Report package")
@@ -109,13 +198,7 @@ def _location_block() -> None:
         "spec you are editing, the data behind the document and the project it "
         "was built from -- so an issue can be archived and reopened as one thing."
     )
-    default_root = sloads_io.default_report_root(saved_path())
-    root = _text("Reports folder", st.session_state.get(_ROOT, default_root),
-                 _ROOT,
-                 help_text="Defaults to a 'reports' folder beside the project "
-                           "file, so a report travels with the airplane it "
-                           "documents.")
-    st.session_state[_ROOT] = root
+    root = _browse_block()
 
     found = pkg.discover_packages(root)
     options = [_NEW] + found
@@ -123,15 +206,24 @@ def _location_block() -> None:
     chosen = st.selectbox("Open", options,
                           index=options.index(current) if current in options else 0,
                           key=widget_key("report_open"))
-    if chosen != st.session_state.get(_DIRNAME):
+    # An explicit Open, not a load on selection change: opening replaces the
+    # spec being edited, and the sidebar guards the same act behind a button for
+    # the same reason. Selecting is browsing; the discard happens on the click.
+    switching = chosen != current
+    if switching and _dirty():
+        st.warning(
+            f"**{current}** has unsaved changes. Opening **{chosen}** discards "
+            "them. Save first if you want to keep them.")
+    if st.button("Open", key=widget_key("report_open_btn"), width="stretch",
+                 disabled=not switching):
         st.session_state[_DIRNAME] = chosen
         _set_spec(pkg.read_spec(root, "" if chosen == _NEW else chosen))
         _mark_saved()
         _retire_spec_widgets()
         st.rerun()
     if not found:
-        st.caption("No report packages here yet. Fill in a report number and "
-                   "build to create the first.")
+        st.caption("No report packages in this folder yet. Fill in a report "
+                   "number and build to create the first.")
 
 
 def _identity_block() -> None:
@@ -289,10 +381,16 @@ def _build_block(project, fingerprint: str) -> None:
     left, right = st.columns(2)
     if left.button("Save spec", key=widget_key("report_save"),
                    disabled=not _dirty()):
-        pkg.write_spec(root, dirname, spec)
-        st.session_state[_DIRNAME] = dirname
-        _mark_saved()
-        st.success("Spec saved.")
+        # Same failure class the build already reports: a chosen folder is not
+        # necessarily a writable one, and Save must say so rather than traceback.
+        try:
+            pkg.write_spec(root, dirname, spec)
+        except OSError as exc:
+            st.error(f"Could not save the spec: {exc}")
+        else:
+            st.session_state[_DIRNAME] = dirname
+            _mark_saved()
+            st.success("Spec saved.")
     if right.button("Build issue package", type="primary",
                     key=widget_key("report_build")):
         try:
