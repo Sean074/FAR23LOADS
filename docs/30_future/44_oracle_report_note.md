@@ -129,9 +129,11 @@ no physics).
 
 **Milestone 0.8.2, one backlog row, solo profile.** The whole report is **one
 backlog item** pointing at this note — **issue #151**, the row's owning issue —
-worked on `dev/v0.8.2`. Issue 152 was opened for the same row and is closed
-as its duplicate; the row is owned by #151, which carries the band, tier, tag
-and milestone. Issues are not
+worked on `dev/v0.8.2`. **#152 is this note's design-note PR** (`note/44-slug`,
+merged at AGREED per `DEVELOPMENT_PROCESS.md` §5), **not an issue** — the two
+numbers share a series on GitHub, so cite #151 for the work and #152 only for
+the agreement that authorised it. The row is owned by #151, which carries the
+band, tier, tag and milestone. Issues are not
 opened per section (`DEVELOPMENT_PROCESS.md` §0: the backlog is the record;
 OR-9's accruing standard doc is the per-section register). Delivery follows
 OR-8 as **one commit per agreed iteration** — ordinary work commits, keeping
