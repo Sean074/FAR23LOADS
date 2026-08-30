@@ -10,6 +10,437 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-08-29
+
+### Breaking
+
+- **Python 3.10 is the floor; the 3.9 claim is dropped (#132, tier M,
+  2026-08-28).** The 0.8.0 cut shipped `requires-python >= 3.9` beside
+  `streamlit >= 1.51` — and every Streamlit release from 1.51 declares
+  `Requires-Python >= 3.10`, so the first full-matrix run on `main` after the
+  tag failed in `test (3.9)` at **install**: the resolver refused the floor the
+  metadata claimed. The #129 floor bump verified the API the code calls but not
+  the floor's own interpreter support against the CI matrix. Owner decision:
+  drop 3.9 (EOL 2025-10; Streamlit dropped it at 1.51) rather than hold the
+  floor at 1.50 and re-arm the deprecated `use_container_width` on the plotly
+  sites. Ships: `requires-python >= 3.10`; classifiers and the `ci.yml`
+  main-push matrix move to 3.10/3.11/3.12 together; every doc stating the
+  matrix swept (rule 4). The structural half (rule 3):
+  `tests/test_ci_conformance.py::test_the_python_support_claim_is_one_claim_in_three_places`
+  — the classifier set **is** the full-matrix set (the mirror rule was a
+  pyproject comment), the `requires-python` floor is the smallest tested leg,
+  and both directions were verified to fail by mutation. The half no offline
+  test reaches — whether the *dependencies'* `Requires-Python` admits the
+  floor — is enforced by the full-matrix install on `main`, which is exactly
+  where #132 surfaced. The py310 lint target's new churn rules (B905/RUF007)
+  are parked beside `UP` as the same deliberate-churn class, with the reason
+  in the config.
+
+### Added
+
+- **The GUI is walked end to end in CI, not just booted (#145, tier M,
+  2026-08-29).** `tests/test_gui_journey.py` loads every bundled example, visits
+  every `workflow.py` step in order carrying one session forward — widget state
+  included — presses every Apply and re-enters every widget with the value it
+  already holds, then runs every registered module. It asserts that no page
+  raises, that every module runs clean or refuses by name with
+  `MissingInputError`, and that the project is **byte-identical** across the
+  whole walk, since nothing was entered anywhere in it. The release gate above
+  it (`RELEASE_PROCESS` §3.5) booted both front-ends and checked the root page
+  answered 200, which cannot reach a defect two pages downstream of an
+  interaction — the shape of both post-0.8.0 escapes. §3.5 now names the journey
+  and gains a short manual walkthrough as its second line. The accepted no-op
+  Apply writes are the file's `KNOWN_OPEN` list, each carrying its #148 line and each
+  asserted to still reproduce, so a carve-out cannot lapse into silence.
+
+- **The delivered landing load is a body-frame force with a stated point, for every gear on every case (design note 38 GF-6/GF-7, issue #134, tier L, 2026-08-29).**
+  LANDLOAD prints its whole reaction matrix twice — "VALUES ARE WITH RESPECT TO
+  GROUND LINE -- DENOTED BY P (PRIME)" and "VALUES ARE WITH RESPECT TO AIRPLANE
+  DATUM" — and the replication shipped the first set only: no application point,
+  no attitude, no frame label, while the export deck consumed the other frame. A
+  stress model consumes a force **and a point**; a magnitude in an unnamed frame
+  is not a load.
+
+  Every case now emits **three wheels — nose, left main, right main, all three
+  always, an unloaded gear at zero rather than omitted** — each with the
+  airplane-datum `Fx, Fy, Fz`, the **location `x, y, z`** it acts at, and the
+  gear reference node it is delivered to, with the strut state and Appendix A's
+  own point-of-load column named in the condition note (axle on cases 1–12 and
+  25/26/28/29/31/32, ground contact on 13–24 and 27/30/33 — design note 39). It
+  is built *from* `gear_loads.applied_wheels`, so the statement a stress model
+  reads and the load the deck applies cannot come to differ.
+
+  Also emitted, all new: p231's **fuselage-axis angle** per case (`deg`, an
+  attitude and never a load), p232's **airplane-datum load factors NR/NV/ND**,
+  and p233's **airplane-datum unbalanced moments**. Both GUIs gain the datum
+  table beside the primed one.
+
+- **Both frames are named on the value, and the delivered CSV carries only one of them (GF-6/GF-7, tier L, 2026-08-29).**
+  New `sloads/frames.py` owns the frame vocabulary, the manual's own caption
+  words, the report-vs-deliver rule and the rotation between the frames.
+  `LoadValue` gains `frame` (schema **v57 → v58**, identity hop): the render
+  boundary reads it to keep the delivered CSV in the airplane datum while the
+  text report keeps both sets — drift-guarded both ways, so neither can leak
+  into the other. Both GUIs caption their reactions tables from the one function
+  that has the words, guarded against either spelling them out again.
+
+- **72 more Appendix A cells locked (2026-08-29).** p232's NR/NV/ND columns join
+  the page locks, transcribed at 200 dpi; the tail-down family reproduces all
+  three printed cells exactly.
+
+- **Appendix A's LANDLOAD output is legible, and every printed cell of it is now
+  an oracle (tier M, 2026-08-29).** p231 (ground line), p232 (airplane datum)
+  and p233 (limit unbalanced moments) had been recorded since 2026-08-15 as
+  OCR-garbled and unusable, so cases 13–33 were held by internal identities and
+  a handful of legible cells — the ONENGOUT precedent. The pages are garbled,
+  not illegible: rendered at 200 dpi they read cleanly. All three tables are
+  transcribed and locked for all 33 cases — reactions, resultants, side loads,
+  the NVP/NDP/NS ground-line inertia factors and the pitch/roll/yaw unbalanced
+  moments — at the page's own print resolution (±0.5 in an integer column,
+  ±0.0005 in a three-decimal one, or ±0.1 %, whichever is looser):
+  `test_landload_p231_ground_line_table`, `..._p232_airplane_datum_table`,
+  `..._p233_unbalanced_moments_table`, which subsume the two narrower
+  spot-check tests. LANDLOAD moves from partially to fully oracle-locked.
+  Closes the open sub-finding on design note 38 §1.11 (the braked-roll and
+  supplementary-nose families had no printed oracle on any fixture, which is
+  why a 40 % move in them left the suite green) and supplies GF-3″ with the
+  transcribed deviated-from set it is blocked on. No calc changes: the port
+  already reproduced every cell.
+
+### Changed
+
+- **The standard and theory docs state what is, not how it got there (tier S,
+  2026-08-29, issue #142).** Dated development narration audited out of the
+  final-definition documents, where it had accumulated as each correction landed:
+  `PROGRAM_SPEC.md` ("this gate was green throughout the year the transfer ran
+  from the wrong point", a retired field name, three "until 2026-08-\*" behaviour
+  notes), `CONVENTIONS.md` and `00_theory_sources.md` ("as the deck did until
+  2026-08-29", "From 2026-08-15 this row recorded…", "what cost the module its
+  oracle for a year"), `balanced_cases.md` (the "Updated 2026-08-29, twice"
+  banner, now a standing note on the two conventions the table is read under) and
+  `DEVELOPMENT_PROCESS.md` ("Until 2026-08-26 this bullet stated…"). Every
+  **measured** effect stays and is now stated in the present tense as the evidence
+  for the rule it justifies — the 524,302 lb-in patch moment, the 1,800 lb
+  DB-total-over-MTOW bound, the 6.1 % `WR` overstatement, the −757.1 lb-in
+  witness; the dates and the edit histories are already carried in full by the
+  history entries for #133, #134, #135, #137 and #139, so nothing is lost.
+  Swept as one class beyond the four lines the item named (practice 4).
+  In the same pass, the superseded "considered and declined" `BETA(2)` entry in
+  `02_approved_corrections.md` no longer contradicts itself: its inner annotation
+  promised the entry would "convert in place" to an approved deviation "when
+  issue #133 lands" — which it did not, a new entry supersedes it — against an
+  outer banner stating it is kept verbatim. The annotation now records what met
+  the reopening condition and marks the boundary the verbatim text begins at.
+
+- **The guide's landing chapter describes the 0.8.1 landing output (tier S, 2026-08-29).**
+  `docs/60_guide` had zero diff across v0.8.0..v0.8.1 while the landing
+  deliverable was rebuilt underneath it: chapter 14's *Results on this page*
+  still described the primed-only output — no body-frame three-wheel
+  deliverable, no axle-vs-contact-point split, no statement of which frame the
+  CSV is in, and no NR/NV/ND or fuselage-axis angle. It now describes what the
+  page ships: the two frames and which one is delivered, the three wheels on
+  every case with the force, the point it acts at and the reference node it is
+  transferred to, the datum load factors and unbalanced moments, and the two
+  approved p232 deviations a reader cross-checking against the book will meet
+  (citing the register, not the development trail). Two new *Common mistakes*
+  cover reading one frame's numbers as the other's and taking a reference node
+  for a point of application.
+
+  The guide's `03_conventions.md` gains the frame statement
+  the chapter leans on — airplane datum as the delivered frame, ground line as
+  the manual's analysis view, the rotation between them, and the point of
+  application — plus the `Frame` and `Applied at` columns in the results-table
+  and CSV sections, and the one place the text download carries more than the
+  CSV.
+
+- **An oracle cell says where its number came from, and a gate may not re-derive
+  the rule it checks (#146, tier S, 2026-08-29).** The three worst defects the
+  0.8.0 cut shipped share one mechanism rather than any error of physics — *the
+  oracle silently shrank*: an illegible column was recorded as a missing oracle
+  when it was an OCR failure over a legible page (#133), a fixture weight was
+  back-solved from a mis-OCR'd cell and then used to check that cell (#137), and
+  a gate moved the applied load from the tyre to the axle *inside the test*
+  before comparing (#139). "An oracle test exists, ±0.1 %" is binary where two
+  further facts decide whether the test can fail. `00_theory_sources.md` gains an
+  **Oracle provenance and gate independence** section stating both as rules —
+  **P-1**, every cell states *transcription* / *OCR extraction* / *absent — not
+  printed* / *absent — illegible* / *back-solved*, with a back-solved value
+  disqualified as the oracle for anything downstream of what it was solved from;
+  and **P-2**, promoted from design note 39's G-AP-2, *two copies of one rule
+  cannot disagree* — and `CODE_REVIEW_PROCESS.md` Step 3 gains both as checklist
+  items. With them, the bounded sweep the rules exist to make possible: every
+  family with no printed oracle, classified by whether its gate has a witness
+  independent of the code. `one_engine_out` is the exposed one — its gate reads
+  the `ONENGOUT.BAS` listing the port was written from, so a change to it is
+  unguarded until the Appendix B twin is in hand — and the `configuration` /
+  `vn_diagram` / `validation` / airspeed closures are named as not-a-load and
+  ranked accordingly. Nothing in the sweep is a defect; it is the statement the
+  citations were missing. The "partially oracle-locked where the scan is
+  OCR-garbled" bullet in the canonical oracle-status list, stale since LANDLOAD's
+  three pages were transcribed, goes with it.
+
+### Fixed
+
+- **An Apply that entered nothing no longer creates a project slice, and a
+  rebuild no longer drops what its form does not render (#145, tier M,
+  2026-08-29).** #143 settled that an `Optional` record is created and removed by
+  a named gesture; that fix was registry-driven and reached `oracle_app/` only.
+  In the main GUI, pressing **Apply** on a page nobody had filled in wrote a whole
+  zero-valued slice into the project and saved it into the `.project.json` —
+  `aileron_loads`, `flap_loads`, `tab_loads`, `select_input`, `fuselage_mass`,
+  `landing`, `one_engine_out`, `engine_layout` and the first engine.
+  `app_shell/optional_slice.py` now owns the rule for this front-end — an Apply
+  may fill a slice in and may empty one out, but it may not create one out of
+  nothing — with the whole-GUI journey walk as its drift guard. A form whose
+  whole subject *is* one optional block (the fuselage-moment and lateral-body-aero
+  Applies) is unaffected: there the button is the named gesture.
+  Swept with it (practice 4), three rebuilds that dropped fields their own form
+  does not show: the Aero Apply destroyed a populated `lateral_body_aero` block
+  outright and re-stamped `cruise.stall_cl` from CLmax (ga6 1.41 → 1.4068,
+  atr42_100 1.55 → **2.009**, moving the FLTLOADS balance clamp on an Apply that
+  entered nothing), the Payload Cases Apply deleted each case's
+  `LoadingDefinition` (three of baron_58's six), and the engine form turned unset
+  `Optional` power fields into a stated zero.
+
+- **The delivered CSV states its frame and the point each force acts at (tier M,
+  schema v59, 2026-08-29).** The landing CSV carried the application point
+  **numerically only** — `x`/`y`/`z` per gear — while the word for it (`axle` vs
+  `ground contact point`) and the "with respect to airplane datum" frame words
+  lived in the condition note and the GUI captions, neither of which this channel
+  carries. A standalone consumer could not tell case 1 acts at the axle except by
+  comparing coordinates back to the geometry, and the two points are a rolling
+  radius apart — a moment arm, not a label. `LoadValue` now carries `point`
+  beside `frame` (vocabulary `gear_loads.POINTS`, owner `application_point_of`,
+  design note 39 AP-1), the landing module stamps it per leg from Appendix A's
+  own printed column, and `report.render.results_to_rows` emits both words in a
+  `Frame` column and an `Applied at` column. The force row and the location row
+  of a wheel name the point; the **reference-node** row names none, because the
+  node is where the reaction is transferred *to*, not where it acts. Both are
+  ordinary columns under the data-shaped floor, so the all-empty prune drops them
+  from every module that names neither — five landing CSV digests move and no
+  other channel changes. Schema hops v58 → v59 (identity: `""` means exactly what
+  v58 meant), because `LoadValue` is persisted inside
+  `critical.conditions[].loads` (issue #141).
+
+- **A lift polynomial with no alpha lever is refused by name, not iterated into
+  an opaque solver failure (#144, tier M, 2026-08-29).**
+  `flight_envelope.balance_configs` — the choke point `build_envelope` and
+  `trim_sweep` share — now refuses a coefficient set whose lift polynomial has
+  no alpha term (`C1..C4` all zero), naming the set and the fix, beside the #81
+  stall-CL, weightless-CG and tail-CP-at-datum refusals. The inner balance moves
+  alpha until NZ lands in its ±0.005 band; with no alpha term CL (and with it
+  LZ, MM and the tail load) is the same number at every alpha, so no trip can
+  answer differently and the loop exhausted 400 of them, reporting "reached
+  NZ=0 at alpha=41.3861 deg" — a solver failure naming no input, on a page that
+  had been working a moment earlier. `AeroCoefficientsInput.normalize` fills a
+  blank set's `stall_cl` from `clmax_flap`, so the #81 guard did not catch it.
+  Only lift is guarded: an all-zero drag or moment polynomial is a legitimate
+  entry, an all-zero lift polynomial says the set carries no airplane.
+
+- **A printed load no longer hangs on the last ulp (#147, tier M, 2026-08-29).**
+  `report/render.format_value` chose between two far-apart spellings — an
+  integral value in full, everything else at four significant figures — on the
+  raw double, so the printed cell was a discontinuous function of the last bit:
+  `-687258.0` printed `-687258` while `-687257.9999999999`, the same load
+  rotated through one more cosine, printed `-6.873e+05`. Both spellings shipped
+  in one landing case of `concept_regional_jet`, and the wing area printed
+  `71676` in one place and `7.168e+04` in another. Which spelling a cell took
+  moved with the libm build — macOS and glibc disagree in the last ulp of
+  `sin`/`cos` — so the frozen Imperial digest passed on the developer's Mac and
+  failed on the Linux CI leg, red since 7cdc609 (#134) put the landing
+  rotations in. The formatter now quantizes to twelve significant figures
+  before choosing, four orders above a double's ulp and far below anything a
+  load means. **The Imperial baseline was regenerated deliberately:** 67 lines
+  across 22 channels of four examples, every one of them a near-integer joining
+  its exact twin (`7.168e+04` → `71676`) or a four-significant-figure boundary
+  settling on one side (`NV 1.668` → `1.669`). No calc changed; the Appendix A
+  oracles and the twin closure suites are unmoved.
+
+- **The GA6 light-landing weight is 2800 lb, and the braked-roll family gets its
+  first printed-value oracle (tier M, 2026-08-29).** `ga6_normal`'s `fwd light`
+  ground case weighed **2803 lb**, a figure back-solved in Step C10 from an
+  Appendix A p231 cell OCR'd as 1864 (`½·1.33·W`). The rendered page prints
+  **1862**, and `1862/0.665 = 2800.0` — WTENV's forward-regardless weight, which
+  p230 prints and which `cg_cases.seed_landing_cases` already gives this case.
+  Corrected, closing the +0.107 % residual left by #135 and making the ground
+  `fwd light` case identical to the flight `CG3` point it has always been.
+  Cases 15, 18, 23, 24 and 31–33 move by 3 lb (0.107 %); no other fixture is
+  touched. With the weight right, `test_landload_braked_roll_printed_cells`
+  locks cases 16/17 (VMP 2261 / DMP 1808.8) and case 18 (VMP 1862 / DMP 1490)
+  plus its p232 airplane-datum pair (Fz 1733 / Fx 1638) at ±0.1 % — the first
+  printed-value oracle the 23.493 family has ever carried, on a page
+  `theory_sources.md` had recorded as unusable. New drift guard
+  `test_a_seeded_fwd_light_case_weighs_what_the_seed_gives_it` pins every
+  fixture's seeded light case to the seed's own anchor (a case stating an
+  entered D-25 loading is exempt — `baron_58`'s is one); mutation-verified
+  against the 2803 value.
+
+- **The ground reaction is applied where Appendix A applies it, not at the tyre
+  on every case (tier L, 2026-08-29).** `gear_loads.transfer_couple(patch, …)`
+  was one call site for all 33 LANDLOAD cases, while the manual's own printed
+  column applies cases 1–12 at the **axle** and 13–24 at the **ground contact
+  point** — so the twelve landing cases carried a spurious `r × F` pitching
+  moment into every balanced ground case, absorbed silently into the solved `q̈`.
+  Found by an identity that never reads the point: `residual My − the G-7a lift
+  moment == PITCHP`, LANDLOAD's own unbalanced moment. It closes to ≤62 lb-in at
+  the printed column's point and misses by 20,964–665,862 lb-in at the other one,
+  on all six bundled fixtures, splitting **exactly** where the column splits;
+  clearest on ga6's LG-01/02/03, where `PITCHP` is exactly zero and the whole
+  patch residual (−9,840.6 / −28,553.5 / −31,182.9 lb-in) was invented. The split
+  is physical: level-landing drag is a spin-up load reacted through the bearing,
+  braking torque is internal to the wheel/leg free body. `application_point` is
+  the one owner (design note 39 AP-2), read by the transfer, the gear free-body
+  report and the emitted location; `GearLegLoad`/`AppliedWheel` carry `point`
+  beside `patch`, which stays reported as the gear-side geometry it always was.
+  No reaction changes and no oracle moved: the forces are LANDLOAD's own, so
+  every Appendix A lock passes unmodified. `LG-04`'s pre-closure `My` moves
+  −179,232 → −158,271 lb-in and its `q̈` −1.925e-2 → −1.701e-2; the frozen
+  Imperial digest and `balanced_cases.md` §9.5 move with them. New gate
+  **G-AP-1** asserts the identity on every balanced ground case of every fixture
+  at `1e-4 · n·W·MAC` (worst measured 2.65e-5), replacing both an arm correction
+  the *test* used to make on cases 1–12/19–24 and the 5 % slack the braked-roll
+  pitch line carried for the #133 sign error — every family now closes on one
+  bound. **G-AP-2** locks the point against a transcription of the printed
+  column; **G-AP-3** asserts the package builds an application point in exactly
+  one place. Design note 39 (AP-1…AP-6, G-AP-1…G-AP-5), AGREED 2026-08-29.
+
+- **LANDLOAD's airplane-datum lift term and moment transform carry the same wrong sign as `BETA` did (approved deviation, issue #134, tier L, 2026-08-29).**
+  The third and fourth instances of the #133 sign class, in the two quantities
+  that entry could not reach because neither was in sloads until now.
+  `LANDLOAD.BAS` writes the datum drag load factor's lift term as
+  `+LF*SIN(GRA)` and the datum moment transform as a rotation of `+GRA`, where
+  the physics — and `ρ = −GRA`, and the deck's own ground lift (G-7a) — give the
+  other sign. Neither is written longhand in the port: both rotate through the
+  case's own **measured** `ρ`, so the corrected value is what a rotation gives
+  rather than a sign somebody typed. Case 1's factors move from the printed
+  3.287 / 3.216 / 0.679 to **3.269 / 3.216 / 0.585**. Registered in
+  `docs/20_theory/02_approved_corrections.md`; no printed cell was unlocked and
+  the locked count rose by 72.
+
+- **The LANDLOAD case families and the frame rotation had drifted from the code that draws them (rule 4 sweep, 2026-08-29).**
+  `GROUND_LIFT_CASES` / `GROUND_ONE_WHEEL_CASES` / `GROUND_SIDE_CASES` /
+  `BALANCED_GROUND_CASES` lived in `modules/balance.py`, beside the deck that
+  consumes them and away from `modules/landing.py`, which *is* the case
+  numbering; `attitude_of` lived in `gear_loads`. All are now owned by
+  `landing`, and the 23.485 pairing that `NS` and the deck each derived
+  separately is one `side_partner`. `to_airplane_datum` / `to_ground_line` /
+  the `ρ` measurement moved to `sloads/frames.py`, the module that names the two
+  frames they rotate between.
+
+- **LANDLOAD's `BETA` carried the wrong sign on the ground-roll and tail-down
+  attitudes; the ground-roll families were levered and resolved off it (tier L,
+  2026-08-29).** `BETA` is the resultant-to-FS angle, and Appendix A p234 states
+  the rule in the drawing: `BETA = GAMMA − GROUND ANGLE`, with `GAMMA = 0` where
+  the reaction is normal to the ground. `LANDLOAD.BAS` applies that to the level
+  attitude only, writing `+GRA(2)` / `+GRA(3)` for the other two. Attitude 3
+  negates it back at both its use sites and came out right; **attitude 2 negated
+  it at neither**, so every braked-roll, side and supplementary-nose case took
+  both its lever arms and its `PHIM`/`PHIN` from the wrong sign — and those are
+  shipped ULTIMATE loads, carried into the exported ground `FORCE` cards and the
+  gear reference-point loads. Corrected at the origin (`landing.py:229`), which
+  is one line plus the `ap[1]` call site that read the literal `gra2`; attitude
+  3's two compensating negations are removed as redundant, changing no number.
+  Approved oracle deviation (design note 38 GF-1/GF-2′/GF-3″, AGREED; register
+  `docs/20_theory/02_approved_corrections.md`), superseding the "considered and
+  declined" decision of 2026-08-15. The evidence is the manual against itself:
+  Appendix A's braked-roll construction figure **p235** prints lever arms of
+  77.052 / 17.760 / 94.811 where its p230 **table** — program output — prints
+  69.886 / 23.260 / 93.147, and flipping the one sign reproduces all three figure
+  values exactly with `CP` untouched. The `ρ == −GRA` pin is **flipped, not
+  deleted**, and now holds in every attitude against `ground_angles` directly
+  (`test_rho_is_minus_the_ground_angle_in_every_attitude`), replacing a check
+  that recovered its reference from the thing it checked. The p230/p231/p232/p233
+  locks re-pin cell by cell with the printed values kept transcribed beside the
+  corrected ones; `balanced_cases.md` §9.5 and the frozen Imperial digest move
+  with them. Side-family body drag flips from +186 lb aft to −186 lb forward,
+  which is what nose-up geometry demands.
+
+- **The light landing loading no longer takes the gross-weight ratio (tier M, 2026-08-29).**
+  `LANDLOAD.BAS` applies `WR = GW/MLW` to the two *max landing* loadings only — the
+  third (light) loading is already below the landing weight and lines 860/870/900
+  carry it bare. sloads applied `WR` to all three in the braked-roll loop, so
+  **cases 15 and 18 were overstated by the ratio** (up to 6.1 % on the shipped
+  fixtures; on the Appendix A GA6, VMP 1962.1 instead of 1864.0). Found reading
+  Appendix A p231 against the module: the printed case-18 pair is VMP **1862** /
+  DMP **1490**, and the p232 airplane-datum pair Fz **1733** / Fx **1638**. The
+  same rule was already correct at the three other sites it appears (`WL(23)`,
+  `WL(24)` and the 23.499 supplementary-nose branch), so the guard
+  `test_the_light_loading_never_takes_the_gross_weight_ratio` pins all four at
+  once rather than the one that was wrong. Affects every example with a distinct
+  light loading and `WR > 1` (`ga6_normal`, `atr42_100`, `dhc8_dash8`,
+  `baron_58`, `concept_regional_jet`); `cessna_210` has `WR = 1` and is unmoved.
+  Deliverable ULTIMATE loads change, so the frozen Imperial digest baseline is
+  regenerated with it.
+
+- **A blank LIMNZ no longer resolves to zero through a half-entered planform
+  (#122, tier M, 2026-08-29).** `engine.effective_engine`'s note 36 OV-7 derive
+  — blank `limit_load_factor` → `design_speed_values(project).n`, added by
+  C210-41 because a 0 LIMNZ silently zeroes every mount case — reads the wing
+  planform through STRSPEED's area resolver, but wrapped the whole chain in
+  `contextlib.suppress(ValueError)` under a comment about incomplete *speeds*.
+  The suppress was wide enough to swallow the planform's own refusal, so a wing
+  caught mid-entry (truncated polyline, swapped LE/TE, zero span — the #71
+  mutation set) handed the mount loads LIMNZ = 0 with no typed value on the page
+  to show what had gone wrong: C210-41's failure mode restored, silently, by the
+  guard meant to prevent a traceback. The derive now asks the precondition's
+  owner (`derived_geometry.planform_area_sqft`) before the suppress, so an
+  unresolvable planform propagates as the named refusal every other geometry
+  consumer states, and the suppress covers only what its comment claims. A
+  project with no wing surface is unaffected — that is `None`, not a refusal,
+  and STRSPEED's typed `wing_area_sqft` fallback stays live.
+
+- **One module with an invalid input no longer takes a whole results page down
+  (#145, tier M, 2026-08-29).** `run_all_modules` lets a plain `ValueError`
+  propagate on purpose (M2R-8): an invalid domain input and an absent one are
+  different answers, and the invalid one must not vanish. Right for the CLI and
+  the export, which should fail the run — but the Results Review and Export
+  *pages* render every module's results and died whole on the first bad slice,
+  showing a traceback instead of the twenty modules that were fine. Three of the
+  seven bundled examples carry an aileron or flap slice with no area, so both
+  pages were dead on all three, reachable by opening a shipped example.
+  `registry.run_all_modules_reporting` returns the failures beside the results
+  instead, and both pages name the offending module and what is wrong with it.
+  `MissingInputError` is still simply skipped, and `run_all_modules` itself is
+  unchanged — the CLI still fails the run, as m2 requires.
+
+- **An Optional record block in the oracle GUI is created and removed by name,
+  never attached by a stray touch (#143, tier M, 2026-08-29).**
+  One interaction with any widget in an Optional record's block used to attach
+  the whole record: ticking the LANDING coefficient set's flaps-down flag on the
+  Aerodynamic Data page attached a zero-coefficient set, `refresh_derived` →
+  `AeroCoefficientsInput.normalize()` filled its `stall_cl` from `clmax_flap` so
+  it passed the #81 guard, un-checking did not detach it, and the phantom set
+  saved into the `.project.json` — taking Flight Envelope and SELECT down with a
+  400-iteration solver failure (#144). Every Optional record block now takes the
+  list-row posture (#88/#72): its fields are off the page behind an `➕ Add …`
+  button, with a caption naming the fields that are missing, and a `🗑 Remove …`
+  control behind an expander takes the record away again with everything entered
+  in it. Which blocks these are is read from the field registry
+  (`oracle_app.form.optional_steps`), so a new Optional slice carries the posture
+  the moment the registry classifies it; a plain page visit still attaches
+  nothing (OG-F), and a list record keeps its own gesture, the row counter.
+
+- **A `null` in a project file is refused by name instead of crashing a widget
+  three modules later (#121, tier M, 2026-08-29).** `sloads.io` coerced numeric
+  *containers* (#76) and said in its own comment that scalars were out of scope,
+  so a scalar `null` went straight through into whatever field it named:
+  `"full_down_aileron_deg": null` landed on a field declared `float = 0.0`, the
+  file loaded clean, and the main GUI's Flight Envelope page died on
+  `float(None)` — a raw `TypeError` out of an `st.number_input`, on a page the
+  user had only opened. The loader now refuses a `null` where the field's own
+  annotation does not admit one (`io._reject_nulls`, called by `_filtered` and
+  at the head of the ten readers that name their fields explicitly), with a
+  message naming the record and the key to fix. An `Optional` field keeps its
+  `null` — "not entered" (`SurfaceInput.front_spar_pct`) and "not stated"
+  (the gear `carrier`) are answers, not accidents. It is refused rather than
+  read as the field's default: which of the two the author meant is not
+  recoverable from the file, and defaulting is the silent zeroing the LIMNZ
+  derive refuses for the same reason (#122) — `fuselage_mass.stations_are_override`
+  was doing exactly that, `bool(None)` → `False`, and is now refused with the
+  rest. No shipped example changes: every `null` in all seven is on an `Optional`
+  field, and no model field defaults to `None` under a non-`Optional`
+  annotation, so no project this app writes can trip the new refusal.
+
 ## [0.8.0] — 2026-08-28
 
 ### Added
