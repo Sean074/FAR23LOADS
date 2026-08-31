@@ -179,6 +179,26 @@ case; the twin exercises the engine-mount and one-engine-out sections as
 *present* rather than `absent_reason`, and (per UG-12) is the SI-channel case,
 so the two builds together cover both unit selections of G-OR-5.
 
+**Amended 2026-08-30 (owner):** the *machine* covers the twin every section —
+G-OR-1 has built both packages on every push since iteration 1 — but the
+**owner's read of the Baron report is one pass at the end of report
+development**, not a second review per section. The GA6 is the review vehicle
+throughout (it is the Appendix A oracle case, so a wrong number there is a
+*known*-wrong number), and reviewing both per section doubles the reading for a
+second opinion on the same renderer.
+
+What that end pass is for is the half CI cannot assert: that the twin's report
+*reads* correctly where it differs from the oracle case — the `absent_reason`
+wording on sections the GA6 has and it does not (and the reverse), the DERIVED
+planform provenance where the GA6 now says entered (Appendix B is not bundled,
+so the Baron has no printed polylines), the SI channel's number formatting under
+UG-12, and the engine-mount and one-engine-out sections appearing as *present*.
+The deferral is safe because those are stated by guards rather than by eye —
+`test_a_tail_table_states_where_its_planform_came_from` asserts the provenance
+label in both directions, and the package manifest and determinism gates assert
+the rest — so what is deferred is judgement, not detection. A GA6-shaped
+assumption reaching the renderer fails CI on the twin the same day it lands.
+
 ### OR-12 — Iteration order is workflow order
 
 The default stands: analysis-body sections are developed in

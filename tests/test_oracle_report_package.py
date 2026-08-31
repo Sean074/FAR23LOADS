@@ -467,8 +467,20 @@ def test_the_folder_dialog_never_raises_and_never_invents_a_path(monkeypatch):
     that called it would hang the suite behind a Finder window on any developer
     machine with a desktop session. The subprocess is stubbed and the decision
     logic is what gets tested.
+
+    **The platform is pinned too.** Stubbing only the subprocess left this test
+    asserting the host's own dialog helpers: ``choose_directory`` returns
+    ``None`` before it runs anything when this machine has none, so on a bare
+    Linux CI runner -- no ``zenity``, no ``kdialog`` -- the first case failed
+    while passing on any developer Mac. The four non-answers below are decisions
+    made *after* the helper runs, so the helper has to exist for them to be
+    reachable at all. The "no helper on this machine" non-answer is the sibling
+    test next door, which pins the platform the other way.
     """
     from sloads.export import directory_dialog as dlg
+
+    monkeypatch.setattr(dlg.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(dlg.shutil, "which", lambda name: f"/usr/bin/{name}")
 
     class _Result:
         def __init__(self, code, out):
