@@ -358,7 +358,20 @@ consistent:
   beneath the grid, not by deleting every row after it and retyping them. A
   deletion re-sizes the counter as it goes, or the next render grows the list
   straight back up to the retained count and the deleted row returns as a blank
-  — the same defect wearing the other sign. Counting up is the other half — the seeded
+  — the same defect wearing the other sign. The counter is not the only retained
+  state a deletion invalidates: **a row widget keys itself by row index, so every
+  row below the deleted one is renumbered onto another row's state**, which
+  Streamlit lets outvote the value seeded from the model. The deletion reached
+  the project and the next render typed the tail of the table back over it one
+  place up, so the row that visibly went was the *last* one (#153, 2026-08-30 —
+  clicking "Delete row 2 · aileron" removed `flap`). A deletion therefore retires
+  the state of every row it renumbers, and only those: this is
+  `app_shell.widget_keys`' argument at table scope — a renumbered row is a
+  **different widget** and re-seeding cannot fix it — while a row above the
+  deletion did not move and keeps an edit typed in the same interaction as the
+  click. It holds for both table shapes: the flat grid is one `st.data_editor`
+  whose pending edits are an index-keyed map, so it is renumbered by the same
+  deletion its per-row siblings are. Counting up is the other half — the seeded
   row joins the project immediately (`commit_pending`'s blank-record rule, OG-F,
   governs records a pass *creates*, not rows appended to an attached list), so a
   blank row is real, saved, and reaches the calc: a zero-weight `FLIGHT` CG case

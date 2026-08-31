@@ -1284,10 +1284,65 @@ def _delete_row(rows: List[Any], index: int, prefix: str) -> None:
     so a deletion that did not move the counter would reappear as a blank row,
     which is the #88 defect wearing the other sign. Widget state may only be
     written before its widget is instantiated, which is what a callback is.
+
+    The counter is not the only retained state a deletion invalidates: see
+    :func:`_retire_renumbered_rows`, which is #153.
     """
     if 0 <= index < len(rows):
         del rows[index]
+    _retire_renumbered_rows(prefix, index)
     st.session_state[widget_key(f"{prefix}.count")] = len(rows)
+
+
+def _is_renumbered(base: str, table: str, index: int) -> bool:
+    """Does the widget ``base`` names belong to a row at or below ``index``?
+
+    ``base`` is a stamped key or a frame-cache key's widget half. The grid of a
+    flat table (``base == table``) counts: ``st.data_editor`` holds its pending
+    edits in an index-keyed ``edited_rows`` map under that one key, so it is
+    renumbered by the same deletion the per-row widgets are.
+    """
+    if base == table:
+        return True
+    if not base.startswith(f"{table}."):
+        return False
+    head = base[len(table) + 1:].split(".", 1)[0]
+    return head.isdigit() and int(head) >= index
+
+
+def _retire_renumbered_rows(prefix: str, index: int) -> None:
+    """Drop the retained state of every row a deletion renumbers (#153).
+
+    A row widget keys itself by row index, and Streamlit's retained state
+    outvotes the ``value=`` seeded from the model. So deleting row *i* left row
+    *i+1*'s state sitting on what had become row *i*, and the next render typed
+    the whole tail of the table back over itself one place up: the deletion
+    reached the project (``del rows[index]`` always ran) and was then overwritten
+    row by row, leaving the **last** row as the one that visibly disappeared.
+    Clicking "Delete row 2 - aileron" on ``ga6_normal`` removed ``flap``.
+
+    This is :mod:`app_shell.widget_keys`' argument at table scope: a renumbered
+    row is a **different widget**, and re-seeding cannot fix it. Rows *above*
+    ``index`` did not move and keep their state -- retiring them would discard an
+    edit typed in the same interaction as the click.
+
+    Invisible until 2026-08-30: every fixture carried two surfaces, and deleting
+    row 2 of 2 removes the last row either way. ``ga6_normal`` now carries seven.
+    """
+    table = widget_key(prefix) or prefix
+    for key in [k for k in list(st.session_state)
+                if isinstance(k, str) and _is_renumbered(k, table, index)]:
+        del st.session_state[key]
+    # The row picker of a flat table holds an index into a list that just got
+    # shorter; it re-seeds to the first row.
+    st.session_state.pop(widget_key(f"_delete_choice.{prefix}"), None)
+    # Grid frames are cached per page visit (_FRAME_CACHE_KEY), so a polyline
+    # inside a renumbered row would keep drawing the row that used to be there.
+    cache = st.session_state.get(_FRAME_CACHE_KEY)
+    if isinstance(cache, dict):
+        for ckey in [k for k in cache
+                     if isinstance(k, str) and _is_renumbered(k.split("|", 1)[0], table, index)]:
+            del cache[ckey]
 
 
 def _delete_button(where: Any, rows: List[Any], index: int, prefix: str,

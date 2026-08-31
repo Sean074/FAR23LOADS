@@ -45,12 +45,13 @@ reproduces area to 0.014 % with span and aspect ratio exact.
   for fidelity to the planform it drew. Six printed Appendix A figures move, the largest by
   0.51 %; all are registered in `02_approved_corrections.md` with the owner's approval and
   the full trail.
-- **Two findings filed, not fixed** (frozen code, OR-14): **#153**, the per-row delete on
-  the Geometry page removes the last row rather than the one it names — invisible until a
-  fixture carried more than two surfaces, and pinned meanwhile by a strict `xfail` asserting
-  the correct contract; and **#155**, the configuration module's note still says MAC/XLEMAC/AR
-  come "via the WINGGEOM strip integrator", which is now the method this step removed and is
-  reproduced verbatim in §2.1 of the report.
+- **Two findings filed against frozen code** (OR-14), both later admitted under OR-15 and
+  fixed in this milestone — see the two entries that follow: **#153**, the per-row delete on
+  the Geometry page removes the last row rather than the one it names, which *this step* made
+  reachable by taking the fixture past two surfaces (pinned meanwhile by a strict `xfail`
+  asserting the correct contract); and **#155**, the configuration module's note still says
+  MAC/XLEMAC/AR come "via the WINGGEOM strip integrator", which is now the method this step
+  removed and is reproduced verbatim in §2.1 of the report.
 
 **Authority.** `sloads/modules/wing_geometry.py` is hash-frozen for milestone 0.8.2 by
 design note 44 OR-13; the owner admitted this change under OR-15 in session on 2026-08-30,

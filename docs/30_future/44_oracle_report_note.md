@@ -778,5 +778,38 @@ strip count the manual never tabulates, and closed-form integration reaches
 `wing_geometry` and `configuration` channels only, and only in that row label and
 that note.
 
-**#153 remains an OR-14 finding** and stays filed: it is a live defect in
-`oracle_app/form.py` that the report exposed rather than caused.
+### #153 moved from OR-14 to OR-15 (owner, 2026-08-30)
+
+**#153** — the per-row delete removing the wrong row — was recorded above as an
+OR-14 finding: a live defect in `oracle_app/form.py` that the report *exposed*
+rather than caused, and therefore one the freeze defers. The owner lifted the
+rule for it on 2026-08-30. The reasoning that carried it is the exposure, not the
+defect: it was unreachable while every fixture held two surfaces, because
+deleting row 2 of 2 removes the last row either way, and **this milestone made it
+reachable** by giving `ga6_normal` seven surfaces. What it costs to leave is
+silent data loss — the wrong surface goes, with no warning and no undo — on the
+Geometry page the section 2 review is conducted from.
+
+**The filed root cause was wrong, and the fix is not where it said.** The filing
+blamed `_delete_row`'s `on_click` args binding a list detached by the next run,
+so that `del rows[index]` never reached the project. Instrumented, the callback
+receives the project's own attached list and the deletion lands every time. What
+undid it was the *render* that followed: a row widget keys itself by row index,
+Streamlit's retained state outvotes the `value=` seeded from the model, and every
+row below the deleted one was renumbered onto its neighbour's state — so the tail
+of the table was typed back over itself one place up and the row that visibly
+disappeared was the last one. `_retire_renumbered_rows` retires the state of the
+rows a deletion renumbers, and only those; a row above the deletion did not move
+and keeps an edit typed in the same interaction as the click.
+
+Swept as one class (CLAUDE.md rule 4) rather than fixed in the shape that showed
+it. The flat grid is a single `st.data_editor` whose pending edits are an
+index-keyed map, so it is renumbered by the same deletion — as are the cached
+grid frames of a polyline sitting inside a renumbered row. Both tests now
+snapshot whole rows instead of names: the shift moved *values* between rows, and
+a name-only snapshot passes while the data has moved, which is how the flat
+shape's test passed against a defect it shared. The contract is stated in
+`GUI_design.md` beside the counter rule it belongs with.
+
+`oracle_app/form.py` is hash-frozen by OR-13; the manifest hash is updated in the
+same commit and the authority named in the commit message.

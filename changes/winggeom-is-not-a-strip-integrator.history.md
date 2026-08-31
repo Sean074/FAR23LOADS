@@ -19,5 +19,6 @@
   `airloads.py` are hash-frozen for 0.8.2 by design note 44 OR-13; the owner admitted
   this change under **OR-15** in session, on the reasoning that OR-14 defers defects
   the report *exposes* while this one the milestone's own correction *created*. The
-  manifest hashes are updated in the same commit. #153 stays an OR-14 finding, filed
-  and unfixed. Supersedes the "#155 filed, not fixed" line in the preceding entry.
+  manifest hashes are updated in the same commit. Supersedes the "#155 filed, not
+  fixed" line in the preceding entry; #153 was admitted separately, on its own
+  reasoning, in the entry that follows.

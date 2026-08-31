@@ -67,7 +67,7 @@ MANIFEST: dict[str, str] = {
     # --- the existing oracle GUI (OR-13, row 2) ---------------------------
     "oracle_app/Oracle.py": "b478bf06fd1c998ffa9ee1eebbc51225c24a26a813840529105779b51f5085a1",
     "oracle_app/__init__.py": "bb3135345b421b8fac0f02226050b821770a53c647c4ead72c8dfbd2d156f3d0",
-    "oracle_app/form.py": "d5a34df08c76a4e16ac70f1c83ac8fff175d35794390b22dffb177ad83ea76fb",
+    "oracle_app/form.py": "e3e91804ff0d5b5d53de628bbcd1c847b6fea86db32049436651485abc926518",
     "oracle_app/labels.py": "93e442a1fff2174fdd17dd56f8d0b5f91e071641ead341be3dc5b71ede7cebf9",
     "oracle_app/results.py": "b49e5a8676cc747e559579c8ca0f5f5f8b2e8d2be07903d8cdd4b214b5b46645",
 }

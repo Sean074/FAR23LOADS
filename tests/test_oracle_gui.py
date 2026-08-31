@@ -704,6 +704,22 @@ def test_a_field_the_owner_governs_offers_no_clear():
     assert "speeds.wing_area_sqft" not in _clear_keys(at)
 
 
+def _rows_of(at, dotted):
+    """Every row of a list record, whole -- values and all, not just names.
+
+    A row deletion that renumbers the table shifts *values* between rows
+    (#153), and the shifted rows still carry the right set of names, so a
+    name-only snapshot passes while the data has moved.
+    """
+    import dataclasses
+
+    owner = at.session_state["project"]
+    head, _, attr = dotted.rpartition(".")
+    for part in head.split("."):
+        owner = getattr(owner, part)
+    return [dataclasses.asdict(row) for row in getattr(owner, attr)]
+
+
 def test_a_row_is_deleted_where_it_sits_and_does_not_come_back():
     """PB-23: a row could only be removed from the **end** (the counter plus
     #88's surplus button), so dropping item 3 of 24 meant deleting twenty-one
@@ -712,7 +728,8 @@ def test_a_row_is_deleted_where_it_sits_and_does_not_come_back():
     the #88 defect wearing the other sign."""
     project = _seeded()
     at = _render("weight_mass", project)
-    before = [i.name for i in at.session_state["project"].weight.items]
+    full = _rows_of(at, "weight.items")
+    before = [row["name"] for row in full]
     assert len(before) > 3, "the fixture must have rows to delete"
 
     picker = next(w for w in at.selectbox if (w.key or "").endswith("_delete_choice.weight.items[]"))
@@ -721,27 +738,28 @@ def test_a_row_is_deleted_where_it_sits_and_does_not_come_back():
     assert before[2] in button.label, button.label
     button.click().run()
 
-    after = [i.name for i in at.session_state["project"].weight.items]
-    assert after == before[:2] + before[3:], "the wrong row went"
+    after = _rows_of(at, "weight.items")
+    assert after == full[:2] + full[3:], "the wrong row went, or values shifted"
     at.run()  # a plain revisit: the counter must not re-grow what was deleted
-    assert [i.name for i in at.session_state["project"].weight.items] == after
+    assert _rows_of(at, "weight.items") == after
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "DEFECT #153, filed not fixed (note 44 OR-14; oracle_app/form.py is frozen "
-    "by OR-13). The per-row delete removes the LAST row, not the row its own "
-    "button names: clicking 'Delete row 2 - aileron' on ga6_normal removes "
-    "'flap'. _delete_row's on_click args bind a list that is detached by the "
-    "next run, so 'del rows[index]' never reaches the project; all that lands "
-    "is the row counter dropping by one, which trims from the end. Invisible "
-    "until 2026-08-30 because every fixture had two surfaces, and deleting row "
-    "2 of 2 removes the last row either way. ga6_normal now carries seven."))
 def test_a_composite_row_is_deleted_from_inside_its_own_expander():
     """The other table shape: rows holding a polyline get an expander each, so the
-    delete control goes in the row rather than under the grid."""
+    delete control goes in the row rather than under the grid.
+
+    #153: this shape deleted the **last** row rather than the one its button
+    named -- clicking "Delete row 2 - aileron" on ``ga6_normal`` removed
+    ``flap``. The deletion always reached the project; the retained state of
+    every row below it, keyed by row index, was then typed back over the
+    renumbered rows one place up (:func:`~oracle_app.form._retire_renumbered_rows`).
+    Invisible until 2026-08-30 because every fixture carried two surfaces, and
+    deleting row 2 of 2 removes the last row either way.
+    """
     project = _seeded()
     at = _render("configuration_layout", project)
-    before = [s.name for s in at.session_state["project"].geometry.surfaces]
+    full = _rows_of(at, "geometry.surfaces")
+    before = [row["name"] for row in full]
     assert len(before) > 1, "the fixture must have surfaces to delete"
 
     button = next(b for b in at.button
@@ -752,11 +770,11 @@ def test_a_composite_row_is_deleted_from_inside_its_own_expander():
     # when this was written and now carries seven, and the delete buttons are
     # not in list order.
     target = next(name for name in before if name in button.label)
-    want = [name for name in before if name != target]
+    want = [row for row in full if row["name"] != target]
     button.click().run()
-    assert [s.name for s in at.session_state["project"].geometry.surfaces] == want
+    assert _rows_of(at, "geometry.surfaces") == want
     at.run()
-    assert [s.name for s in at.session_state["project"].geometry.surfaces] == want
+    assert _rows_of(at, "geometry.surfaces") == want
 
 
 # --------------------------------------------------------------------------- #
