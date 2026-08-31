@@ -307,6 +307,256 @@ def _tail_table(title: str, project: Project, component: str, source: object,
     return table
 
 
+#: ``(figure key, parent surface, printed title, control surfaces, frame)``.
+#:
+#: The three main surfaces a reader sizes to, each with the control surfaces
+#: that live on it. Declared as data for the same reason ``_HTAIL_ROWS`` is: a
+#: renamed surface fails ``test_oracle_report.py`` rather than silently drawing
+#: a parent with nothing on it.
+#:
+#: The frame is not decoration. A wing or horizontal tail is entered as
+#: ``(station, butt line)`` and is symmetric about the centre plane, so it is
+#: drawn with its mirror; a **vertical tail's second coordinate is a waterline**
+#: -- the GA6 fin root is ``(240.912, 117.0)``, station 240.912 at waterline
+#: 117.0 -- and mirroring it about ``y = 0`` would draw a second fin hanging
+#: below the airplane. The frame decides that, never ``SurfaceInput.symmetric``,
+#: which ``examples/baron_58.project.json`` sets ``true`` on its fin.
+_PLANFORM_FIGURES: Tuple[Tuple[str, str, str, Tuple[str, ...], str], ...] = (
+    ("planform_wing", "wing", "Wing planform", ("aileron", "flap"), "butt"),
+    ("planform_htail", "htail", "Horizontal tail planform", ("elevator",), "butt"),
+    ("planform_vtail", "vtail", "Vertical tail planform", ("rudder",), "water"),
+)
+
+#: The axis labels of each frame, without units -- those are appended from the
+#: converted length channel, so an SI report says mm on both axes.
+#:
+#: A butt-line surface is drawn **span across, station down**: a wing is 402 in
+#: of span against a 101 in root chord, and on the equal axes the figure exists
+#: to hold, station-across is four times taller than it is wide. The emitter
+#: reverses that vertical axis (``planform_tex.NOSE_UP_KEYS``) so the stations
+#: still read in the airplane's own numbers with the nose at the top.
+_PLANFORM_AXES = {
+    "butt": ("Butt line Y", "Fuselage station X"),
+    "water": ("Fuselage station X", "Waterline Z"),
+}
+
+
+def _oriented(frame: str, x_in: float, y_in: float) -> Tuple[float, float]:
+    """An entered ``(station, span)`` point on the frame's plotted axes."""
+    return (y_in, x_in) if frame == "butt" else (x_in, y_in)
+
+#: Surface key -> what the figure legend calls it.
+#:
+#: §3.3's "a surface key SHALL NOT reach a heading" for the same reason one
+#: level down: a legend a reviewer reads is not a place for the analysis's own
+#: identifiers.
+_REGION_NAMES = {
+    "wing": "Wing",
+    "aileron": "Aileron",
+    "flap": "Flap",
+    "htail": "Horizontal tail",
+    "elevator": "Elevator",
+    "vtail": "Vertical tail",
+    "rudder": "Rudder",
+}
+
+#: ``(surface key, project slice, attribute, printed label)`` for the area a
+#: region is labelled with.
+#:
+#: Every one is a value 2.1 **already prints in a table**, read from the same
+#: attribute, so a figure cannot label a surface with a second number for the
+#: same quantity ("a number is printed once", §3.3). The wing is not here: its
+#: area is produced by the speeds module and is passed in already converted.
+#: Neither is the aileron -- ``AileronInput`` carries its areas forward and aft
+#: of the hinge and no total, and summing them here would be the report deriving
+#: a quantity no module returned (OR-6). It is drawn and named without an area.
+_REGION_AREAS: Tuple[Tuple[str, str, str, str], ...] = (
+    ("htail", "htail", "htail_area_sqft", "Horizontal tail"),
+    ("elevator", "htail", "elevator_area_sqft", "Elevator"),
+    ("vtail", "vtail", "vtail_area_sqft", "Vertical tail"),
+    ("rudder", "vtail", "rudder_area_sqft", "Rudder"),
+    ("flap", "flap_loads", "flap_area_one_side_sqft", "Flap, one side"),
+)
+
+
+def _length_channel(system: UnitSystem) -> Tuple[float, str]:
+    """``(scale, units)`` taking an entered inch coordinate into ``system``.
+
+    Asked of :func:`sloads.units.convert_results` through a probe value rather
+    than multiplied by a constant here. The conversion has one owner and this
+    module is not it; a hard-coded 25.4 is exactly the drift the units history
+    is the cautionary precedent for.
+    """
+    probe = ConditionResult(title="", far_reference="",
+                            values=[LoadValue("probe", 1.0, "in", key="probe")])
+    converted = convert_results([probe], system)[0].values[0]
+    return float(converted.value), converted.units
+
+
+def _region_areas(project: Project, wing_area: Optional[LoadValue],
+                  system: UnitSystem) -> Dict[str, LoadValue]:
+    """The area each drawn region is labelled with, converted once."""
+    empennage = getattr(project.geometry, "empennage", None) if project.geometry else None
+    slices = {
+        "htail": getattr(empennage, "htail", None),
+        "vtail": getattr(empennage, "vtail", None),
+        "flap_loads": project.flap_loads,
+    }
+    values = []
+    for key, slice_name, attr, label in _REGION_AREAS:
+        source = slices.get(slice_name)
+        value = getattr(source, attr, None) if source is not None else None
+        if value is None:
+            continue
+        values.append(LoadValue(label=label, value=value, units="ft^2", key=key))
+    areas: Dict[str, LoadValue] = {}
+    if values:
+        condition = ConditionResult(title="", far_reference="", values=values)
+        areas = {v.key: v for v in convert_results([condition], system)[0].values}
+    if wing_area is not None:
+        areas["wing"] = wing_area
+    return areas
+
+
+def _region_label(name: str, area: Optional[LoadValue]) -> str:
+    """A legend entry: the surface's name, and its area where one is tabulated."""
+    printed = _REGION_NAMES.get(name, name)
+    if area is None:
+        return printed
+    formatted, units = _cell(area)
+    return f"{printed}: {formatted} {units}".strip()
+
+
+def _region_series(project: Project, name: str, style: str, label: str,
+                   mirror: bool, frame: str, scale: float) -> List[Series]:
+    """One surface as closed outlines: the entered side, and its mirror.
+
+    The outline itself comes from :func:`sloads.modules.wing_geometry.surface_top_outline`,
+    which is already the shared "edge polylines -> closed outline" owner for the
+    two GUI pages that draw a planform. The report asks it rather than walking
+    the polylines again, so the document and the pages cannot disagree about
+    where a surface ends.
+
+    The mirror carries no name, so it is drawn ``forget plot`` and takes no
+    legend entry of its own -- it is the same surface, not a second one.
+    """
+    from ..derived_geometry import require_integrable_planform
+    from ..modules.wing_geometry import surface_top_outline
+
+    surface = project.geometry.by_name(name) if project.geometry else None
+    if surface is None:
+        return []
+    # The same precondition every other consumer of an edge polyline asks
+    # (#71/PB-21, ``derived_geometry`` is its one owner). A half-entered
+    # planform -- one point on an edge, or a repeated butt line -- is the state
+    # the curve editor persists mid-row, and a figure drawn from it is a shape
+    # nobody entered rather than an obviously broken one. The ``ValueError`` is
+    # caught by the caller into a stated absence: G-OR-7 says a half-filled
+    # project still builds a complete document.
+    require_integrable_planform(surface)
+    outlines = surface_top_outline(surface.leading_edge, surface.trailing_edge,
+                                   mirror)
+    series = []
+    for index, (xs, ys) in enumerate(outlines):
+        oriented = [_oriented(frame, x * scale, y * scale)
+                    for x, y in zip(xs, ys)]
+        series.append(Series(label if index == 0 else "",
+                             [x for x, _y in oriented],
+                             [y for _x, y in oriented], style))
+    return series
+
+
+def _planform_figure(project: Project, key: str, parent: str, title: str,
+                     children: Sequence[str], frame: str,
+                     areas: Mapping[str, LoadValue],
+                     system: UnitSystem) -> Figure:
+    """One surface's to-scale planform, with its control surfaces on it."""
+    from .planform_tex import OUTLINE_STYLE, REGION_STYLES
+
+    printed = _REGION_NAMES.get(parent, parent)
+    surface = project.geometry.by_name(parent) if project.geometry else None
+    if surface is None:
+        # Stated, never an empty axis (§3.4). For a tail this is the same state
+        # the table above reports as a DERIVED planform: the rectangle the
+        # analysis assumes is not a shape worth drawing, and drawing it would
+        # give the assumption the standing of entered geometry.
+        derived = (" The table above reports its planform DERIVED for the same "
+                   "reason." if _planform_assumed(project, parent) else "")
+        return Figure(
+            key=key, title=title,
+            absent_reason=(
+                f"the project defines no {printed.lower()} leading- and "
+                "trailing-edge polylines, so there is no planform to draw."
+                + derived))
+
+    scale, length_units = _length_channel(system)
+    mirror = bool(surface.symmetric) and frame == "butt"
+    try:
+        series = _region_series(project, parent, OUTLINE_STYLE,
+                                _region_label(parent, areas.get(parent)),
+                                mirror, frame, scale)
+    except ValueError as problem:
+        # The precondition owner's refusal, in the document's own voice. Not a
+        # traceback and not a drawing: G-OR-7 keeps the report buildable over a
+        # half-filled project, and §3.4 makes it say what is missing.
+        return Figure(key=key, title=title,
+                      absent_reason=(f"the {printed.lower()} planform cannot be "
+                                     f"drawn as entered -- {problem}"))
+    drawn = []
+    # ``zip`` stops at the shorter: a parent grown a third control surface would
+    # lose it silently, so ``test_oracle_report.py`` holds every spec's child
+    # count against the number of fills there are to tell them apart with.
+    for child, style in zip(children, REGION_STYLES):
+        try:
+            child_series = _region_series(project, child, style,
+                                          _region_label(child, areas.get(child)),
+                                          mirror, frame, scale)
+        except ValueError:
+            # A control surface mid-entry costs the reader the shading, not the
+            # parent's planform, which is the figure they came for.
+            continue
+        if child_series:
+            drawn.append(child)
+            series += child_series
+
+    x_label, y_label = _PLANFORM_AXES[frame]
+    entered = list(surface.leading_edge) + list(surface.trailing_edge)
+    if mirror:
+        entered += [(x, -y) for x, y in entered]
+    points = [("",) + _oriented(frame, x * scale, y * scale)
+              for x, y in entered]
+
+    caption = [
+        f"The {printed.lower()} as entered, drawn to scale on equal axes: the "
+        "outline is the leading- and trailing-edge polylines the analysis "
+        "integrated, and the marked points are the entered vertices.",
+    ]
+    if drawn:
+        names = [_REGION_NAMES.get(c, c).lower() for c in drawn]
+        named = (names[0] if len(names) == 1
+                 else ", ".join(names[:-1]) + " and " + names[-1])
+        caption.append(f"The {named} is shaded on it." if len(names) == 1
+                       else f"The {named} are shaded on it.")
+    caption.append(
+        "Areas are the values tabulated above, not measured off the drawing. "
+        "Nothing here is a load: no value is scaled to ultimate and none "
+        "carries a safety factor.")
+    if mirror:
+        caption.append("The surface is symmetric about the airplane centre "
+                       "plane and both sides are drawn.")
+    caption.append(
+        "The hinge line is not drawn: the analysis carries the control "
+        "surface's areas forward and aft of the hinge as scalars and no hinge "
+        "geometry, so a line here would be an inference rather than the "
+        "configuration.")
+
+    return Figure(
+        key=key, title=title,
+        data=PlotData(f"{x_label} ({length_units})",
+                      f"{y_label} ({length_units})", series, points),
+        caption=" ".join(caption))
+
+
 def _geometry(project: Project,
               results: Mapping[str, Optional[ModuleResult]], *,
               system: UnitSystem,
@@ -366,7 +616,17 @@ def _geometry(project: Project,
         tables.append(_input_table(
             f"Trim tab, {surface}" if surface else "Trim tab",
             tab, _TAB_ROWS, system))
-    return Section("", body=body, tables=[t for t in tables if t is not None])
+
+    # One planform per main surface (OR-45). The renderer puts a section's
+    # figures ahead of its tables, so the three drawings open 2.1 and the tables
+    # that state their numbers follow -- the reader sees the airplane before the
+    # arithmetic, which is the order the section was asked for in.
+    areas = _region_areas(project, area, system)
+    figures = [_planform_figure(project, key, parent, figure_title, children,
+                                frame, areas, system)
+               for key, parent, figure_title, children, frame in _PLANFORM_FIGURES]
+    return Section("", body=body, figures=figures,
+                   tables=[t for t in tables if t is not None])
 
 
 # --------------------------------------------------------------------------- #

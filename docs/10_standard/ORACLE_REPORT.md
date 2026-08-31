@@ -210,6 +210,41 @@ Properties, 2.3 Structural Design Speeds, 2.4 Flight Envelope.
 - **The case list belongs to the load-case section**, not here; 2.4 cross-refers
   to it through the numbering owner and renders "a section this issue does not
   carry" until it exists.
+- **2.1 draws one planform figure per main surface** — wing, horizontal tail,
+  vertical tail (OR-45's "its planform figures", built 2026-08-31). Each
+  **SHALL** show the surface's entered leading- and trailing-edge polylines as a
+  closed outline, with the control surfaces that live on it filled on top, and
+  **SHALL** be drawn on equal axes: a swept tapered surface on independent axes
+  is a different shape from the one the loads were computed for, which is the one
+  thing the figure exists to show. Regions **SHALL** be distinguished by fill
+  density, never by colour (`SUMMARY_REPORT.md` §4.3). The figures and the
+  surfaces they are drawn for are declared together
+  (`oracle_sections._PLANFORM_FIGURES`), both directions.
+- **A planform figure SHALL be TikZ source, never an image file.**
+  `SUMMARY_REPORT.md` §2 *Self-containment* forbids the report referencing an
+  external image, and the 2026-08-30 *Data reference* amendment reaffirms the
+  prohibition verbatim while opening only the plain-text data channel. A
+  planform is a closed polygon, so the properties the rule protects —
+  deterministic, diffable, unit-testable as text, vector in the document's own
+  fonts — cost nothing to keep here.
+- **A planform figure SHALL NOT draw a hinge line** while the analysis carries
+  no hinge geometry. The suite holds a control surface's areas forward and aft
+  of its hinge as scalars, from which `taildist` derives a chord *station* on the
+  average chord (`CEAFTHL = (S_aft/S)·CAVE`); a line drawn from that would be an
+  inference on a rectangle-equivalent, printed with the standing of entered
+  geometry. The caption **SHALL** say the line is absent and why. It arrives with
+  **#156** (band B4), which makes the hinge polyline an input and the two areas
+  derived.
+- **A region's area is the value tabulated beside it**, read from the same owner
+  — the "printed once" rule below, extended to the figures. A region whose total
+  area no table states (the aileron: `AileronInput` carries its areas forward and
+  aft of the hinge and no total) **SHALL** be drawn and named without an area,
+  never with one summed here.
+- **The vertical tail is drawn in the fuselage-station/waterline plane and SHALL
+  NOT be mirrored.** Its polylines' second coordinate is a waterline, not a butt
+  line. The frame decides this, never `SurfaceInput.symmetric`, which
+  `examples/baron_58.project.json` sets `true` on its fin — mirroring on the flag
+  would draw a second fin below the airplane.
 - **A number is printed once.** Wing area is produced by the speeds module and
   printed under 2.1 Geometry, where a reader looks for it; 2.3 omits it.
 - **A `far_reference` that is not a regulation is not cited as one.** The
@@ -382,6 +417,25 @@ without a guard is prose, not a gate).
       in a declared order — `test_oracle_report.py`
 - [x] The envelope figures plot produced design points only, one figure per
       block, in the analysis's own traversal order — `test_oracle_report.py`
+- [x] Every main surface has a planform figure and every planform figure has a
+      declared surface; each key reaches its own emitter and is drawn on equal
+      axes — `test_oracle_report.py::test_every_main_surface_has_a_planform_figure`,
+      `::test_a_planform_key_reaches_its_own_emitter`
+- [x] A planform plots only entered vertices and labels a region only with the
+      area its table prints —
+      `test_oracle_report.py::test_a_planform_plots_only_entered_vertices`,
+      `::test_a_planform_labels_a_region_with_the_area_its_table_prints`
+- [x] A surface with no entered polylines states why instead of rendering an
+      empty axis —
+      `test_oracle_report.py::test_a_surface_without_polylines_states_why_instead_of_drawing`
+- [x] The vertical tail is drawn in its own frame and is never mirrored, whatever
+      `SurfaceInput.symmetric` says —
+      `test_oracle_report.py::test_the_vertical_tail_is_drawn_in_its_own_frame_and_never_mirrored`
+- [x] No planform figure marks a load, a safety factor or a force/moment unit —
+      `test_oracle_report.py::test_a_planform_states_no_load_and_no_safety_factor`
+- [x] A half-entered planform is refused by the precondition owner and stated,
+      not drawn, and the other surfaces still build —
+      `test_oracle_report.py::test_a_half_entered_planform_is_refused_rather_than_drawn`
 - [x] The document is built from the oracle projection, so no concept-mode field
       reaches it — `test_oracle_report.py::test_concept_fields_cannot_reach_the_document`
 - [x] The List of Figures carries titles, not whole captions —

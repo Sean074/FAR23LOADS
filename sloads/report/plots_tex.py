@@ -194,14 +194,23 @@ def figure_body_tex(figure: Figure) -> str:
     Static figures (the sign-convention diagrams) are dispatched **before** the
     ``data is None`` absence test: they carry no ``PlotData`` because they
     depend on no project data, and a convention can never be "not analysed".
+
+    The planform figures are dispatched by key rather than through
+    :data:`_EMITTERS` because their emitter takes no ``height`` — ``axis equal
+    image`` derives it — so it is not the ``PlotData -> str`` shape the table
+    holds. Both imports are local for the same reason: those modules read
+    ``escape`` and friends from here.
     """
     from .conventions_tex import STATIC_EMITTERS
+    from .planform_tex import PLANFORM_KEYS, planform_tex
 
     static = STATIC_EMITTERS.get(figure.key)
     if static is not None:
         return static()
     if figure.data is None:
         return ""
+    if figure.key in PLANFORM_KEYS:
+        return planform_tex(figure.data, key=figure.key)
     emit = _EMITTERS.get(figure.key, plot_tex)
     return emit(figure.data)
 

@@ -231,6 +231,7 @@ FAR23LOADS/
 │   │   ├── conventions_tex.py    # the report's "Axes and sign conventions" section, from CONVENTIONS.md's owners
 │   │   ├── latex.py              # ReportDocument → .tex (escaping, longtable, document control); THE table/figure/section emitters, shared by both reports
 │   │   ├── plots_tex.py          # pgfplots figures: V-n, weight/CG, speed–altitude
+│   │   ├── planform_tex.py       # the oracle report's §2.1 planform figures: surface + control surfaces, TikZ on equal axes (note 44, OR-45)
 │   │   ├── fingerprint.py        # the oracle report's provenance: anchors + the versioned fingerprint over the oracle-consumed projection (note 44, OR-21)
 │   │   ├── oracle_content.py     # the oracle technical report's content model: the derived section set and its four states (note 44, OR-2/OR-32)
 │   │   ├── oracle_latex.py       # the oracle report's furniture — title page, classification footer, DRAFT overlay — borrowing latex.py's emitters

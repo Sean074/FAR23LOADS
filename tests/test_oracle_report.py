@@ -31,6 +31,7 @@ from sloads.report import oracle_content as oc  # noqa: E402
 from sloads.report import oracle_sections as osec  # noqa: E402
 from sloads.report import oracle_latex as ol  # noqa: E402
 from sloads.report.latex import section_tex  # noqa: E402
+from sloads.report.plots_tex import figure_body_tex  # noqa: E402
 from sloads.report.render import format_value  # noqa: E402
 from sloads.units import UnitSystem  # noqa: E402
 
@@ -853,6 +854,17 @@ def _section_two(doc):
                 if s.title == oc.heading(group.number, group.title))
 
 
+def _envelope_section(doc):
+    """Section 2.4, found by the figures it owns rather than by "has figures".
+
+    2.1 grew planform figures in the same section group, so "the subsection with
+    figures" stopped naming exactly one subsection. Selecting on the key is what
+    the two subsections actually differ by.
+    """
+    return next(s for s in _flat([_section_two(doc)])
+                if any(f.key.startswith("vn_") for f in s.figures))
+
+
 def test_every_analysis_step_has_a_document_title_of_its_own():
     """The document never prints a workflow label.
 
@@ -989,8 +1001,7 @@ def test_reported_load_factors_are_identified_as_limit():
     which of limit and ultimate it is, at the point the number appears. Every
     V-n caption and the corner table carry it.
     """
-    section = _section_two(_doc())
-    envelope = next(s for s in _flat([section]) if s.figures)
+    envelope = _envelope_section(_doc())
     for figure in envelope.figures:
         assert "LIMIT" in figure.caption, figure.key
     for table in envelope.tables:
@@ -1034,7 +1045,7 @@ def test_the_envelope_figures_plot_only_produced_design_points():
         if "v_eas" in values and "load_factor_nz" in values:
             produced.add((values["v_eas"], values["load_factor_nz"]))
 
-    figures = [f for s in _flat([_section_two(_doc())]) for f in s.figures]
+    figures = _envelope_section(_doc()).figures
     assert figures, "section 2.4 produced no envelope figure"
     for figure in figures:
         for series in figure.data.series:
@@ -1055,7 +1066,7 @@ def test_one_envelope_figure_per_loading_and_altitude():
     result = registry.get("flight_envelope")(project)
     blocks = {osec._split_case(c.title)[0] for c in result.conditions}
     blocks.discard("")
-    figures = [f for s in _flat([_section_two(_doc())]) for f in s.figures]
+    figures = _envelope_section(_doc()).figures
     assert len(figures) == len(blocks)
     assert len({f.key for f in figures}) == len(figures), "duplicate figure keys"
     for block in blocks:
@@ -1242,3 +1253,183 @@ def test_a_tail_table_states_where_its_planform_came_from():
     assumed = any(resolve_tail_planform(project, c).assumed
                   for c in ("htail", "vtail"))
     assert warned is assumed
+
+
+# --------------------------------------------------------------------------- #
+# 2.1's planform figures (OR-45: "each carries ... its planform figures")
+# --------------------------------------------------------------------------- #
+def _geometry_section(doc):
+    """Section 2.1, which is the first subsection of the group that has tables."""
+    return next(s for s in _flat([_section_two(doc)]) if s.tables)
+
+
+def _planforms(doc):
+    """``{figure key: figure}`` for 2.1's planform figures."""
+    return {f.key: f for f in _geometry_section(doc).figures
+            if f.key.startswith("planform_")}
+
+
+def test_every_main_surface_has_a_planform_figure():
+    """One figure per spec row, and the spec is the three main surfaces.
+
+    Both directions. A surface added to ``_PLANFORM_FIGURES`` without a drawing,
+    or a drawing that appears without a spec row, is the same defect from either
+    side: the section's figures stop being derived from a declaration and start
+    being whatever the builder happened to append.
+    """
+    figures = _planforms(_doc())
+    expected = [key for key, _p, _t, _c, _f in osec._PLANFORM_FIGURES]
+    assert list(figures) == expected
+    assert expected == ["planform_wing", "planform_htail", "planform_vtail"]
+
+
+def test_a_planform_key_reaches_its_own_emitter():
+    """The registered keys and the minted keys are the same set.
+
+    This is a guard against a specific near-miss already in the file: the V-n
+    figures key themselves ``vn_<index>``, which never matches
+    ``plots_tex._EMITTERS["vn"]`` and silently falls through to the default
+    emitter. It is harmless there. A planform that fell through would lose
+    ``axis equal image`` and be drawn to the wrong shape -- a figure that is
+    wrong about geometry while looking entirely plausible.
+    """
+    from sloads.report.planform_tex import PLANFORM_KEYS
+
+    minted = {key for key, _p, _t, _c, _f in osec._PLANFORM_FIGURES}
+    assert minted == set(PLANFORM_KEYS)
+    for figure in _planforms(_doc()).values():
+        assert "axis equal image" in figure_body_tex(figure)
+
+
+def test_a_planform_has_a_fill_for_every_control_surface_it_draws():
+    """No spec may declare more children than there are fills to tell them apart.
+
+    ``_planform_figure`` zips the children against ``REGION_STYLES``, and a zip
+    stops at the shorter: a third control surface on one parent would be dropped
+    from the drawing without a word. The bound is asserted here rather than
+    guarded with a runtime branch, because the fix is to add a fill, not to
+    degrade the figure.
+    """
+    from sloads.report.planform_tex import REGION_STYLES
+
+    for _key, _parent, _title, children, _frame in osec._PLANFORM_FIGURES:
+        assert len(children) <= len(REGION_STYLES)
+
+
+def test_a_surface_without_polylines_states_why_instead_of_drawing():
+    """§3.4: an absent figure says why; it never renders an empty axis.
+
+    Asserted by taking the polylines away rather than by finding a project that
+    happens to lack them, so the state is reachable in the test whatever the
+    shipped examples grow.
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    project.geometry.surfaces = [s for s in project.geometry.surfaces
+                                 if s.name != "vtail"]
+    doc = oc.build_oracle_document(project, _spec())
+    figure = _planforms(doc)["planform_vtail"]
+    assert figure.data is None
+    assert "no vertical tail leading- and trailing-edge polylines" in \
+        figure.absent_reason
+    assert figure_body_tex(figure) == "", "an absent figure drew an axis anyway"
+
+
+def test_the_vertical_tail_is_drawn_in_its_own_frame_and_never_mirrored():
+    """The fin's second coordinate is a waterline, not a butt line.
+
+    ``examples/baron_58.project.json`` enters its fin with ``symmetric: true``,
+    so a figure that mirrored on that flag would draw a second fin hanging below
+    the airplane. The frame decides, and this is the project that proves the flag
+    does not.
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_TWIN))
+    assert project.geometry.by_name("vtail").symmetric, \
+        "the twin's fin no longer carries the flag this test exists for"
+
+    figure = _planforms(_doc(_TWIN))["planform_vtail"]
+    assert "Waterline" in figure.data.y_label
+    assert "Fuselage station" in figure.data.x_label
+    # One outline, not two, and every plotted waterline is above the datum.
+    assert len(figure.data.series) == 1
+    assert all(y >= 0 for series in figure.data.series for y in series.y)
+
+
+def test_a_planform_plots_only_entered_vertices():
+    """OR-6 for a drawing: every vertex is a point the project states.
+
+    The same assertion the envelope figures carry, for the same reason -- a
+    figure is the one place the report could put a number on the page without it
+    appearing in a table.
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    doc = oc.build_oracle_document(project, _spec())
+    for key, parent, _title, _children, frame in osec._PLANFORM_FIGURES:
+        surface = project.geometry.by_name(parent)
+        entered = set(surface.leading_edge) | set(surface.trailing_edge)
+        if frame == "butt":
+            entered |= {(x, -y) for x, y in entered}
+        plotted = {osec._oriented(frame, x, y) for x, y in entered}
+        for _label, x, y in _planforms(doc)[key].data.points:
+            assert (x, y) in plotted, f"{key} marks a vertex nobody entered"
+
+
+def test_a_planform_labels_a_region_with_the_area_its_table_prints():
+    """"A number is printed once" (§3.3), extended to the figures.
+
+    A figure that quoted an area from a second owner could disagree with the
+    table directly beneath it, and the reader would have no way to tell which
+    was the analysis.
+    """
+    section = _geometry_section(_doc())
+    cells = {cell for table in section.tables for row in table.rows
+             for cell in row}
+    labelled = 0
+    for figure in _planforms(_doc()).values():
+        for series in figure.data.series:
+            if ":" not in series.name:
+                continue          # a region whose total area is not tabulated
+            value = series.name.split(":", 1)[1].strip().split(" ")[0]
+            assert value in cells, f"{series.name} quotes an untabulated number"
+            labelled += 1
+    assert labelled >= 4, "no figure labelled an area; the check proved nothing"
+
+
+def test_a_planform_states_no_load_and_no_safety_factor():
+    """G-OR-4 for the figures: section 2 marks nothing ultimate.
+
+    The captions say so in words; this asserts it of the content, so a caption
+    edited into a claim the numbers do not support fails here.
+    """
+    for figure in _planforms(_doc()).values():
+        text = " ".join([figure.title, figure.caption]
+                        + [s.name for s in figure.data.series]
+                        + [figure.data.x_label, figure.data.y_label])
+        assert "-ULT" not in text
+        assert "SF=" not in text
+        for unit in ("lbs", "lb-in", "ft-lb", "N-ULT", "Nm"):
+            assert unit not in text
+
+
+def test_a_half_entered_planform_is_refused_rather_than_drawn():
+    """The figure asks the precondition owner, and says so instead of drawing.
+
+    A one-point edge is the state the oracle GUI's curve editor persists after
+    the first complete row (#71/PB-21), so it reaches a report built mid-entry.
+    ``derived_geometry.require_integrable_planform`` is the single owner of that
+    precondition and every other edge-polyline consumer asks it; a figure that
+    did not would draw a shape nobody entered, which is worse than a traceback
+    because it looks like an answer. G-OR-7 keeps the rest of the document
+    building around it.
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    wing = project.geometry.by_name("wing")
+    wing.leading_edge = wing.leading_edge[:1]
+
+    doc = oc.build_oracle_document(project, _spec())
+    figures = _planforms(doc)
+    assert figures["planform_wing"].data is None
+    assert "cannot be drawn as entered" in figures["planform_wing"].absent_reason
+    assert figure_body_tex(figures["planform_wing"]) == ""
+    # The other surfaces are untouched: one bad slice does not empty the section.
+    assert figures["planform_htail"].data is not None
+    assert figures["planform_vtail"].data is not None
