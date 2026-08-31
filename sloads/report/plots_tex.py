@@ -155,7 +155,7 @@ def plot_tex(data: PlotData, *, width: str = "0.86\\textwidth",
         lines.append("\\addplot[only marks, mark=diamond*, mark size=2pt, black] "
                      "coordinates {"
                      + _coordinates((x, y) for _l, x, y in data.points) + "};")
-        lines.append("\\addlegendentry{Design CG cases}")
+        lines.append("\\addlegendentry{" + escape(data.points_label) + "}")
         for label, x, y in data.points:
             lines.append(f"\\node[anchor=south, font=\\tiny] at "
                          f"(axis cs:{_num(x)},{_num(y)}) {{{escape(label)}}};")

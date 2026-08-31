@@ -145,6 +145,95 @@ contents.
   back to the same default, so a spec written before these fields existed still
   produces a complete document.
 
+## 3.3 Section 2: Loads Configuration
+
+Agreed 2026-08-30 (OR-8 iteration 2). Section 2 collects four analysis steps as
+subsections of one numbered section: 2.1 Geometry, 2.2 Weight and Mass
+Properties, 2.3 Structural Design Speeds, 2.4 Flight Envelope.
+
+- **Grouping is declarative.** `oracle_content.SECTION_GROUPS` names the members;
+  `section_plan` numbers the group at the top level and its members as `N.1`,
+  `N.2`, ... Every step **SHALL** still have exactly one home, so G-OR-2 is
+  unchanged. A group's members **SHALL** be contiguous in workflow order.
+- **The document names its own sections.** `oracle_content.DOCUMENT_TITLES`
+  maps step key to printed heading, and a heading **SHALL NOT** be taken from
+  `WorkflowStep.title`: that is the oracle GUI's navigation label, written for a
+  different audience, and renaming a nav item must not retitle a signed report.
+- **2.1 states every lifting and control surface, one table each** (owner,
+  2026-08-30): wing planform, horizontal tail and elevator, vertical tail and
+  rudder, aileron, flap, and one table per trim tab. Each carries the surface's
+  area, its planform figures, its tail arm stations where it has them, and its
+  control deflections.
+- **These are the first values read from the project rather than from a
+  `ModuleResult`.** No module returns a control-surface area or a throw, so the
+  only source is the definition the analysis was given. Echoing an input is not
+  recomputation — OR-6 forbids re-deriving a value, not reporting one — but the
+  section **SHALL** state that they are the configuration *as entered* and not
+  analysis output, **once**, in its prose. The rows are declared as data
+  (`oracle_sections._HTAIL_ROWS` and its siblings) so a renamed or dropped input
+  field fails the suite rather than silently emptying a row.
+- **A surface key SHALL NOT reach a heading.** `TabInput.surface` carries the
+  analysis's own `"htail"`; the document says "horizontal tail", for the same
+  reason `DOCUMENT_TITLES` exists one level up.
+- **2.2 states the weight and CG cases analysed**, one row each: case name,
+  role, weight, Xcg, Zcg and analysis. A note under it **SHALL** explain what
+  role and analysis govern — which load families the case is carried into, and
+  which of the landing analysis's three positional loadings a ground case
+  supplies. A flight case has no role and prints a dash, never a blank cell.
+  The analysis tags **SHALL** be printed in a declared order: `CgCase.analyses`
+  is a set, and set iteration order is not a document property the determinism
+  gates can rest on.
+- **Section 2 states no load in force or moment units.** Its load factors *are*
+  loads — n is a limit load factor — but they are dimensionless and LIMIT, so no
+  value in section 2 **SHALL** be scaled to ultimate or carry the `-ULT` marker,
+  and no table **SHALL** state a safety factor. Values still pass through
+  `report.render.to_ultimate` / `ultimate_units` rather than being formatted by
+  hand, so the section never decides what a load is.
+- **No table note SHALL claim that load factors are not loads** (owner,
+  2026-08-30). An earlier draft carried exactly that under every table; it is
+  wrong, and it was removed rather than reworded. Where a load factor is
+  reported it **SHALL** be identified as LIMIT — the V-n figure captions and the
+  corner table do this at point of use.
+- **2.3 pairs each value with its regulation's floor.** A design speed or limit
+  load factor **SHALL** be printed beside the FAR 23 minimum the module computed
+  for it. No compliance verdict is printed: whether a value complies is the
+  reviewer's finding, not the generator's.
+- **2.4 plots produced design points only.** The envelope boundary is the
+  polyline through the cases FLTLOADS returned, one figure per loading and
+  altitude block. `vn_diagram.build_vn_diagram` **SHALL NOT** be used: it is
+  documented as an approximate Structural-Speeds sanity plot with a
+  constant-CLmax stall boundary, which on the reference GA wing predicts n = 3.51
+  where the analysis computes 3.80 — an 8% disagreement that would put the
+  report's own design points off their own boundary. The caption **SHALL** say
+  that the boundary is curved between the plotted points. Gust cases are drawn
+  as marked points, never as boundary vertices.
+- **The case list belongs to the load-case section**, not here; 2.4 cross-refers
+  to it through the numbering owner and renders "a section this issue does not
+  carry" until it exists.
+- **A number is printed once.** Wing area is produced by the speeds module and
+  printed under 2.1 Geometry, where a reader looks for it; 2.3 omits it.
+- **A `far_reference` that is not a regulation is not cited as one.** The
+  configuration module sets it to `"configuration"`; a reference **SHALL** be
+  printed only when it begins with a part number.
+- **Excluded from 2.1**: the configuration module's *Longitudinal stability
+  (estimate)* and *Landing-gear geometry (estimate)* conditions, both of which
+  note themselves first-order with no oracle. A first-order estimate printed
+  beside oracle-locked geometry reads as carrying the same standing.
+
+### 3.3.1 The document is a function of the oracle projection
+
+`build_oracle_document` reduces its project through
+`field_registry.reduce_to_oracle_inputs` before running anything — the same
+reducer the fingerprint hashes through (OR-21, G-OR-13). A field the oracle GUI
+cannot set therefore moves neither the hash nor the document, as one guarantee
+with one owner.
+
+This is load-bearing, not belt-and-braces: section 2 quotes each module's own
+certification basis, and on a concept project the speeds module takes the Part 25
+Mach-margin route and says so in its note — so a concept-only field reached the
+printed page, and G-OR-6 caught it. Suppressing that one field would have left
+every future section free to find another.
+
 ## 4. Identity, signatures and DRAFT
 
 The title block carries report number, revision, issue date, issuing
@@ -254,6 +343,12 @@ without a guard is prose, not a gate).
 | 1. Introduction prose and limitations | 2026-08-30 | `test_oracle_report.py::test_the_default_introduction_claims_nothing_about_omitted_sections`, `::test_the_report_page_renders_every_block` |
 | Deselection is silent | 2026-08-30 | `test_oracle_report.py::test_a_deselected_section_is_omitted_entirely_and_numbering_closes_up` |
 | Analysis-body placeholders | 2026-08-30 | `test_oracle_report.py::test_every_result_producing_oracle_step_has_exactly_one_section`, `::test_the_gap_states_have_distinct_wording`, `::test_each_gap_state_renders_under_its_own_lead` |
+| 2. Loads Configuration (grouping, titles) | 2026-08-30 | `test_oracle_report.py::test_every_analysis_step_has_a_document_title_of_its_own`, `::test_every_group_member_is_a_step_and_the_members_are_contiguous` |
+| 2.1 Geometry and control surfaces | 2026-08-30 | `test_oracle_report.py::test_a_wing_area_is_stated_once_in_the_whole_section`, `::test_a_far_reference_that_is_not_a_regulation_is_not_printed_as_one`, `::test_every_control_surface_the_project_defines_gets_a_table`, `::test_the_echoed_surface_inputs_are_the_fields_the_project_still_has`, `::test_the_as_entered_statement_is_made_once` |
+| 2.2 Weight and Mass Properties | 2026-08-30 | `test_oracle_report.py::test_section_two_invents_no_number`, `::test_the_cg_case_table_states_every_case_and_its_role_and_analysis`, `::test_the_analysis_column_is_ordered_not_set_ordered` |
+| 2.3 Structural Design Speeds | 2026-08-30 | `test_oracle_report.py::test_the_paired_tables_pair_keys_the_modules_actually_produce` |
+| 2.4 Flight Envelope | 2026-08-30 | `test_oracle_report.py::test_the_envelope_boundary_order_is_the_analysis_order`, `::test_the_envelope_figures_plot_only_produced_design_points`, `::test_one_envelope_figure_per_loading_and_altitude` |
+| Section 2 marks nothing ultimate; load factors identified as LIMIT | 2026-08-30 | `test_oracle_report.py::test_section_two_marks_nothing_ultimate_and_states_no_safety_factor`, `::test_no_table_claims_a_load_factor_is_not_a_load`, `::test_reported_load_factors_are_identified_as_limit` |
 
 ## 8. Conformance
 
@@ -273,6 +368,24 @@ without a guard is prose, not a gate).
       `test_oracle_report_package.py`
 - [x] The manifest meets `SUMMARY_REPORT.md` §4.7 —
       `test_oracle_report_package.py`
+- [x] Every analysis step has a document title distinct from its workflow label —
+      `test_oracle_report.py`
+- [x] A section group's members are contiguous in workflow order and each has
+      exactly one home — `test_oracle_report.py`
+- [x] Every number section 2 prints comes from a `ModuleResult` or from the
+      project as entered; none is invented — `test_oracle_report.py`
+- [x] Section 2 marks nothing ultimate and states no safety factor —
+      `test_oracle_report.py`
+- [x] Every control surface the project defines has a table, and no surface key
+      reaches a heading — `test_oracle_report.py`
+- [x] The CG-case table explains role and analysis, and prints the analysis tags
+      in a declared order — `test_oracle_report.py`
+- [x] The envelope figures plot produced design points only, one figure per
+      block, in the analysis's own traversal order — `test_oracle_report.py`
+- [x] The document is built from the oracle projection, so no concept-mode field
+      reaches it — `test_oracle_report.py::test_concept_fields_cannot_reach_the_document`
+- [x] The List of Figures carries titles, not whole captions —
+      `test_oracle_report.py`
 - [x] Two builds of one recipe are byte-identical —
       `test_oracle_report_package.py`
 - [x] The build never rewrites the user's spec —

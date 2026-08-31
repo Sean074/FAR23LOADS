@@ -219,6 +219,16 @@ def _column_widths_pt(table: Table, char_pt: float, available: float) -> List[fl
     return [d * scale for d in desired]
 
 
+#: Row count up to which a table is set as one unbreakable float.
+#:
+#: Above it a table cannot fit a page whatever is done to it, and ``longtable``
+#: -- which is what handles that honestly -- takes over. The threshold is
+#: deliberately generous: nearly every table this report prints is a handful of
+#: rows, and the failure this prevents (a header and a rule stranded above no
+#: data) is worse than a table drifting to the next page.
+UNBREAKABLE_ROWS = 30
+
+
 def _table_size_and_spec(table: Table) -> Tuple[str, str]:
     r"""``(font-size command, column spec)`` for ``table``.
 
@@ -265,11 +275,21 @@ def table_tex(table: Table) -> str:
     ncols = len(table.columns)
     header = " & ".join(r"\textbf{" + escape(c) + "}" for c in table.columns) + r" \\"
     body = []
-    for row in table.rows:
+    last = len(table.rows) - 1
+    for index, row in enumerate(table.rows):
         cells = [_cell(table, table.columns[i] if i < ncols else "", str(row[i]))
                  for i in range(min(ncols, len(row)))]
         cells += [""] * (ncols - len(cells))
-        body.append(" & ".join(cells) + r" \\")
+        # ``\\*`` forbids a page break after this row. Applied to the first and
+        # the last, which is widow and orphan control for a table: without it
+        # longtable happily broke between the final row and ``\endlastfoot``,
+        # printing the repeated header and the bottom rule alone at the top of
+        # the next page with no data under them (Baron 58, section 2.3, GUI
+        # review 2026-08-30). Only those two rows are pinned, so a genuinely
+        # long table -- the case index, the coverage matrix -- still breaks
+        # wherever it needs to.
+        terminator = r" \\*" if index in (0, last) and last > 0 else r" \\"
+        body.append(" & ".join(cells) + terminator)
     if table.data_ref:
         # A packaged report ships the table's body as a generated fragment and
         # reads it here (OR-23). The document therefore cannot disagree with the
@@ -280,17 +300,41 @@ def table_tex(table: Table) -> str:
         # guarded to keep it that way.
         return r"\input{" + table.data_ref + "}"
     size, spec = _table_size_and_spec(table)
-    out = [
-        "{" + size,
-        r"\setlength{\sltablewidth}{\dimexpr\linewidth-%d\tabcolsep\relax}" % (2 * ncols),
-        r"\begin{longtable}{" + spec + "}",
-        r"\caption{" + escape(table.title) + r"}\\",
-        r"\toprule", header, r"\midrule", r"\endfirsthead",
-        r"\toprule", header, r"\midrule", r"\endhead",
-        r"\bottomrule", r"\endlastfoot",
-        "\n".join(body),
-        r"\end{longtable}}",
-    ]
+    width = r"\setlength{\sltablewidth}{\dimexpr\linewidth-%d\tabcolsep\relax}" % (2 * ncols)
+    if len(table.rows) <= UNBREAKABLE_ROWS:
+        # A table short enough to fit a page is set as one unbreakable float, so
+        # it moves whole rather than splitting. ``longtable`` split the Baron's
+        # five-row Mach table between its last row and ``\endlastfoot`` and put
+        # the repeated header and the bottom rule alone at the top of the next
+        # page, under no data (GUI review, 2026-08-30) -- a break that no
+        # inter-row penalty prevents, because the foot is not a row.
+        #
+        # ``[H]``, the same placement the figures use and for the same reason:
+        # a table belongs to the prose above it. ``[!ht]`` was tried first and
+        # floated four of the Baron's five section-2 tables onto a page of their
+        # own, away from the subsections that introduce them. ``[H]`` does not
+        # float -- when the table will not fit, the page breaks and the whole
+        # table moves, which is the behaviour wanted here.
+        out = [
+            r"\begin{table}[H]", r"\centering", "{" + size, width,
+            r"\caption{" + escape(table.title) + "}",
+            r"\begin{tabular}{" + spec + "}",
+            r"\toprule", header, r"\midrule",
+            "\n".join(body),
+            r"\bottomrule",
+            r"\end{tabular}}", r"\end{table}",
+        ]
+    else:
+        out = [
+            "{" + size, width,
+            r"\begin{longtable}{" + spec + "}",
+            r"\caption{" + escape(table.title) + r"}\\",
+            r"\toprule", header, r"\midrule", r"\endfirsthead",
+            r"\toprule", header, r"\midrule", r"\endhead",
+            r"\bottomrule", r"\endlastfoot",
+            "\n".join(body),
+            r"\end{longtable}}",
+        ]
     if table.note:
         out.append(r"{\footnotesize\textit{" + escape(table.note) + "}}")
     return "\n".join(out)
@@ -308,8 +352,12 @@ def figure_tex(figure: Figure) -> str:
     # ``[H]`` (the ``float`` package), not ``[htbp]``: each figure is followed by
     # its own corner-point table (§4.3), and a float that drifts three pages away
     # from the numbers it belongs to breaks that pairing.
+    # The optional argument is what the List of Figures carries. Without it a
+    # caption that explains the figure -- which a caption in a report a reviewer
+    # signs has to -- is repeated in full in the front matter, once per figure,
+    # and the list stops being a list. The title alone is the entry.
     parts = [r"\begin{figure}[H]", r"\centering", body,
-             r"\caption{" + escape(figure.title)
+             r"\caption[" + escape(figure.title) + "]{" + escape(figure.title)
              + (": " + escape(figure.caption) if figure.caption else "") + "}",
              r"\end{figure}"]
     return "\n".join(parts)

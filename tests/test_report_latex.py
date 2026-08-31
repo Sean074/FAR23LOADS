@@ -251,3 +251,66 @@ if __name__ == "__main__":  # zero-dependency self-runner (see PROGRAM_SPEC)
             print(f"FAIL {name}")
             traceback.print_exc()
     raise SystemExit(1 if failures else 0)
+
+
+def test_a_short_table_is_one_unbreakable_float_and_a_long_one_is_not():
+    r"""A table that fits a page must move whole, never split.
+
+    ``longtable`` split the Baron's five-row Mach table between its last row and
+    ``\endlastfoot``, printing the repeated header and the bottom rule alone at
+    the top of the next page with no data under them (GUI review, 2026-08-30).
+    No inter-row penalty prevents that break, because the foot is not a row.
+
+    Both halves are asserted. A table too long for any page still has to break,
+    and turning *every* table into a float would put an unsplittable
+    hundred-row case index somewhere no page can hold it.
+    """
+    from sloads.report.content import Table
+    from sloads.report.latex import UNBREAKABLE_ROWS, table_tex
+
+    def _table(n):
+        return Table(title="T", columns=["a", "b"],
+                     rows=[[str(i), "x"] for i in range(n)])
+
+    short = table_tex(_table(UNBREAKABLE_ROWS))
+    assert r"\begin{table}[H]" in short and r"\begin{tabular}" in short
+    assert "longtable" not in short, "a page-sized table was left splittable"
+
+    long = table_tex(_table(UNBREAKABLE_ROWS + 1))
+    assert r"\begin{longtable}" in long
+    assert r"\begin{table}[H]" not in long, (
+        "a table too long for a page cannot be an unbreakable float")
+
+
+def test_a_figure_caption_carries_a_short_form_for_the_list_of_figures():
+    r"""``\caption[short]{long}``: the list gets the title, the page gets the
+    explanation.
+
+    Without it the front matter repeated every word of every caption -- and a
+    caption in a report a reviewer signs has to explain the figure, so the
+    captions are long by design.
+    """
+    from sloads.report.content import Figure, PlotData, Series
+    from sloads.report.latex import figure_tex
+
+    figure = Figure(key="vn", title="A title",
+                    data=PlotData("x", "y", [Series("s", [0.0, 1.0], [0.0, 1.0])]),
+                    caption="A long explanatory sentence.")
+    tex = figure_tex(figure)
+    assert r"\caption[A title]{A title: A long explanatory sentence.}" in tex
+
+
+def test_the_marker_legend_is_named_by_the_figure_not_by_the_emitter():
+    """``PlotData.points_label`` owns it.
+
+    Hard-coded in the emitter, the oracle report's gust design points were
+    labelled "Design CG cases" -- a legend naming a different figure entirely.
+    """
+    from sloads.report.content import PlotData
+    from sloads.report.plots_tex import plot_tex
+
+    data = PlotData("x", "y", points=[("p", 1.0, 2.0)],
+                    points_label="Gust design points")
+    assert r"\addlegendentry{Gust design points}" in plot_tex(data)
+    # The default is preserved, so the summary report's figure is unchanged.
+    assert PlotData("x", "y").points_label == "Design CG cases"

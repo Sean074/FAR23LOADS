@@ -170,6 +170,14 @@ class PlotData:
     points: List[Tuple[str, float, float]] = field(default_factory=list)
     #: Labelled vertical reference lines (e.g. the fwd/aft CG limits).
     vlines: List[Tuple[str, float]] = field(default_factory=list)
+    #: The legend entry :attr:`points` are drawn under.
+    #:
+    #: Defaulted to the weight/CG figure's wording, which was the only user when
+    #: the marker series was written and which had it hard-coded in the emitter.
+    #: The oracle report's V-n diagrams mark gust design points with the same
+    #: mechanism, and inheriting a legend that named somebody else's figure was
+    #: how that showed up (GUI review, 2026-08-30).
+    points_label: str = "Design CG cases"
 
 
 @dataclass(frozen=True)

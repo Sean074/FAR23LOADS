@@ -28,7 +28,10 @@ from sloads.field_registry import reduce_to_oracle_inputs  # noqa: E402
 from sloads.models import Project  # noqa: E402
 from sloads.models.report import ReportSpec, SignatureRow  # noqa: E402
 from sloads.report import oracle_content as oc  # noqa: E402
+from sloads.report import oracle_sections as osec  # noqa: E402
 from sloads.report import oracle_latex as ol  # noqa: E402
+from sloads.report.latex import section_tex  # noqa: E402
+from sloads.report.render import format_value  # noqa: E402
 from sloads.units import UnitSystem  # noqa: E402
 
 _EXAMPLES = os.path.join(
@@ -38,7 +41,8 @@ _TWIN = os.path.join(_EXAMPLES, "baron_58.project.json")
 _CONCEPT = os.path.join(_EXAMPLES, "concept_regional_jet.project.json")
 
 _SOURCES = ("sloads/report/oracle_content.py", "sloads/report/oracle_latex.py",
-            "sloads/report/oracle_package.py")
+            "sloads/report/oracle_package.py",
+            "sloads/report/oracle_sections.py")
 
 
 def _spec(**kwargs) -> ReportSpec:
@@ -51,6 +55,20 @@ def _spec(**kwargs) -> ReportSpec:
 def _doc(path=_GA, spec=None, **kwargs):
     return oc.build_oracle_document(io.load_project(path), spec or _spec(),
                                     **kwargs)
+
+
+def _flat(sections):
+    """Every section of the document, subsections in place, depth-first.
+
+    The document is a tree from iteration 2 on (section 2 groups four steps as
+    subsections), while the plan stays a flat list of rows. Every test that pairs
+    them flattens through here rather than each growing its own walk.
+    """
+    out = []
+    for section in sections:
+        out.append(section)
+        out.extend(_flat(section.subsections))
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -90,9 +108,27 @@ def test_section_numbers_come_from_the_owner_not_from_literals():
     so a document that grew a front section renumbers rather than misreferencing.
     """
     plan = oc.section_plan(io.load_project(_GA), _spec())
-    assert [e.number for e in plan] == [str(i + 1) for i in range(len(plan))]
+    numbers = [e.number for e in plan if e.number]
+
+    # Top-level numbers run 1..N with no hole...
+    top = [n for n in numbers if "." not in n]
+    assert top == [str(i + 1) for i in range(len(top))]
     first_body = plan[len(oc.FRONT_SECTIONS)]
     assert first_body.number == str(len(oc.FRONT_SECTIONS) + 1)
+
+    # ...and every subsection is its own parent's next child, in order. Asserted
+    # against `subsection_number` rather than against "2.1", so the scheme has
+    # one owner here as well as in the code.
+    seen = {}
+    for number in numbers:
+        parent, _, _child = number.rpartition(".")
+        if not parent:
+            continue
+        index = seen.get(parent, 0)
+        assert number == oc.subsection_number(parent, index), (
+            f"{number} is not child {index} of {parent}")
+        seen[parent] = index + 1
+        assert parent in numbers, f"{number} has no parent section"
 
 
 # --------------------------------------------------------------------------- #
@@ -193,8 +229,8 @@ def test_among_printed_sections_not_implemented_outranks_absence():
     """A section the tool cannot build must not claim the reader's inputs are
     missing. Once every section is implemented this ordering stops mattering,
     which is the point at which ABSENT is the only one left."""
-    step = oc.analysis_steps()[1]
-    assert step.requires, "pick a step whose inputs can be missing"
+    step = next(s for s in oc.analysis_steps()
+                if s.requires and s.key not in oc.IMPLEMENTED)
     empty = Project(name="empty")
     unbuilt = oc.section_plan(empty, _spec())
     assert next(e for e in unbuilt if e.step_key == step.key).state \
@@ -222,18 +258,26 @@ def test_a_deselected_section_is_omitted_entirely_and_numbering_closes_up():
     step = oc.analysis_steps()[0]
     doc = _doc(spec=_spec(excluded_steps=(step.key,)),
                implemented=frozenset({step.key}))
-    titles = [section.title for section in doc.sections]
-    assert not any(step.title in title for title in titles), (
+    title = oc.document_title(step)
+    titles = [section.title for section in _flat(doc.sections)]
+    assert not any(title in heading for heading in titles), (
         "a deselected section was printed")
     tex = ol.render_oracle_document(doc)
-    assert step.title not in tex
     assert "excluded by user selection" not in tex.lower()
 
-    # The printed numbers run 1..N with no hole, and the plan agrees with them.
-    numbers = [int(e.number) for e in doc.plan if e.number]
-    assert numbers == list(range(1, len(numbers) + 1)), (
+    # The printed numbers close up at both levels: top-level 1..N with no hole,
+    # and each group's surviving members renumbered from .1 -- the deselected
+    # step here is a group member, so it is the sibling renumbering that bites.
+    numbers = [e.number for e in doc.plan if e.number]
+    top = [int(n) for n in numbers if "." not in n]
+    assert top == list(range(1, len(top) + 1)), (
         f"deselection left a hole in the section numbering: {numbers}")
-    assert len(doc.sections) == len(numbers)
+    for parent in top:
+        children = [n for n in numbers if n.startswith(f"{parent}.")]
+        assert children == [oc.subsection_number(str(parent), i)
+                            for i in range(len(children))], (
+            f"deselection left a hole under section {parent}: {children}")
+    assert len(_flat(doc.sections)) == len(numbers)
     # The excluded step keeps its plan row, so the page's preflight can still
     # show the author that their choice registered.
     excluded = [e for e in doc.plan if e.step_key == step.key]
@@ -247,7 +291,7 @@ def test_a_deselected_section_is_omitted_entirely_and_numbering_closes_up():
 def test_a_half_filled_project_yields_a_complete_document():
     """No traceback, and no silently missing section."""
     doc = oc.build_oracle_document(Project(name="half"), _spec())
-    assert len(doc.sections) == len(doc.plan)
+    assert len(_flat(doc.sections)) == len([e for e in doc.plan if e.number])
     body = [e for e in doc.plan if e.step_key]
     assert len(body) == len([s for s in wf.oracle_steps() if s.module])
     assert all(e.reason for e in body), "a gap with no reason is a silent gap"
@@ -454,10 +498,15 @@ def test_the_plan_and_the_sections_agree():
     """The preflight the page shows and the document it writes are built from one
     object, so they cannot describe different documents."""
     doc = _doc()
-    assert len(doc.sections) == len(doc.plan)
-    for entry, section in zip(doc.plan, doc.sections):
-        assert section.title.startswith(entry.number + ".")
-        assert bool(section.absent_reason) is (not entry.included)
+    printed = [e for e in doc.plan if e.number]
+    sections = _flat(doc.sections)
+    assert len(sections) == len(printed)
+    for entry, section in zip(printed, sections):
+        assert section.title == oc.heading(entry.number, entry.title)
+        # A group row heads its members and has no state of its own; every other
+        # printed row states a reason exactly when it is not included.
+        if not entry.is_group:
+            assert bool(section.absent_reason) is (not entry.included)
 
 
 def test_the_spec_is_carried_whole_and_not_copied_field_by_field():
@@ -566,7 +615,11 @@ def test_an_empty_front_matter_list_says_so():
     has one: two kinds of front matter treated differently reads as an
     oversight.
     """
-    tex = ol.render_oracle_document(_doc())
+    # A document with no builder implemented: every section is a stated
+    # placeholder, so both lists are genuinely empty and must say so. Built this
+    # way rather than from an empty project, so the emptiness under test is the
+    # generator's and not the reader's missing inputs.
+    tex = ol.render_oracle_document(_doc(implemented=frozenset()))
     for title, noun in (("List of Figures", "figures"), ("List of Tables", "tables")):
         assert f"This issue contains no {noun}." in tex
         assert r"\addcontentsline{toc}{section}{" + title + "}" in tex
@@ -578,7 +631,7 @@ def test_a_populated_front_matter_list_does_not_claim_to_be_empty():
     opposite of what the reader is looking at."""
     from sloads.report.content import Section, Table
 
-    doc = _doc()
+    doc = _doc(implemented=frozenset())
     nested = Section("Nested", tables=[Table(title="A table", columns=["x"],
                                              rows=[["1"]])])
     doc.sections[0].subsections.append(nested)
@@ -788,3 +841,404 @@ def test_every_spec_widget_is_retired_when_a_package_is_opened():
                    if key not in literals
                    and not any(key.startswith(p + "_") for p in prefixes))
     assert not stale, f"retired widgets that the page no longer has: {stale}"
+
+
+# --------------------------------------------------------------------------- #
+# Section 2 -- Loads Configuration (OR-8 iteration 2, ORACLE_REPORT.md 3.3)
+# --------------------------------------------------------------------------- #
+def _section_two(doc):
+    """The Loads Configuration group section of ``doc``."""
+    group = next(e for e in doc.plan if e.is_group)
+    return next(s for s in _flat(doc.sections)
+                if s.title == oc.heading(group.number, group.title))
+
+
+def test_every_analysis_step_has_a_document_title_of_its_own():
+    """The document never prints a workflow label.
+
+    Both directions, so a new module-backed step fails the suite until somebody
+    chooses what the *report* calls it. The inequality half is the one that
+    matters: a title copied from the nav satisfies the mapping while leaving the
+    document coupled to a name that exists for a different audience, and renaming
+    the nav item would then retitle a report that has already been signed.
+    """
+    keys = {step.key for step in oc.analysis_steps()}
+    assert set(oc.DOCUMENT_TITLES) == keys, (
+        "DOCUMENT_TITLES and the analysis steps disagree: "
+        f"{set(oc.DOCUMENT_TITLES) ^ keys}")
+    assert all(title.strip() for title in oc.DOCUMENT_TITLES.values())
+
+
+def test_every_group_member_is_a_step_and_the_members_are_contiguous():
+    """A group collects a *run* of the workflow, not a scatter of it.
+
+    ``section_plan`` slices its members out of the step list, so a group whose
+    members were not adjacent would silently collect whatever sat between them.
+    """
+    order = [step.key for step in oc.analysis_steps()]
+    for group in oc.SECTION_GROUPS:
+        assert group.members, f"{group.key} groups nothing"
+        positions = [order.index(key) for key in group.members]
+        assert positions == sorted(positions), f"{group.key} is out of order"
+        assert positions == list(range(positions[0], positions[0] + len(positions))), (
+            f"{group.key}'s members are not contiguous in workflow order")
+        assert group.key in oc.GROUP_PROSE, f"{group.key} heads nothing"
+
+
+def test_section_two_invents_no_number():
+    """G-OR-3 through the content model: every printed number has a source.
+
+    Two legitimate sources, and no third. Most of section 2 reproduces a
+    ``ModuleResult``; the empennage and control-surface tables and the CG-case
+    table echo the project **as entered**, because no module returns a
+    control-surface area or a throw. Echoing an input is not recomputation --
+    OR-6 forbids re-deriving a value, not reporting one -- but a number that is
+    neither is invented, and this is what says so.
+
+    Checked against the modules run independently of the report and against the
+    project itself, so a builder that quietly rescaled, re-rounded or derived a
+    value shows up here rather than in a reviewer's comparison against the
+    analysis pages.
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    doc = _doc()
+    printed = {cell for section in _flat([_section_two(doc)])
+               for table in section.tables for row in table.rows
+               for cell in row}
+
+    sourced = set()
+    for step in oc.analysis_steps():
+        if step.key not in oc.IMPLEMENTED:
+            continue
+        for condition in registry.get(step.module)(project).conditions:
+            for value in condition.values:
+                sourced.add(format_value(value.value))
+
+    empennage = project.geometry.empennage
+    echoed = ((empennage.htail, osec._HTAIL_ROWS),
+              (empennage.vtail, osec._VTAIL_ROWS),
+              (project.aileron_loads, osec._AILERON_ROWS),
+              (project.flap_loads, osec._FLAP_ROWS))
+    echoed += tuple((tab, osec._TAB_ROWS) for tab in project.tab_loads.tabs)
+    for source, rows in echoed:
+        for attr, _label, _units in rows:
+            value = getattr(source, attr, None)
+            if value is not None:
+                sourced.add(format_value(value))
+    for case in project.weight.cg_cases:
+        sourced.update(format_value(v)
+                       for v in (case.weight_lb, case.xcg, case.zcg))
+
+    numeric = {cell for cell in printed
+               if cell and (cell[0].isdigit() or cell[0] == "-")
+               and cell != "--"}
+    unaccounted = numeric - sourced
+    assert not unaccounted, (
+        f"section 2 prints numbers from no source: {sorted(unaccounted)}")
+
+
+def test_section_two_marks_nothing_ultimate_and_states_no_safety_factor():
+    """G-OR-4's other half: a non-load must not be scaled or marked.
+
+    Section 2 states no load in force or moment units, so the whole section is
+    checked rather than a chosen sample. Its load factors *are* loads -- n is a
+    limit load factor -- but they are dimensionless and LIMIT, so the boundary
+    passes them through unscaled and unmarked. The modules stamp
+    ``safety_factor=1.5`` on these conditions anyway (note 44 OR-14, frozen code,
+    filed not fixed), which is exactly the claim that must not reach the page.
+    """
+    doc = _doc()
+    # The **cells**, not the rendered section: the lead prose legitimately uses
+    # the string "-ULT" to explain why no table carries it, and a guard that read
+    # the whole section failed on the sentence written to prevent the confusion
+    # it was guarding against.
+    for sub in _flat([_section_two(doc)]):
+        for table in sub.tables:
+            assert "SF" not in table.columns
+            for row in table.rows:
+                for cell in row:
+                    assert "-ULT" not in cell, (
+                        f"section 2 marked a non-load as ultimate: {row}")
+            assert "SF=" not in (table.note or "")
+
+
+def test_no_table_claims_a_load_factor_is_not_a_load():
+    """A load factor **is** a load: n is a limit load factor.
+
+    An earlier draft carried a note under every section 2 table reading
+    "geometry, mass, speeds and load factors are not loads". That is wrong, and
+    the owner had it removed outright rather than reworded (2026-08-30). The
+    marker guarantee it was trying to explain is asserted against the cells in
+    ``test_section_two_marks_nothing_ultimate_and_states_no_safety_factor``,
+    which is where it belongs -- an explanation is not a guard.
+    """
+    doc = _doc()
+    prose = [p for s in _flat([_section_two(doc)]) for p in s.body]
+    notes = [t.note or "" for s in _flat([_section_two(doc)]) for t in s.tables]
+    for text in prose + notes:
+        lowered = text.lower()
+        assert "are not loads" not in lowered, text
+        assert "is not a load" not in lowered, text
+        assert "none of them is a load" not in lowered, text
+
+
+def test_reported_load_factors_are_identified_as_limit():
+    """Where section 2 reports a load factor, it says the factor is LIMIT.
+
+    The document may not say a load factor is not a load; what it must say is
+    which of limit and ultimate it is, at the point the number appears. Every
+    V-n caption and the corner table carry it.
+    """
+    section = _section_two(_doc())
+    envelope = next(s for s in _flat([section]) if s.figures)
+    for figure in envelope.figures:
+        assert "LIMIT" in figure.caption, figure.key
+    for table in envelope.tables:
+        assert "LIMIT" in (table.note or ""), table.title
+
+
+def test_the_envelope_boundary_order_is_the_analysis_order():
+    """The declared traversal cannot drift from the module's own case order.
+
+    ``_BOUNDARY_CASES`` is a hand-written closed traversal of the envelope. If
+    FLTLOADS ever emits its corners in a different order, joining them in this
+    one would draw a boundary that crosses itself -- visibly wrong, but only to
+    somebody looking at the figure.
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    result = registry.get("flight_envelope")(project)
+    emitted = [osec._split_case(c.title) for c in result.conditions]
+    emitted = [(block, case) for block, case in emitted if block]
+    first = emitted[0][0]
+    order = [case for block, case in emitted if block == first]
+    boundary = [case for case in order if case in osec._BOUNDARY_CASES]
+    assert boundary == list(osec._BOUNDARY_CASES), (
+        "the declared envelope traversal disagrees with the analysis: "
+        f"{boundary}")
+    gusts = [case for case in order if case in osec._GUST_CASES]
+    assert sorted(gusts) == sorted(osec._GUST_CASES)
+
+
+def test_the_envelope_figures_plot_only_produced_design_points():
+    """Every plotted vertex is a case the analysis returned (OR-6).
+
+    The figure is the one place the report could invent a number without it
+    appearing in a table, so the coordinates are checked against the cases
+    themselves rather than against the corner table built from them.
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    result = registry.get("flight_envelope")(project)
+    produced = set()
+    for condition in result.conditions:
+        values = {v.key: v.value for v in condition.values}
+        if "v_eas" in values and "load_factor_nz" in values:
+            produced.add((values["v_eas"], values["load_factor_nz"]))
+
+    figures = [f for s in _flat([_section_two(_doc())]) for f in s.figures]
+    assert figures, "section 2.4 produced no envelope figure"
+    for figure in figures:
+        for series in figure.data.series:
+            for point in zip(series.x, series.y):
+                assert point in produced, f"{figure.key} plots an invented point"
+        for _label, x, y in figure.data.points:
+            assert (x, y) in produced
+
+
+def test_one_envelope_figure_per_loading_and_altitude():
+    """Every block analysed is shown, and none is shown twice.
+
+    The alternative considered was one overlaid diagram; it was rejected because
+    a block that governs one component must not be the one a reader cannot see
+    (owner's decision, 2026-08-30).
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    result = registry.get("flight_envelope")(project)
+    blocks = {osec._split_case(c.title)[0] for c in result.conditions}
+    blocks.discard("")
+    figures = [f for s in _flat([_section_two(_doc())]) for f in s.figures]
+    assert len(figures) == len(blocks)
+    assert len({f.key for f in figures}) == len(figures), "duplicate figure keys"
+    for block in blocks:
+        assert any(block in f.title for f in figures), f"{block} has no figure"
+
+
+def test_the_paired_tables_pair_keys_the_modules_actually_produce():
+    """A renamed result key must fail here, not empty a compliance column.
+
+    The as-computed-beside-the-minimum pairing is the whole point of section
+    2.3; a pair whose minimum key had gone stale would print a blank cell that
+    reads as "no minimum applies".
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    keys = {v.key
+            for condition in registry.get("structural_speeds")(project).conditions
+            for v in condition.values}
+    for _name, computed, minimum in osec._FACTOR_PAIRS + osec._SPEED_PAIRS:
+        assert computed in keys, f"{computed} is not produced any more"
+        assert minimum in keys, f"{minimum} is not produced any more"
+
+
+def test_a_wing_area_is_stated_once_in_the_whole_section():
+    """No number appears in two tables.
+
+    Wing area is produced by the speeds module and printed under geometry, where
+    a reader looks for it. It is skipped in 2.3 for that reason, and this is what
+    stops the skip being quietly dropped.
+    """
+    doc = _doc()
+    labels = [row[0] for section in _flat([_section_two(doc)])
+              for table in section.tables for row in table.rows]
+    assert labels.count("Wing area S") == 1
+
+
+def test_a_far_reference_that_is_not_a_regulation_is_not_printed_as_one():
+    """The configuration module's reference is ``"configuration"``.
+
+    Printed through the normal path it produced "Certification basis: 14 CFR
+    configuration" (GUI review, 2026-08-30). A citation a reader cannot look up
+    is worse than none.
+    """
+    doc = _doc()
+    prose = "\n".join(p for s in _flat([_section_two(doc)]) for p in s.body)
+    assert "14 CFR configuration" not in prose
+    assert "14 CFR 23.335" in prose, "a real citation was dropped with it"
+
+
+def test_a_figure_lists_its_title_not_its_whole_caption():
+    """The List of Figures is a list.
+
+    Captions in a report a reviewer signs have to explain the figure, and without
+    a short form every word of every caption was repeated in the front matter --
+    four near-identical paragraphs for four envelopes (GUI review, 2026-08-30).
+    """
+    tex = ol.render_oracle_document(_doc())
+    assert r"\caption[Flight envelope" in tex, "no short caption for the list"
+    # The short form carries the title alone: the explanatory sentence appears
+    # only inside the braces that follow it, never in the bracketed entry.
+    for start in (i for i in range(len(tex)) if tex.startswith(r"\caption[", i)):
+        entry = tex[start + len(r"\caption["):tex.index("]{", start)]
+        assert "boundary is drawn" not in entry, (
+            f"the list of figures carries a whole caption: {entry[:60]}...")
+
+
+def test_the_echoed_surface_inputs_are_the_fields_the_project_still_has():
+    """A renamed or dropped input field fails here, not silently in the PDF.
+
+    Section 2.1's empennage and control-surface tables are the first values the
+    report reads straight from the project rather than from a ``ModuleResult``.
+    Nothing computes them, so nothing else would notice them going missing --
+    the row would simply stop appearing, and a reader has no way to know a
+    surface definition was dropped from a document that never claimed it.
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    empennage = project.geometry.empennage
+    sources = (
+        (empennage.htail, osec._HTAIL_ROWS),
+        (empennage.vtail, osec._VTAIL_ROWS),
+        (project.aileron_loads, osec._AILERON_ROWS),
+        (project.flap_loads, osec._FLAP_ROWS),
+        (project.tab_loads.tabs[0], osec._TAB_ROWS),
+    )
+    for source, rows in sources:
+        assert rows, "a surface with no declared rows prints nothing"
+        for attr, label, _units in rows:
+            assert hasattr(source, attr), (
+                f"{type(source).__name__} no longer has {attr!r}")
+            assert label.strip()
+
+
+def test_every_control_surface_the_project_defines_gets_a_table():
+    """Both tails, the aileron, the flap and each trim tab are stated."""
+    section = _section_two(_doc())
+    geometry = next(s for s in _flat([section]) if s.tables)
+    titles = " | ".join(t.title for t in geometry.tables)
+    for expected in ("Wing planform", "Horizontal tail", "Vertical tail",
+                     "Aileron", "Flap", "Trim tab"):
+        assert expected in titles, f"{expected} has no table: {titles}"
+    # The tab names its surface in words, not by the analysis's own key.
+    assert "htail" not in titles, "a surface key leaked into a table title"
+
+
+def test_the_as_entered_statement_is_made_once():
+    """Six surface tables each carrying it would read as boilerplate.
+
+    Same finding as the units note earlier in this review: a note repeated under
+    every table is one a reader learns to skip.
+    """
+    section = _section_two(_doc())
+    geometry = next(s for s in _flat([section]) if s.tables)
+    fragment = "as entered"
+    assert sum(fragment in p for p in geometry.body) == 1
+    for table in geometry.tables:
+        assert fragment not in (table.note or ""), table.title
+
+
+def test_the_cg_case_table_states_every_case_and_its_role_and_analysis():
+    """Section 2.2 lists the weight and CG cases the analysis was given."""
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    section = _section_two(_doc())
+    weights = [s for s in _flat([section]) if s.tables][1]
+    table = next(t for t in weights.tables if "centre-of-gravity cases" in t.title)
+
+    assert len(table.rows) == len(project.weight.cg_cases)
+    for row, case in zip(table.rows, project.weight.cg_cases):
+        assert row[0] == case.name
+        # A flight case has no role, and says so rather than showing a blank
+        # cell that reads as a value somebody forgot to enter.
+        assert row[1] != ""
+        if case.role is None:
+            assert row[1] == "--"
+        else:
+            assert case.role.value.replace("_", " ") == row[1]
+        for kind in case.analyses:
+            assert kind.value in row[5]
+    assert "ANALYSIS is" in (table.note or "")
+    assert "ROLE applies to ground cases only" in (table.note or "")
+
+
+def test_the_analysis_column_is_ordered_not_set_ordered():
+    """``CgCase.analyses`` is a set, and set order is not a document property.
+
+    Printing it directly would put the byte-determinism gates at the mercy of
+    hash ordering -- which is exactly the kind of defect that passes locally and
+    fails on another interpreter.
+    """
+    from sloads.models.enums import AnalysisKind
+
+    assert set(osec._ANALYSIS_ORDER) == set(AnalysisKind), (
+        "an AnalysisKind was added without a place in the printed order")
+    both = [k for k in osec._ANALYSIS_ORDER
+            if k in {AnalysisKind.GROUND, AnalysisKind.FLIGHT}]
+    assert both == list(osec._ANALYSIS_ORDER)
+
+
+def test_a_tail_table_states_where_its_planform_came_from():
+    """Asked of the owner, never asserted.
+
+    The empennage carries oracle-authoritative **scalars** (area, span) because
+    that is all SELECT, TAILDIST and BALLOADS need; a spanwise distribution
+    needs polylines, which a project may or may not enter (plan 09, T-1). A
+    first draft of section 2.1 told every reader both tails were rectangles,
+    which would be false for a project that had entered them -- the document
+    stating an assumption the analysis did not make.
+    """
+    from sloads.tail_geometry import resolve_tail_planform
+
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    section = _section_two(_doc())
+    geometry = next(s for s in _flat([section]) if s.tables)
+
+    for component, title in (("htail", "Horizontal tail"),
+                             ("vtail", "Vertical tail")):
+        planform = resolve_tail_planform(project, component)
+        table = next(t for t in geometry.tables if t.title.startswith(title))
+        basis = next(r for r in table.rows if r[0] == "Planform basis")
+        assert basis[1] == osec._PLANFORM_BASIS[planform.assumed]
+        # A derived planform says so in a word a reader cannot miss.
+        assert ("DERIVED" in basis[1]) is planform.assumed
+
+    # The prose warns about the rectangle only where one is actually used.
+    warned = "treated as a rectangle" in " ".join(geometry.body)
+    assumed = any(resolve_tail_planform(project, c).assumed
+                  for c in ("htail", "vtail"))
+    assert warned is assumed

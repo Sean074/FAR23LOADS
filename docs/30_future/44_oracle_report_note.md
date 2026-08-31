@@ -674,3 +674,74 @@ package directory.
 are written in iteration 1 but have no `data/` files to act on until the first
 analysis section. Their tests say so in the docstring: a gate that passes because
 there is nothing to check must not read as a gate that passed.
+
+## 10. Iteration 2 — Section 2, Loads Configuration (OR-38 … OR-44)
+
+*Agreed with the owner in session, 2026-08-30, during the live GUI review. Content
+spec per OR-8; SHALL list in `ORACLE_REPORT.md` §3.3; decisions on the same
+footing as OR-1 … OR-37.*
+
+| # | Decision | Amends |
+|---|---|---|
+| **OR-38** | **Section 2 groups four steps as subsections** — geometry, weight and mass properties, structural design speeds, flight envelope — under one numbered section, "Loads Configuration". Subsections rather than a flat merge, so every step keeps exactly one home and **G-OR-2 is unchanged**. Grouping is declared as data (`SECTION_GROUPS`), and a group's members must be contiguous in workflow order. | OR-2 (extends) |
+| **OR-39** | **The document owns its own section titles** (`DOCUMENT_TITLES`). A heading is never `WorkflowStep.title`: the workflow is our machinery, the reader of the PDF has no concept of it, and a nav rename must not retitle a signed report. Both directions guarded. | new |
+| **OR-40** | **The V-n envelope is the polyline through FLTLOADS' produced design points**, one figure per loading/altitude block. `vn_diagram.build_vn_diagram` is not used: its own docstring calls it an approximate Structural-Speeds sanity plot whose stall boundary assumes constant CLmax. On the reference GA wing it predicts n = 3.51 at the STALL +N corner where the analysis computes 3.80 — **8% low**, because the real boundary follows CL rising 1.395 → 1.512 with α and the compressibility correction. Plotting it would put the report's own design points visibly off their own boundary. | OR-6 (applies) |
+| **OR-41** | **The SELECT case list belongs to the load-case section**, not to 2.4. Section 2.4 carries the figures and the corner load factors; the case table is the next iteration. Same source, different projection — no number is tabulated twice. | new |
+| **OR-42** | **Tables and plots render inline for now.** OR-23's `data/*.csv` externalisation becomes its own iteration, with **G-OR-15 and G-OR-17 landing there**; they stay vacuous until it. Deferral, not reversal: the manifest stays consistent because no `data/` files exist yet. | OR-23 (defers) |
+| **OR-43** | **`build_oracle_document` reduces its project through `reduce_to_oracle_inputs` first.** The document is a function of the oracle projection, hashed by the same reducer the fingerprint uses — one guarantee, one owner. Found by G-OR-6 failing: section 2 quotes each module's certification basis, and on a concept project the speeds module takes the Part 25 Mach-margin route and says so, so a concept-only field reached the printed page through a module note. | OR-21, G-OR-6 (implements) |
+| **OR-44** | **Section 2 states no load in force or moment units.** Nothing in it is scaled to ultimate or marked `-ULT`, and no table states a safety factor — but every value still passes through the `render` ultimate boundary rather than being hand-formatted, so the section never decides what a load is. **G-OR-4 holds by construction.** **Amended by the owner, 2026-08-30:** the first draft said "section 2 carries no loads" and put a note under every table saying geometry, mass, speeds and load factors *are not loads*. That is wrong — **n is a limit load factor, so a load factor is a load** — and the note was removed outright rather than reworded. What section 2 may state about them is that they are **LIMIT**, which the V-n captions and the corner table do at point of use. | OR-5, G-OR-4 |
+
+### Section 2.1 and 2.2 extended (owner, in session 2026-08-30)
+
+**OR-45 — 2.1 states every surface, one table each.** Wing planform, horizontal
+tail and elevator, vertical tail and rudder, aileron, flap, and one table per
+trim tab; each with its area, planform figures, tail arm stations where it has
+them, and its control deflections.
+
+**OR-46 — the report may echo a project input, and must label it.** These are the
+first values section 2 reads from the project rather than from a `ModuleResult`:
+no module returns a control-surface area or a throw. This does not weaken OR-6,
+which forbids *re-deriving* a value and not *reporting* one, but the distinction
+is the reader's to see, so 2.1 states once that the empennage and control-surface
+values are the configuration as entered. The field lists are declared as data so
+a renamed input fails the suite instead of silently emptying a row, and G-OR-3's
+guard was widened from "every number came from a `ModuleResult`" to "every number
+came from a result **or** from the project as entered, and none is invented".
+
+**OR-47 — 2.2 states the weight and CG cases**: name, role, weight, Xcg, Zcg and
+analysis, with a note explaining what role and analysis govern. `CgCase.analyses`
+is a `set` by design (G-3), so the printed order is declared rather than taken
+from iteration — set order is not a document property, and resting the
+determinism gates on it is the kind of defect that passes locally and fails on
+another interpreter.
+
+### Findings recorded, not fixed
+
+- **A condition holding no loads still carries `safety_factor = 1.5`** — the
+  geometry, mass-properties and design-speed conditions. No value is affected
+  (the boundary scales by units and quantity, not by the stamp) but the claim is
+  false: a wing span has no safety factor.
+
+  **Not an OR-14 finding, on inspection.** The first reading of this blamed the
+  frozen modules. It is not theirs: `1.5` is the dataclass default on
+  `ConditionResult.safety_factor` (`sloads/models/results.py`) and
+  `safety_factors.GoverningTable.stamp` overwrites it from `registry`. None of
+  those is in the frozen set, so the fix is ordinary work at its own owner rather
+  than something the freeze defers.
+
+  `flight_envelope` is **not** affected and was wrongly listed at first: its
+  conditions carry M(W+F), LZW, LT and DX in lb and lb-in, so a factor is a true
+  statement about them.
+
+  **Owner's ruling, 2026-08-30:** non-loads do not have safety factors. A
+  condition with no load value **SHALL** carry `None`, rendered "N/A", and a
+  mixed condition keeps its factor while showing N/A against its non-load rows.
+  Fixed at the data model, after section 2 closes — filed with a body, backlog
+  row below. Section 2 prints no safety factor at all, so nothing in the report
+  states the false claim in the meantime.
+- **The stall boundary is only sampled at its design points.** Drawing the true
+  curve between them needs FLTLOADS to sample intermediate speeds, which is
+  frozen-module work. Backlogged and **parked with the 8% number** that parks it
+  (CLAUDE.md rule 6): below that, the polyline and the true boundary differ by
+  less than the base method's own uncertainty at every plotted vertex, because
+  the vertices are exact.

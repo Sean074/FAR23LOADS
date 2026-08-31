@@ -234,7 +234,8 @@ FAR23LOADS/
 │   │   ├── fingerprint.py        # the oracle report's provenance: anchors + the versioned fingerprint over the oracle-consumed projection (note 44, OR-21)
 │   │   ├── oracle_content.py     # the oracle technical report's content model: the derived section set and its four states (note 44, OR-2/OR-32)
 │   │   ├── oracle_latex.py       # the oracle report's furniture — title page, classification footer, DRAFT overlay — borrowing latex.py's emitters
-│   │   └── oracle_package.py     # THE issue package's member list + its SUMMARY_REPORT §4.7 manifest (note 44, OR-22/OR-35)
+│   │   ├── oracle_package.py     # THE issue package's member list + its SUMMARY_REPORT §4.7 manifest (note 44, OR-22/OR-35)
+│   │   └── oracle_sections.py    # the oracle report's analysis sections: one builder per step key, reading ModuleResult values only (note 44, OR-8)
 │   ├── export/                   # output bridges to external tools (renderers, NOT registered modules)
 │   │   ├── bands.py              # THE GID/EID/SID band registry: one owner per id run, disjointness proved by test
 │   │   ├── coordinates.py        # SLOADS axes -> sbeam CID 0 map + the reflection operator (single edit-point)
