@@ -12,7 +12,7 @@ is used only as a *sanity* fixture (the derived MAC/XLEMAC must match what
 WINGGEOM reproduces -- see ``tests/test_configuration.py``). To honour the rule
 that a module must not recompute a quantity another module owns, the MAC /
 XLEMAC / aspect ratio / span are obtained by generating the WINGGEOM edge
-polylines and running them through the WINGGEOM strip integrator
+polylines and running them through WINGGEOM's planform integration
 (:func:`sloads.modules.wing_geometry.surface_properties`), not by an
 independent integration.
 
@@ -113,7 +113,7 @@ def wing_layout_from_surface(surf: SurfaceInput) -> Dict[str, float]:
     """Best-effort parametric wing scalars, backed out of a WINGGEOM surface.
 
     The inverse of :func:`wing_polylines`: area and aspect ratio come straight
-    from the WINGGEOM strip integrator (:func:`wing_geometry.surface_properties`);
+    from WINGGEOM (:func:`wing_geometry.surface_properties`);
     root/tip chord and LE sweep are read from the leading-/trailing-edge
     polyline's root (first) and tip (last) points. Exact when the surface is the
     two-point trapezoid ``wing_polylines`` generates; a root/tip-only first-cut
@@ -322,7 +322,7 @@ def tail_planform(layout: LayoutInput,
 
 
 def _wing_geometry(layout: LayoutInput) -> dict:
-    """Wing MAC/XLEMAC/Y_MAC/AR/span via the WINGGEOM strip integrator.
+    """Wing MAC/XLEMAC/Y_MAC/AR/span via WINGGEOM's planform integration.
 
     Reads them straight out of :func:`wing_geometry.surface_properties` so
     WINGGEOM stays the single owner of the integration.
@@ -472,7 +472,7 @@ def _planform_condition(layout: LayoutInput, geom: dict) -> ConditionResult:
                 key="yle_mac_butt_line_of_mac"),
             LoadValue("Aspect ratio", geom["Aspect ratio"], key="aspect_ratio"),
         ],
-        note="MAC/XLEMAC/AR via the WINGGEOM strip integrator on the generated polylines.",
+        note="MAC/XLEMAC/AR via WINGGEOM's planform integration on the generated polylines.",
     )
 
 

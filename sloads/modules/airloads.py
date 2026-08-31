@@ -17,8 +17,10 @@ The operating span load at a target ``CL`` is ``c*cl = (c*cl)_additive * CL +
 (c*cl)_basic``.
 
 Equations (Ref 1 Ch 7, p46-47), per strip with mid-station ``ye``, chord ``c``
-and width ``dy`` (the WINGGEOM strip integrator, reused here so the stations line
-up element-for-element with the geometry table):
+and width ``dy``. The strips are AIRLOADS' own: they run over the surface's
+``elements`` load stations, which is what WINGGEOM reports as "Load stations".
+WINGGEOM itself integrates its planform properties in closed form and no longer
+strips the span, so the two agree on area/span/AR without sharing a loop:
 
     S    = 2*SUM(c*dy)                          total wing area (both sides)
     B    = 2*ytip                               span, tip to tip

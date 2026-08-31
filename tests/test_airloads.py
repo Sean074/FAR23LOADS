@@ -73,7 +73,8 @@ def test_basic_distribution_matches_appendix_a():
 
 
 def test_geometry_matches_winggeom():
-    # AIRLOADS reuses the WINGGEOM strip integrator -> same area/span/AR (p141).
+    # AIRLOADS strips the span itself; WINGGEOM integrates in closed form. Both
+    # describe one planform, so they must still agree on area/span/AR (p141).
     t = schrenk_distribution(_APPA_WING, _APPA_AERO)
     assert math.isclose(t.area_total, 26513.4, rel_tol=REL)
     assert t.span == 402.0

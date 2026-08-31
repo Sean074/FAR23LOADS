@@ -3,12 +3,14 @@
 The authoritative oracle is the 6-place single's **wing**, whose geometric
 properties are printed in Appendix A p141 (AREA/SIDE 13257, MAC 69.246,
 YLE(MAC) 87.854, XLE(MAC) 63.641, ASPECT RATIO 6.095). The manual's figures are
-themselves the 20-element strip sum (the wing element table lists 20 strips), so
-the example surface uses ``elements=20`` and the wing is matched within ±0.1%.
+themselves a strip sum over a count ``H`` it never prints (the wing element table
+lists 20), so they carry that run's own discretisation; WINGGEOM integrates the
+same planform in closed form and lands within ±0.1% of every one of them
+(``02_approved_corrections.md``, 2026-08-30).
 
-The aileron exercises the *unsymmetric* code path. Appendix A does not tabulate
-the aileron's element count and its result is sensitive to it (a notched trailing
-edge), so the aileron is checked only loosely, not as a tight oracle.
+The aileron exercises the *unsymmetric* code path. It was checked only loosely
+(±2%) while the result depended on a strip count the manual does not tabulate;
+closed-form integration removed that dependence, so it is a tight oracle again.
 """
 
 import math
@@ -58,18 +60,19 @@ def test_wing_matches_manual():
 
 def test_aileron_unsymmetric_path():
     # Appendix A p142 aileron (not sym about CL): AREA/SIDE 932, MAC 11.645,
-    # AR 7.036. Element count is not tabulated, so check loosely (±2%).
+    # AR 7.036. Closed-form integration reaches all three within 0.04%.
     r = _surface(wing_results(), "aileron")
     assert r.note.startswith("Single side")
-    assert math.isclose(value_of(r, "area_per_side"), 932, rel_tol=2e-2)
-    assert math.isclose(value_of(r, "mac"), 11.645, rel_tol=2e-2)
-    assert math.isclose(value_of(r, "aspect_ratio"), 7.036, rel_tol=2e-2)
+    assert math.isclose(value_of(r, "area_per_side"), 932, rel_tol=TOL)
+    assert math.isclose(value_of(r, "mac"), 11.645, rel_tol=TOL)
+    assert math.isclose(value_of(r, "aspect_ratio"), 7.036, rel_tol=TOL)
     # Single-side surface: span and total area are not doubled.
     assert value_of(r, "total_area") == value_of(r, "area_per_side")
 
 
-def test_elements_count_drives_strip_sum():
-    # The strip count is an explicit input (H in WINGGEOM.BAS); too few rejected.
+def test_too_few_load_stations_is_rejected():
+    # ``elements`` no longer drives the integral (it is the load-station count),
+    # but it is still a real input and a degenerate value is still refused.
     bad = SurfaceInput(name="x", leading_edge=[(0, 0), (0, 10)],
                        trailing_edge=[(10, 0), (10, 10)], elements=1)
     raised = False

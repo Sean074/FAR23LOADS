@@ -490,7 +490,7 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   mirrored diagonal panels at a fixed 40° dihedral (`_V_TAIL_DIHEDRAL_DEG`). Returns
   `{}` (nothing drawn) when there is no empennage geometry.
 - **Writes:** derived MAC / XLEMAC / Y_MAC / AR / span (obtained by running the
-  generated wing polylines through the WINGGEOM strip integrator — WINGGEOM stays
+  generated wing polylines through WINGGEOM's planform integration — WINGGEOM stays
   the owner), horizontal tail volume, neutral-point %MAC + station, static margin,
   tip-back / overturn angles, prop ground clearance → `ConditionResult`s. The page
   also *seeds* `Project.geometry` with the generated wing `SurfaceInput`, and (Step

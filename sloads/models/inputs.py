@@ -1719,7 +1719,7 @@ class LayoutInput:
     The wing is parametric (area, aspect ratio, taper, sweep, dihedral); the
     configuration module turns it into the WINGGEOM ``leading_edge``/
     ``trailing_edge`` polylines and the trapezoidal-wing ``MAC``/``XLEMAC``/
-    ``Y_MAC`` (cross-checked against the WINGGEOM strip integrator). The empennage
+    ``Y_MAC`` (cross-checked against WINGGEOM's planform integration). The empennage
     (tail + elevator/rudder) geometry lives in the single-source
     ``GeometryInput.empennage`` (Step G6) and the landing-gear geometry in
     ``GeometryInput.landing_gear`` (Step G6b); this slice keeps only the empennage

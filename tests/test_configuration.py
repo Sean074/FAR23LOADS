@@ -3,7 +3,7 @@
 There is no manual regression oracle for this page, so the checks are:
 
 1. **Internal consistency** -- the MAC/XLEMAC/Y_MAC the module reports (obtained by
-   running the generated polylines through the WINGGEOM strip integrator) match the
+   running the generated polylines through WINGGEOM's planform integration) match the
    closed-form trapezoidal-wing relations to ±0.1%. This proves both the planform
    derivation and that the generated polylines feed WINGGEOM correctly.
 2. **Appendix A sanity** -- a trapezoid approximating the Appendix A wing

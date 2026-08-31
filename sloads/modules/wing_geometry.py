@@ -8,9 +8,9 @@ weight-envelope (WTENV) and structural-speed (STRSPEED) modules; the per-surface
 tables feed the air-load and flight-load modules downstream (Reference 1 Ch 5).
 
 Method (WINGGEOM.BAS lines 510-940, verified against the Appendix A wing element
-table p141): the span is divided into ``H`` strips of width ``DY``; the chord
-``C = X_TE - X_LE`` is interpolated from the edge polylines at each strip's
-mid-station ``YE`` and summed:
+table p141). The manual divides the span into ``H`` strips of width ``DY``,
+interpolates the chord ``C = X_TE - X_LE`` from the edge polylines at each
+strip's mid-station ``YE``, and sums:
 
     A     = SUM(C*DY)                  area on one side of the plane of symmetry
     MAC   = SUM(C^2*DY) / A            mean aerodynamic (geometric) chord
@@ -20,9 +20,13 @@ mid-station ``YE`` and summed:
     AR    = (2*Ytip)^2 / (2*A)         symmetric surfaces (span = 2*Ytip)
           = (Ytip - Yroot)^2 / A       single-side surfaces (span = Ytip - Yroot)
 
-Because the manual's printed figures are themselves this strip sum, ``elements``
-must match the value the manual used (20 for the Appendix A wing) to reproduce
-them; see the per-surface ``elements`` field.
+**These sums are evaluated in closed form, not strip by strip** (owner,
+2026-08-30; ``02_approved_corrections.md``). Both edges are piecewise linear, so
+the chord is linear between their breakpoints and every sum above has an exact
+value there -- the strip sum's limit, with none of its discretisation error.
+``elements`` therefore does not enter this calculation at all: it stays the
+user's spanwise **load-station** count (plan 09 T-1), which is what the
+downstream distribution modules read. See :func:`surface_properties`.
 
 Reference: WINGGEOM.BAS, Appendix C (embedded geometry subroutine p409-410);
 worked example Appendix A p141 (wing: MAC 69.246, XLEMAC 63.641, AR 6.095).
@@ -210,7 +214,7 @@ def surface_properties(surf: SurfaceInput) -> ConditionResult:
             LoadValue("XLE(MAC) station of MAC LE", xlemac, _IN, key="xle_mac_station_of_mac_le"),
             LoadValue("Aspect ratio", aspect_ratio, key="aspect_ratio"),
             LoadValue("Span", span, _IN, key="span"),
-            LoadValue("Integration elements", surf.elements, key="integration_elements"),
+            LoadValue("Load stations", surf.elements, key="load_stations"),
         ],
         note="Symmetric about airplane CL" if surf.symmetric else "Single side (not symmetric about CL)",
     )

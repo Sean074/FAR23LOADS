@@ -745,3 +745,38 @@ another interpreter.
   (CLAUDE.md rule 6): below that, the polyline and the true boundary differ by
   less than the base method's own uncertainty at every plotted vertex, because
   the vertices are exact.
+
+### #155 moved from OR-14 to OR-15 (owner, 2026-08-30)
+
+**#155** — the modules describing WINGGEOM's geometry integral as a *strip
+integrator* — was first recorded above as an OR-14 finding: filed, not fixed,
+because `configuration.py` is frozen. The owner admitted it under **OR-15**
+instead, on the reasoning that OR-14 defers defects the report merely *exposes*,
+while this one the report's own correction *created*: the closed-form integration
+landed in the same milestone and made the surrounding prose false in the same
+commit. Leaving it would have shipped a report whose §2.1 reproduces, verbatim, a
+description of a method the milestone removed.
+
+Three frozen files carry the fix — `wing_geometry.py` (its module docstring still
+taught the strip method its own `surface_properties` no longer uses),
+`configuration.py` (the four sites #155 names, one of them the report-visible
+note) and `airloads.py` (whose docstring credited its strips to WINGGEOM). The
+sweep is CLAUDE.md rule 4: the same false statement was corrected everywhere it
+appears, including `models/inputs.py`, three test headers, `PROGRAM_SPEC.md`,
+`00_theory_sources.md` and `01_concept_loads_plan.md`. Statements about strips
+that remain *true* — AIRLOADS' own span loop, the spanwise load stations,
+`tail_geometry`, and every historical reference in the correction register — were
+left standing.
+
+Two consequences beyond the prose. The WINGGEOM table's `Integration elements`
+row was renamed **`Load stations`** (key `integration_elements` → `load_stations`,
+which nothing read): the value is the user's load-station count and had stopped
+being an integration parameter. And the Appendix A **aileron oracle was tightened
+from ±2 % to ±0.1 %** — it had been loosened only because the result depended on a
+strip count the manual never tabulates, and closed-form integration reaches
+0.037 %. No load number moves: the Imperial baseline drifts in the
+`wing_geometry` and `configuration` channels only, and only in that row label and
+that note.
+
+**#153 remains an OR-14 finding** and stays filed: it is a live defect in
+`oracle_app/form.py` that the report exposed rather than caused.

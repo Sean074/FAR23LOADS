@@ -126,8 +126,8 @@ itemized/direct-weight path and a UI label.
 **Objective.** Spanwise additional + basic lift distribution (`cl·c` vs span)
 normalized to a target `CL`, for any planform/weight.
 **Deliverables.** `modules/airloads.py` (registers `"airloads"`; folds in the TAU
-lift-curve-slope correction). Reads `Project.geometry` wing strips (reuse the
-WINGGEOM strip integrator); writes `Project.aero.spanwise`. Span-load Streamlit
+lift-curve-slope correction). Reads `Project.geometry` wing strips (over the
+surface's `elements` load stations); writes `Project.aero.spanwise`. Span-load Streamlit
 plot. Schrenk = average of actual-chord and elliptic distributions (Ref 1 Ch 7).
 **Test/Acceptance.** Appendix A spanwise table ±0.1% (FAR23). Concept: integrated
 `∫cl·c dy` recovers the target `CL`; an elliptic wing returns an elliptic
