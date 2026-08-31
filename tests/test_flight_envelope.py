@@ -93,6 +93,24 @@ def _oracle(actual, expected, decimals, allow=0.0, why=""):
     assert abs(actual - expected) <= tol, (actual, expected, tol, why)
 
 
+#: Extra balancing-tail-load allowance for the closed-form planform integral.
+#:
+#: Registered in ``02_approved_corrections.md`` (2026-08-30). Stated in **pounds**
+#: because the percentage is meaningless on these points: CG2's small balancing
+#: loads are near-zero differences of large terms, so 0.71 lb on a printed -16
+#: reads as 4.4 % while being 0.02 % of the 3400 lb airplane. Measured worst
+#: case 1.66 lb (CG2 case 23, MAN A: -59 -> -57.34); case 21 moves 0.71 lb.
+_PLANFORM_LT_ALLOW_LB = 1.8
+
+#: Extra alpha allowance for the closed-form planform integral (2026-08-30).
+#:
+#: Registered in ``02_approved_corrections.md``. The wing MAC moves 0.042 % when
+#: the piecewise-linear planform is integrated exactly rather than by WINGGEOM's
+#: own 20-strip sum, and the balance carries that into the trimmed angle of
+#: attack. Measured worst case 0.011 deg (CG1 case 5, MAN D).
+_PLANFORM_ALPHA_ALLOW_DEG = 0.005
+
+
 def _nz_tol():
     """A load factor is converged to ±0.005 and printed to 2 dp: 0.005 + 0.005."""
     return _NZ_BAND + _print_res(2)
@@ -157,7 +175,11 @@ def test_cg1_corner_speeds_and_load_factors():
         p = pts[case]
         _oracle(p.v_eas_kt, v, 1, why=f"case {case} V")
         assert abs(p.nz - nz) <= _nz_tol(), (case, p.nz, nz)
-        _oracle(p.alpha_deg, alpha, 2, allow=_alpha_allow(alpha, nz),
+        # The planform allowance is the wing MAC's 0.042 % reaching alpha
+        # through the balance (registered, 2026-08-30): case 5 moves 1.56 ->
+        # 1.5493 deg, 0.011 deg.
+        _oracle(p.alpha_deg, alpha, 2,
+                allow=_alpha_allow(alpha, nz) + _PLANFORM_ALPHA_ALLOW_DEG,
                 why=f"case {case} alpha: the NZ band through the local slope")
 
 
@@ -190,12 +212,13 @@ def test_cg2_balancing_tail_loads():
     _oracle(pts[21].v_eas_kt, 62.6, 1,
             allow=_stall_speed_allow(62.6, pts[21].cl),
             why="STALL 1G: the CL band on a stall-line speed")
-    # -16 lb: the print's own half-pound is the gate here, not a widening.
-    _oracle(pts[21].lt, -16, 0)
+    _oracle(pts[21].lt, -16, 0, allow=_PLANFORM_LT_ALLOW_LB,
+            why="STALL 1G: a near-zero balancing load, gated in pounds")
     assert abs(pts[23].nz - 3.80) <= _nz_tol()                  # MAN A
     _oracle(pts[23].lzw, 12970, 0, allow=_load_allow(_CG2_WEIGHT_LB),
             why="case 23 LZW: the NZ band on a 3400 lb airplane")
-    _oracle(pts[23].lt, -59, 0)
+    _oracle(pts[23].lt, -59, 0, allow=_PLANFORM_LT_ALLOW_LB,
+            why="MAN A: a near-zero balancing load, gated in pounds")
 
 
 def test_gust_load_factors_match_appendix_a():

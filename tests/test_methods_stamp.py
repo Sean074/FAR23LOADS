@@ -267,7 +267,13 @@ def test_the_assumed_tail_planform_reaches_the_statement():
     ASSUMED, and that marker reached the page, the CSV and the result and stopped
     — so the controlling document described the distribution as if the planform
     had been entered. No shipped fixture enters one, so this fires on the GA."""
-    text = methods_statement(_project(_GA))
+    # ``ga6_normal`` entered its printed Appendix A empennage on 2026-08-30, so
+    # the fixture no longer derives one. The marker is still the thing under
+    # test, so the planforms are removed to produce a project that does.
+    project = _project(_GA)
+    project.geometry.surfaces[:] = [
+        s for s in project.geometry.surfaces if s.name not in ("htail", "vtail")]
+    text = methods_statement(project)
     assert "Horizontal tail planform ASSUMED" in text
     assert "Vertical tail planform ASSUMED" in text
     assert "not the surface's own" in text
@@ -284,6 +290,11 @@ def test_an_entered_tail_planform_states_no_assumption():
     wing = next((s for s in surfaces if s.name == project.wing_mass.surface), None)
     assert wing is not None, "fixture has no wing surface to copy a planform from"
     entered = _htail_surface_from(wing, project)
+    # One surface entered, the other derived -- which is what makes this the
+    # *conditional* half of the contract. ``ga6_normal`` now enters both, so the
+    # fin is removed to restore the mixed state the caveat has to distinguish.
+    project.geometry.surfaces[:] = [
+        s for s in project.geometry.surfaces if s.name not in (entered.name, "vtail")]
     project.geometry.surfaces.append(entered)
     assert resolve_tail_planform(project, "htail").assumed is False
     text = methods_statement(project)

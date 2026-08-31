@@ -402,7 +402,11 @@ def test_speed_ratio_route_reproduces_todays_numbers_on_every_example():
         "concept_heavy": (312.5, 250.0, 189.338480, 147.085572),
         "concept_regional_jet": (387.5, 310.0, 187.071106, 169.649611),
         "dhc8_dash8": (306.25, 245.0, 145.599724, 140.532490),
-        "ga6_normal": (212.5, 170.0, 121.352521, 105.544396),
+        # VA/VF re-pinned 2026-08-30 (register line in 02_approved_corrections):
+        # both scale with sqrt(W/S), and the wing area moves 0.019 % under
+        # closed-form planform integration -- VA 121.352521 -> 121.340758
+        # (-0.0097 %), VF 105.544396 -> 105.534165. VC and VD are entered.
+        "ga6_normal": (212.5, 170.0, 121.34075796089789, 105.53416467978909),
     }
     seen = set()
     for path in sorted(glob.glob(os.path.join(os.path.dirname(_RJ), "*.project.json"))):

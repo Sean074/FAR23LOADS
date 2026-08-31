@@ -116,11 +116,24 @@ class TailPlanform:
         return self.component == HTAIL
 
     def chord(self, s: float) -> float:
-        """Local chord at span station ``s`` (in), by linear interpolation."""
-        return _interp(self.te, s) - _interp(self.le, s)
+        """Local chord at span station ``s`` (in).
+
+        Through the one closure owner (``wing_geometry.planform_boundary``): a
+        surface whose edges do not cover the same span is bounded by its root and
+        tip chords there, not by an extrapolated edge. The GA6 fin's trailing
+        edge reaches 5.5 in below its leading edge, and extrapolating instead
+        over-read its area by 8 %.
+        """
+        from .modules.wing_geometry import planform_boundary
+
+        left, right, _lo, _hi, _breaks = planform_boundary(self.le, self.te)
+        return right(s) - left(s)
 
     def x_le(self, s: float) -> float:
-        return _interp(self.le, s)
+        from .modules.wing_geometry import planform_boundary
+
+        left, _right, _lo, _hi, _breaks = planform_boundary(self.le, self.te)
+        return left(s)
 
     def x_at(self, s: float, pct: float) -> float:
         """Chordwise station of ``pct`` of the local chord at span ``s``."""
@@ -172,49 +185,42 @@ def _interp(points: List[Tuple[float, float]], s: float) -> float:
 def _polyline_area_and_span(surf: SurfaceInput) -> Tuple[float, float]:
     """``(area_one_side_in2, span_in)`` of an entered planform.
 
-    Integrated the same way ``wing_geometry.surface_properties`` does -- strip
-    midpoints over ``elements`` -- so an entered tail and an entered wing are
-    measured by one rule. That includes the precondition (#71): this was the
-    only strip sweep in the package with no guard of its own, so an empty tail
-    edge reached ``[0]`` and came back to SELECT and the balance as a raw
-    ``IndexError``.
+    **Asked of the one owner**, :func:`sloads.modules.wing_geometry.surface_properties`,
+    rather than integrated again here. Until 2026-08-30 this module carried its
+    own strip sweep "integrated the same way" -- and when the owner went to
+    closed-form integration over the closed planform, the copy did not, so the
+    two disagreed by 5.8 % on area and 9.7 % on span for the GA6 fin and
+    :func:`validate_tail_planform` refused a planform that was in fact correct.
+    A second implementation that has to be kept in step is the defect; there is
+    now one (CLAUDE.md rule 3).
+
+    ``span`` is the surface's own, root to tip across **both** edges, so a fin
+    whose trailing edge reaches below its leading edge measures the full height.
+    ``area`` stays one-sided; the half/full bookkeeping is
+    :func:`validate_tail_planform`'s and is applied there and nowhere else.
     """
+    from .modules.wing_geometry import surface_properties
+
     require_integrable_planform(surf)
-    s_root = surf.leading_edge[0][1]
-    s_tip = surf.leading_edge[-1][1]
-    h = max(1, surf.elements)
-    ds = (s_tip - s_root) / h
-    area = 0.0
-    for el in range(h):
-        s = s_root + ds / 2 + el * ds
-        area += (_interp(surf.trailing_edge, s) - _interp(surf.leading_edge, s)) * ds
-    return area, s_tip - s_root
+    values = {v.key: v.value for v in surface_properties(surf).values}
+    span = values["span"] / 2.0 if surf.symmetric else values["span"]
+    return values["area_per_side"], span
 
 
 def _polyline_mac_and_x25(surf: SurfaceInput) -> Tuple[float, float]:
     """``(mac_in, x_25_mac_in)`` of an entered planform -- the mean aerodynamic
     chord and the fuselage station of its quarter-chord point.
 
-    Same strip rule as :func:`_polyline_area_and_span`: ``MAC = int c^2 ds /
-    int c ds`` and ``x25 = int (x_le + c/4) c ds / int c ds`` over ``elements``
-    strip midpoints, so a straight-tapered surface reproduces the closed forms.
+    From the same owner as :func:`_polyline_area_and_span`, for the same reason.
+    ``XLE(MAC)`` is what ``surface_properties`` reports, and the quarter-chord
+    point is a quarter of the MAC aft of it.
     """
+    from .modules.wing_geometry import surface_properties
+
     require_integrable_planform(surf)
-    s_root = surf.leading_edge[0][1]
-    s_tip = surf.leading_edge[-1][1]
-    h = max(1, surf.elements)
-    ds = (s_tip - s_root) / h
-    sum_c = sum_c2 = sum_xc = 0.0
-    for el in range(h):
-        s = s_root + ds / 2 + el * ds
-        x_le = _interp(surf.leading_edge, s)
-        c = _interp(surf.trailing_edge, s) - x_le
-        sum_c += c * ds
-        sum_c2 += c * c * ds
-        sum_xc += (x_le + 0.25 * c) * c * ds
-    if sum_c <= 0:
-        return 0.0, 0.0
-    return sum_c2 / sum_c, sum_xc / sum_c
+    values = {v.key: v.value for v in surface_properties(surf).values}
+    mac = values["mac"]
+    return mac, values["xle_mac_station_of_mac_le"] + 0.25 * mac
 
 
 def validate_tail_planform(surf: SurfaceInput, component: str,
@@ -444,12 +450,18 @@ def resolve_tail_planform(project: Project,
 
     if surf is not None:
         validate_tail_planform(surf, component, area_sqft, span_in, x25)
-        s_root = surf.leading_edge[0][1]
+        # The root is the lowest point of **either** edge and the tip the
+        # highest, so a fin whose trailing edge reaches below its leading edge
+        # measures its full height (owner, 2026-08-30). Every surface entered
+        # before the GA6 empennage has matching edge ranges, for which this is
+        # the value it always had.
+        s_root = min(surf.leading_edge[0][1], surf.trailing_edge[0][1])
+        s_tip = max(surf.leading_edge[-1][1], surf.trailing_edge[-1][1])
         return TailPlanform(
             component=component,
             le=[(x, s - s_root) for x, s in surf.leading_edge],
             te=[(x, s - s_root) for x, s in surf.trailing_edge],
-            span=surf.leading_edge[-1][1] - s_root,
+            span=s_tip - s_root,
             area=area_in2,
             elements=surf.elements,
             ref_axis_pct=surf.ref_axis,

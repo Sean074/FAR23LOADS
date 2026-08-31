@@ -727,6 +727,15 @@ def test_a_row_is_deleted_where_it_sits_and_does_not_come_back():
     assert [i.name for i in at.session_state["project"].weight.items] == after
 
 
+@pytest.mark.xfail(strict=True, reason=(
+    "DEFECT #153, filed not fixed (note 44 OR-14; oracle_app/form.py is frozen "
+    "by OR-13). The per-row delete removes the LAST row, not the row its own "
+    "button names: clicking 'Delete row 2 - aileron' on ga6_normal removes "
+    "'flap'. _delete_row's on_click args bind a list that is detached by the "
+    "next run, so 'del rows[index]' never reaches the project; all that lands "
+    "is the row counter dropping by one, which trims from the end. Invisible "
+    "until 2026-08-30 because every fixture had two surfaces, and deleting row "
+    "2 of 2 removes the last row either way. ga6_normal now carries seven."))
 def test_a_composite_row_is_deleted_from_inside_its_own_expander():
     """The other table shape: rows holding a polyline get an expander each, so the
     delete control goes in the row rather than under the grid."""
@@ -738,10 +747,16 @@ def test_a_composite_row_is_deleted_from_inside_its_own_expander():
     button = next(b for b in at.button
                   if (b.key or "").endswith("geometry.surfaces[].1.delete"))
     assert before[1] in button.label, button.label
+    # Exactly the surface the button names goes, and every other one stays.
+    # Asserted by name rather than by index: the fixture carried two surfaces
+    # when this was written and now carries seven, and the delete buttons are
+    # not in list order.
+    target = next(name for name in before if name in button.label)
+    want = [name for name in before if name != target]
     button.click().run()
-    assert [s.name for s in at.session_state["project"].geometry.surfaces] == before[:1]
+    assert [s.name for s in at.session_state["project"].geometry.surfaces] == want
     at.run()
-    assert [s.name for s in at.session_state["project"].geometry.surfaces] == before[:1]
+    assert [s.name for s in at.session_state["project"].geometry.surfaces] == want
 
 
 # --------------------------------------------------------------------------- #
@@ -1746,7 +1761,13 @@ def test_a_display_only_copy_shows_the_value_that_governs():
 
     widget = widget_editing(at, "speeds.wing_area_sqft")
     assert widget.disabled
-    owner = project.geometry.parametric.wing_area_sqft
+    # The owner is the **integrated planform**, which is what STRSPEED resolves
+    # -- not ``parametric.wing_area_sqft``, which is the input the planform was
+    # generated from. The two agreed while the integral was a 20-strip sum and
+    # part by 0.019 % under closed-form integration (2026-08-30); the page has
+    # to show the one the analysis uses, which is the whole point of this test.
+    from sloads.derived_geometry import wing_reference
+    owner = wing_reference(project).s_sqft
     assert widget.value == pytest.approx(to_display(owner, "area_sqft", active_system()), rel=1e-6)
     # ...and rendering it did not write the displayed value back over the stored
     # one: visiting a page must leave the project alone (OG-F).

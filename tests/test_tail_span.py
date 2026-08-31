@@ -307,8 +307,9 @@ def test_an_offset_lra_moves_the_torsion_by_the_stated_lever():
     """Shifting the LRA aft by a fraction of chord moves the torsion by exactly
     ``L · Δpct · c`` — the statics of moving a moment reference, on a rectangle
     where the lever is the same at every station."""
-    project = _project("ga6_normal.project.json", weight=0.0)
+    project = _rectangular(_project("ga6_normal.project.json", weight=0.0), HTAIL)
     planform = resolve_tail_planform(project, HTAIL)
+    assert planform.assumed, "this lever identity holds on the rectangle"
     planform.ref_axis_pct = X25_PCT       # the stated lever is from 25% chord
     chord = planform.chord(planform.span / 2.0)
     base = free_torsion_total(planform, 900.0, -400.0)
@@ -429,7 +430,12 @@ def test_a_fin_case_with_no_vn_point_gets_no_lateral_inertia_and_says_so():
 #: B8a-1 exists for: the roll moment a fin side load makes about the CG is
 #: ``-Fy*(z - z_cg)``, so the sign of this number is the sign of that moment.
 _FIN_ROLL_ARM = {
-    "ga6_normal.project.json": (107.0, 93.0, +14.0),
+    # 107.0 -> 104.8915 with the printed Appendix A fin (2026-08-30). The
+    # derived rectangle put the load centroid at half span, 28.5 in above the
+    # root; the real tapered fin carries it at 26.39, so the arm shrinks by
+    # 2.11 in and stays positive -- which is the sign this test exists for, and
+    # the same direction the RJ moved for the same reason in 2017.
+    "ga6_normal.project.json": (104.89151571660418, 93.0, +11.891515716604182),
     # zcg 70.0 -> 63.62 with D-26: the RJ's waterline is now its
     # loading's own, not an unsourced round number. Centroid 156.0 -> 151.97
     # with the Pri 1 fixture-data pass (2026-08-17): the RJ fin is now an
@@ -578,11 +584,15 @@ def test_the_attachment_falls_back_to_the_strip_pair_without_a_body_outline():
 @pytest.mark.parametrize("example", EXAMPLES)
 def test_every_result_names_its_torsion_axis_and_its_provenance(example):
     """Every torsion names its axis, and a derived planform says it is derived
-    (an entered one -- the four Pri 1 fixtures -- says nothing of the kind)."""
+    (an entered one says nothing of the kind).
+
+    Which fixtures derive is read from the result, not listed here: every
+    shipped fixture entered its empennage once ``ga6_normal`` took the printed
+    Appendix A planforms (2026-08-30), and a hard-coded list would have made
+    this test assert the old fixture set rather than the contract."""
     for r in _results(example):
         assert r.torsion_axis.startswith("LRA ")
-        derived = example == "ga6_normal.project.json"
-        assert r.planform_assumed == derived, example
+        derived = r.planform_assumed
         assert any("DERIVED" in n for n in r.notes) == derived, example
         assert r.case_ref is not None and r.safety_factor > 0
 
@@ -617,9 +627,10 @@ def test_an_entered_attachment_butt_line_wins_over_every_derivation():
 
 
 # --------------------------------------------------------------------------- #
-# An entered (tapered, swept) planform on the oracle fixture -- ga6 keeps the
-# derived rectangle, so this is the synthetic path (the four type fixtures carry
-# their own entered planforms since Pri 1)
+# An entered (tapered, swept) planform on the oracle fixture. Synthetic on
+# purpose: the shape under test is a swept trapezoid chosen to exercise the
+# transfer term, not ga6's own empennage (which has been the printed Appendix A
+# planform since 2026-08-30 and is neither swept nor a rectangle).
 # --------------------------------------------------------------------------- #
 def _tapered_project():
     project = _project("ga6_normal.project.json", weight=0.0)
@@ -633,6 +644,10 @@ def _tapered_project():
         elements=12, ref_axis_pct=0.40)
     # The validator's third leg: the polyline must sit on the scalar station.
     project.tail_loads.xt25 = _polyline_mac_and_x25(surf)[1]
+    # Replace, never append: ga6 enters its own h-tail now, and an appended
+    # duplicate is never reached -- the test would silently measure the fixture.
+    project.geometry.surfaces[:] = [
+        x for x in project.geometry.surfaces if x.name != surf.name]
     project.geometry.surfaces.append(surf)
     return project
 
@@ -745,11 +760,34 @@ _HINGES = (10.0, 40.0, 70.0)
 _ACTUATOR = 25.0
 
 
+def _rectangular(project, component: str = HTAIL):
+    """Drop ``component``'s entered planform so the derived rectangle is used.
+
+    Several closed forms below hold only on a constant chord -- the LRA lever is
+    the same at every station, the three-hinge shares are 25/50/25 -- and were
+    written when every fixture took the derived rectangle. ``ga6_normal`` has
+    entered its printed Appendix A empennage since 2026-08-30, so the rectangle
+    is now asked for rather than assumed.
+    """
+    project.geometry.surfaces[:] = [
+        s for s in project.geometry.surfaces if s.name != component]
+    return project
+
+
 def _discrete(example: str = "ga6_normal.project.json", component: str = HTAIL,
-              hinges=_HINGES, actuator: float = _ACTUATOR):
-    """``(smeared results, discrete results)`` for one surface, same project."""
-    smeared = build_tail_span(_project(example))[component]
-    project = _project(example)
+              hinges=_HINGES, actuator: float = _ACTUATOR,
+              rectangular: bool = False):
+    """``(smeared results, discrete results)`` for one surface, same project.
+
+    ``rectangular`` drops the entered planform for the callers whose closed form
+    needs a constant chord; the rest run on the surface the fixture defines.
+    """
+    def _p():
+        project = _project(example)
+        return _rectangular(project, component) if rectangular else project
+
+    smeared = build_tail_span(_p())[component]
+    project = _p()
     for tm in project.tail_mass:
         if tm.surface == component:
             tm.control_load_mode = "discrete"
@@ -804,7 +842,10 @@ def test_the_hinge_set_sums_to_the_control_surface_load():
     10 / 40 / 70 in the tributary widths are 15 / 30 / 15 in of the 60 in the
     hinges hold, i.e. 25 % / 50 % / 25 % of the load per side.
     """
-    _, discrete = _discrete()
+    # 25/50/25 is the three-hinge reaction split of a **uniform** load, so this
+    # asks for the derived rectangle: on the fixture's real tapered planform the
+    # load is not uniform and the shares are not equal.
+    _, discrete = _discrete(rectangular=True)
     for r in discrete:
         hinges = [cp for cp in r.control_loads if cp.kind == "hinge"]
         actuators = [cp for cp in r.control_loads if cp.kind == "actuator"]
@@ -827,9 +868,13 @@ def test_the_hinge_moment_is_a_third_of_the_aft_of_hinge_chord():
     base. On ga6: ``Saft/S = 14.792/36.944 = 0.40039`` of a 36.388 in chord is a
     14.568 in aft-of-hinge chord, so the arm is **4.856 in** on every condition.
     """
-    _, discrete = _discrete()
+    # A single arm exists only where the chord does not vary, so this runs on
+    # the derived rectangle; on the fixture's real tapered planform the
+    # aft-of-hinge chord -- and the arm -- changes station by station.
+    _, discrete = _discrete(rectangular=True)
     ti = _project("ga6_normal.project.json").tail_loads
-    planform = resolve_tail_planform(_project("ga6_normal.project.json"), HTAIL)
+    planform = resolve_tail_planform(
+        _rectangular(_project("ga6_normal.project.json"), HTAIL), HTAIL)
     c_e = (ti.elevator_aft_hinge_sqft / ti.htail_area_sqft) * planform.chord(0.0)
     want_arm = c_e / 3.0
     assert math.isclose(want_arm, 4.856, rel_tol=1e-3), want_arm
@@ -871,9 +916,11 @@ def test_the_cross_mode_torsion_difference_is_the_chordwise_relocation():
     centre of pressure aft of the hinge line. Printed, because "within a
     tolerance" would have hidden exactly the sign error above.
     """
-    project = _project("ga6_normal.project.json")
+    # The relocation is written per chord below, so it is stated on the derived
+    # rectangle where one chord serves every station.
+    project = _rectangular(_project("ga6_normal.project.json"), HTAIL)
     planform = resolve_tail_planform(project, HTAIL)
-    smeared, discrete = _discrete()
+    smeared, discrete = _discrete(rectangular=True)
     for a, b in zip(smeared, discrete):
         cond = _condition(project, b.case)
         fraction = hinge_chord_fraction(project, cond)

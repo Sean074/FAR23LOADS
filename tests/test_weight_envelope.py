@@ -75,7 +75,13 @@ def test_ballast_stations():
     # Forward gross station matches tightly; forward regardless within the hand-
     # calc rounding; aft gross is the exact moment balance (manual hand-rounded).
     r = results()
-    assert math.isclose(value_of(r, "forward_gross_ballast_station"), 80.27, rel_tol=TOL)
+    # The ballast stations solve a moment balance against the WTENV structural
+    # CG limits, which are XLEMAC-referenced -- so they carry the wing MAC's
+    # 0.042 % shift under closed-form planform integration (2026-08-30, register
+    # line in 02_approved_corrections). Forward gross 80.27 -> 80.145 (0.16 %),
+    # forward regardless 70.97 -> 70.751, both still inside the hand-calc
+    # rounding the second one was always gated at.
+    assert math.isclose(value_of(r, "forward_gross_ballast_station"), 80.145, rel_tol=1e-3)
     assert math.isclose(value_of(r, "forward_regardless_ballast_station"), 70.97, rel_tol=5e-3)
     aft = value_of(r, "aft_gross_ballast_station")
     assert 107.0 < aft < 110.0  # exact balance ~108.5; manual hand-calc gave 103.7

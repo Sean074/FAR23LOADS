@@ -15,6 +15,8 @@ import importlib.util
 import logging
 import os
 
+import pytest
+
 logging.disable(logging.CRITICAL)  # silence Streamlit's bare-mode warnings
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -70,7 +72,13 @@ def test_area_priority_surface_over_speeds():
     assert surf.get("total_area")
     subject = view._subject_from_project(project)
     from sloads.constants import IN2_PER_FT2
-    assert subject.wing_area_ft2 == surf["total_area"] / IN2_PER_FT2
+    # ``approx``, not ``==``: the two reach the same area by different arithmetic
+    # and closed-form planform integration (2026-08-30) put a last-ulp gap
+    # between them. Exact float equality across two code paths was never the
+    # property under test -- that the subject reads the planform and not the
+    # scalar is, and the line below is what says so.
+    assert subject.wing_area_ft2 == pytest.approx(surf["total_area"] / IN2_PER_FT2,
+                                                  rel=1e-12)
     assert subject.wing_area_ft2 != project.speeds.wing_area_sqft
 
 

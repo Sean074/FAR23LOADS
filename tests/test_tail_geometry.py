@@ -89,16 +89,28 @@ def test_the_derived_planform_reproduces_taildist_average_chord(example):
         assert span_attr in component
 
 
-#: The fixtures whose empennage is **entered** as polylines (backlog Pri 1, the
-#: fixture-data pass, 2026-08-17) -- taper and sweep estimated from the type's
-#: published three-view, area/span/25 %-MAC station tied to the scalars.
-#: ``ga6_normal`` stays derived on purpose: Appendix A prints no tail chords, and
-#: an invented taper on the oracle fixture would be reported as entered data.
+#: The fixtures whose empennage is **entered** as polylines.
+#:
+#: Four of them (backlog Pri 1, the fixture-data pass, 2026-08-17) have taper and
+#: sweep estimated from the type's published three-view, with area/span/25 %-MAC
+#: station tied to the scalars.
+#:
+#: ``ga6_normal`` joined them on 2026-08-30 with the **printed** planforms.
+#: This comment used to read "``ga6_normal`` stays derived on purpose: Appendix A
+#: prints no tail chords, and an invented taper on the oracle fixture would be
+#: reported as entered data." The first half is false -- Appendix A prints a
+#: WINGGEOM run per surface, and the horizontal tail (p151), elevator (p153),
+#: rudder (p149) and flap (p145) each carry their leading- and trailing-edge
+#: coordinate tables. The fixture had kept those runs' *outputs* as scalars and
+#: dropped their *inputs*. Nothing was invented: every entered polyline
+#: reproduces its own printed AREA/SIDE, MAC, YLE(MAC), XLE(MAC) and AR to
+#: within 0.084 %.
 _ENTERED_TAILS = frozenset({
     "atr42_100.project.json",
     "cessna_210.project.json",
     "dhc8_dash8.project.json",
     "concept_regional_jet.project.json",
+    "ga6_normal.project.json",
 })
 
 
@@ -113,7 +125,12 @@ def test_an_entered_fixture_tail_is_tapered_and_sits_on_its_scalar_station(examp
     for component in (HTAIL, VTAIL):
         planform = resolve_tail_planform(project, component)
         assert planform is not None and not planform.assumed, f"{example} {component}"
-        assert planform.chord(0.0) > planform.chord(planform.span), (
+        # Sampled inside the surface, not at its extremes. A planform whose
+        # edges start at different span stations closes on its root and tip
+        # chords, so it comes to a point at both -- ``chord(0)`` is legitimately
+        # zero for the GA6 fin, whose lowest vertex is its trailing-edge root.
+        inboard, outboard = 0.10 * planform.span, 0.90 * planform.span
+        assert planform.chord(inboard) > planform.chord(outboard), (
             f"{example} {component}: expected a tapered surface")
         assert planform.strip_area() == pytest.approx(planform.area, rel=PLANFORM_TOLERANCE)
         surf = project.geometry.by_name(component)
@@ -161,7 +178,11 @@ def test_the_rectangle_centroid_is_half_span():
     planform therefore puts the load further **outboard** than a real tapered
     tail, i.e. high in root bending.
     """
-    planform = resolve_tail_planform(_project("ga6_normal.project.json"), HTAIL)
+    # The *derived* planform is the rectangle under test, so the entered one
+    # (printed Appendix A, since 2026-08-30) is removed first.
+    project = _drop_surface(_project("ga6_normal.project.json"), HTAIL)
+    planform = resolve_tail_planform(project, HTAIL)
+    assert planform.assumed
     assert half_area_centroid(planform) == pytest.approx(planform.span / 2.0, rel=1e-9)
 
 
@@ -183,7 +204,7 @@ def test_a_tapered_planform_centroid_matches_the_closed_form():
     project.tail_loads.htail_area_sqft = area_in2 / 144.0
     project.tail_loads.htail_semispan_in = b
     project.tail_loads.xt25 = _polyline_mac_and_x25(surf)[1]   # sit on the scalar station
-    project.geometry.surfaces.append(surf)
+    _put_surface(project, surf)
 
     planform = resolve_tail_planform(project, HTAIL)
     assert not planform.assumed
@@ -194,6 +215,27 @@ def test_a_tapered_planform_centroid_matches_the_closed_form():
 # --------------------------------------------------------------------------- #
 # The drift guard (T1's stated gate)
 # --------------------------------------------------------------------------- #
+def _put_surface(project, surf):
+    """Install ``surf`` as the project's surface of that name.
+
+    Appending used to be enough: no fixture entered an ``htail`` polyline, so
+    ``by_name`` could only find the test's own. ``ga6_normal`` enters one since
+    2026-08-30, and an appended duplicate is simply never reached -- the test
+    then silently measures the fixture instead of its own surface.
+    """
+    surfaces = project.geometry.surfaces
+    surfaces[:] = [s for s in surfaces if s.name != surf.name]
+    surfaces.append(surf)
+    return surf
+
+
+def _drop_surface(project, name):
+    """Remove a surface, so the resolver falls back to the derived planform."""
+    surfaces = project.geometry.surfaces
+    surfaces[:] = [s for s in surfaces if s.name != name]
+    return project
+
+
 def _rect_surface(name, span, chord, x_le=100.0):
     return SurfaceInput(name=name,
                         leading_edge=[(x_le, 0.0), (x_le, span)],
@@ -247,7 +289,7 @@ def test_an_entered_planform_wins_and_is_not_assumed():
     surf = _rect_surface(HTAIL, span, chord, x_le=ti.xt25 - 0.25 * chord)
     surf.elements = 7
     surf.ref_axis_pct = 0.42
-    project.geometry.surfaces.append(surf)
+    _put_surface(project, surf)
 
     planform = resolve_tail_planform(project, HTAIL)
     assert not planform.assumed and not planform.notes
@@ -257,7 +299,7 @@ def test_an_entered_planform_wins_and_is_not_assumed():
 def test_an_inconsistent_entered_planform_is_refused_through_the_resolver():
     """The validator is not merely available — it is on the resolution path."""
     project = _project("ga6_normal.project.json")
-    project.geometry.surfaces.append(_rect_surface(HTAIL, 73.1, 10.0))
+    _put_surface(project, _rect_surface(HTAIL, 73.1, 10.0))
     with pytest.raises(ValueError, match="disagrees"):
         resolve_tail_planform(project, HTAIL)
 
@@ -322,12 +364,20 @@ def test_every_fixture_still_loads_and_round_trips(example):
 #: ``vtail_root_waterline_z = 78.5`` pins the value the fallback had been
 #: producing, as a stated one, so that the body outline (and L-7) can land with
 #: an attributable digest wave -- note 19 §10.2 (i). Zero movement, by design.
+#: The three "fuselage-top" values moved in the fifth significant figure when
+#: ``wing_geometry`` went to closed-form integration (2026-08-30): the branch
+#: samples the body at the fin's own quarter-MAC station, which the strip sum
+#: had been reporting with its discretisation error. ``cessna_210``
+#: 100.2354943818504 -> 100.23507134905307, ``atr42_100`` 191.1672210589451 ->
+#: 191.16490643871083, ``dhc8_dash8`` 203.4541778899263 -> 203.45108523980366 --
+#: 0.0004 %, 0.0012 % and 0.0015 %, all toward the exact planform. The entered
+#: and t-tail branches read no planform and do not move.
 _FIN_ROOT = {
     "ga6_normal.project.json": (78.5, "entered"),
     "concept_regional_jet.project.json": (87.0, "t-tail"),
-    "cessna_210.project.json": (100.2354943818504, "fuselage-top"),
-    "atr42_100.project.json": (191.1672210589451, "fuselage-top"),
-    "dhc8_dash8.project.json": (203.4541778899263, "fuselage-top"),
+    "cessna_210.project.json": (100.23507134905307, "fuselage-top"),
+    "atr42_100.project.json": (191.16490643871083, "fuselage-top"),
+    "dhc8_dash8.project.json": (203.45108523980366, "fuselage-top"),
 }
 
 

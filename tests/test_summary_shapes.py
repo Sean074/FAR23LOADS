@@ -129,7 +129,10 @@ def test_wtenv_folds_weight_station_pairs_to_one_row_per_point():
     # The CG-limit block as corner x (station, weight) -- station and weight
     # entered as separate stacked values in the condition, folded here.
     corner = by_point[("Structural CG-limit stations and loadings", "Aft gross")]
-    assert corner["Weight (lb)"] == "3400" and corner["Station (in)"] == "85.11"
+    # 85.11 -> 85.09 with closed-form planform integration (2026-08-30, register
+    # line in 02_approved_corrections): the structural CG limits are
+    # XLEMAC-referenced, so they move with the wing MAC's 0.042 %.
+    assert corner["Weight (lb)"] == "3400" and corner["Station (in)"] == "85.09"
     # The forward loading envelope: one row per vertex, not two.
     envelope = [r for r in rows
                 if r["Condition"].startswith("Forward loading envelope")]

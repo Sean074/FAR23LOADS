@@ -1305,9 +1305,17 @@ def test_the_lateral_half_of_the_deck_gate_has_teeth():
     span-to-waterline map or in the port-twin reflection produces.
 
     Measured on ``ga6_normal``, as fractions of the gate's own scales: ``fy``
-    **3.4 %**, ``mz`` **3.1 %**, ``mx`` **0.20 %** -- against ``fx`` 9e-10,
-    ``fz`` 6e-9 and ``my`` 5e-8, all of them comfortably inside the 1e-5
+    **0.62 %**, ``mz`` **0.62 %**, ``mx`` **0.041 %** -- against ``fx`` 1e-9,
+    ``fz`` 1e-8 and ``my`` 1e-8, all of them comfortably inside the 1e-5
     tolerance. The old gate would have called this deck balanced.
+
+    Those margins were 3.4 / 3.1 / 0.20 % until 2026-08-30, when ga6 entered its
+    printed Appendix A fin. The fin is now distributed over 20 spanwise stations
+    where the derived rectangle used 10, so reversing **one** card is half the
+    share of the total it was -- the mutation is the same size, the deck it hides
+    in has twice the cards. The separation that matters is unchanged: the three
+    gained DOF still see it five orders of magnitude more clearly than the three
+    that were blind to it.
     """
     p = _project("ga6_normal.project.json")
     cases = build_balanced_cases(p)
@@ -1335,9 +1343,9 @@ def test_the_lateral_half_of_the_deck_gate_has_teeth():
     assert abs(got.fz) < 1e-5 * n_w
     assert abs(got.my) < 1e-5 * n_w * case.mac
     # The three it gained: each on its own, by a wide margin.
-    assert abs(got.fy) > 1e-2 * n_w, got.fy
-    assert abs(got.mx) > 1e-3 * n_w * case.semi_span, got.mx
-    assert abs(got.mz) > 1e-2 * n_w * case.semi_span, got.mz
+    assert abs(got.fy) > 5e-3 * n_w, got.fy
+    assert abs(got.mx) > 2e-4 * n_w * case.semi_span, got.mx
+    assert abs(got.mz) > 5e-3 * n_w * case.semi_span, got.mz
 
 
 @pytest.mark.parametrize("example", _with_cases())
@@ -1565,7 +1573,8 @@ _WING_SPAN_ROLL_SHARE = {
     # 0.872612 -> 0.871435 on 2026-08-17 (D-27): the RJ's fuselage masses moved
     # forward and its cabin zones re-spaced, so Sum w*y^2 vs the wing's own
     # share shifted by 0.1 %. Mass layout, not physics.
-    "concept_regional_jet.project.json": 0.871435,
+    # 0.871435 -> 0.871426 on 2026-08-30 with the re-seeded CG cases.
+    "concept_regional_jet.project.json": 0.871426,
 }
 
 
@@ -1739,7 +1748,10 @@ _CLOSURE_IZZ = {
     'atr42_100.project.json': {'fwd gross': 197124.6, 'aft gross': 204234.6},
     'dhc8_dash8.project.json': {'fwd gross': 276188.3, 'min weight': 184928.0, 'aft gross': 269576.3, 'fwd regardless': 261441.6},
     'concept_heavy.project.json': {'CGmax': 32302.1},
-    'concept_regional_jet.project.json': {'fwd gross': 254122.5, 'min weight': 196104.9, 'aft gross': 255937.2},
+#: The RJ's three moved on 2026-08-30: its CG cases were re-seeded to the
+#: WTENV limits the closed-form planform integral now gives (the stations
+#: shifted ~0.05 in), and Izz follows the CG.
+    'concept_regional_jet.project.json': {'fwd gross': 254256.5, 'min weight': 196104.9, 'aft gross': 255823.4},
 }
 
 
@@ -1956,11 +1968,20 @@ def test_the_lateral_dof_are_untouched(example):
 #: where the ``Izz`` ratio alone would give 0.886, the difference being the
 #: ``Ixz`` coupling. Plan 13 §7 is amended to these.
 _LATERAL_CASE_NUMBERS = {
+    # Re-pinned 2026-08-30: ga6 entered its printed Appendix A fin, and the
+    # planform integral went closed-form. Two effects, and they are different
+    # sizes, which is how they can be told apart. The **lever** moved a lot: the
+    # entered fin's load centroid sits 2.11 in below the derived rectangle's
+    # half-span, so the roll arm (z - z_cg) fell 14.00 -> 11.89 in and p_dot
+    # with it, -20.16 -> -14.93 deg/s^2 on SIDE GUST (-26 %). The **aero** moved
+    # barely at all: the fin loads and Ny shift by at most 0.012 % (SUDDEN
+    # RUDDER 585.7113 -> 585.6409), which is the wing MAC's 0.042 % reaching the
+    # sideslip through the balance. r_dot carries both through the Ixz coupling.
     'ga6_normal.project.json': {
-        'SIDE GUST': (603.9904, +0.177644, +185.5132, -20.1640),
-        'SUDDEN RUDDER': (585.7113, +0.172268, +178.0465, -12.0373),
-        'YAW 15 NEUTRAL': (-525.7482, -0.154632, -151.9110, +11.7518),
-        'YAW TO SIDESLIP': (-97.7614, -0.028753, -19.4378, +3.2401),
+        'SIDE GUST': (603.9910, +0.177644, +185.862912, -14.925045),
+        'SUDDEN RUDDER': (585.6409, +0.172247, +179.065785, -6.887951),
+        'YAW 15 NEUTRAL': (-525.6850, -0.154613, -152.266518, +7.196692),
+        'YAW TO SIDESLIP': (-97.7496, -0.028750, -18.880689, +2.467749),
     },
     # The three fixtures with a published fuselage outline (T-8a). Backlog Pri 1
     # gave the "fuselage-top" branch of fin_root_waterline its body datum --
@@ -2002,11 +2023,14 @@ _LATERAL_CASE_NUMBERS = {
         'YAW 15 NEUTRAL': (-3937.1072, -0.114119, -28.1137, +11.2348),
         'YAW TO SIDESLIP': (-1626.7225, -0.047151, -10.2705, +4.6782),
     },
+    # Re-seeded CG cases (2026-08-30) move the RJ's yaw and roll by ~0.04 %;
+    # the fin loads and Ny are unchanged, so this is the CG station moving and
+    # not the aerodynamics.
     'concept_regional_jet.project.json': {
-        'SIDE GUST': (7082.5342, +0.214622, +54.7696, -61.4670),
-        'SUDDEN RUDDER': (6907.5333, +0.209319, +54.1777, -59.6706),
-        'YAW 15 NEUTRAL': (-8042.9389, -0.243725, -58.6416, +71.1732),
-        'YAW TO SIDESLIP': (-3548.2873, -0.107524, -22.0564, +32.8546),
+        'SIDE GUST': (7082.5380, +0.214622, +54.746975, -61.475670),
+        'SUDDEN RUDDER': (6907.5333, +0.209319, +54.207528, -59.659156),
+        'YAW 15 NEUTRAL': (-8042.9389, -0.243725, -58.674365, +71.160684),
+        'YAW TO SIDESLIP': (-3548.2873, -0.107524, -22.069147, +32.849733),
     },
 }
 
@@ -2132,12 +2156,17 @@ def test_the_symmetric_half_of_a_lateral_case_still_closes(example):
 #: assembled deliverable rather than passing through it unremarked. (Re-pinned
 #: 2026-08-17, issue #26: SELECT's 57.3 / 32.2 / 295 went to the exact owners in
 #: ``constants``; <= 0.08 % per value, register line in 02_approved_corrections.)
+#: Re-pinned 2026-08-30: closed-form planform integration (register line in
+#: 02_approved_corrections). The wing MAC and area move by 0.042 % and 0.019 %,
+#: and the fin side load with them -- 0.019 % on ga6, 0.0007 % on the C210,
+#: 0.0005 % on the Dash 8. The ATR42 and the RJ do not move at all: their
+#: planforms integrate to the same numbers either way.
 _UNSYMMETRICAL_SPLIT = {
-    'ga6_normal.project.json': (-700.423713, -504.305073, 72.0),
-    'cessna_210.project.json': (-687.302894, -494.858083, 72.0),
-    'atr42_100.project.json': (3464.295824, 2771.436659, 80.0),
-    'dhc8_dash8.project.json': (-3302.110951, -2641.688761, 80.0),
-    'concept_regional_jet.project.json': (6076.817597, 4861.454078, 80.0),
+    'ga6_normal.project.json': (-700.2880318468195, -504.20738292971004, 72.0),
+    'cessna_210.project.json': (-687.2978354106667, -494.85444149568, 72.0),
+    'atr42_100.project.json': (3464.295823974718, 2771.436659179775, 80.0),
+    'dhc8_dash8.project.json': (-3302.095528143376, -2641.6764225147012, 80.0),
+    'concept_regional_jet.project.json': (6076.817597362804, 4861.454077890244, 80.0),
 }
 
 

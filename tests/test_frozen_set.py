@@ -62,7 +62,7 @@ MANIFEST: dict[str, str] = {
     "sloads/modules/weight_envelope.py": "8e8e22b2807411219642ddaf63e54a65794bdf13287b9f2c57a8204a199098d2",
     "sloads/modules/weight_estimate.py": "8439bb62fa62dd1e11e13efe603e2efad517584f5ca441ad52cbc49048c286fe",
     "sloads/modules/weight_onecg.py": "a306666ca1ca3b4bba0a783e424bdb0ed2bcaadb66480c29bbfadfcfe0e1cd24",
-    "sloads/modules/wing_geometry.py": "0cc54b5291c3243a16ae9331289813212c7c8ad0ae18c0e56b4d598b4618d6cc",
+    "sloads/modules/wing_geometry.py": "0ce783c9f27c80a9d87e7a1bf2d0fb59203adca8926f4be35210b2641e6f5b75",
     "sloads/modules/wing_inertia.py": "2bf2f00614725a842f0a75a5e213669cdbdf3b0199313fa22c7dc5096df44f81",
     # --- the existing oracle GUI (OR-13, row 2) ---------------------------
     "oracle_app/Oracle.py": "b478bf06fd1c998ffa9ee1eebbc51225c24a26a813840529105779b51f5085a1",

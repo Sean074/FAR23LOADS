@@ -249,10 +249,14 @@ def test_an_empty_aero_slice_no_longer_skips_the_wing():
     p = _ga6()
     p.aero.surfaces = []
     resolved = resolve_aero_surfaces(p)
-    assert [a.name for a in resolved] == ["wing"]
+    # The h-tail and elevator joined the fixture on 2026-08-30 as entered
+    # Appendix A planforms, and both are symmetric -- so the rule under test
+    # derives a default row for each of them too. The aileron, fin, rudder and
+    # flap are single-sided placement planforms and still do not.
+    assert [a.name for a in resolved] == ["wing", "htail", "elevator"]
     # per-name: a typed wing row never suppresses a derivable second surface
     p2 = _ga6()
-    assert [a.name for a in resolve_aero_surfaces(p2)] == ["wing"]
+    assert [a.name for a in resolve_aero_surfaces(p2)] == ["wing", "htail", "elevator"]
 
 
 # --------------------------------------------------------------------------- #

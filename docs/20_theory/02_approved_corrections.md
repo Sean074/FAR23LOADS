@@ -238,6 +238,74 @@ GF-6; the disposition §5.4 recommended — registered with the item that built 
 
 ---
 
+### WINGGEOM's strip sum goes closed-form *(approved 2026-08-30, in session)*
+
+WINGGEOM divides a surface's span into `H` strips and sums `A = Σ C·DY`,
+`MAC = Σ C²·DY / A` and the two first moments at strip mid-stations. `H` is an
+input the manual **never prints**, so the printed figures carry whichever
+discretisation each run used. Both edges are piecewise linear, so every one of
+those integrals has an exact closed form on each interval between the edges'
+breakpoints; `sloads.modules.wing_geometry.surface_properties` now evaluates
+those instead of sampling.
+
+**Why it was needed.** The GA6's Appendix A empennage went into the fixture on the
+same day (h-tail p151, elevator p153, rudder p149, flap p145, tab p157, each with
+its printed LE/TE coordinate table). At the fixture's `elements = 20` those
+planforms read **0.2–1.0 %** off their own printed AREA/SIDE and MAC — the tail's
+trailing edge has ten points with kinks 0.001 in apart, invisible to 3.66 in
+strips. Closed-form integration puts **every** Appendix A surface within
+**0.084 %**: wing 0.051, aileron 0.037, h-tail 0.044, stabilizer 0.014, elevator
+0.084, elevator-aft 0.090, tab 0.015, rudder 0.067, flap 0.034. `elements` reverts
+to what plan 09 T-1 calls it — the spanwise **load-station** count — and no longer
+drives this calculation.
+
+**What it costs, and it is not nothing.** For the *wing* the manual used `H = 20`,
+and the 20-strip sum reproduces its printed figures far more closely than the
+exact integral does: MAC 69.2464 against a printed 69.246 (0.0006 %) versus
+69.2756 (0.042 %); area 13256.72 against 13257 (0.002 %) versus 13259.29
+(0.017 %). We are therefore **further from the printed wing** and **closer to the
+planform the manual drew**. The owner's ruling (in session, 2026-08-30) is that
+the entered leading- and trailing-edge polylines are the input, and the printed
+derived values are WINGGEOM's own output carrying its own error.
+
+**Appendix A figures that moved.** The wing MAC's 0.042 % reaches the balance, and
+five printed figures move with it. All are within the base method's own
+uncertainty; the two stated in pounds are near-zero balancing loads where a
+percentage misleads.
+
+| Printed figure | Page | Printed | Now | Moved by |
+|---|---|---|---|---|
+| SELECT h-tail CHECKED MAN UP, total tail load | Critical H-tail Loads | 787.8 lb | 791.84 | +0.51 % |
+| Case 202 rational balancing tail load | Ch 9 hand calc | 519.845 lb | 521.62 | +0.34 % |
+| Case 202 centre of pressure | Ch 9 hand calc | 6.35 %MAC | 6.50 | +0.15 points |
+| CG1 case 5 (MAN D) angle of attack | p179 | 1.56° | 1.5493 | **0.011°** |
+| CG2 case 21 (STALL 1G) balancing tail load | p179 | −16 lb | −15.294 | **0.71 lb** |
+| CG2 case 23 (MAN A) balancing tail load | p179 | −59 lb | −57.34 | **1.66 lb** |
+
+The three p179 entries are gated in their own units rather than by percentage:
+0.71 lb on a printed −16 reads as 4.4 % while being 0.02 % of the 3400 lb
+airplane. `test_flight_envelope._PLANFORM_LT_ALLOW_LB` (1.8 lb) and
+`_PLANFORM_ALPHA_ALLOW_DEG` (0.005°) carry them, each naming this entry.
+
+**Self-pins re-pinned with this entry cited**, none page-cited: the frozen Imperial
+digests (`tests/fixtures_imperial/digests.json`, all six examples — every channel
+moves, since every deck carries a wing); `test_balance._UNSYMMETRICAL_SPLIT`
+(≤ 0.019 %; the ATR42 and RJ do not move at all); `test_balance._LATERAL_CASE_NUMBERS`
+(fin loads ≤ 0.012 %, but ga6 `p_dot` −26 % — that one is the *entered fin planform*,
+not the integral: its load centroid sits 2.11 in below the derived rectangle's
+half-span, so the roll arm fell 14.00 → 11.89 in); the closure `Izz` and roll
+fraction for the RJ; ga6 VA 121.352521 → 121.340758 and VF 105.544396 → 105.534165;
+the WTENV ballast stations and the aft-gross corner 85.11 → 85.09; the gear
+report's §9.4 lift moment −2.383 → −2.3819; and `test_tail_geometry._FIN_ROOT` for
+the three "fuselage-top" fixtures (≤ 0.0015 %).
+
+**Authority:** `sloads/modules/wing_geometry.py` is hash-frozen for milestone
+0.8.2 by design note 44 OR-13. The owner admitted this change under **OR-15** in
+session on 2026-08-30, and the manifest hash in `tests/test_frozen_set.py` is
+updated in the same commit.
+
+---
+
 ## Withdrawn from scope
 
 **A third category, and not a deviation.** The entries above say *the manual's

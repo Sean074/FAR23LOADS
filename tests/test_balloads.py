@@ -46,11 +46,17 @@ def test_case_202_up_balancing_load():
     """The largest up balancing load (case 202) matches the Ch 9 hand-calc."""
     rows = balloads.verify_balancing(_ga6())
     up = max(rows, key=lambda r: r["LT"])
-    assert math.isclose(up["LT"], 519.845, rel_tol=3e-3), up["LT"]
+    # DEVIATION, registered: 02_approved_corrections.md, closed-form planform
+    # integration (2026-08-30). WINGGEOM's printed figures are its own 20-strip
+    # sum; integrating the piecewise-linear planform exactly moves the wing MAC
+    # by 0.042 %, which this balance amplifies. The printed value stays the
+    # citation and the tolerance carries the registered deviation.
+    assert math.isclose(up["LT"], 519.845, rel_tol=4e-3), up["LT"]   # +0.34 %
     assert math.isclose(up["LT25"], 907.62, rel_tol=3e-3), up["LT25"]
     assert math.isclose(up["LT50"], -387.78, rel_tol=5e-3), up["LT50"]
     assert math.isclose(up["DELTA"], -5.39, abs_tol=0.03), up["DELTA"]
-    assert math.isclose(up["CP"], 6.35, abs_tol=0.1), up["CP"]
+    # Same registered deviation: CP moves 6.35 -> 6.50 % of tail MAC.
+    assert math.isclose(up["CP"], 6.35, abs_tol=0.16), up["CP"]
 
 
 def test_matches_select_balancing():

@@ -186,8 +186,15 @@ def test_rational_balancing_tail_load_hand_calc():
     assert math.isclose(b.lt50, -387.78, rel_tol=5e-3), b.lt50
     assert math.isclose(b.at, 7.747, abs_tol=0.05), b.at   # alpha carries FLTLOADS noise
     assert math.isclose(b.delta, -5.39, abs_tol=0.03), b.delta
-    assert math.isclose(b.lt, 519.845, rel_tol=3e-3), b.lt
-    assert math.isclose(b.cp, 6.35, abs_tol=0.1), b.cp
+    # DEVIATION, registered: 02_approved_corrections.md, closed-form planform
+    # integration (2026-08-30). WINGGEOM's printed figures are its own 20-strip
+    # sum; integrating the piecewise-linear planform exactly moves the wing MAC
+    # by 0.042 %, which this balance amplifies. The printed value stays the
+    # citation and the tolerance carries the registered deviation.
+    assert math.isclose(b.lt, 519.845, rel_tol=4e-3), b.lt   # was 3e-3; now +0.34 %
+    # Same registered deviation as the total above: the centre of pressure of
+    # case 202 moves 6.35 -> 6.50 % of tail MAC, 0.15 points.
+    assert math.isclose(b.cp, 6.35, abs_tol=0.16), b.cp
 
 
 def test_critical_htail_balancing_match_appendix_a():
@@ -225,7 +232,13 @@ def test_htail_maneuver_loads_match_appendix_a():
     assert math.isclose(_vals(h["UNCHECKED MAN UP"])["Total tail load"], 1227.2, rel_tol=5e-3)
     assert math.isclose(_vals(h["CHECKED MAN DN"])["Total tail load"], -671.5, rel_tol=5e-3)
     assert math.isclose(_vals(h["CHECKED MAN DN"])["Pitch inertia Iyy"], 2242.8, rel_tol=2e-3)
-    assert math.isclose(_vals(h["CHECKED MAN UP"])["Total tail load"], 787.8, rel_tol=5e-3)
+    # DEVIATION, registered: 02_approved_corrections.md, closed-form planform
+    # integration (2026-08-30). WINGGEOM's printed figures are its own 20-strip
+    # sum; integrating the piecewise-linear planform exactly moves the wing MAC
+    # by 0.042 %, which this balance amplifies. The printed value stays the
+    # citation and the tolerance carries the registered deviation.
+    assert math.isclose(_vals(h["CHECKED MAN UP"])["Total tail load"], 787.8,
+                        rel_tol=6e-3)   # was 5e-3; now +0.51 %
 
 
 def test_htail_gust_and_unsymmetrical_match_appendix_a():

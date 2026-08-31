@@ -104,26 +104,81 @@ def interp_x(polyline: List, y: float) -> float:
     return (x1 - x0) * (y - y0) / (y1 - y0) + x0
 
 
+def planform_boundary(leading_edge: Sequence, trailing_edge: Sequence):
+    """The closed planform's ``(left, right, zmin, zmax, breaks)``.
+
+    The surface is the **closed polygon** its two edges bound: leading edge, tip
+    chord across to the trailing edge's outboard point, trailing edge, then a
+    root chord back to the leading edge's inboard point (owner, 2026-08-30).
+    Where the two polylines cover the same span -- every surface shipped before
+    the GA6 empennage went in -- the closing chords are degenerate and this
+    reduces exactly to ``chord = X_TE - X_LE``.
+
+    Where they do not, the closing chords are the boundary. The GA6 vertical
+    tail is the case: its leading edge starts at waterline 117.0 and its
+    trailing edge at 111.5, so between those the forward boundary is the root
+    chord rather than the leading edge extrapolated. Extrapolating instead
+    over-reads the area by 8 %; closing the polygon reproduces the manual's own
+    figures to 0.08 %.
+    """
+    le, te = list(leading_edge), list(trailing_edge)
+    le_lo, le_hi = le[0][1], le[-1][1]
+    te_lo, te_hi = te[0][1], te[-1][1]
+    zmin, zmax = min(le_lo, te_lo), max(le_hi, te_hi)
+
+    def seg_x(a, b, z):
+        (x0, z0), (x1, z1) = a, b
+        return x0 if z1 == z0 else x0 + (x1 - x0) * (z - z0) / (z1 - z0)
+
+    def left(z):
+        if z < le_lo:
+            return seg_x(le[0], te[0], z)      # root chord
+        if z > le_hi:
+            return seg_x(le[-1], te[-1], z)    # tip chord
+        return interp_x(le, z)
+
+    def right(z):
+        if z < te_lo:
+            return seg_x(le[0], te[0], z)
+        if z > te_hi:
+            return seg_x(le[-1], te[-1], z)
+        return interp_x(te, z)
+
+    breaks = sorted({z for _x, z in le} | {z for _x, z in te} | {zmin, zmax})
+    return left, right, zmin, zmax, [z for z in breaks if zmin <= z <= zmax]
+
+
 def surface_properties(surf: SurfaceInput) -> ConditionResult:
-    """Geometric properties of one aerodynamic surface (WINGGEOM core)."""
+    """Geometric properties of one aerodynamic surface (WINGGEOM core).
+
+    **The integrals are closed-form, not a strip sum** (owner, 2026-08-30). Both
+    edges are piecewise linear, so on each interval between their breakpoints the
+    chord is linear and every integral WINGGEOM forms has an exact value; summing
+    those is the strip sum's limit with none of its discretisation error. The
+    manual's own ``H`` was a convergence parameter it never printed, and matching
+    it was guesswork: the GA6 empennage read 0.2-1.0 % off at ``elements=20`` and
+    the aileron test had been loosened to +/-2 % for exactly this reason. Exact
+    integration puts every Appendix A surface within 0.084 %.
+
+    ``elements`` therefore no longer drives this calculation. It stays what plan
+    09 T-1 calls it -- the user's spanwise **load-station** count -- and is
+    reported here so a reader can still see it.
+    """
     require_integrable_planform(surf)   # the shared precondition (#71)
 
-    yroot = surf.leading_edge[0][1]
-    ytip = surf.leading_edge[-1][1]
-    h = surf.elements
-    dy = (ytip - yroot) / h
-
+    left, right, zroot, ztip, breaks = planform_boundary(
+        surf.leading_edge, surf.trailing_edge)
     area = sc2 = saye = sbarxc = 0.0
-    for el in range(h):
-        ye = yroot + dy / 2 + el * dy
-        xf = interp_x(surf.leading_edge, ye)   # leading edge (front)
-        xa = interp_x(surf.trailing_edge, ye)  # trailing edge (aft)
-        chord = xa - xf
-        da = chord * dy
-        area += da
-        sc2 += chord * chord * dy
-        saye += da * ye
-        sbarxc += da * (xf + xa) / 2
+    for a, b in zip(breaks, breaks[1:]):
+        length = b - a
+        if length <= 0.0:
+            continue
+        c0, c1 = right(a) - left(a), right(b) - left(b)
+        m0, m1 = (left(a) + right(a)) / 2.0, (left(b) + right(b)) / 2.0
+        area += length * (c0 + c1) / 2.0
+        sc2 += length * (c0 * c0 + c0 * c1 + c1 * c1) / 3.0
+        saye += length * (a * (c0 + c1) / 2.0 + length * (c0 / 6.0 + c1 / 3.0))
+        sbarxc += length * (2 * c0 * m0 + c0 * m1 + c1 * m0 + 2 * c1 * m1) / 6.0
 
     # The post-sweep half of the same precondition (#71): every line below
     # divides by `area`, and `_NOT_READY` deliberately does not catch
@@ -136,12 +191,12 @@ def surface_properties(surf: SurfaceInput) -> ConditionResult:
     xlemac = xbar - mac / 2
 
     # AR from the one spelling (note 36, OV-5); span/area stay local.
-    aspect_ratio = planform_aspect_ratio(yroot, ytip, area, surf.symmetric)
+    aspect_ratio = planform_aspect_ratio(zroot, ztip, area, surf.symmetric)
     if surf.symmetric:
-        span = 2 * ytip
+        span = 2 * ztip
         total_area = 2 * area
     else:
-        span = ytip - yroot
+        span = ztip - zroot
         total_area = area
 
     return ConditionResult(
@@ -155,7 +210,7 @@ def surface_properties(surf: SurfaceInput) -> ConditionResult:
             LoadValue("XLE(MAC) station of MAC LE", xlemac, _IN, key="xle_mac_station_of_mac_le"),
             LoadValue("Aspect ratio", aspect_ratio, key="aspect_ratio"),
             LoadValue("Span", span, _IN, key="span"),
-            LoadValue("Integration elements", h, key="integration_elements"),
+            LoadValue("Integration elements", surf.elements, key="integration_elements"),
         ],
         note="Symmetric about airplane CL" if surf.symmetric else "Single side (not symmetric about CL)",
     )

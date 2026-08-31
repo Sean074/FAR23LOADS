@@ -1216,7 +1216,10 @@ def test_the_ground_worked_example_is_pinned():
     pct = 100.0 * _lift_moment_about_cg(
         tail_down, by_case[3], project.landing.lift_factor)[1] / (
             abs(tail_down.delta_n * tail_down.weight_lb) * tail_down.mac)
-    assert math.isclose(pct, -2.383, abs_tol=5e-4), pct
+    # -2.383 -> -2.3819 with closed-form planform integration (2026-08-30,
+    # register line in 02_approved_corrections): the figure is a percentage of
+    # W*MAC, so it carries the wing MAC's 0.042 % directly.
+    assert math.isclose(pct, -2.3819, abs_tol=5e-4), pct
 
     # The side family's twin, quoted in the prose after the table.
     twin = cases[19][1]

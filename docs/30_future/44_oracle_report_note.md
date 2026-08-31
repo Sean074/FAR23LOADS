@@ -736,8 +736,8 @@ another interpreter.
   **Owner's ruling, 2026-08-30:** non-loads do not have safety factors. A
   condition with no load value **SHALL** carry `None`, rendered "N/A", and a
   mixed condition keeps its factor while showing N/A against its non-load rows.
-  Fixed at the data model, after section 2 closes — filed with a body, backlog
-  row below. Section 2 prints no safety factor at all, so nothing in the report
+  Fixed at the data model, after section 2 closes — filed as **#154** with a body,
+  backlog row below. Section 2 prints no safety factor at all, so nothing in the report
   states the false claim in the meantime.
 - **The stall boundary is only sampled at its design points.** Drawing the true
   curve between them needs FLTLOADS to sample intermediate speeds, which is
