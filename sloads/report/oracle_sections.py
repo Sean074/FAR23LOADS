@@ -41,7 +41,7 @@ from ..models import Project
 from ..models.enums import AnalysisKind
 from ..models.results import ConditionResult, LoadValue, ModuleResult
 from ..units import UnitSystem, convert_results
-from .content import Figure, PlotData, Section, Series, Table, Units
+from .content import Figure, PlotData, Section, Series, Table, Units, weight_cg_plot_data
 from .oracle_content import SectionPlan, section_ref
 from .render import format_value, to_ultimate, ultimate_units
 
@@ -684,6 +684,123 @@ def _cg_case_table(project: Project, system: UnitSystem) -> Optional[Table]:
         rows=rows, note=_CG_CASE_NOTE)
 
 
+#: What the weight/CG figure states about itself, beyond the caption.
+#:
+#: G-OR-4: section 2 marks nothing ultimate and states no safety factor. A
+#: weight and a station are not load quantities, so the sentence is a statement
+#: of fact rather than a disclaimer -- but it is stated, because this is the one
+#: figure in section 2 whose axes carry pounds.
+_ENVELOPE_NOTE = (
+    "The two loading envelopes are the discretionary items of the weight data "
+    "base added cumulatively, most-forward first and most-aft first, from the "
+    "minimum flight weight. Both begin at that weight and end at the same "
+    "full loading, so together they close the envelope of every loading the "
+    "airplane can physically hold. The structural limit envelope is the "
+    "entered CG limits: constant at the forward-regardless station below the "
+    "reduced weight, linear in weight to the forward-gross station at gross "
+    "weight, and constant at the aft-gross station. A loading vertex outside "
+    "that envelope is expected and is not a defect -- the limits bound the "
+    "loadings that may be flown, not those that can be loaded. Weights, "
+    "stations and waterlines are not load quantities: nothing here is scaled "
+    "to ultimate and no safety factor applies."
+)
+
+
+#: ``(printed edge name, condition-title prefix, LoadValue key prefix)``.
+#:
+#: WTENV publishes the forward edge under the keys it has carried since the
+#: module was written and the aft edge -- added by design note 45 -- under an
+#: ``aft_`` prefix, so the two stay distinguishable wherever conditions are
+#: flattened together. Declared as data and guarded against the module's own
+#: keys, so a renamed key fails the suite instead of silently emptying the table.
+_ENVELOPE_EDGES = (("Forward", "Forward loading envelope", "point"),
+                   ("Aft", "Aft loading envelope", "aft_point"))
+
+
+def _envelope_vertex_table(result: Optional[ModuleResult],
+                           system: UnitSystem) -> Optional[Table]:
+    """The plotted vertices, numbered as the figure numbers them.
+
+    The figure marks vertices and the table names their coordinates; a reader
+    checking a corner against a number should not have to measure it off an
+    axis. Read from WTENV's own ``ModuleResult`` (G-OR-3) rather than swept
+    here. Which *item* each vertex adds is not stated because the analysis does
+    not carry it -- see the note below the table.
+    """
+    conditions = _conditions(result, system)
+    u = Units(system)
+    rows = []
+    for edge, title, prefix in _ENVELOPE_EDGES:
+        condition = _find(conditions, title)
+        if condition is None:
+            continue
+        by_index: Dict[int, Dict[str, float]] = {}
+        for value in condition.values:
+            parts = (value.key or "").rsplit("_", 1)
+            stem, field = (parts + [""])[:2]
+            if not stem.startswith(f"{prefix}_"):
+                continue
+            try:
+                index = int(stem[len(prefix) + 1:])
+            except ValueError:
+                continue
+            by_index.setdefault(index, {})[field] = value.value
+        for index in sorted(by_index):
+            cell = by_index[index]
+            if not {"weight", "station"} <= set(cell):
+                continue
+            waterline = cell.get("waterline")
+            # ``_conditions`` has already converted to the document's system,
+            # so these format only -- ``u.plain`` would convert a second time.
+            # The vertex names itself ("Forward 4") rather than carrying a bare
+            # ordinal in its own column: an ordinal is not a quantity, and a
+            # column of naked integers beside three of measurements invites the
+            # reader to read one as the other.
+            rows.append([f"{edge} {index}", format_value(cell["weight"]),
+                         format_value(cell["station"]),
+                         format_value(waterline) if waterline is not None
+                         else "--"])
+    if not rows:
+        return None
+    length = u.label("length")
+    return Table(
+        title="Loading envelope vertices",
+        columns=["Vertex", f"Weight ({u.label('mass')})",
+                 f"Station ({length})", f"Waterline ({length})"],
+        rows=rows,
+        note="Vertex 1 is the minimum flight weight on both edges; each "
+             "subsequent vertex adds one discretionary item, in fuselage-station "
+             "order. The item added at a vertex is not stated: the analysis "
+             "reports the cumulative weight and centre of gravity, not the "
+             "loading behind them. The items and their stations are listed in "
+             "the weight data base above, in the order the vertices follow.",
+    )
+
+
+def _weight_cg_figure(project: Project, system: UnitSystem) -> Figure:
+    """Section 2.2's weight/CG envelope -- both edges, limits, entered cases."""
+    data = weight_cg_plot_data(project, Units(system))
+    if data is None:
+        return Figure(
+            "weight_cg", "Weight and centre-of-gravity envelope",
+            absent_reason="this airplane has no itemized weight data base, so "
+                          "there are no loadings to sweep and no envelope to draw",
+        )
+    marked = (" Each entered weight and centre-of-gravity case is marked; two "
+              "cases at the same weight and station share one marker and both "
+              "names." if data.points else "")
+    limits = ("" if any(s.name == "Structural limits" for s in data.series)
+              else " No structural limit envelope is drawn: the CG limits are "
+                   "not entered for this airplane.")
+    return Figure(
+        "weight_cg", "Weight and centre-of-gravity envelope",
+        data=data,
+        caption="Weight against centre-of-gravity station for every loading of "
+                "the weight data base, with the structural limit envelope."
+                + marked + limits,
+    )
+
+
 def _weights(project: Project,
              results: Mapping[str, Optional[ModuleResult]], *,
              system: UnitSystem,
@@ -703,6 +820,9 @@ def _weights(project: Project,
     cases = _cg_case_table(project, system)
     if cases is not None:
         tables.append(cases)
+    vertices = _envelope_vertex_table(results.get("weight_envelope"), system)
+    if vertices is not None:
+        tables.append(vertices)
 
     body = [
         "The weight, centre of gravity and mass moments of inertia of each "
@@ -711,11 +831,13 @@ def _weights(project: Project,
         "12^2 between them is not a difference a reader should have to detect. "
         "The principal-axis set and its inclination follow; the angle is "
         "measured up from the waterline and aft from the centre of gravity.",
+        _ENVELOPE_NOTE,
     ]
     far = _far_note(conditions[0] if conditions else None)
     if far:
         body.append(far)
-    return Section("", body=body, tables=tables)
+    return Section("", body=body, tables=tables,
+                   figures=[_weight_cg_figure(project, system)])
 
 
 # --------------------------------------------------------------------------- #

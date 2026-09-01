@@ -752,7 +752,16 @@ def test_the_report_column_and_wtenv_measure_the_same_wing():
         station_to_pct_mac(stations["aft_gross_station"], ref),
         project.weight.envelope.aft_gross_pct_mac, abs_tol=1e-9)
 
-    _figure, table = _weight_cg_figure(project, Units(UnitSystem.IMPERIAL))
+    figure, table = _weight_cg_figure(project, Units(UnitSystem.IMPERIAL))
+    # The chart's limit lines are the closed structural-limit polygon since note
+    # 45 (they were three vertical rules before). Same invariant, new owner: its
+    # corners must sit on the stations WTENV derived from the *override*, or the
+    # chart and the % MAC column beside it describe two different wings again.
+    polygon = next(s for s in figure.data.series if s.name == "Structural limits")
+    assert math.isclose(max(polygon.x), stations["aft_gross_station"], abs_tol=1e-9)
+    assert math.isclose(min(polygon.x), stations["forward_regardless_station"],
+                        abs_tol=1e-9)
+
     station_col = table.columns.index(next(c for c in table.columns if "station" in c))
     pct_col = table.columns.index(next(c for c in table.columns if "% MAC" in c))
     for row in table.rows:

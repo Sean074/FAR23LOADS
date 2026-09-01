@@ -183,6 +183,31 @@ Properties, 2.3 Structural Design Speeds, 2.4 Flight Envelope.
   The analysis tags **SHALL** be printed in a declared order: `CgCase.analyses`
   is a set, and set iteration order is not a document property the determinism
   gates can rest on.
+- **2.2 carries the weight and centre-of-gravity envelope figure** (design note
+  45 WE-8, built 2026-08-31 — the oracle's own p140, *"USEFUL LOAD ENVELOPE AND
+  STRUCTURAL LIMITS"*). Five rules govern it:
+  - It **SHALL** draw **both** loading edges — the discretionary items added
+    most-forward first and most-aft first. Drawing one is not a partial figure
+    but a misleading one: on the GA6 the forward edge never approaches a limit
+    while the aft edge passes 2.2 in beyond the aft-gross station, so a reader
+    takes containment from a figure that has not shown it. Both edges come from
+    `weight_envelope.loading_envelope`, whose aft half `WTENV.BAS` computes and
+    the port did not carry until note 45.
+  - The structural limits **SHALL** be drawn as one **closed** envelope, and
+    **SHALL** be omitted entirely when any corner is unentered rather than drawn
+    with a side missing — a limit boundary with a gap in it reads as permission.
+  - Every entered CG case **SHALL** be marked. Cases sharing a weight and
+    station **SHALL** share one marker and state both names; the GA6's `CG3` and
+    `fwd light` are the same loading, and two labels on one point are a smudge
+    rather than information.
+  - The plotted vertices **SHALL** be tabulated beside the figure, from WTENV's
+    own `ModuleResult` (G-OR-3) rather than swept by the report. The table
+    **SHALL NOT** name the item added at each vertex: the analysis does not
+    carry it, and the note under the table says so instead of the report
+    inferring it.
+  - The figure **SHALL** have one owner shared with the summary report
+    (`report.content.weight_cg_plot_data`, OR-7). The oracle report **SHALL NOT**
+    grow a second builder for a figure the other document already draws.
 - **Section 2 states no load in force or moment units.** Its load factors *are*
   loads — n is a limit load factor — but they are dimensionless and LIMIT, so no
   value in section 2 **SHALL** be scaled to ultimate or carry the `-ULT` marker,
@@ -381,11 +406,23 @@ without a guard is prose, not a gate).
 | 2. Loads Configuration (grouping, titles) | 2026-08-30 | `test_oracle_report.py::test_every_analysis_step_has_a_document_title_of_its_own`, `::test_every_group_member_is_a_step_and_the_members_are_contiguous` |
 | 2.1 Geometry and control surfaces | 2026-08-30 | `test_oracle_report.py::test_a_wing_area_is_stated_once_in_the_whole_section`, `::test_a_far_reference_that_is_not_a_regulation_is_not_printed_as_one`, `::test_every_control_surface_the_project_defines_gets_a_table`, `::test_the_echoed_surface_inputs_are_the_fields_the_project_still_has`, `::test_the_as_entered_statement_is_made_once` |
 | 2.2 Weight and Mass Properties | 2026-08-30 | `test_oracle_report.py::test_section_two_invents_no_number`, `::test_the_cg_case_table_states_every_case_and_its_role_and_analysis`, `::test_the_analysis_column_is_ordered_not_set_ordered` |
+| 2.2 Weight/CG envelope figure (note 45 WE-8) | 2026-08-31 | `test_oracle_report.py::test_the_weight_cg_figure_draws_both_loading_edges`, `::test_the_weight_cg_figure_reaches_its_own_emitter_and_closes_its_limits`, `::test_the_weight_cg_figure_marks_every_entered_case_once`, `::test_the_envelope_vertex_table_is_wtenv_s_own_result`, `::test_the_weight_cg_figure_states_no_load_and_no_safety_factor`, `::test_a_project_with_no_weight_database_says_why_instead_of_drawing`, `::test_the_limit_envelope_is_omitted_rather_than_half_drawn` |
 | 2.3 Structural Design Speeds | 2026-08-30 | `test_oracle_report.py::test_the_paired_tables_pair_keys_the_modules_actually_produce` |
 | 2.4 Flight Envelope | 2026-08-30 | `test_oracle_report.py::test_the_envelope_boundary_order_is_the_analysis_order`, `::test_the_envelope_figures_plot_only_produced_design_points`, `::test_one_envelope_figure_per_loading_and_altitude` |
 | Section 2 marks nothing ultimate; load factors identified as LIMIT | 2026-08-30 | `test_oracle_report.py::test_section_two_marks_nothing_ultimate_and_states_no_safety_factor`, `::test_no_table_claims_a_load_factor_is_not_a_load`, `::test_reported_load_factors_are_identified_as_limit` |
 
 ## 8. Conformance
+
+- [x] 2.2's weight/CG figure draws both loading edges, closes its limit
+      envelope, and omits the limits rather than half-drawing them —
+      `test_oracle_report.py`
+- [x] Every entered CG case is marked once, coincident cases sharing a marker
+      and both names — `test_oracle_report.py`
+- [x] The plotted vertices are reproduced from WTENV's own `ModuleResult`, not
+      re-swept by the report — `test_oracle_report.py`
+- [x] The weight/CG figure has one builder, shared with the summary report; its
+      limit corners read the same MAC reference the `% MAC` column does —
+      `test_derived_geometry.py`
 
 - [x] The section set is `oracle_steps()`'s result-producing steps, both
       directions — `test_oracle_report.py`

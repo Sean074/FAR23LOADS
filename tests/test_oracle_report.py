@@ -922,9 +922,15 @@ def test_section_two_invents_no_number():
     for step in oc.analysis_steps():
         if step.key not in oc.IMPLEMENTED:
             continue
-        for condition in registry.get(step.module)(project).conditions:
-            for value in condition.values:
-                sourced.add(format_value(value.value))
+        # Every module the step runs, not just its primary one: a page whose
+        # ``bas`` says "WTESTIMA+WTONECG+WTENV" produces numbers from all three,
+        # and 2.2's loading-envelope table is WTENV's. ``workflow.step_modules``
+        # is the owner of that set (the same one the navigation reads), so this
+        # cannot drift from what the report actually runs.
+        for module in wf.step_modules(step.key):
+            for condition in registry.get(module)(project).conditions:
+                for value in condition.values:
+                    sourced.add(format_value(value.value))
 
     empennage = project.geometry.empennage
     echoed = ((empennage.htail, osec._HTAIL_ROWS),
@@ -1433,3 +1439,128 @@ def test_a_half_entered_planform_is_refused_rather_than_drawn():
     # The other surfaces are untouched: one bad slice does not empty the section.
     assert figures["planform_htail"].data is not None
     assert figures["planform_vtail"].data is not None
+
+
+# --------------------------------------------------------------------------- #
+# 2.2's weight/CG envelope figure (design note 45 WE-8)
+# --------------------------------------------------------------------------- #
+def _weights_section(doc):
+    """Section 2.2, selected by the figure key it owns."""
+    return next(s for s in _flat([_section_two(doc)])
+                if any(f.key == "weight_cg" for f in s.figures))
+
+
+def _weight_cg(doc):
+    return next(f for f in _weights_section(doc).figures if f.key == "weight_cg")
+
+
+def test_the_weight_cg_figure_draws_both_loading_edges():
+    """The reason note 45 exists: half the envelope is the misleading half.
+
+    On the GA6 the forward edge never leaves the structural box while the aft
+    edge runs 2.2 in past the aft-gross limit, so a figure carrying only the
+    forward one reads as containment where there is none."""
+    data = _weight_cg(_doc()).data
+    names = [s.name for s in data.series]
+    assert "Forward loading envelope" in names and "Aft loading envelope" in names
+    forward = next(s for s in data.series if s.name.startswith("Forward"))
+    aft = next(s for s in data.series if s.name.startswith("Aft"))
+    assert max(aft.x) > max(forward.x)
+    # Both edges start at the minimum flight weight and end at the full loading.
+    assert (forward.x[0], forward.y[0]) == (aft.x[0], aft.y[0])
+    assert (forward.x[-1], forward.y[-1]) == (aft.x[-1], aft.y[-1])
+
+
+def test_the_weight_cg_figure_reaches_its_own_emitter_and_closes_its_limits():
+    """The limit envelope is drawn closed, not as three loose rules.
+
+    Guards the ``vn_{index}`` fall-through class the planform figures were
+    written against: ``weight_cg`` must hit ``_EMITTERS["weight_cg"]`` exactly."""
+    figure = _weight_cg(_doc())
+    tex = figure_body_tex(figure)
+    assert tex and tex.count("addplot") >= 4
+    polygon = next(s for s in figure.data.series if s.name == "Structural limits")
+    assert (polygon.x[0], polygon.y[0]) == (polygon.x[-1], polygon.y[-1])
+
+
+def test_the_weight_cg_figure_marks_every_entered_case_once():
+    """Every CG case is marked; cases sharing a point share one marker.
+
+    On the GA6 ``fwd light`` and ``CG3`` are the same loading (2800 lb @ 72.64),
+    and two labels on one diamond is a smudge rather than information."""
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    data = _weight_cg(_doc()).data
+    entered = {(c.xcg, c.weight_lb) for c in project.weight.cg_cases}
+    assert len(data.points) == len(entered)
+    named = {n for label, _x, _y in data.points for n in label.split(" / ")}
+    assert named == {c.name for c in project.weight.cg_cases}
+    assert any(" / " in label for label, _x, _y in data.points)
+
+
+def test_the_envelope_vertex_table_is_wtenv_s_own_result():
+    """G-OR-3: the table reproduces WTENV, it does not re-sweep the loadings."""
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    table = next(t for t in _weights_section(_doc()).tables
+                 if t.title == "Loading envelope vertices")
+    result = registry.get("weight_envelope")(project)
+    printed = {row[0]: row[1:] for row in table.rows}
+    for title, prefix, edge in (("Forward loading envelope", "point", "Forward"),
+                                ("Aft loading envelope", "aft_point", "Aft")):
+        condition = next(c for c in result.conditions if c.title.startswith(title))
+        values = {v.key: v.value for v in condition.values}
+        count = sum(1 for k in values if k.endswith("_weight"))
+        assert count and sum(1 for r in table.rows if r[0].startswith(edge)) == count
+        for i in range(1, count + 1):
+            assert printed[f"{edge} {i}"] == [
+                format_value(values[f"{prefix}_{i}_weight"]),
+                format_value(values[f"{prefix}_{i}_station"]),
+                format_value(values[f"{prefix}_{i}_waterline"])]
+
+
+def test_the_weight_cg_figure_states_no_load_and_no_safety_factor():
+    """G-OR-4: section 2 marks nothing ultimate and states no safety factor."""
+    figure = _weight_cg(_doc())
+    text = f"{figure.caption} {figure.data.x_label} {figure.data.y_label}"
+    assert "-ULT" not in text and "SF" not in text
+    assert "lb" in figure.data.y_label and "in" in figure.data.x_label
+
+
+def test_a_project_with_no_weight_database_says_why_instead_of_drawing():
+    """G-OR-7 / §3.4: an absent figure states its reason, never an empty axis.
+
+    Tested at the builder, because through the *document* an empty weight data
+    base takes WTONECG down with it and 2.2 goes ABSENT as a whole — OR-32's
+    business, asserted below, not this figure's. The branch still earns its
+    keep: the figure is built from a project, and a caller that reaches it with
+    no loadings must get the sentence rather than an axis with nothing in it."""
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    project.weight.items = []
+    figure = osec._weight_cg_figure(project, UnitSystem.IMPERIAL)
+    assert figure.data is None
+    assert "no itemized weight data base" in figure.absent_reason
+    assert figure_body_tex(figure) == ""
+    assert osec._envelope_vertex_table(None, UnitSystem.IMPERIAL) is None
+
+    # And the document-level truth: the subsection is absent, figure and all.
+    doc = oc.build_oracle_document(project, _spec())
+    entry = next(e for e in doc.plan if e.title == "Weight and Mass Properties")
+    assert entry.state is oc.SectionState.ABSENT
+    assert not [f for s in _flat(doc.sections) for f in s.figures
+                if f.key == "weight_cg"]
+    assert "Loading envelope vertices" not in [
+        t.title for s in _flat(doc.sections) for t in s.tables]
+
+
+def test_the_limit_envelope_is_omitted_rather_than_half_drawn():
+    """A limit envelope missing a side reads as permission.
+
+    With no entered CG limits the loading edges still draw and the caption says
+    the limits are absent -- the one way this figure could actively mislead is
+    by showing a boundary that is not the airplane's."""
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    project.weight.envelope = None
+    figure = _weight_cg(oc.build_oracle_document(project, _spec()))
+    assert figure.data is not None
+    assert [s.name for s in figure.data.series] == [
+        "Forward loading envelope", "Aft loading envelope"]
+    assert "CG limits are not entered" in figure.caption

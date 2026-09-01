@@ -963,8 +963,103 @@ def _vn_figure(project: Project) -> Tuple[Figure, Optional[Table]]:
                   caption=caption), table
 
 
-def _weight_cg_figure(project: Project, u: Units) -> Tuple[Figure, Optional[Table]]:
+#: The structural-limit corners, in the order they close the polygon.
+#:
+#: The forward limit is **piecewise**: constant at the forward-regardless station
+#: below the reduced weight, then linear in weight up to the forward-gross
+#: station at gross (`PROGRAM_SPEC` WTENV / M4-17c, the same relation
+#: ``validation.wtenv_fwd_cg_limit_at_weight`` evaluates). Joining the anchors
+#: with a straight segment *is* that interpolation, so the polygon is five WTENV
+#: outputs connected, not a sixth quantity computed here.
+_LIMIT_CORNERS = (
+    ("forward_regardless_station", None),
+    ("forward_regardless_station", "forward_regardless_point_weight"),
+    ("forward_gross_station", "aft_gross_point_weight"),
+    ("aft_gross_station", "aft_gross_point_weight"),
+    ("aft_gross_station", None),
+)
+
+
+def _limit_polygon(values: Dict[str, float], floor: float,
+                   len_f: float, mass_f: float) -> Optional[Series]:
+    """The closed structural-limit envelope, or ``None`` if a corner is missing.
+
+    ``floor`` is the minimum flight weight -- the bottom edge. A limit the
+    airplane has no entry for leaves the polygon undrawn rather than half drawn:
+    a limit envelope missing a side reads as permission, which is the one way
+    this figure could mislead.
+    """
+    try:
+        corners = [(values[x], floor if w is None else values[w])
+                   for x, w in _LIMIT_CORNERS]
+    except KeyError:
+        return None
+    if any(w <= 0 for _x, w in corners):
+        return None
+    corners.append(corners[0])          # close it
+    return Series("Structural limits", [x * len_f for x, _w in corners],
+                  [w * mass_f for _x, w in corners], style="densely dotted")
+
+
+def weight_cg_plot_data(project: Project, u: Units) -> Optional[PlotData]:
+    """The weight/CG envelope figure's data -- the one owner (OR-7).
+
+    Both loading edges (note 45: ``WTENV.BAS`` sweeps its discretionary items
+    ascending *and* descending), the closed structural-limit polygon, and every
+    entered CG case as a labelled marker. Shared by the summary report and the
+    oracle technical report so the two documents cannot draw the same airplane
+    two ways. ``None`` when there is no weight data base to sweep.
+
+    Drawing only the forward edge -- which is what this figure did until note 45
+    -- shows the half that approaches no limit and hides the half that can
+    exceed one, so the containment reading a reader takes from it would be wrong
+    rather than merely partial.
+    """
     from ..modules.weight_envelope import envelope as weight_envelope
+    from ..modules.weight_envelope import loading_envelope
+
+    weight = project.weight
+    env_in = weight.envelope if weight is not None else None
+    forward = _try(loading_envelope, project) or []
+    if not forward:
+        return None
+    aft = _try(loading_envelope, project, aft=True) or []
+
+    L, W = u.label("length"), u.label("mass")
+    len_f = u.d.length.factor
+    mass_f = 1.0 if u.system == UnitSystem.IMPERIAL else _EXTRA_DIMENSIONS["mass"][0]
+
+    def edge(name: str, vertices, style: str) -> Series:
+        return Series(name, [v.station * len_f for v in vertices],
+                      [v.weight * mass_f for v in vertices], style=style)
+
+    series = [edge("Forward loading envelope", forward, "solid")]
+    if aft:
+        series.append(edge("Aft loading envelope", aft, "dashed"))
+
+    values: Dict[str, float] = {}
+    if env_in is not None:
+        for r in _try(weight_envelope, project, env_in) or []:
+            for v in r.values:
+                values.setdefault(v.key, v.value)
+    polygon = _limit_polygon(values, forward[0].weight, len_f, mass_f)
+    if polygon is not None:
+        series.append(polygon)
+
+    # Cases sharing a point are one marker with both names: on the GA6 the
+    # forward-light landing case and CG3 are the same loading, and two labels
+    # stacked on one diamond is a smudge, not information.
+    marked: Dict[Tuple[float, float], List[str]] = {}
+    for c in (weight.cg_cases if weight is not None else []):
+        marked.setdefault((c.xcg * len_f, c.weight_lb * mass_f), []).append(c.name)
+    points_marked = [(" / ".join(names), x, y)
+                     for (x, y), names in marked.items()]
+
+    return PlotData(f"Fuselage station ({L})", f"Weight ({W})", series,
+                    points=points_marked)
+
+
+def _weight_cg_figure(project: Project, u: Units) -> Tuple[Figure, Optional[Table]]:
     from ..modules.weight_envelope import loading_envelope_points
 
     weight = project.weight
@@ -978,28 +1073,12 @@ def _weight_cg_figure(project: Project, u: Units) -> Tuple[Figure, Optional[Tabl
     from ..derived_geometry import mac_reference, station_to_pct_mac
 
     W, L = u.label("mass"), u.label("length")
-    len_f = u.d.length.factor
-    mass_f = 1.0 if u.system == UnitSystem.IMPERIAL else _EXTRA_DIMENSIONS["mass"][0]
-    series = [Series("Forward loading envelope",
-                     [x * len_f for _w, x in points],
-                     [w * mass_f for w, _x in points])]
-    vlines: List[Tuple[str, float]] = []
-    if env_in is not None:
-        results = _try(weight_envelope, project, env_in) or []
-        for r in results:
-            for v in r.values:
-                if v.key in ("aft_gross_station", "forward_gross_station",
-                             "forward_regardless_station"):
-                    vlines.append((v.label, v.value * len_f))
+    data = weight_cg_plot_data(project, u)
     # The %MAC column reads the same reference WTENV drew the limit lines from
     # (#80): a typed envelope.xlemac/mac override else the planform. Reading the
     # planform here regardless meant that on a project carrying an override the
     # column and the vertical lines on this one chart described different wings.
     mac_ref = mac_reference(project, env_in)
-    points_marked = [
-        (c.name, c.xcg * len_f, c.weight_lb * mass_f)
-        for c in (weight.cg_cases if weight is not None else [])
-    ]
 
     def pct_mac(x: float) -> str:
         if mac_ref is None or not mac_ref.mac:
@@ -1016,11 +1095,14 @@ def _weight_cg_figure(project: Project, u: Units) -> Tuple[Figure, Optional[Tabl
     )
     return Figure(
         "weight_cg", "Weight / CG envelope",
-        data=PlotData(f"Fuselage station ({L})", f"Weight ({W})", series,
-                      points=points_marked, vlines=vlines),
-        caption="Forward loading envelope with the structural CG limits and each "
-                "design CG case. Weights and stations are not load quantities and "
-                "are never scaled to ultimate.",
+        data=data,
+        caption="Both loading envelopes -- discretionary items added most-forward "
+                "first and most-aft first -- with the closed structural CG limit "
+                "envelope and each design CG case. A loading vertex outside the "
+                "limits is expected rather than a defect: the limits bound the "
+                "loadings that may be flown, not those the airplane can hold. "
+                "Weights and stations are not load quantities and are never "
+                "scaled to ultimate.",
     ), table
 
 

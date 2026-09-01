@@ -377,8 +377,18 @@ def run_sections(project: Project, spec: ReportSpec, *,
     ``ABSENT``. Catching broadly is deliberate: G-OR-7 says a half-filled
     project still builds, and a traceback out of here would take the whole
     report down over one absent slice.
+
+    **A step's folded modules are run too**, keyed by *module name* beside the
+    step keys. A page that names three programs in its ``bas`` -- Weight & Mass
+    Properties says ``WTESTIMA+WTONECG+WTENV`` -- produces numbers from all
+    three, and section 2.2's loading-envelope table is WTENV's. Running them
+    here rather than in the section builder keeps this the single run point;
+    :func:`sloads.workflow.step_modules` owns which modules a step runs, so the
+    set cannot drift from the navigation's own claim. The primary module is not
+    re-run under its own name: it is already under the step key.
     """
     from ..registry import get as get_module
+    from ..workflow import step_modules
 
     results: Dict[str, Optional[ModuleResult]] = {}
     for step in analysis_steps():
@@ -387,10 +397,12 @@ def run_sections(project: Project, spec: ReportSpec, *,
         if not step.module or not _inputs_present(project, step):
             results[step.key] = None
             continue
-        try:
-            results[step.key] = get_module(step.module)(project)
-        except Exception:                     # see the docstring
-            results[step.key] = None
+        for name in step_modules(step.key):
+            key = step.key if name == step.module else name
+            try:
+                results[key] = get_module(name)(project)
+            except Exception:                 # see the docstring
+                results[key] = None
     return results
 
 
