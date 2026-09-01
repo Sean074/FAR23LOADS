@@ -59,7 +59,13 @@ MANIFEST: dict[str, str] = {
     "sloads/modules/tab.py": "f81ff82261cccabedef57491635b3f56767faa61bae31c2d0d0017fc3bcb07e7",
     "sloads/modules/tail_span.py": "22a7832553de87ef9826c6e869e8ec8f1fe4e39c04706224f6af63e0847212b5",
     "sloads/modules/taildist.py": "3848d95ed35894bfe58e16e2c2f6a21e12a93ea493e533ccfdf40bf4caead3fb",
-    "sloads/modules/weight_envelope.py": "8e8e22b2807411219642ddaf63e54a65794bdf13287b9f2c57a8204a199098d2",
+    # Re-hashed 2026-08-31 under an OR-15 row 1 admission (issue #157, design
+    # note 45): WTENV gained the aft edge of the loading envelope and the
+    # per-vertex waterline, both of which WTENV.BAS computes and Appendix A p139
+    # prints. Additive by construction and by test -- the four pre-existing
+    # ConditionResults are unchanged (G-WE-2) and every prior oracle in
+    # tests/test_weight_envelope.py passes unedited (G-WE-3).
+    "sloads/modules/weight_envelope.py": "453b4613d98ae039101dbbdb0a3d6c5841651e348eb790a6304d0a477a2a6fa1",
     "sloads/modules/weight_estimate.py": "8439bb62fa62dd1e11e13efe603e2efad517584f5ca441ad52cbc49048c286fe",
     "sloads/modules/weight_onecg.py": "a306666ca1ca3b4bba0a783e424bdb0ed2bcaadb66480c29bbfadfcfe0e1cd24",
     "sloads/modules/wing_geometry.py": "aad13d5f7eb0dbed33b7cf1cab8c06a14be401f0b10a908a40e1fe8000708f4b",

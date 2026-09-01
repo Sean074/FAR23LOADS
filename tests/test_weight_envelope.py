@@ -287,6 +287,164 @@ def test_run_requires_envelope_inputs():
     assert raised
 
 
+# --------------------------------------------------------------------------- #
+# Design note 45 -- the aft edge (issue #157)
+# --------------------------------------------------------------------------- #
+#: Appendix A p138's weight data base, transcribed (note 45 WE-5).
+#:
+#: This is NOT ``ga6_normal``. The manual runs WTENV twice on two different data
+#: bases: Chapter 3's, which has no baggage row and whose maximum loading is
+#: 3322 @ 84.56, and Appendix A's, which adds ``66 BAGGAGE 120.00 @ 180.00`` and
+#: reaches 3442 @ 87.89. ``ga6_normal`` is the Chapter 3 one, and the Ch 3
+#: ballast lock above (78 / 418 / 158) is computed from its no-baggage maximum,
+#: so the fixture cannot be "completed" to match Appendix A without breaking it.
+#: The only printed edge tables in the manual are p139's, on this data base --
+#: hence a transcription here rather than a shipped example project.
+_P138_EMPTY = (
+    ("WING, OUTBOARD", 330.0, 97.87, 87.73), ("HORIZ TAIL", 42.0, 270.36, 111.0),
+    ("VERT TAIL", 23.0, 276.93, 137.76), ("MAIN GEAR WHEE", 45.0, 97.0, 69.0),
+    ("MAIN GEAR STRU", 110.0, 97.0, 78.0), ("NOSE GEAR WHEE", 9.0, 1.0, 52.0),
+    ("NOSE GEAR STRU", 40.0, 1.0, 65.0), ("FLIGHT CONTROL", 57.0, 123.0, 105.0),
+    ("NACELLE", 62.0, 21.0, 92.0), ("ENGINE INSTALL", 505.0, 22.0, 92.0),
+    ("PROPELLER", 74.0, -10.0, 100.0), ("SYSTEMS", 88.0, 60.0, 100.0),
+    ("FURNISHINGS", 175.0, 105.0, 100.0), ("UNUSABLE FUEL", 12.0, 73.0, 80.0),
+    ("FUSELAGE STRUC", 250.0, 99.0, 80.0),
+)
+_P138_MINIMUM = (("PILOT", 170.0, 75.0, 100.0), ("30 MIN FUEL", 71.0, 70.0, 82.0))
+_P138_DISCRETIONARY = (
+    ("COPILOT", 170.0, 75.0, 100.0), ("3RD PERSON", 170.0, 111.0, 100.0),
+    ("4TH PERSON", 170.0, 111.0, 100.0), ("5TH PERSON", 170.0, 150.0, 100.0),
+    ("6TH PERSON", 170.0, 150.0, 100.0), ("BAGGAGE", 120.0, 180.0, 110.0),
+    ("FUEL TO FULL", 409.0, 70.0, 87.0),
+)
+
+#: Appendix A p139, both printed blocks: ``(XBAR, ZBAR, WEIGHT)`` per vertex, in
+#: print order. The minimum-weight vertex heads each edge, as the program prints
+#: it (``WTENV.BAS`` 760). Item names are NOT asserted: the manual's sort is
+#: unstable and additionally shuffles the blank records of its dimensioned
+#: array, so the printed order within the two equal-station pairs
+#: (3RD/4TH at 111.00, 5TH/6TH at 150.00) is a function of the array size rather
+#: than of the airplane -- and it cannot move a number, because tied items share
+#: a station (note 45 WE-4, §1.5).
+_P139_FORWARD = (
+    (73.09, 90.73, 2063.0), (72.58, 90.11, 2472.0), (72.74, 90.75, 2642.0),
+    (75.05, 91.31, 2812.0), (77.10, 91.80, 2982.0), (81.03, 92.24, 3152.0),
+    (84.56, 92.64, 3322.0), (87.89, 93.25, 3442.0),
+)
+_P139_AFT = (
+    (73.09, 90.73, 2063.0), (78.97, 91.79, 2183.0), (84.10, 92.38, 2353.0),
+    (88.54, 92.89, 2523.0), (89.96, 93.34, 2693.0), (91.21, 93.74, 2863.0),
+    (90.30, 94.09, 3033.0), (87.89, 93.25, 3442.0),
+)
+
+
+def _p138_project(discretionary=_P138_DISCRETIONARY):
+    """Appendix A p138's data base as a Project. Only ``weight.items`` is needed:
+    :func:`loading_envelope` reads nothing else."""
+    items = [MassItem(name=n, weight_lb=w, x=x, z=z, kind=k)
+             for k, rows in ((MassItemKind.EMPTY, _P138_EMPTY),
+                             (MassItemKind.MINIMUM, _P138_MINIMUM),
+                             (MassItemKind.DISCRETIONARY, discretionary))
+             for n, w, x, z in rows]
+    return Project(name="Appendix A p138", weight=WeightInput(items=items))
+
+
+def test_both_edges_reproduce_appendix_a_p139():
+    """G-WE-1: all 16 printed rows, all three printed columns, to +/-0.1%.
+
+    Appendix A p139, "ENVELOPE OF DISCRETIONARY LOAD FOR" -- the forward block
+    (WTENV.BAS 280-330, "NOW PRINTING FORWARD EDGE OF ENVELOPE") and the aft
+    block (390-500, "NOW PRINTING AFT EDGE OF ENVELOPE").
+    """
+    project = _p138_project()
+    for aft, printed in ((False, _P139_FORWARD), (True, _P139_AFT)):
+        edge = calc.loading_envelope(project, aft=aft)
+        assert len(edge) == len(printed), ("p139 prints "
+            f"{len(printed)} vertices on the {'aft' if aft else 'forward'} edge")
+        for vertex, (xbar, zbar, weight) in zip(edge, printed):
+            where = f"{'aft' if aft else 'forward'} edge, {weight:.0f} lb"
+            assert math.isclose(vertex.weight, weight, rel_tol=TOL), where
+            assert math.isclose(vertex.station, xbar, rel_tol=TOL), where
+            assert math.isclose(vertex.waterline, zbar, rel_tol=TOL), where
+
+
+def test_the_two_edges_close_the_envelope():
+    """Both sweeps start at the minimum flight weight and end at the same full
+    loading -- what makes the two edges one closed envelope (WTENV.BAS 330/500
+    are the same subroutine over the same items in opposite order)."""
+    project = _p138_project()
+    forward = calc.loading_envelope(project, aft=False)
+    aft = calc.loading_envelope(project, aft=True)
+    assert forward[0] == aft[0]
+    assert forward[-1] == aft[-1]
+
+
+def test_the_aft_edge_leaves_the_structural_box_on_ga6():
+    """The reason the figure needs both edges (note 45 §1.6). The forward edge
+    stays inside the aft-gross CG limit the whole way; the aft edge does not.
+
+    Ch 3 p21 says that is expected and not a defect -- the limits bound what the
+    pilot may fly, not what the airplane can physically hold."""
+    project = io.load_project(_EXAMPLE)
+    aft_limit = value_of(results(), "aft_gross_station")
+    forward = calc.loading_envelope(project, aft=False)
+    aft = calc.loading_envelope(project, aft=True)
+    assert max(v.station for v in forward) < aft_limit
+    assert max(v.station for v in aft) > aft_limit
+
+
+def test_the_aft_edge_adds_a_condition_and_changes_no_existing_one():
+    """G-WE-2: the OR-15 admission is additive.
+
+    The four pre-existing conditions keep their titles, notes and order, the aft
+    edge is appended after them, and every legacy key still carries its own
+    label and units. The pre-existing *values* are held by every other test in
+    this file, which is unedited by note 45 (G-WE-3)."""
+    r = results()
+    assert [c.title for c in r[:4]] == [
+        "Weight envelope summary",
+        "Structural CG-limit stations and loadings",
+        "Ballast to reach the structural limits",
+        "Forward loading envelope (weight, station)",
+    ]
+    assert len(r) == 5 and r[4].title.startswith("Aft loading envelope")
+    forward = next(c for c in r if c.title.startswith("Forward loading"))
+    legacy = [v for v in forward.values if not v.key.endswith("_waterline")]
+    assert [v.key for v in legacy] == [
+        k for i in range(1, len(legacy) // 2 + 1)
+        for k in (f"point_{i}_weight", f"point_{i}_station")]
+    assert all(v.units == "lb" and v.quantity == "mass"
+               for v in legacy if v.key.endswith("_weight"))
+    assert all(v.units == "in" for v in legacy if v.key.endswith("_station"))
+
+
+def test_the_forward_edge_has_exactly_one_owner():
+    """G-WE-4: ``loading_envelope_points`` is the station-only projection of the
+    same sweep, not a second walk -- so the GUI chart and the report can never
+    be shown different vertices."""
+    for name in ("ga6_normal", "cessna_210", "dhc8_dash8", "concept_heavy"):
+        path = os.path.join(os.path.dirname(_EXAMPLE), f"{name}.project.json")
+        project = io.load_project(path)
+        assert calc.loading_envelope_points(project) == [
+            (v.weight, v.station) for v in calc.loading_envelope(project)]
+
+
+def test_an_edge_is_invariant_to_the_entry_order_of_equal_station_items():
+    """G-WE-5: the determinism WE-4 asks for.
+
+    p138 ties 3RD/4TH PERSON at station 111.00 and 5TH/6TH at 150.00. Swapping
+    each pair in the data base must not move a vertex -- tied items contribute
+    the same weight at the same station, so the cumulative point is identical
+    whichever is counted first. This is why the manual's unstable sort order is
+    not reproduced: it is unobservable in the numbers."""
+    swapped = list(_P138_DISCRETIONARY)
+    swapped[1], swapped[2] = swapped[2], swapped[1]   # 3RD <-> 4TH  (x=111)
+    swapped[3], swapped[4] = swapped[4], swapped[3]   # 5TH <-> 6TH  (x=150)
+    for aft in (False, True):
+        assert (calc.loading_envelope(_p138_project(tuple(swapped)), aft=aft)
+                == calc.loading_envelope(_p138_project(), aft=aft))
+
+
 if __name__ == "__main__":
     import traceback
 

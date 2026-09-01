@@ -365,7 +365,10 @@ def critical_rows(results: List[ConditionResult]) -> List[Dict[str, object]]:
 
 
 #: Weight/station pair-folding key suffixes (:func:`weight_station_rows`).
-_PAIR_SUFFIXES = ("_weight", "_station", "_point")
+#: ``_waterline`` joined at design note 45: WTENV's envelope vertices carry the
+#: ``ZBAR`` column the original prints, and a vertex is one point whether it
+#: states two coordinates or three.
+_PAIR_SUFFIXES = ("_weight", "_station", "_waterline", "_point")
 
 
 def _pair_stem(key: str) -> str:
@@ -387,7 +390,7 @@ def _pair_stem(key: str) -> str:
 def _pair_label(label: str) -> str:
     """The folded row's name: the value label minus its weight/station word."""
     words = label.split()
-    if words and words[-1].lower() in ("weight", "station"):
+    if words and words[-1].lower() in ("weight", "station", "waterline"):
         words = words[:-1]
     if words and words[-1].lower() == "point":
         words = words[:-1]
@@ -416,6 +419,13 @@ def weight_station_rows(results: List[ConditionResult]) -> List[Dict[str, object
                           if v.quantity != "mass"), "in")
     weight_col = f"Weight ({weight_units})"
     station_col = f"Station ({station_units})"
+    waterline_col = f"Waterline ({station_units})"
+    # The waterline column appears only when something in this result set has
+    # one (note 45): WTENV's envelope vertices do, its summary and CG-limit
+    # blocks do not, and a result set with no waterline anywhere -- an isolated
+    # ballast marker, say -- keeps the two-column shape it has always had.
+    has_waterline = any((v.key or "").endswith("_waterline")
+                        for r in results for v in r.values)
     rows: List[Dict[str, object]] = []
     for r in results:
         by_stem: Dict[str, Dict[str, object]] = {}
@@ -428,9 +438,19 @@ def weight_station_rows(results: List[ConditionResult]) -> List[Dict[str, object
                     "Point": _pair_label(v.label),
                     weight_col: "—", station_col: "—",
                 }
+                if has_waterline:
+                    row[waterline_col] = "—"
                 rows.append(row)
-            row[weight_col if v.quantity == "mass" else station_col] = \
-                format_value(v.value)
+            # Routed by key, not by ``quantity``: a waterline and a station are
+            # both lengths and both carry an empty quantity, so the dimension
+            # hint cannot tell them apart.
+            if (v.key or "").endswith("_waterline"):
+                column = waterline_col
+            elif v.quantity == "mass":
+                column = weight_col
+            else:
+                column = station_col
+            row[column] = format_value(v.value)
             if v.quantity == "mass":
                 # The weight label names the point; a station-first pair
                 # (the CG-limit block lists stations before weights) still

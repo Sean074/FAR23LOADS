@@ -123,8 +123,14 @@ def test_the_grouped_screen_frames_drop_only_all_blank_columns():
 def test_wtenv_folds_weight_station_pairs_to_one_row_per_point():
     mr = registry.get("weight_envelope")(_ga6())
     rows = summary_rows("weight_envelope", mr.conditions)
+    # The waterline column joined at design note 45, when the envelope vertices
+    # gained WTENV's printed ZBAR. It is present on every row of a result set
+    # that has one anywhere and dashed where the block has none, so the summary
+    # and CG-limit blocks read exactly as before with one empty cell.
     assert rows is not None and list(rows[0].keys()) == [
-        "Condition", "FAR", "Point", "Weight (lb)", "Station (in)"]
+        "Condition", "FAR", "Point", "Weight (lb)", "Station (in)",
+        "Waterline (in)"]
+    assert rows[0]["Waterline (in)"] == "—"
     by_point = {(r["Condition"], r["Point"]): r for r in rows}
     # The CG-limit block as corner x (station, weight) -- station and weight
     # entered as separate stacked values in the condition, folded here.
@@ -133,13 +139,22 @@ def test_wtenv_folds_weight_station_pairs_to_one_row_per_point():
     # line in 02_approved_corrections): the structural CG limits are
     # XLEMAC-referenced, so they move with the wing MAC's 0.042 %.
     assert corner["Weight (lb)"] == "3400" and corner["Station (in)"] == "85.09"
-    # The forward loading envelope: one row per vertex, not two.
+    # The forward loading envelope: one row per vertex, not three.
     envelope = [r for r in rows
                 if r["Condition"].startswith("Forward loading envelope")]
     values = next(c for c in mr.conditions
                   if c.title.startswith("Forward loading envelope")).values
-    assert len(envelope) == len(values) // 2
+    assert len(envelope) == len(values) // 3
     assert envelope[0]["Point"] == "Point 1"
+    assert envelope[0]["Waterline (in)"] != "—"
+    # And the aft edge folds the same way (note 45 WE-1): its keys carry an
+    # `aft_` prefix so the two edges stay distinguishable when conditions are
+    # flattened together, but the fold is the same fold.
+    aft = [r for r in rows if r["Condition"].startswith("Aft loading envelope")]
+    aft_values = next(c for c in mr.conditions
+                      if c.title.startswith("Aft loading envelope")).values
+    assert len(aft) == len(aft_values) // 3 == len(envelope)
+    assert aft[0]["Point"] == "Aft point 1"
 
 
 def test_an_unpaired_wtenv_value_keeps_its_label_and_dashes_the_gap():

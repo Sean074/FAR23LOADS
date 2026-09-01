@@ -3,15 +3,22 @@
 **Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6: the owner of what a note touches reviews it as a PR)*
 
 **Status: AGREED 2026-08-31 (owner, in session — `CLAUDE.md` rule 1's
-working-alone path); nothing built.** Milestone: **0.8.2**, admitted under
+working-alone path); SHIPPED 2026-08-31 (issue #157,
+`changes/wtenv-aft-edge.*`).** Milestone: **0.8.2**, admitted under
 note 44 **OR-15 row 1** by owner decision in the same session. Closure tier **L**.
+**WE-3 amended and G-WE-5 restated 2026-08-31** (owner, in session), during
+implementation: the per-vertex *waterline* stands and is oracle-locked, the
+per-vertex *item name* is parked because the result model has no per-row string
+channel to put it in (§5).
 
 `WTENV.BAS` computes **two** edges of the useful-load envelope — a forward one
 and an aft one — by sorting the discretionary items ascending, sweeping,
 re-sorting descending, and sweeping again. Our port implements the ascending
-sweep only. This note settles completing it: the aft edge, the per-vertex item
-name and waterline the original also prints, the oracle that locks all three,
-and the fixture question that decides where the oracle test can live.
+sweep only. This note settles completing it: the aft edge and the per-vertex
+waterline, the oracle that locks both, and the fixture question that decides
+where the oracle test can live. The third dropped output — the *name* of the
+item added at each vertex — turned out to have nowhere in the result model to
+live and is parked (WE-3 as amended, §5).
 
 The occasion is section 2.2 of the oracle technical report (note 44), which is
 to carry the p140 figure. The *reason* is that the port is short an output the
@@ -177,8 +184,8 @@ that our output cannot currently support.
 |---|---|---|
 | **WE-1** | **WTENV gains the aft edge**, ported from `WTENV.BAS` 390–500. This is completion of an existing port, not new physics: the same sweep over the same items in the opposite station order. | The program computes it, the manual prints it, and Ch 3 instructs the reader to plot both. A port that emits one of two printed tables is incomplete regardless of what consumes it. |
 | **WE-2** | **One sweep, parametrised by direction** — the existing `_forward_sequence` becomes a direction-taking sweep and both edges call it, mirroring the `.BAS`'s single `GOSUB 657` invoked twice. No second implementation of the cumulative walk, in this module or beside it. | The consolidation rule (`CLAUDE.md` rule 3, and the G-3b precedent). A drift-guarded second copy was considered and rejected: the thing it would protect — the freeze — is better served by proving the existing outputs unchanged (G-WE-2) than by not touching the file. |
-| **WE-3** | **Each vertex carries the name of the item added and its waterline**, alongside weight and station — the `.BAS`'s three printed columns plus the label of line 770. New `LoadValue` keys only. | These are outputs of the original that were dropped, on the same footing as the aft edge. The name is also what lets a consumer identify a vertex without re-deriving the sort, which OR-6 forbids. |
-| **WE-4** | **Ties are broken stably (entry order); the label gate compares up to permutation within an equal-station group.** The `.BAS`'s unstable order is *not* reproduced. | §1.5: the printed order is a function of the declared array size and the blank-record migration it causes, and it cannot move a number. Porting it would mean porting `DIM` as an input. Stable order happens to reproduce the printed aft edge exactly and differs from the printed forward edge only in which of two identical labels sits on which of two identical points. |
+| **WE-3** | **Each vertex carries its waterline** alongside weight and station — the `.BAS`'s three printed columns (`XBAR`, `ZBAR`, `WEIGHT`). New `LoadValue` keys only. **Amended 2026-08-31 (owner, in session), during implementation:** the *name* of the item added (line 770) is **not** emitted. | The waterline is an output of the original that was dropped, on the same footing as the aft edge, and p139's `ZBAR` column locks it. The name has nowhere to live: `LoadValue`'s value is a float, its `label` is documented as cosmetic with **M4-9** forbidding downstream code from matching on it, `ConditionResult.title` is per-group rather than per-row, and `CaseRef` is the delivered-*load-case* identity with a fixed six-entry component taxonomy that a weight vertex has no business minting. Emitting it needs a per-row string channel in `models/results.py` — a contract change rippling through the renderer, the CSV writer, the report and `DATA_DICTIONARY.md`, which is its own note, not a clause of this one. Parked in §5. |
+| **WE-4** | **Ties are broken stably (entry order).** The `.BAS`'s unstable order is *not* reproduced. | §1.5: the printed order is a function of the declared array size and the blank-record migration it causes, and it cannot move a number. Porting it would mean porting `DIM` as an input. With WE-3 amended the tie order is not observable in the output at all — tied items share a station, so they produce identical `(weight, station, waterline)` vertices — and the decision survives only as a determinism statement: the edge must not depend on the entry order of equal-station items. Gated by G-WE-5. |
 | **WE-5** | **The oracle test runs on a new Appendix-A data base, transcribed from p. 138 and held in the test**, not as a shipped `examples/*.json`. `examples/ga6_normal.project.json` is **not** modified. | §1.3: `ga6_normal` is the Ch 3 database and the Ch 3 ballast lock (78/418/158) is computed from its no-baggage maximum. Adding baggage to reach Appendix A would break a standing oracle to gain one. A test-local transcription costs nothing to maintain and keeps the page citation beside the numbers, per the math-fidelity rule. |
 | **WE-6** | **No existing output changes.** The four current `ConditionResult`s keep their titles, notes, `LoadValue` labels, keys, units and values on every bundled fixture, and that is asserted rather than asserted-to. | This is the substance of the OR-13 freeze. The freeze exists so the report cannot perturb the solver; honouring it by *proof* is stronger than honouring it by not opening the file, and it is what makes the admission safe to grant. |
 | **WE-7** | **The ballast reference selection continues to read the forward edge only.** The aft edge is a reporting output; no delivered load, load factor, CG case or balanced condition moves. | `WTENV.BAS` contains no ballast routine at all — our ballast implements the Ch 3 pp. 21–22 hand calculation, which reasons on the forward loading. Widening it to the aft edge would be a change to a delivered quantity and is out of scope here; if it is ever wanted it is its own note. |
@@ -194,7 +201,7 @@ that our output cannot currently support.
 | **G-WE-2** | On every bundled fixture, the module's four pre-existing `ConditionResult`s are unchanged: same titles, same notes, same `LoadValue` sequence, and every value equal to the pre-change result. The frozen-file admission changes nothing that existed. |
 | **G-WE-3** | The Ch 3 pp. 21–22 oracle on `ga6_normal` is untouched — limit stations 85.1 / 77.49 / 72.64, minimum flight 2063 @ 73.09, maximum loading 3322 @ 84.56, ballast 78 / 418 / 158 at their stations. The existing tests carry this; it must still pass unedited. |
 | **G-WE-4** | The forward edge produced by the direction-taking sweep is **identical** to `loading_envelope_points(project)` on every fixture — the WE-2 single-owner claim, asserted rather than assumed. |
-| **G-WE-5** | Every vertex label on both edges matches p. 139 **up to permutation within an equal-station group** (WE-4), and the group partition itself matches exactly. A label that moves between groups is a failure. |
+| **G-WE-5** | Both edges are **invariant to the entry order of equal-station items** (WE-4): permuting tied discretionary rows in the data base leaves every vertex's weight, station and waterline unchanged. This is the determinism claim that replaced the label gate when WE-3 was amended. |
 
 `G-OR-9` already governs the manifest: the commit that edits
 `sloads/modules/weight_envelope.py` updates `tests/test_frozen_set.py`'s
@@ -238,10 +245,19 @@ independent either way.
   the p139 lock necessarily lives on the WE-5 transcription. The GA6 fixture
   still exercises both edges through G-WE-2/G-WE-3/G-WE-4 — it simply has no
   printed edge table to be checked against.
+- **Parked: the per-vertex item name** (`WTENV.BAS` line 770). Found unemittable
+  during implementation, 2026-08-31 — see the amended WE-3. It needs a per-row
+  string channel on `LoadValue`, which is a `models/results.py` contract change
+  and belongs to its own note; several modules would use it. Until then the
+  vertex→item mapping is recoverable by the reader rather than restated by us:
+  the vertices are the discretionary items in station order, and §2.2's mass
+  table already lists every item with its station.
 - **Not done: the aft-edge ballast** (WE-7), **the `.BAS` tie order** (WE-4),
-  and **any change to how the GUI's Weight/CG Envelope tab plots today** — the
-  tab will gain the aft edge for free through `loading_envelope_points`' sibling,
-  but that is display and rides the ordinary rules, not this note.
+  and **any change to how the GUI's Weight/CG Envelope tab plots today**. The
+  tab still draws the forward edge alone: `loading_envelope_points` is unchanged
+  by design, and plotting the aft edge means calling
+  `loading_envelope(project, aft=True)` beside it. That is display work, rides
+  the ordinary rules, and is not part of this note.
 - **Not done: the `symmetric: true` finding on `examples/baron_58.project.json`**
   (WINGGEOM reports the fin's area and span doubled). Unrelated, found in the
   same reading, and filed separately under OR-14.

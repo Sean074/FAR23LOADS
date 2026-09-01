@@ -41,14 +41,25 @@ calc for the aft-gross point rounded the limit station to 85.0 (giving 78 lb @
 is 85.107. Per Decision 3 (modernise the math) this module reports the exact
 moment-balance station; the ballast *weights* match the manual exactly.
 
-Reference: WTENV.BAS, Ch 3; worked example Appendix A (stations 85.1 / 77.49 /
-72.64; min flight weight 2063 @ 73.09; ballast weights 78 / 418 / 158).
+Both edges of the envelope are computed (design note 45). WTENV.BAS sorts the
+discretionary items by fuselage station, sweeps them cumulatively from the
+minimum flight weight (``GOSUB 657`` at line 330 -- the FORWARD EDGE), re-sorts
+in descending order and sweeps again (line 500 -- the AFT EDGE); one subroutine,
+two calls. Each vertex carries the weight, station and waterline the program
+prints (``XBAR``/``ZBAR``, lines 760/770). The ballast below reads the forward
+edge alone, as the Ch 3 hand calculation does (WE-7), so the aft edge moves no
+delivered quantity. The *name* of the item added at each vertex is printed by
+the original and is not carried here -- see :class:`EnvelopeVertex`.
+
+Reference: WTENV.BAS (Appendix C p382-383), Ch 3; worked example Appendix A
+(stations 85.1 / 77.49 / 72.64; min flight weight 2063 @ 73.09; ballast weights
+78 / 418 / 158). Both edges are printed at Appendix A p139 and plotted at p140.
 """
 
 from __future__ import annotations
 
 import math
-from typing import List, Optional, Tuple
+from typing import List, NamedTuple, Optional, Tuple
 
 from ..cg_cases import max_takeoff_weight
 from ..derived_geometry import pct_mac_to_station, require_mac_reference
@@ -70,6 +81,21 @@ _LB = "lb"
 _IN = "in"
 
 
+class EnvelopeVertex(NamedTuple):
+    """One vertex of a loading-envelope edge: the three columns WTENV prints.
+
+    ``WTENV.BAS`` 760/770 print ``XBAR``, ``ZBAR`` and the cumulative weight per
+    vertex, labelled with the item just added. The label is **not** carried
+    (design note 45 WE-3, amended): a name has nowhere to live in
+    :class:`~sloads.models.results.LoadValue`, whose value is a float and whose
+    ``label`` is cosmetic by the M4-9 contract.
+    """
+
+    weight: float
+    station: float
+    waterline: float
+
+
 def _weight_and_station(items: List[MassItem]) -> Tuple[float, float]:
     """Total weight and weight-averaged fuselage station of a set of items."""
     w = math.fsum(it.weight_lb for it in items)
@@ -77,6 +103,19 @@ def _weight_and_station(items: List[MassItem]) -> Tuple[float, float]:
         return 0.0, 0.0
     m = math.fsum(it.weight_lb * it.x for it in items)
     return w, m / w
+
+
+def _weight_and_cg(items: List[MassItem]) -> EnvelopeVertex:
+    """Total weight with the weight-averaged station **and waterline**.
+
+    The waterline half is what :func:`_sweep` needs to reproduce WTENV's printed
+    ``ZBAR`` column; :func:`_weight_and_station` stays as the station-only view
+    its three existing callers use, so no value they produce can move.
+    """
+    w, x = _weight_and_station(items)
+    if w == 0:
+        return EnvelopeVertex(0.0, 0.0, 0.0)
+    return EnvelopeVertex(w, x, math.fsum(it.weight_lb * it.z for it in items) / w)
 
 
 def _is_ballast(item: MassItem) -> bool:
@@ -106,20 +145,34 @@ def _fuselage_extent(
     return 0.0, None
 
 
-def _forward_sequence(start: Tuple[float, float], discretionary: List[MassItem]) -> List[Tuple[float, float]]:
-    """Cumulative (weight, station) loading the most-forward items first.
+def _sweep(start: EnvelopeVertex, discretionary: List[MassItem], *,
+           aft: bool) -> List[EnvelopeVertex]:
+    """One edge of the loading envelope -- ``WTENV.BAS`` 200-330 / 400-500.
 
-    Starting from ``start`` (the minimum flight weight), the discretionary items
-    are added in ascending fuselage-station order; each cumulative point is a
-    vertex of the forward boundary of the loading envelope.
+    The original sorts the discretionary items by fuselage station, sweeps them
+    cumulatively from the minimum flight weight (``GOSUB 657``), then re-sorts in
+    the opposite order and sweeps again -- one subroutine, two calls, two edges.
+    ``aft`` selects which call this is: ``False`` adds the most-*forward* item
+    first and traces the forward boundary, ``True`` the most-aft and traces the
+    aft one. Both start at ``start`` and end at the same full-loading point,
+    which is what closes the envelope.
+
+    The sort is **stable**, so items sharing a station keep their data-base
+    order (note 45 WE-4). The manual's own sort is unstable -- lines 220/420
+    compare strictly and swap on equality -- and additionally shuffles the blank
+    records of the dimensioned array, so its printed tie order is a function of
+    the array size rather than of the airplane. It cannot move a number: tied
+    items share a station, so whichever is counted first the cumulative vertex
+    is identical.
     """
-    w, m = start[0], start[0] * start[1]
-    points = [(w, start[1])]
-    for it in sorted(discretionary, key=lambda i: i.x):
+    w, mx, mz = start.weight, start.weight * start.station, start.weight * start.waterline
+    vertices = [start]
+    for it in sorted(discretionary, key=lambda i: -i.x if aft else i.x):
         w += it.weight_lb
-        m += it.weight_lb * it.x
-        points.append((w, m / w))
-    return points
+        mx += it.weight_lb * it.x
+        mz += it.weight_lb * it.z
+        vertices.append(EnvelopeVertex(w, mx / w, mz / w))
+    return vertices
 
 
 def _ballast(wl: float, xl: float, wa: float, xa: float) -> Optional[Tuple[float, float]]:
@@ -140,17 +193,28 @@ def _item_buckets(items: List[MassItem]) -> Tuple[List[MassItem], List[MassItem]
     return empty, minimum, discretionary
 
 
-def loading_envelope_points(project: Project) -> List[Tuple[float, float]]:
-    """The forward-loading-envelope vertices (weight, station), most-forward-first.
+def loading_envelope(project: Project, *, aft: bool = False) -> List[EnvelopeVertex]:
+    """One edge of the loading envelope for ``project`` -- the WE-2 single owner.
 
-    Shared by :func:`envelope`'s own ballast calc and the Weight/CG Envelope
-    page's chart (Step D5) -- the same vertices, computed once."""
+    ``aft=False`` is the forward boundary, ``aft=True`` the aft one; both are the
+    same sweep with the sort reversed, exactly as ``WTENV.BAS`` calls one
+    subroutine twice. Empty for a project with no weight data base.
+    """
     items = project.weight.items if project.weight else []
     if not items:
         return []
     empty, minimum, discretionary = _item_buckets(items)
-    min_w, min_x = _weight_and_station(empty + minimum)
-    return _forward_sequence((min_w, min_x), discretionary)
+    return _sweep(_weight_and_cg(empty + minimum), discretionary, aft=aft)
+
+
+def loading_envelope_points(project: Project) -> List[Tuple[float, float]]:
+    """The forward-loading-envelope vertices (weight, station), most-forward-first.
+
+    Shared by :func:`envelope`'s own ballast calc and the Weight/CG Envelope
+    page's chart (Step D5) -- the same vertices, computed once. Kept as the
+    station-only projection of :func:`loading_envelope` so its existing callers
+    are untouched by note 45; new code should ask for the vertices."""
+    return [(v.weight, v.station) for v in loading_envelope(project)]
 
 
 def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult]:
@@ -180,7 +244,14 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
     fwd_s = pct_mac_to_station(inp.fwd_gross_pct_mac, mac_ref)
     reg_s = pct_mac_to_station(inp.fwd_regardless_pct_mac, mac_ref)
 
-    fwd_seq = _forward_sequence((min_w, min_x), discretionary)
+    # Both edges, from one sweep called twice (WTENV.BAS 330 and 500; note 45
+    # WE-1/WE-2). The ballast below keeps reading the forward edge alone -- the
+    # manual's ballast is a Ch 3 hand calculation on the forward loading and
+    # WE-7 leaves it there, so no delivered quantity moves.
+    start = _weight_and_cg(empty + minimum)
+    fwd_vertices = _sweep(start, discretionary, aft=False)
+    aft_vertices = _sweep(start, discretionary, aft=True)
+    fwd_seq = [(v.weight, v.station) for v in fwd_vertices]
     nose_x, tail_x = _fuselage_extent(project, inp)
 
     summary = ConditionResult(
@@ -302,18 +373,45 @@ def envelope(project: Project, inp: WeightEnvelopeInput) -> List[ConditionResult
         note="Ballast station by moment balance; weights match the manual exactly.",
     )
 
+    # The two edges. The forward one keeps its title, note, keys, labels, units
+    # and values exactly (note 45 WE-6) and *gains* a waterline row per vertex;
+    # its title therefore under-describes its contents until the 0.8.2 freeze
+    # lapses, which is the cheaper of the two warts -- the alternative was a
+    # second condition reprinting the same forward numbers. The aft edge is new,
+    # so it says all three columns in its title and prefixes its keys, keeping
+    # them distinguishable wherever conditions are flattened together.
     envelope_stations = ConditionResult(
         title="Forward loading envelope (weight, station)",
         far_reference=_FAR,
-        values=[v for i, (w, x) in enumerate(fwd_seq, start=1) for v in (
-            LoadValue(f"Point {i} weight", w, _LB, quantity="mass",
+        values=[v for i, p in enumerate(fwd_vertices, start=1) for v in (
+            LoadValue(f"Point {i} weight", p.weight, _LB, quantity="mass",
                       key=f"point_{i}_weight"),
-            LoadValue(f"Point {i} station", x, _IN, key=f"point_{i}_station"),
+            LoadValue(f"Point {i} station", p.station, _IN, key=f"point_{i}_station"),
+            LoadValue(f"Point {i} waterline", p.waterline, _IN,
+                      key=f"point_{i}_waterline"),
         )],
         note="Discretionary items added most-forward first; vertices of the forward boundary.",
     )
 
-    return [summary, limits, ballast, envelope_stations]
+    aft_stations = ConditionResult(
+        title="Aft loading envelope (weight, station, waterline)",
+        far_reference=_FAR,
+        values=[v for i, p in enumerate(aft_vertices, start=1) for v in (
+            LoadValue(f"Aft point {i} weight", p.weight, _LB, quantity="mass",
+                      key=f"aft_point_{i}_weight"),
+            LoadValue(f"Aft point {i} station", p.station, _IN,
+                      key=f"aft_point_{i}_station"),
+            LoadValue(f"Aft point {i} waterline", p.waterline, _IN,
+                      key=f"aft_point_{i}_waterline"),
+        )],
+        note="Discretionary items added most-aft first; vertices of the aft boundary. "
+             "Both edges start at the minimum flight weight and end at the same full "
+             "loading, closing the envelope. A vertex outside the structural CG limits "
+             "is expected, not a defect (Ch 3 p21): the limits bound the loadings the "
+             "pilot may fly, not the loadings the airplane can physically hold.",
+    )
+
+    return [summary, limits, ballast, envelope_stations, aft_stations]
 
 
 # --------------------------------------------------------------------------- #
