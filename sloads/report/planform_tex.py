@@ -65,7 +65,8 @@ REGION_STYLES = ("fill=gray!20, area legend", "fill=gray!50, area legend")
 #: ``axis equal image`` and print a planform to the wrong shape, so the keys the
 #: content layer mints and the keys registered here are the same frozen set and
 #: ``test_oracle_report.py`` holds them together.
-PLANFORM_KEYS = frozenset({"planform_wing", "planform_htail", "planform_vtail"})
+PLANFORM_KEYS = frozenset({"planform_wing", "planform_htail", "planform_vtail",
+                           "planform_wing_lra"})
 
 #: The figures drawn nose-up: fuselage station is the **vertical** axis and it
 #: increases *downward*, so the surface sits the way a plan view is read.
@@ -79,7 +80,11 @@ PLANFORM_KEYS = frozenset({"planform_wing", "planform_htail", "planform_vtail"})
 #: The vertical tail is not in here: its second coordinate is a waterline, it is
 #: naturally taller than it is long, and a fin is read nose-left with the
 #: waterline running up -- which is the unreversed default.
-NOSE_UP_KEYS = frozenset({"planform_wing", "planform_htail"})
+NOSE_UP_KEYS = frozenset({"planform_wing", "planform_htail", "planform_wing_lra"})
+
+#: The loads reference axis drawn on a planform: a heavy dashed line, and the
+#: one series on these figures that is **not** a closed region.
+LRA_STYLE = "very thick, dashed"
 
 
 def planform_tex(data: PlotData, *, key: str = "",
@@ -94,7 +99,11 @@ def planform_tex(data: PlotData, *, key: str = "",
     fight the equal-axis constraint.
     """
     drawable = [(s, _finite(s)) for s in data.series]
-    drawable = [(s, pts) for s, pts in drawable if len(pts) >= 3]
+    # A closed region needs three points to bound anything; an open path -- the
+    # loads reference axis -- needs two. Filtering both at three would drop the
+    # axis of a two-station wing without saying so.
+    drawable = [(s, pts) for s, pts in drawable
+                if len(pts) >= (3 if s.closed else 2)]
     if not drawable:
         return ""
 
@@ -121,10 +130,14 @@ def planform_tex(data: PlotData, *, key: str = "",
         # `--cycle` closes the path itself rather than trusting the caller to
         # repeat its first point: an unclosed path fills to a straight chord
         # between the ends, which on a swept surface is a visibly wrong outline
-        # rather than an obviously broken one.
+        # rather than an obviously broken one. An **open** series is drawn
+        # without it: the loads reference axis runs root to tip and stops there,
+        # and closing it would draw a chord back down the span that no part of
+        # the airplane follows.
         forget = "" if series.name else ", forget plot"
+        close = " --cycle" if series.closed else ""
         lines.append(f"\\addplot[black, {series.style}{forget}, mark=none] "
-                     f"coordinates {{{_coordinates(points)}}} --cycle;")
+                     f"coordinates {{{_coordinates(points)}}}{close};")
         if series.name:
             lines.append(f"\\addlegendentry{{{escape(series.name)}}}")
 
@@ -146,6 +159,7 @@ def planform_tex(data: PlotData, *, key: str = "",
 
 
 __all__ = [
+    "LRA_STYLE",
     "OUTLINE_STYLE",
     "PLANFORM_KEYS",
     "REGION_STYLES",

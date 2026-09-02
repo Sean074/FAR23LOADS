@@ -151,12 +151,22 @@ class Table:
 @dataclass(frozen=True)
 class Series:
     """One named polyline of a figure. ``style`` is a line style, never a colour --
-    figures must stay legible in greyscale (§4.3)."""
+    figures must stay legible in greyscale (§4.3).
+
+    ``closed`` says the polyline bounds a **region** -- a planform outline, a
+    control surface -- rather than tracing a line through the figure. An emitter
+    that fills or closes a path reads it; the default is an ordinary open
+    polyline, which is what every plotted curve is. It exists because a planform
+    figure carries both kinds at once: the wing outline is a closed region and
+    the loads reference axis drawn on it is not, and closing the axis would cut
+    a chord from tip back to root that no part of the airplane follows.
+    """
 
     name: str
     x: List[float]
     y: List[float]
     style: str = "solid"
+    closed: bool = False
 
 
 @dataclass(frozen=True)
@@ -342,7 +352,20 @@ class Units:
         """
         if value is None or value == "":
             return ""
-        return format_value(value * sf * getattr(self.d, dim).factor)
+        return format_value(self.load_value(value, dim, sf))
+
+    # -- the same two conversions as numbers, for a figure's axis ------------ #
+    #
+    # A plotted load goes through the boundary exactly as a tabulated one does:
+    # the figure and the table beside it are then the same number drawn two
+    # ways, and neither can be the one that forgot to scale.
+    def load_value(self, value: float, dim: str, sf: float) -> float:
+        """A LIMIT load as an ULTIMATE number in the document's units."""
+        return value * sf * getattr(self.d, dim).factor
+
+    def plain_value(self, value: float, dim: str) -> float:
+        """A non-load quantity as a number in the document's units."""
+        return value * self._factor(dim)
 
     def _factor(self, dim: str) -> float:
         if dim in _EXTRA_DIMENSIONS:

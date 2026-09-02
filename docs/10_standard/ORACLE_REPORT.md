@@ -345,6 +345,71 @@ Mach-margin route and says so in its note — so a concept-only field reached th
 printed page, and G-OR-6 caught it. Suppressing that one field would have left
 every future section free to find another.
 
+## 3.4 Section 3: Wing Loads
+
+Design note 44 §11 (OR-48 … OR-56). Four subsections and one appendix, built
+from the `wing_loads` step (`AIRLOADS+WINGINER+NETLOADS`).
+
+- **3.1 states the wing data the cases were run from**, not the planform: the
+  planform is 2.1's and **SHALL** be cross-referred rather than repeated.
+- **3.1 defines the loads reference axis.** Every distributed load in the section
+  is stated about it, and the **torsion is the only quantity the choice moves**.
+  The replicated programs accumulate about the local 25 % chord, so for the
+  oracle the LRA *is* the quarter chord; in this suite the axis is entered per
+  surface and the torsion is transferred at the delivery boundary. 3.1 **SHALL**
+  carry the axis point (X, Y, Z) at each load station and a planform figure with
+  the axis drawn on it. The axis **SHALL** be drawn as an open path: closing it
+  would cut a chord from tip back to root that no part of the airplane follows
+  (`content.Series.closed`).
+- **The axis a torsion is stated about SHALL be named wherever it is printed**,
+  in the column header, the figure title or the table note. The oracle
+  projection (§3.3.1) resets the entered axis to the quarter chord, which is why
+  an oracle report cannot print a 40 %-chord torsion for a project that enters
+  one — the document is a function of that projection, not of the file.
+- **3.1's span loading is `c*cl`, not running load**, drawn at three wing lift
+  coefficients: `CL = 0` (the basic distribution alone), `CL = 1.0`, and
+  `CL = CLmax`. `CLmax` **SHALL** be the aero set's own `stall_cl`, never a
+  constant chosen here. Each curve **SHALL** be AIRLOADS' own distribution
+  evaluated at that target `CL` — the report calls the owner once per
+  coefficient and **SHALL NOT** combine the additive and basic parts itself.
+- **The flaps-down span load SHALL be stated absent, never filled with the clean
+  set.** AIRLOADS does not model the lift discontinuity a deflected flap puts in
+  the basic distribution — the Appendix A wing has none — so no project can
+  produce it. The oracle prints two sets and this analysis can print one, and
+  the figure says so. The capability gap is **#163**.
+- **3.1's coefficient curves are the airplane *less its tail*** — the tail-off
+  data the balance solves against — with the balanced conditions marked on
+  them. There is **no tail-on lift coefficient in this suite**: the balance
+  carries the tail load as a separate force rather than inside the coefficient,
+  so a marked point sits on the curve and the section **SHALL** say that rather
+  than implying a second curve exists.
+- **3.2 is the run register**: one row per selected case with its case ID,
+  condition, 14 CFR paragraph, CG case and weight, speed, altitude and
+  `Nz`/`Nx`. This discharges OR-41. It also states the axes and sign convention,
+  and **SHALL** compose its own cross-references through the numbering owner —
+  a subsection reference typed as "3.1" is the F-R2 defect one level down
+  (`oracle_content.subsection_ref`).
+- **SELECT's subset is the critical set.** 3.3 tabulates its root values and
+  3.4 plots every one of it; no second criticality rule is invented for the
+  report. 3.4 carries one figure per quantity — `Sz`, `Mxx`, `Myy`, `Sx` —
+  showing the **net** loads only, and **SHALL** state that they are summed from
+  the tip inboard. Chord bending `Mzz` is not plotted.
+- **The cases 3.2, 3.3, 3.4 and the appendix state SHALL be one set**, in one
+  order: four projections of the same analysis.
+- **Every load in section 3 and its appendix is ULTIMATE and marked**; every
+  input distribution is LIMIT and says so. This is where G-OR-4 stops being
+  vacuous — section 2 held it by carrying no force or moment at all (OR-44),
+  and section 3 holds it only by marking every one of them.
+- **Appendix B carries the increment at each station, not a running load.**
+  `Fz`/`Fx` are what the strip at that station carries; `Sz`, `Sx`, `Mxx`, `Myy`
+  are cumulative. Station coordinates are tabulated once, in 3.1.
+- **The Appendix A input echo holds a reserved slot** that renders its OR-32
+  state. Lettering is derived from position, so an unreserved slot would print
+  the wing appendix as A today and move it to B when the echo lands — and an
+  issue signed in between would disagree with its own reissue. A reserved slot
+  is lettered and **SHALL NOT** be referable: prose points at a built appendix
+  only.
+
 ## 4. Identity, signatures and DRAFT
 
 The title block carries report number, revision, issue date, issuing
@@ -462,6 +527,10 @@ without a guard is prose, not a gate).
 | 2.3 Structural Design Speeds | 2026-08-30 | `test_oracle_report.py::test_the_paired_tables_pair_keys_the_modules_actually_produce` , `::test_a_paired_table_drops_a_units_column_no_row_fills` |
 | 2.4 Speed/altitude envelope | 2026-08-31 | `test_oracle_report.py::test_the_speed_altitude_envelope_opens_2_4_and_reaches_sea_level`, `::test_the_speed_altitude_envelope_plots_only_machlim_s_own_speeds`, `::test_vh_is_marked_at_sea_level_and_is_not_drawn_as_a_boundary`, `::test_the_speed_altitude_envelope_has_one_builder_for_both_reports`, `::test_an_airplane_with_no_mach_inputs_says_so_instead_of_drawing` |
 | 2.4 Flight Envelope | 2026-08-30 | `test_oracle_report.py::test_the_envelope_boundary_order_is_the_analysis_order`, `::test_the_envelope_figures_plot_only_produced_design_points`, `::test_one_envelope_figure_per_loading_and_altitude` |
+| 3. Wing Loads (subsections, appendix lettering) | 2026-09-01 | `test_oracle_report.py::test_the_wing_section_renders_its_four_subsections_numbered_by_the_owner`, `::test_wing_loads_is_appendix_b_while_the_input_echo_holds_appendix_a`, `::test_the_reserved_appendix_states_its_state_and_is_not_pointed_at` |
+| 3.1 Loads reference axis and wing inputs | 2026-09-01 | `test_oracle_report.py::test_every_wing_torsion_names_the_axis_it_is_stated_about`, `::test_the_reference_axis_is_drawn_open_on_a_closed_planform`, `::test_the_span_load_is_drawn_at_zero_unit_and_the_airplanes_own_clmax`, `::test_the_span_load_curves_are_airloads_own_distribution`, `::test_a_project_with_no_flaps_down_set_says_so_and_draws_nothing` |
+| 3.2-3.4 Cases, root loads and distributions | 2026-09-01 | `test_oracle_report.py::test_the_wing_cases_are_one_set_seen_four_ways`, `::test_the_wing_root_loads_are_the_limit_result_times_the_case_factor`, `::test_a_project_with_no_wing_loads_states_the_absence_and_still_builds` |
+| Section 3 delivers ULTIMATE; inputs stated LIMIT | 2026-09-01 | `test_oracle_report.py::test_every_load_the_wing_section_prints_is_marked_ultimate`, `::test_the_appendix_carries_the_station_increment_and_the_running_total` |
 | Section 2 marks nothing ultimate; load factors identified as LIMIT | 2026-08-30 | `test_oracle_report.py::test_section_two_marks_nothing_ultimate_and_states_no_safety_factor`, `::test_no_table_claims_a_load_factor_is_not_a_load`, `::test_reported_load_factors_are_identified_as_limit` |
 
 ## 8. Conformance
@@ -484,6 +553,23 @@ without a guard is prose, not a gate).
       `test_oracle_report.py`
 - [x] The V-n figures carry no caption and the LIMIT identification is made once
       in the subsection body — `test_oracle_report.py`
+
+- [x] Section 3 renders four subsections numbered by the numbering owner, and
+      Wing Loads is Appendix B behind a reserved, unreferable Appendix A —
+      `test_oracle_report.py`
+- [x] Every load section 3 and Appendix B print carries the `-ULT` marker, and
+      each root value is the module's own LIMIT result times that case's stated
+      factor — `test_oracle_report.py`
+- [x] Every wing torsion names the axis it is stated about, and the reference
+      axis is drawn as an open path on a closed planform —
+      `test_oracle_report.py`
+- [x] The span load is AIRLOADS' own distribution at `CL = 0`, `1.0` and the
+      aero set's `stall_cl`, and the flaps-down set is stated absent rather than
+      filled with the clean one — `test_oracle_report.py`
+- [x] 3.2, 3.3, 3.4 and Appendix B state one set of cases in one order —
+      `test_oracle_report.py`
+- [x] Appendix B carries the station increment and the cumulative total, and the
+      station coordinates are printed once — `test_oracle_report.py`
 
 - [x] The section set is `oracle_steps()`'s result-producing steps, both
       directions — `test_oracle_report.py`

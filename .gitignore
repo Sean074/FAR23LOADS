@@ -8,6 +8,7 @@ __pycache__/
 *.egg-info/
 reference/
 projects/
+scrap*
 # Built report issue packages (note 44, OR-22/OR-29). No leading slash:
 # the folder is chosen at build time and can land beside any project.
 reports/

@@ -280,7 +280,7 @@ def test_a_deselected_section_is_omitted_entirely_and_numbering_closes_up():
         assert children == [oc.subsection_number(str(parent), i)
                             for i in range(len(children))], (
             f"deselection left a hole under section {parent}: {children}")
-    assert len(_flat(doc.sections)) == len(numbers)
+    assert _plan_sections(doc) == numbers
     # The excluded step keeps its plan row, so the page's preflight can still
     # show the author that their choice registered.
     excluded = [e for e in doc.plan if e.step_key == step.key]
@@ -291,10 +291,41 @@ def test_a_deselected_section_is_omitted_entirely_and_numbering_closes_up():
 # --------------------------------------------------------------------------- #
 # G-OR-7 -- absence is content
 # --------------------------------------------------------------------------- #
+def _number_of(section):
+    """The number a rendered section's heading carries, or ``""``."""
+    head = section.title.split(" ", 1)[0].rstrip(".")
+    return head if head[:1].isdigit() else ""
+
+
+def _numbered_sections(doc):
+    """The number each rendered section carries, in document order.
+
+    Every rendered section is a numbered plan row, a subsection a builder owns
+    (section 3 renders four), or a lettered appendix -- so a count of sections
+    against a count of plan rows stopped being the invariant when the first of
+    those landed. What still holds, and is what the two callers assert, is that
+    the *numbered* sections are exactly the numbered plan rows, in order.
+    """
+    return [n for n in (_number_of(s) for s in _flat(doc.sections)) if n]
+
+
+def _plan_sections(doc):
+    """The rendered numbers that are plan rows, in document order.
+
+    A builder's own subsections are numbered too (section 3 renders 3.1 ... 3.4)
+    and have no plan row, so a comparison against the plan filters to the rows
+    the plan actually claims -- and still asserts their order and completeness.
+    """
+    wanted = {e.number for e in doc.plan if e.number}
+    return [n for n in _numbered_sections(doc) if n in wanted]
+
+
 def test_a_half_filled_project_yields_a_complete_document():
     """No traceback, and no silently missing section."""
     doc = oc.build_oracle_document(Project(name="half"), _spec())
-    assert len(_flat(doc.sections)) == len([e for e in doc.plan if e.number])
+    assert _plan_sections(doc) == [e.number for e in doc.plan if e.number]
+    assert [s.title for s in doc.sections[-len(oc.APPENDICES):]] == [
+        oc.appendix_heading(a.title) for a in oc.APPENDICES]
     body = [e for e in doc.plan if e.step_key]
     assert len(body) == len([s for s in wf.oracle_steps() if s.module])
     assert all(e.reason for e in body), "a gap with no reason is a silent gap"
@@ -502,9 +533,15 @@ def test_the_plan_and_the_sections_agree():
     object, so they cannot describe different documents."""
     doc = _doc()
     printed = [e for e in doc.plan if e.number]
-    sections = _flat(doc.sections)
-    assert len(sections) == len(printed)
-    for entry, section in zip(printed, sections):
+    # Paired by number, not by position: a builder's own subsections (section 3
+    # renders four) and the lettered appendices are rendered sections with no
+    # plan row of their own, so a positional zip stopped naming the same thing
+    # on both sides.
+    numbered = {_number_of(s): s for s in _flat(doc.sections) if _number_of(s)}
+    assert [e.number for e in printed] == [n for n in numbered
+                                           if n in {e.number for e in printed}]
+    for entry in printed:
+        section = numbered[entry.number]
         assert section.title == oc.heading(entry.number, entry.title)
         # A group row heads its members and has no state of its own; every other
         # printed row states a reason exactly when it is not included.
@@ -1502,9 +1539,16 @@ def test_a_planform_key_reaches_its_own_emitter():
     """
     from sloads.report.planform_tex import PLANFORM_KEYS
 
+    doc = _doc()
     minted = {key for key, _p, _t, _c, _f in osec._PLANFORM_FIGURES}
+    # 3.1's loads-reference-axis figure is a planform too: same emitter, same
+    # equal axes, minted by its own builder rather than from the 2.1 table.
+    minted.add(next(f.key for s in _flat(doc.sections) for f in s.figures
+                    if f.key == "planform_wing_lra"))
     assert minted == set(PLANFORM_KEYS)
-    for figure in _planforms(_doc()).values():
+    for figure in list(_planforms(doc).values()) + [
+            f for s in _flat(doc.sections) for f in s.figures
+            if f.key == "planform_wing_lra"]:
         assert "axis equal image" in figure_body_tex(figure)
 
 
@@ -1765,3 +1809,263 @@ def test_the_limit_envelope_is_omitted_rather_than_half_drawn():
     assert [s.name for s in figure.data.series] == [
         "Forward loading envelope", "Aft loading envelope"]
     assert "CG limits are not entered" in figure.caption
+
+
+# --------------------------------------------------------------------------- #
+# Section 3 -- Wing Loads (OR-8 iteration 3, note 44 §11, ORACLE_REPORT.md 3.4)
+# --------------------------------------------------------------------------- #
+def _section_three(doc):
+    """The Wing Loads section of ``doc``."""
+    entry = next(e for e in doc.plan if e.step_key == "wing_loads")
+    return next(s for s in _flat(doc.sections)
+                if s.title == oc.heading(entry.number, entry.title))
+
+
+def _appendix(doc, title):
+    """The appendix section carrying ``title``."""
+    return next(s for s in doc.sections
+                if s.title == oc.appendix_heading(title))
+
+
+def _wing_tables(doc):
+    """Every table section 3 and its appendix print."""
+    return ([t for s in _flat([_section_three(doc)]) for t in s.tables]
+            + _appendix(doc, oc.WING_LOAD_STATIONS).tables)
+
+
+def test_the_wing_section_renders_its_four_subsections_numbered_by_the_owner():
+    """3.1 ... 3.4, and the numbers come from the numbering owner.
+
+    A builder that titled its own subsections "3.1" would be a second numbering
+    scheme -- one that cannot renumber itself when a section is inserted above
+    it, which is exactly the defect ``section_number`` exists to prevent one
+    level up (F-R2).
+    """
+    doc = _doc()
+    section = _section_three(doc)
+    entry = next(e for e in doc.plan if e.step_key == "wing_loads")
+    assert [s.title for s in section.subsections] == [
+        oc.heading(oc.subsection_number(entry.number, index), title)
+        for index, title in enumerate(
+            ["Wing input data", "Load cases and sign convention",
+             "Load cases assessed", "Critical load distributions"])]
+
+
+def test_wing_loads_is_appendix_b_while_the_input_echo_holds_appendix_a():
+    """G-OR-22 -- the reserved slot letters the appendix that follows it.
+
+    The whole point of OR-50: shipping the wing-load appendix into an empty
+    tuple would print it as Appendix A today and move it to B the moment the
+    input echo lands, so an issue signed in between would disagree with its own
+    reissue.
+    """
+    assert oc.appendix_letter(oc.INPUT_ECHO) == "A"
+    assert oc.appendix_letter(oc.WING_LOAD_STATIONS) == "B"
+    titles = [s.title for s in _doc().sections]
+    assert titles[-2:] == ["Appendix A: Input echo",
+                           "Appendix B: Wing loads by station"]
+
+
+def test_the_reserved_appendix_states_its_state_and_is_not_pointed_at():
+    """A slot is lettered, not referable -- the two are separate facts.
+
+    Pointing a reader at a page that says "not yet implemented" is worse than
+    pointing nowhere, which is the judgement ``see_appendix`` already makes for
+    a dangling reference.
+    """
+    doc = _doc()
+    echo = _appendix(doc, oc.INPUT_ECHO)
+    assert echo.absent_lead == oc.STATE_TEXT[oc.SectionState.NOT_IMPLEMENTED][0]
+    assert echo.absent_reason == oc.STATE_REASON[oc.SectionState.NOT_IMPLEMENTED]
+    assert not echo.tables and not echo.figures
+    assert oc.appendix_ref(oc.INPUT_ECHO) == ""
+    assert oc.see_appendix(oc.INPUT_ECHO) == ""
+    # The *report's* own Appendix A, not the theory manual's -- which the
+    # introduction cites by name and must go on citing.
+    assert "see Appendix A" not in "\n".join(
+        p for s in _flat(doc.sections) for p in s.body)
+    assert "Appendix A" not in "\n".join(oc.group_prose("loads_configuration"))
+
+
+def test_every_load_the_wing_section_prints_is_marked_ultimate():
+    """G-OR-20/G-OR-21 -- section 3 is where G-OR-4 stops being vacuous.
+
+    Section 2 held the no-unmarked-load rule by carrying no force or moment at
+    all (OR-44). Section 3 carries nothing else, so it holds it only by marking
+    every one of them -- in the column header, where the unit is.
+    """
+    doc = _doc()
+    loads = ("lb", "lbs", "lb-in", "N", "N*m", "kg")
+    for table in _wing_tables(doc):
+        for column in table.columns:
+            if "(" not in column:
+                continue
+            units = column.rsplit("(", 1)[1].rstrip(")")
+            if units.split("-ULT")[0] in loads and units not in ("lb", "kg"):
+                assert units.endswith("-ULT"), (table.title, column)
+
+
+def test_the_wing_root_loads_are_the_limit_result_times_the_case_factor():
+    """G-OR-21 -- the printed value is the analysis's own, scaled once."""
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    result = registry.get("net_loads")(project)
+    table = next(t for t in _wing_tables(_doc())
+                 if t.title.startswith("Wing root loads"))
+    column = table.columns.index("Root shear Sz (lbs-ULT)")
+    for row, condition in zip(table.rows, result.conditions):
+        limit = next(v.value for v in condition.values
+                     if v.key == "root_shear_sz")
+        assert row[column] == format_value(limit * condition.safety_factor)
+        assert row[table.columns.index("SF")] == format_value(
+            condition.safety_factor)
+
+
+def test_every_wing_torsion_names_the_axis_it_is_stated_about():
+    """G-OR-23 -- a torsion whose axis is unstated is not a load (OR-51).
+
+    The oracle projection resets the loads reference axis to the quarter chord,
+    which is the whole content of "for oracle loads the 25 per cent chord *is*
+    the LRA": the report cannot print a 40 %-chord torsion because the document
+    is a function of that projection (OR-43).
+    """
+    doc = _doc()
+    axis = "25% chord"
+    torsions = [c for t in _wing_tables(doc) for c in t.columns
+                if c.startswith("Root torsion") or c.startswith("Myy")]
+    assert torsions
+    assert any(axis in c for c in torsions) or all(
+        axis in (t.note or "") for t in _wing_tables(doc)
+        if any(c.startswith("Myy") for c in t.columns))
+    figure = next(f for s in _flat([_section_three(doc)]) for f in s.figures
+                  if f.key == "wing_torsion_myy")
+    assert axis in figure.title
+
+
+def test_the_span_load_is_drawn_at_zero_unit_and_the_airplanes_own_clmax():
+    """G-OR-24 -- three curves, and CLmax is an owner rather than a constant."""
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    clmax = project.aero_coeffs.cruise.stall_cl
+    figure = next(f for s in _flat([_section_three(_doc())]) for f in s.figures
+                  if f.key == "wing_span_load")
+    names = [s.name for s in figure.data.series]
+    assert names[:2] == ["CL = 0 (basic distribution)", "CL = 1.0"]
+    assert names[2] == f"CL = CLmax = {format_value(clmax)}"
+    assert "LIMIT" in figure.title and "LIMIT" in figure.caption
+
+
+def test_the_span_load_curves_are_airloads_own_distribution():
+    """OR-52 -- the report calls the owner once per CL, it does not combine.
+
+    Asserted by equality with the module's own table rather than by inspecting
+    the call: a report that reproduced the additive/basic sum itself would drift
+    from AIRLOADS the first time the method moved, and would pass any test that
+    only checked the shape of the curve.
+    """
+    import dataclasses as _dc
+
+    from sloads.modules.airloads import resolve_aero_surfaces, schrenk_distribution
+
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    surface = project.geometry.by_name("wing")
+    aero = next(a for a in resolve_aero_surfaces(project) if a.name == "wing")
+    figure = next(f for s in _flat([_section_three(_doc())]) for f in s.figures
+                  if f.key == "wing_span_load")
+    for series, cl in zip(figure.data.series,
+                          [0.0, 1.0, project.aero_coeffs.cruise.stall_cl]):
+        table = schrenk_distribution(surface, _dc.replace(aero, target_cl=cl))
+        assert series.y == pytest.approx(table.ccl_total)
+        assert series.x == pytest.approx(table.ye)
+
+
+def test_a_project_with_no_flaps_down_set_says_so_and_draws_nothing():
+    """G-OR-25 -- the missing half is stated, never filled with the clean set.
+
+    The oracle prints two sets of span-load plots and this analysis can produce
+    one: AIRLOADS does not model the lift discontinuity a deflected flap puts in
+    the basic distribution. Printing the clean curves under a flaps-down heading
+    would be the one failure mode that matters here (OR-53).
+    """
+    figure = next(f for s in _flat([_section_three(_doc())]) for f in s.figures
+                  if f.key == "wing_span_load_flaps")
+    assert figure.data is None
+    assert "does not model the lift discontinuity" in figure.absent_reason
+    assert "no flaps-down aerodynamic set" in figure.absent_reason
+
+
+def test_the_wing_cases_are_one_set_seen_four_ways():
+    """G-OR-26 -- 3.2, 3.3, 3.4 and the appendix state the same cases.
+
+    Four projections of SELECT's own subset (OR-55). A section that registered
+    three cases and plotted two would be describing an analysis nobody ran.
+    """
+    doc = _doc()
+    register = next(t for t in _wing_tables(doc)
+                    if t.title == "Wing load cases run")
+    summary = next(t for t in _wing_tables(doc)
+                   if t.title.startswith("Wing root loads"))
+    stations = next(t for t in _wing_tables(doc)
+                    if t.title.startswith("Wing loads by station"))
+    cases = [row[0] for row in register.rows]
+    assert cases and [row[0] for row in summary.rows] == cases
+    assert sorted({row[0] for row in stations.rows}) == sorted(cases)
+    for figure in [f for s in _flat([_section_three(doc)]) for f in s.figures
+                   if f.key.startswith("wing_") and f.data is not None
+                   and f.key != "wing_span_load"]:
+        assert [s.name.split()[0] for s in figure.data.series] == cases
+
+
+def test_the_appendix_carries_the_station_increment_and_the_running_total():
+    """OR-56 -- the increment at a station, not a running load per unit span.
+
+    Both are printed because a reader checking a distribution needs the thing
+    being summed as well as the sum, and neither is recoverable from the other
+    on a printed page.
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    from sloads.modules.net_loads import build_net_loads, loads_ref_axis_results
+    net = loads_ref_axis_results(project, build_net_loads(project).wing_net)
+    table = _appendix(_doc(), oc.WING_LOAD_STATIONS).tables[0]
+    assert "Fz increment (lbs-ULT)" in table.columns
+    assert "Sz (lbs-ULT)" in table.columns
+    assert len(table.rows) == sum(len(r.stations) for r in net)
+    station = net[0].stations[0]
+    row = table.rows[0]
+    assert row[table.columns.index("Fz increment (lbs-ULT)")] == format_value(
+        station.fz * net[0].safety_factor)
+    assert row[table.columns.index("Sz (lbs-ULT)")] == format_value(
+        station.sz * net[0].safety_factor)
+
+
+def test_the_reference_axis_is_drawn_open_on_a_closed_planform():
+    """OR-51 -- the axis is a line through the wing, not a region of it.
+
+    Closing it would cut a chord from tip back to root that no part of the
+    airplane follows, so the emitter draws a closed series and an open one
+    differently and the content layer says which each is.
+    """
+    figure = next(f for s in _flat([_section_three(_doc())]) for f in s.figures
+                  if f.key == "planform_wing_lra")
+    outlines = [s for s in figure.data.series if s.closed]
+    axes = [s for s in figure.data.series if not s.closed]
+    assert outlines and axes
+    assert all("Loads reference axis" in s.name or not s.name for s in axes)
+    body = figure_body_tex(figure)
+    drawn = [line for line in body.splitlines() if line.startswith("\\addplot")]
+    assert sum(1 for line in drawn if line.rstrip().endswith("--cycle;")) == len(outlines)
+
+
+def test_a_project_with_no_wing_loads_states_the_absence_and_still_builds():
+    """G-OR-7 -- a half-filled project yields a complete document.
+
+    Both halves are asserted: the section and its appendix have to say the same
+    thing about the same missing analysis, because it is one absence seen twice
+    and not two facts.
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    project.wing_mass = None
+    doc = oc.build_oracle_document(project, _spec())
+    entry = next(e for e in doc.plan if e.step_key == "wing_loads")
+    assert entry.state is oc.SectionState.ABSENT
+    appendix = _appendix(doc, oc.WING_LOAD_STATIONS)
+    assert appendix.absent_reason == oc.STATE_REASON[oc.SectionState.ABSENT]
+    assert not appendix.tables

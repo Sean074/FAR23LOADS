@@ -833,3 +833,47 @@ shape's test passed against a defect it shared. The contract is stated in
 
 `oracle_app/form.py` is hash-frozen by OR-13; the manifest hash is updated in the
 same commit and the authority named in the commit message.
+
+---
+
+## 11. Iteration 3 — Section 3, Wing Loads (OR-48 … OR-56)
+
+*Agreed with the owner in session, 2026-09-01. Section 3 is the first section that
+states a load in force and moment units, so the rulings below are mostly about
+which basis a number carries and where it comes from — not about layout.
+Content spec per OR-8; SHALL list to `ORACLE_REPORT.md` §3.4; decisions on the
+same footing as OR-1 … OR-47.*
+
+| # | Decision | Amends |
+|---|---|---|
+| **OR-48** | **Section 3 is Wing Loads, built from the `wing_loads` step** (`AIRLOADS+WINGINER+NETLOADS`, primary module `net_loads`), in four subsections: 3.1 the wing input data the loads were run from, 3.2 the run register of cases and their FAR conditions, 3.3 the summary of load cases assessed, 3.4 the load distributions themselves. The per-station numbers go to an appendix, not into the body. | OR-8 (iteration) |
+| **OR-49** | **Every load case in section 3 is stated ULTIMATE; input distributions are stated LIMIT; both carry the label.** The load-output contract is not relaxed for the report — a span loading at a target `CL` is an input to the analysis, not a delivered load, so it stays LIMIT and says so, while every shear, bending moment and torsion the section delivers is scaled at the render boundary and marked `-ULT` with its case's factor. **No number in section 3 is printed without a LIMIT or ULT label.** This is where G-OR-4 stops being vacuous: section 2 could hold by carrying no force or moment (OR-44); section 3 holds only by marking every one of them. | OR-44 (extends), G-OR-4 |
+| **OR-50** | **The Appendix A input echo takes a reserved slot that renders as an OR-32 "not yet implemented" appendix page.** `APPENDICES` stops being empty. Appendix lettering is derived from position, so shipping Wing Loads into an empty tuple would print it as Appendix A today and silently move it to B when the echo lands — and a signed issue would then disagree with its own reissue. A reserved, stated slot makes **Wing Loads Appendix B from the first build**, and reuses the state machinery a section already has rather than inventing a second way to say "not yet". | OR-32 (applies), OR-35 |
+| **OR-51** | **3.1 defines the loads reference axis, and for oracle loads the 25% chord *is* the LRA.** The suite computes about the 25% chord (AIRLOADS/WINGINER/NETLOADS, oracle-locked) and transfers to the surface's entered `ref_axis` at the render boundary; in sloads the LRA is user-defined, so 3.1 states which axis this project's loads are about rather than assuming. It carries **a table of the LRA point (X, Y, Z) against station** and **a planform figure with the LRA drawn on it**. Live in the report's own example: `ga6_normal` enters `ref_axis: 0.4`, so its wing torsion is delivered about the LRA 40% chord with the 25%-chord oracle value beside it — the report must not print one and call it the other. | `CONVENTIONS.md` §1, OR-6 |
+| **OR-52** | **3.1's aero input data is the wing span loading and the airplane tail-off / tail-on data.** Span loading is `c*cl` — the span load, **not** the running load in lb/in — plotted at three wing lift coefficients, `CL = 0` (the basic distribution alone), `CL = 1.0`, and `CL = CLmax`, following the oracle's own three-case presentation. `CLmax` is `AeroCoeffSet.stall_cl`, an owner, never a typed constant. The three curves are obtained by **calling AIRLOADS' own `spanwise_distribution` with the target `CL` replaced**; the report never evaluates the additive/basic sum itself, which is what keeps OR-6 true of a figure with three curves the analysis did not run. Tail-off is the entered airplane-less-tail polynomial (`AeroCoeffSet.lift` / `moment`); tail-on is FLTLOADS' balanced per-case result (`wing_cl`, `lift_less_tail_lzw`, `balancing_tail_load_lt`) — the same values, one balanced and one not, which is what makes the tail load visible as a difference. | OR-6, OR-46 |
+| **OR-53** | **The flaps-down set is stated absent, never quietly omitted.** The oracle prints two sets of span-load plots, clean and flaps-down. sloads can print the clean set only: `AeroCoefficientsInput.flaps_down` is optional and `ga6_normal` carries none, and AIRLOADS does not model the cosine fairing of the basic distribution across a deflected-flap lift discontinuity — its own documented limitation, since the Appendix A wing has no such discontinuity. So the flaps-down half renders as an ABSENT state with its reason, becoming present the moment a project carries the set, and **the missing span-load capability is filed rather than fixed here** (OR-14,
+filed as #163). | OR-5, OR-14 |
+| **OR-54** | **3.2 is the run register: what was run, at what condition, under which rule.** One row per selected wing case carrying the case ID, the condition, the FAR reference, the CG case and weight, the speed and altitude, and `Nz`/`Nx`. Every field of it already exists on `CaseRef` and the resolved case — this is a projection of case identity, not a new record of it, which is what OR-41 deferred to this iteration. 3.2 also states the coordinate and sign convention the section's loads are in, citing `CONVENTIONS.md` and naming the torsion axis of OR-51. | OR-41 (discharges) |
+| **OR-55** | **SELECT's chosen subset *is* the critical set; 3.3 tabulates it and 3.4 plots all of it.** No second criticality rule is invented for the report — the wing cases the analysis ran are the wing cases the section shows. 3.3 gives root values per case; 3.4 gives one figure per quantity with every selected case on it: **vertical shear `Sz`, bending `Mxx`, torsion `Myy`, and drag shear `Sx`**. Chord bending `Mzz` is omitted. The figures show the **net** loads only, and state that shear, bending and torsion are **summed from tip to root** — a cumulative quantity read as a running one is the misreading the caption exists to prevent. | OR-6 |
+| **OR-56** | **Appendix B is the per-station table of the selected wing cases, carrying the increment total load at each station — not the running load.** One row per station per case: the station coordinates, the strip's own increment `Fz` and `Fx`, and the cumulative `Sz`, `Sx`, `Mxx`, `Myy` with its axis named. ULTIMATE per OR-49. `net_loads.wing_load_rows` is already the canonical shape of that row, so the appendix is a view of an existing owner rather than a second layout of the same data. | OR-6, OR-49 |
+
+### Gates added by this section
+
+| Gate | Statement |
+|---|---|
+| **G-OR-20** | Every load value section 3 or Appendix B prints carries a LIMIT or an ULT label; a value with neither fails the suite. |
+| **G-OR-21** | Every delivered shear, bending moment and torsion in section 3 is the ULTIMATE value — the LIMIT value times that case's own stated safety factor — and no input distribution is scaled. |
+| **G-OR-22** | Wing Loads is Appendix B in a document whose input echo is not yet built, and the reserved slot renders its state rather than a blank page. |
+| **G-OR-23** | Every torsion printed in section 3 names its reference axis, and the axis named is the project's entered LRA. |
+| **G-OR-24** | The three span-load curves come from AIRLOADS' own distribution function at three target `CL`s, and the `CLmax` curve's `CL` is the aero set's `stall_cl`. |
+| **G-OR-25** | A project with no flaps-down aero set renders the flaps-down figure as ABSENT with a reason, and prints no clean-configuration curve in its place. |
+| **G-OR-26** | The cases 3.2, 3.3, 3.4 and Appendix B each state are the same set, in the same order — the selected wing cases, no more and no fewer. |
+
+### Findings to file (OR-14 — file, do not fix here)
+
+- **No flaps-down span loading.** AIRLOADS does not fair the basic distribution
+  across a deflected-flap lift discontinuity, so the oracle's second set of
+  span-load plots cannot be produced for any project. Not a defect in what is
+  built — a documented limitation of the ported method — but it is the gap OR-53
+  renders as an absence, and the absence should point at a filed item rather than
+  at nothing. **Filed 2026-09-01 as #163.**

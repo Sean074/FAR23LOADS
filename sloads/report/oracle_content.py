@@ -43,7 +43,7 @@ from .content import Section
 #: steps of section 2, Loads Configuration.
 IMPLEMENTED: FrozenSet[str] = frozenset({
     "configuration_layout", "weight_mass", "structural_speeds",
-    "flight_envelope",
+    "flight_envelope", "wing_loads",
 })
 
 #: The document's fixed front matter, in order, ahead of the analysis body.
@@ -104,6 +104,9 @@ SECTION_GROUPS: Tuple[SectionGroup, ...] = (
 
 #: The appendix that echoes the analysed inputs, referred to by name once built.
 INPUT_ECHO = "Input echo"
+
+#: The appendix carrying the wing loads station by station (OR-56).
+WING_LOAD_STATIONS = "Wing loads by station"
 
 #: The lead paragraphs a group prints under its own heading, before its
 #: subsections. Keyed by :attr:`SectionGroup.key`.
@@ -271,20 +274,55 @@ def document_title(step: wf.WorkflowStep) -> str:
 #: describe the same situation two ways.
 NOT_CARRIED = "a section this issue does not carry"
 
-#: The appendices the document prints, in order.
+@dataclass(frozen=True)
+class Appendix:
+    """One appendix slot: what it holds, and whether the generator builds it yet.
+
+    ``step_key`` names the analysis step the appendix is a second projection of,
+    so its state follows that step's -- an appendix of wing loads for a project
+    with no wing loads must say the same thing the section says, not print an
+    empty table. Empty for an appendix that stands on its own.
+    """
+
+    title: str
+    step_key: str = ""
+    built: bool = False
+
+
+#: The appendices the document prints, in order. **Position is the letter.**
 #:
-#: Empty: the Appendix A input echo (note 44 §339) is agreed but not built. Prose
-#: refers to it through :func:`appendix_ref` rather than by name, so the reference
-#: is honest today and becomes correct the moment the appendix lands -- with no
-#: edit to remember, which is the same property :func:`section_ref` gives a
-#: forward reference to a section.
-APPENDICES: Tuple[str, ...] = ()
+#: The Appendix A input echo (note 44 §339) is agreed and not built, and it holds
+#: its slot anyway (OR-50). Lettering is derived from position, so shipping the
+#: wing-load appendix into an empty tuple would print it as Appendix A today and
+#: move it to B the moment the echo lands -- and an issue signed in between would
+#: disagree with its own reissue. A reserved slot renders its OR-32 state, which
+#: is the mechanism a not-yet-built *section* already uses, rather than a second
+#: way of saying the same thing.
+APPENDICES: Tuple[Appendix, ...] = (
+    Appendix(INPUT_ECHO),
+    Appendix(WING_LOAD_STATIONS, step_key="wing_loads", built=True),
+)
+
+
+def appendix_letter(title: str) -> str:
+    """``"B"`` -- the letter position gives ``title``, built or not."""
+    for index, appendix in enumerate(APPENDICES):
+        if appendix.title == title:
+            return chr(ord("A") + index)
+    return ""
 
 
 def appendix_ref(title: str) -> str:
-    """``"Appendix A"`` once ``title`` is built, else ``""``."""
-    if title in APPENDICES:
-        return f"Appendix {chr(ord('A') + APPENDICES.index(title))}"
+    """``"Appendix B"`` once ``title`` is **built**, else ``""``.
+
+    Reserving a slot letters an appendix; it does not make it referable. A
+    sentence pointing the reader at a page that says "not yet implemented" is
+    worse than one that points nowhere, so the reservation is visible in the
+    lettering and invisible in the prose until there is something to read.
+    """
+    for appendix in APPENDICES:
+        if appendix.title == title:
+            return f"Appendix {appendix_letter(title)}" if appendix.built else ""
     return ""
 
 
@@ -299,6 +337,16 @@ def see_appendix(title: str) -> str:
     """
     name = appendix_ref(title)
     return f" (see {name})" if name else ""
+
+
+def appendix_heading(title: str) -> str:
+    """``"Appendix B: Wing loads by station"`` -- the printed heading.
+
+    An appendix is lettered and never renumbers, which is why it is not in
+    :func:`section_number`'s sequence; the heading form still has one owner so a
+    reserved slot and a built one cannot be styled two ways.
+    """
+    return f"Appendix {appendix_letter(title)}: {title}"
 
 
 def group_prose(group_key: str) -> List[str]:
@@ -323,6 +371,22 @@ def section_ref(plan: Sequence[SectionPlan], step_key: str) -> str:
     for entry in plan:
         if entry.step_key == step_key and entry.number:
             return f"section {entry.number}"
+    return NOT_CARRIED
+
+
+def subsection_ref(plan: Sequence[SectionPlan], step_key: str,
+                   index: int) -> str:
+    """``"section 3.1"`` -- a cross-reference to one subsection of a step.
+
+    A step that renders as subsections is still one plan row, so its children
+    have no rows of their own to look up; the number is composed from the
+    parent's through the same owner that printed it. Written as a function for
+    the reason :func:`section_ref` is: a "3.1" typed into prose is a reference
+    that will not move when a section is inserted above it (F-R2).
+    """
+    for entry in plan:
+        if entry.step_key == step_key and entry.number:
+            return f"section {subsection_number(entry.number, index)}"
     return NOT_CARRIED
 
 
@@ -475,6 +539,35 @@ def section_plan(project: Project, spec: ReportSpec, *,
     return plan
 
 
+def appendix_plan(plan: Sequence[SectionPlan]) -> List[SectionPlan]:
+    """One row per appendix slot, lettered by position, with the state it renders.
+
+    A built appendix **inherits its step's state**: an appendix of wing loads for
+    a project that produced none has to say what its section says, because it is
+    the same absence seen twice and not a second fact. An appendix whose section
+    was deselected is dropped with it -- and dropping it does not relabel
+    anything, because the letter comes from the slot's position and not from
+    what is printed (OR-50).
+    """
+    rows: List[SectionPlan] = []
+    for appendix in APPENDICES:
+        state = SectionState.NOT_IMPLEMENTED
+        if appendix.built:
+            source = next((row for row in plan
+                           if row.step_key == appendix.step_key), None)
+            if source is not None:
+                if source.state is SectionState.EXCLUDED:
+                    continue
+                state = source.state
+        rows.append(SectionPlan(
+            step_key=appendix.step_key,
+            number=appendix_letter(appendix.title),
+            title=appendix.title, state=state,
+            reason=STATE_REASON.get(state, ""),
+            lead=STATE_TEXT.get(state, ("", ""))[0]))
+    return rows
+
+
 @dataclass(frozen=True)
 class OracleDocument:
     """The whole oracle report, ready for :mod:`sloads.report.oracle_latex`."""
@@ -601,7 +694,7 @@ def build_oracle_document(
     # Imported here, not at module scope: oracle_sections needs this module's
     # SectionPlan, and a top-level import in both directions is a cycle.
     from ..field_registry import reduce_to_oracle_inputs
-    from .oracle_sections import build_section
+    from .oracle_sections import build_appendix, build_section
 
     # **The document is a function of the oracle projection, not of the file.**
     # The same reducer the fingerprint hashes through (OR-21, gate G-OR-13), so
@@ -647,6 +740,13 @@ def build_oracle_document(
         else:
             sections.append(section)
 
+    # The appendices follow every numbered section, in slot order. They are
+    # built from the same results and the same plan the body was, so an appendix
+    # can never describe a different analysis from the section it echoes.
+    for entry in appendix_plan(plan):
+        sections.append(build_appendix(project, entry, results, system=system,
+                                       plan=plan))
+
     control = [
         ("Report number", spec.report_number or "not assigned"),
         ("Revision", spec.revision or "-"),
@@ -684,11 +784,16 @@ __all__ = [
     "SECTION_GROUPS",
     "STATE_REASON",
     "STATE_TEXT",
+    "WING_LOAD_STATIONS",
+    "Appendix",
     "OracleDocument",
     "SectionGroup",
     "SectionPlan",
     "SectionState",
     "analysis_steps",
+    "appendix_heading",
+    "appendix_letter",
+    "appendix_plan",
     "appendix_ref",
     "build_oracle_document",
     "default_introduction",
@@ -703,4 +808,5 @@ __all__ = [
     "section_ref",
     "see_appendix",
     "subsection_number",
+    "subsection_ref",
 ]

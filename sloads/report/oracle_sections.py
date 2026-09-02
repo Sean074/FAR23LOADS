@@ -35,15 +35,23 @@ no section 2 table can inherit a claim that does not apply to it.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
+from ..constants import ULTIMATE_FACTOR
 from ..derived_geometry import MacReference, mac_reference, station_to_pct_mac
 from ..models import Project
 from ..models.enums import AnalysisKind
 from ..models.results import ConditionResult, LoadValue, ModuleResult
 from ..units import UnitSystem, convert_results
 from .content import Figure, PlotData, Section, Series, Table, Units, speed_altitude_plot_data, weight_cg_plot_data
-from .oracle_content import SectionPlan, section_ref
+from .oracle_content import (
+    WING_LOAD_STATIONS,
+    SectionPlan,
+    appendix_ref,
+    section_ref,
+    subsection_ref,
+)
 from .render import format_value, to_ultimate, ultimate_units
 
 
@@ -463,7 +471,7 @@ def _region_series(project: Project, name: str, style: str, label: str,
                     for x, y in zip(xs, ys)]
         series.append(Series(label if index == 0 else "",
                              [x for x, _y in oriented],
-                             [y for _x, y in oriented], style))
+                             [y for _x, y in oriented], style, closed=True))
     return series
 
 
@@ -1257,6 +1265,692 @@ def _envelope(project: Project,
 
 
 # --------------------------------------------------------------------------- #
+# Section 3 -- Wing Loads (OR-48 ... OR-56)
+# --------------------------------------------------------------------------- #
+#: The step whose result this section reports, named once.
+_WING_STEP = "wing_loads"
+
+#: Positions of the subsections other prose points at, so a cross-reference is
+#: composed from the numbering owner rather than typed as "3.1" (F-R2).
+_WING_INPUTS = 0
+_WING_ASSESSED = 2
+_WING_DISTRIBUTIONS = 3
+
+
+def _load_cell(value: LoadValue, sf: float) -> Tuple[str, str]:
+    """``(formatted value, ULT units)`` for one **load**, through the boundary.
+
+    :func:`_cell`'s sibling, and deliberately a separate function rather than a
+    parameter on it. Section 2 passes ``sf=1.0`` because it holds no loads and a
+    factor there would encode a claim it does not make (OR-44); section 3 holds
+    nothing but loads and every one of them is delivered ULTIMATE at its own
+    case's factor (OR-49). Two callers, two statements, no default to get wrong.
+    """
+    scaled = to_ultimate(value.value, value.units, value.quantity, sf)
+    return format_value(scaled), ultimate_units(value.units, value.quantity)
+
+
+def _wing_net(project: Project) -> List[object]:
+    """The net wing load distributions, transferred to the surface's LRA.
+
+    Asked of ``net_loads``' own builders -- the same pair the Export page and the
+    summary report call -- so the section, the appendix and the exported deck
+    describe one set of numbers. Returns ``[]`` rather than raising: G-OR-7 keeps
+    a half-filled project building a complete document, and the callers turn an
+    empty list into a stated absence.
+    """
+    from ..modules.net_loads import build_net_loads, loads_ref_axis_results
+
+    try:
+        net = build_net_loads(project)
+        return list(loads_ref_axis_results(project, net.wing_net))
+    except Exception:
+        return []
+
+
+def _torsion_axis(results: Sequence[object]) -> str:
+    """What the distributions' torsion is stated about, from the results."""
+    return str(getattr(results[0], "torsion_axis", "")) if results else ""
+
+
+def _wing_surface_name(project: Project) -> str:
+    """The surface the wing-load chain runs on, as WINGINER names it."""
+    return getattr(project.wing_mass, "surface", "wing") or "wing"
+
+
+_LRA_NOTE = (
+    "The loads reference axis (LRA) is the chordwise line every distributed "
+    "load in this section is stated about: the shears and bending moments are "
+    "unaffected by the choice, and the torsion is not. The replicated "
+    "programs accumulate torsion about the local 25 per cent chord, so for the "
+    "oracle the LRA is the quarter chord; in this suite the axis is entered per "
+    "surface, and the torsion is transferred to it at the delivery boundary by "
+    "Myy(LRA) = Myy(25%) + Sz (X(LRA) - X(25%)). The table gives the axis "
+    "point at each load station and the figure draws it on the planform, so the "
+    "axis a torsion is measured about can be read off the airplane rather than "
+    "assumed."
+)
+
+
+def _lra_station_table(net: Sequence[object],
+                       system: UnitSystem) -> Optional[Table]:
+    """The loads reference axis, station by station.
+
+    The axis coordinates are the transferred results' own station points -- the
+    transform's output, not a second reading of the planform (OR-6). Coordinates
+    are geometry: nothing here is scaled to ultimate and nothing is marked.
+    """
+    if not net:
+        return None
+    stations = list(getattr(net[0], "stations", ()))
+    if not stations:
+        return None
+    u = Units(system)
+    length = u.label("length")
+    rows = [[str(index), u.plain(s.y, "length"), u.plain(s.x, "length"),
+             u.plain(s.z, "length")]
+            for index, s in enumerate(stations, start=1)]
+    axis = _torsion_axis(net)
+    return Table(
+        title=f"Loads reference axis by station ({axis})",
+        columns=["Station", f"Butt line Y ({length})",
+                 f"Station X on the axis ({length})", f"Waterline Z ({length})"],
+        rows=rows,
+        note=("The stations are the load stations the air-load and inertia "
+              "distributions are evaluated at, root to tip. These are "
+              "coordinates, not loads: nothing in this table is scaled to "
+              "ultimate and nothing carries a safety factor."))
+
+
+def _lra_planform_figure(project: Project, net: Sequence[object],
+                         system: UnitSystem) -> Figure:
+    """The wing planform with its loads reference axis drawn on it."""
+    from .planform_tex import LRA_STYLE, OUTLINE_STYLE
+
+    key, title = "planform_wing_lra", "Wing loads reference axis"
+    name = _wing_surface_name(project)
+    surface = project.geometry.by_name(name) if project.geometry else None
+    if surface is None:
+        return Figure(key=key, title=title,
+                      absent_reason=("the project defines no wing planform, so "
+                                     "there is no surface to draw an axis on."))
+    if not net:
+        return Figure(key=key, title=title,
+                      absent_reason=("the wing load distributions were not "
+                                     "produced, so the axis they are stated "
+                                     "about cannot be drawn."))
+    scale, length_units = _length_channel(system)
+    mirror = bool(surface.symmetric)
+    try:
+        series = _region_series(project, name, OUTLINE_STYLE, "Wing planform",
+                                mirror, "butt", scale)
+    except ValueError as problem:
+        return Figure(key=key, title=title,
+                      absent_reason=("the wing planform cannot be drawn as "
+                                     f"entered -- {problem}"))
+    axis = _torsion_axis(net)
+    stations = list(getattr(net[0], "stations", ()))
+    points = [_oriented("butt", s.x * scale, s.y * scale) for s in stations]
+    series.append(Series(f"Loads reference axis ({axis})" if axis
+                         else "Loads reference axis",
+                         [x for x, _y in points], [y for _x, y in points],
+                         LRA_STYLE))
+    if mirror:
+        series.append(Series("", [-x for x, _y in points],
+                             [y for _x, y in points], LRA_STYLE))
+    x_label, y_label = _PLANFORM_AXES["butt"]
+    return Figure(
+        key=key, title=title,
+        data=PlotData(f"{x_label} ({length_units})",
+                      f"{y_label} ({length_units})", series,
+                      [("", x, y) for x, y in points]),
+        caption=("The wing as entered, with the loads reference axis of this "
+                 f"analysis ({axis}) drawn through the load stations every "
+                 "distributed load in this section is stated at. The marked "
+                 "points are those stations. Nothing in this figure is a load."))
+
+
+#: The wing lift coefficients the span load is drawn at, and how each is named.
+#:
+#: ``None`` means *the airplane's own CLmax*, taken from the aero set's
+#: ``stall_cl`` rather than typed here: a span load drawn to a constant somebody
+#: chose would be a plot of this module's opinion (OR-52).
+_SPAN_LOAD_CASES: Tuple[Tuple[str, Optional[float]], ...] = (
+    ("CL = 0 (basic distribution)", 0.0),
+    ("CL = 1.0", 1.0),
+    ("CL = CLmax", None),
+)
+
+_SPAN_LOAD_STYLES = ("dotted", "solid", "dashed")
+
+
+def _wing_aero_row(project: Project):
+    """The aero input row the wing's span load is built from, or ``None``."""
+    from ..models import same_name
+    from ..modules.airloads import resolve_aero_surfaces
+
+    name = _wing_surface_name(project)
+    try:
+        rows = resolve_aero_surfaces(project)
+    except Exception:
+        return None
+    for row in rows:
+        if same_name(row.name, name):
+            return row
+    return None
+
+
+def _span_load_figure(project: Project, clmax: Optional[float],
+                      system: UnitSystem) -> Figure:
+    """``c*cl`` along the span at the three reference lift coefficients.
+
+    Each curve is AIRLOADS' own distribution evaluated at a target ``CL`` -- the
+    report calls the owner once per coefficient rather than combining the
+    additive and basic parts itself, which is what keeps a three-curve figure
+    inside OR-6.
+
+    **These are LIMIT.** A span load at a target ``CL`` is an input to the load
+    cases below, not a delivered load, so it is neither scaled nor marked -- and
+    it says so, because a figure in a section whose every other number is
+    ULTIMATE must not leave the reader to assume which kind this is (OR-49).
+    """
+    from dataclasses import replace as _replace
+
+    from ..modules.airloads import schrenk_distribution
+
+    key, title = "wing_span_load", "Wing span loading (LIMIT)"
+    name = _wing_surface_name(project)
+    surface = project.geometry.by_name(name) if project.geometry else None
+    aero = _wing_aero_row(project)
+    if surface is None or aero is None:
+        return Figure(key=key, title=title,
+                      absent_reason=("the project carries no wing planform and "
+                                     "aerodynamic row to distribute a lift "
+                                     "coefficient over."))
+    u = Units(system)
+    series: List[Series] = []
+    for (label, target), style in zip(_SPAN_LOAD_CASES, _SPAN_LOAD_STYLES):
+        cl = clmax if target is None else target
+        if cl is None:
+            continue
+        try:
+            table = schrenk_distribution(surface, _replace(aero, target_cl=cl))
+        except Exception:
+            continue
+        printed = (label if target is not None
+                   else f"CL = CLmax = {format_value(cl)}")
+        series.append(Series(
+            printed,
+            [u.plain_value(y, "length") for y in table.ye],
+            [u.plain_value(v, "length") for v in table.ccl_total], style))
+    if not series:
+        return Figure(key=key, title=title,
+                      absent_reason=("the wing span load could not be "
+                                     "distributed from the planform and "
+                                     "aerodynamic data as entered."))
+    length = u.label("length")
+    return Figure(
+        key=key, title=title,
+        data=PlotData(f"Butt line Y ({length})", f"Span load c*cl ({length})",
+                      series),
+        caption=("The Schrenk span load along the semi-span at three wing lift "
+                 "coefficients: the basic distribution alone, which carries no "
+                 "net lift but is not zero locally; unit CL; and the airplane's "
+                 "own CLmax. This is span load c*cl, not running load -- it is "
+                 "the shape the air load is distributed to, and it is an input "
+                 "to the cases below. All three curves are LIMIT: no safety "
+                 "factor is applied to any of them."))
+
+
+def _flaps_down_span_load(project: Project) -> Figure:
+    """The flaps-down span load -- stated absent, with the reason (OR-53)."""
+    flaps = getattr(project.aero_coeffs, "flaps_down", None)
+    entered = (" This project enters no flaps-down aerodynamic set either."
+               if flaps is None else "")
+    return Figure(
+        key="wing_span_load_flaps",
+        title="Wing span loading, flaps down (LIMIT)",
+        absent_reason=(
+            "the air-load distribution does not model the lift discontinuity a "
+            "deflected flap puts in the basic distribution, so a flaps-down "
+            "span load is not produced by this analysis at all." + entered))
+
+
+#: ``(figure key, title, curve attribute, points attribute, y label)`` for the
+#: two airplane-coefficient figures 3.1 carries.
+_AERO_CURVE_FIGURES: Tuple[Tuple[str, str, str, str, str], ...] = (
+    ("aero_cl_alpha", "Airplane-less-tail lift coefficient (LIMIT)",
+     "lift", "cl", "CL"),
+    ("aero_cm_alpha", "Airplane-less-tail pitching moment (LIMIT)",
+     "moment", "cm", "CM"),
+)
+
+
+def _aero_curves(project: Project):
+    """``(curves, config)`` for the cruise configuration, or ``(None, None)``.
+
+    Built through :mod:`sloads.aero_curves` -- the single authority the FLTLOADS
+    balance itself evaluates -- and overlaid with the balanced points that
+    balance produced, so the curve and the points on it cannot come from two
+    readings of the same polynomial.
+    """
+    from ..aero_curves import build_aero_curves, operating_points
+    from ..derived_geometry import wing_reference
+    from ..modules.flight_envelope import build_envelope
+
+    config = getattr(project.aero_coeffs, "cruise", None)
+    if config is None:
+        return None, None
+    points = None
+    try:
+        reference = wing_reference(project, _wing_surface_name(project))
+        if reference is not None:
+            points = operating_points(build_envelope(project), config.name,
+                                      wing_area_sqft=reference.s_sqft,
+                                      mac_in=reference.mac)
+    except Exception:
+        points = None
+    return build_aero_curves(config, points=points), config
+
+
+def _aero_curve_figure(curves, config, key: str, title: str,
+                       curve_attr: str, point_attr: str, y_label: str) -> Figure:
+    """One coefficient curve, with the balanced operating points on it."""
+    if curves is None:
+        return Figure(key=key, title=title,
+                      absent_reason=("the project carries no airplane-less-tail "
+                                     "aerodynamic coefficients, so there is no "
+                                     "curve to draw."))
+    trace = getattr(curves, curve_attr)
+    series = [Series(f"Airplane less tail, as entered ({config.name})",
+                     list(trace.x), list(trace.y), "solid")]
+    points = curves.points
+    marked = ([("", a, v) for a, v in zip(points.alpha_deg,
+                                          getattr(points, point_attr))]
+              if points is not None and len(points) else [])
+    return Figure(
+        key=key, title=title,
+        data=PlotData("Angle of attack (deg)", y_label, series, marked,
+                      points_label="Balanced envelope points (tail on)"),
+        caption=(
+            "The entered coefficient curve of the airplane less its horizontal "
+            "tail -- the tail-off data the flight balance solves against -- "
+            "with every balanced condition marked on it. A marked point is the "
+            "tail-on solution at that angle of attack, recovered from the "
+            "point's own dimensional output rather than from a second "
+            "evaluation of the polynomial: it sits on the curve because the "
+            "balance carries the tail load as a separate force rather than "
+            "inside this coefficient, and any visible departure is the "
+            "compressibility correction at that point's Mach. The tail load "
+            "itself is a load and is reported with the tail. Coefficients are "
+            "dimensionless and are stated LIMIT; nothing in this figure is "
+            "scaled or marked ultimate."))
+
+
+def _wing_inputs(project: Project, *, system: UnitSystem,
+                 plan: Sequence[SectionPlan]) -> Section:
+    """3.1 -- the wing data the load cases were run from."""
+    net = _wing_net(project)
+    curves, config = _aero_curves(project)
+    clmax = getattr(config, "stall_cl", None) or None
+    figures = [_lra_planform_figure(project, net, system),
+               _span_load_figure(project, clmax, system),
+               _flaps_down_span_load(project)]
+    figures += [_aero_curve_figure(curves, config, *spec)
+                for spec in _AERO_CURVE_FIGURES]
+    table = _lra_station_table(net, system)
+    body = [
+        "This subsection states the wing data the load cases of this section "
+        "were run from: the axis the loads are stated about, the span load the "
+        "air load is distributed to, and the airplane lift and moment "
+        "coefficients the flight cases were balanced against. The planform "
+        "itself is stated in " + section_ref(plan, "configuration_layout")
+        + " and is not repeated here.",
+
+        "The coefficients are the airplane less its horizontal tail, which "
+        "is the form the balance requires and the form the aerodynamic data "
+        "was produced in. The tail-on airplane is the balanced solution at each "
+        "condition: the same angle of attack with the balancing tail load "
+        "carried as a separate force, which is why the balanced conditions are "
+        "marked on the tail-off curve rather than drawn as a second curve. "
+        "This analysis publishes no tail-on lift coefficient of its own.",
+        _LRA_NOTE,
+        "The span loading and the coefficient curves below are inputs to the "
+        "load cases and are stated LIMIT. Every load case in the rest of this "
+        "section is delivered ULTIMATE. Both kinds carry the label wherever "
+        "they are printed, so no number in this section leaves its basis to be "
+        "inferred.",
+    ]
+    return Section("", body=body, figures=figures,
+                   tables=[t for t in (table,) if t is not None])
+
+
+def _sign_note(plan: Sequence[SectionPlan]) -> str:
+    """The axes and sign statement, with its own cross-reference composed."""
+    return (
+        "Loads are stated in airplane axes: X aft along the fuselage reference "
+        "line, Y out the starboard wing, Z up. Sz is the vertical shear carried "
+        "across a station, Sx the drag shear, Mxx the bending moment about the "
+        "X axis and Myy the torsion about the loads reference axis stated in "
+        + subsection_ref(plan, _WING_STEP, _WING_INPUTS) + ". Each is the sum "
+        "of the loads outboard of its station, accumulated from the tip "
+        "inboard, so a value at a station is what the wing carries there and "
+        "not what one strip contributes. The full convention is the "
+        "analysis-wide one and is not restated per section.")
+
+
+def _cg_weight(project: Project, name: str) -> Optional[float]:
+    """The entered weight of the CG case ``name`` (OR-46: as entered, labelled)."""
+    for case in list(getattr(project.weight, "cg_cases", ()) or ()):
+        if case.name == name:
+            return case.weight_lb
+    return None
+
+
+def _wing_case_table(project: Project, net: Sequence[object],
+                     system: UnitSystem) -> Optional[Table]:
+    """3.2's run register: one row per selected wing case."""
+    if not net:
+        return None
+    u = Units(system)
+    rows = []
+    for result in net:
+        ref = getattr(result, "case_ref", None)
+        cg = getattr(ref, "cg", "") or ""
+        weight = _cg_weight(project, cg)
+        rows.append([
+            getattr(ref, "case_id", "") or "--",
+            getattr(result, "case", "") or "--",
+            getattr(ref, "far_reference", "") or "--",
+            cg or "--",
+            u.plain(weight, "mass") if weight is not None else "--",
+            format_value(getattr(ref, "speed_kt", 0.0) or 0.0),
+            format_value(getattr(ref, "altitude_ft", 0.0) or 0.0),
+            format_value(getattr(result, "nz", 0.0)),
+            format_value(getattr(result, "nx", 0.0)),
+        ])
+    return Table(
+        title="Wing load cases run",
+        columns=["Case", "Condition", "14 CFR", "CG case",
+                 f"Weight ({u.label('mass')})", "V (KEAS)", "Altitude (ft)",
+                 "Nz", "Nx"],
+        rows=rows,
+        note=("The cases the critical-case selection carried into the wing "
+              "analysis, each with the loading it was run at and the paragraph "
+              "of 14 CFR Part 23 it is required by. Speed is equivalent "
+              "airspeed and altitude is feet: both are aviation standard in "
+              "either unit system and are never converted. The weight is the "
+              "CG case as entered. Nz and Nx are LIMIT load factors, "
+              "dimensionless, and the loads they produce are delivered "
+              "ULTIMATE below."))
+
+
+def _wing_cases(project: Project, *, system: UnitSystem,
+                plan: Sequence[SectionPlan]) -> Section:
+    """3.2 -- what was run, at what condition, under which rule."""
+    net = _wing_net(project)
+    table = _wing_case_table(project, net, system)
+    body = [
+        "The wing is analysed at the conditions the critical-case selection "
+        "carries forward from the flight envelope: not every point of the "
+        "envelope, but the subset that governs the wing structure. Those cases "
+        "are listed below, and they are the same cases the summary, the "
+        "distributions and the station-by-station appendix state -- one set, "
+        "projected four ways.",
+        _sign_note(plan),
+    ]
+    if table is None:
+        return Section("", body=body,
+                       absent_reason=("No wing load cases were produced for "
+                                      "this project, so there is nothing to "
+                                      "register."))
+    return Section("", body=body, tables=[table])
+
+
+def _wing_summary_table(result: Optional[ModuleResult],
+                        system: UnitSystem) -> Optional[Table]:
+    """3.3's root values, one row per case, ULTIMATE at each case's own factor.
+
+    Built from the module's own conditions, so the quantities printed are the
+    ones ``net_loads`` publishes -- including both torsions where the loads
+    reference axis is not the quarter chord, which is the pair OR-51 requires
+    the section to keep distinct.
+    """
+    conditions = _conditions(result, system)
+    if not conditions:
+        return None
+    first = conditions[0]
+    keys = [value.key for value in first.values]
+    labels = {value.key: value for value in first.values}
+    columns = ["Case", "Condition", "SF"]
+    for key in keys:
+        _text, units = _load_cell(labels[key], first.safety_factor)
+        columns.append(f"{labels[key].label} ({units})".replace(" ()", ""))
+    rows = []
+    for condition in conditions:
+        ref = condition.case_ref
+        by_key = {value.key: value for value in condition.values}
+        row = [getattr(ref, "case_id", "") or "--",
+               getattr(ref, "condition", "") or condition.title,
+               format_value(condition.safety_factor)]
+        for key in keys:
+            value = by_key.get(key)
+            row.append(_load_cell(value, condition.safety_factor)[0]
+                       if value is not None else "--")
+        rows.append(row)
+    return Table(
+        title="Wing root loads by case (ULTIMATE)",
+        columns=columns, rows=rows, small=True,
+        note=("Root values of each selected case. Every load is ULTIMATE: the "
+              "limit load the analysis computed multiplied by the safety factor "
+              "stated in its own row, applied once at this boundary. The "
+              "torsion names the axis it is stated about; where the loads "
+              "reference axis is not the quarter chord both are given, and they "
+              "are the same load about two axes rather than two loads."))
+
+
+def _wing_summary(results: Mapping[str, Optional[ModuleResult]], *,
+                  system: UnitSystem,
+                  plan: Sequence[SectionPlan]) -> Section:
+    """3.3 -- the load cases assessed, at the root."""
+    table = _wing_summary_table(results.get(_WING_STEP), system)
+    body = [
+        "The root of the wing carries the whole of each distribution, so the "
+        "values below size the wing and are the ones a reader checks first. "
+        "The distributions they are the root of are plotted in "
+        + subsection_ref(plan, _WING_STEP, _WING_DISTRIBUTIONS)
+        + " and tabulated station by station in "
+        + (appendix_ref(WING_LOAD_STATIONS) or "the appendix") + ".",
+    ]
+    if table is None:
+        return Section("", body=body,
+                       absent_reason=("The wing load analysis produced no "
+                                      "conditions for this project."))
+    return Section("", body=body, tables=[table])
+
+
+#: ``(figure key, station attribute, dimension, title)`` for 3.4's distributions.
+#:
+#: Chord bending Mzz is deliberately not here (OR-55): it is carried in the
+#: results and is not a quantity the wing is sized by, and a fifth figure of it
+#: would be four pages of drawing for a load nobody reads off a plot.
+_DISTRIBUTION_FIGURES: Tuple[Tuple[str, str, str, str], ...] = (
+    ("wing_shear_sz", "sz", "force", "Vertical shear Sz"),
+    ("wing_bending_mxx", "mxx", "moment", "Bending moment Mxx"),
+    ("wing_torsion_myy", "myy", "moment", "Torsion Myy"),
+    ("wing_shear_sx", "sx", "force", "Drag shear Sx"),
+)
+
+_CASE_STYLES = ("solid", "dashed", "dotted", "dashdotted", "densely dashed")
+
+
+def _distribution_figure(net: Sequence[object], key: str, attr: str, dim: str,
+                         title: str, system: UnitSystem, assessed: str) -> Figure:
+    """One quantity along the span, every selected case on one axes."""
+    axis = _torsion_axis(net)
+    named = f"{title} ({axis})" if attr == "myy" and axis else title
+    if not net:
+        return Figure(key=key, title=f"{named} (ULTIMATE)",
+                      absent_reason=("the wing load distributions were not "
+                                     "produced for this project."))
+    u = Units(system)
+    series = []
+    for result, style in zip(net, _CASE_STYLES * 4):
+        stations = list(getattr(result, "stations", ()))
+        if not stations:
+            continue
+        sf = float(getattr(result, "safety_factor", ULTIMATE_FACTOR))
+        ref = getattr(result, "case_ref", None)
+        name = getattr(ref, "case_id", "") or getattr(result, "case", "")
+        series.append(Series(
+            f"{name} {getattr(result, 'case', '')}".strip(),
+            [u.plain_value(s.y, "length") for s in stations],
+            [u.load_value(getattr(s, attr), dim, sf) for s in stations], style))
+    if not series:
+        return Figure(key=key, title=f"{named} (ULTIMATE)",
+                      absent_reason=("the wing load distributions carry no "
+                                     "stations to plot."))
+    return Figure(
+        key=key, title=f"{named} (ULTIMATE)",
+        data=PlotData(f"Butt line Y ({u.label('length')})",
+                      f"{named} ({u.ult_label(dim)})", series),
+        caption=(f"{named} along the semi-span, every selected wing case on one "
+                 "axes. The quantity is cumulative: it is summed from the tip "
+                 "inboard, so a value is what the wing carries across that "
+                 "station and not the load applied at it. All values are "
+                 "ULTIMATE, each case scaled by its own safety factor as "
+                 f"stated in {assessed}."))
+
+
+def _wing_distributions(project: Project, *, system: UnitSystem,
+                        plan: Sequence[SectionPlan]) -> Section:
+    """3.4 -- the net distributions of every selected case."""
+    net = _wing_net(project)
+    assessed = subsection_ref(plan, _WING_STEP, _WING_ASSESSED)
+    figures = [_distribution_figure(net, key, attr, dim, title, system, assessed)
+               for key, attr, dim, title in _DISTRIBUTION_FIGURES]
+    body = [
+        "The distributions below are the net wing loads: the air load and "
+        "the inertia load of the same case summed station by station, which is "
+        "what the structure carries. Air and inertia are not drawn separately "
+        "-- they are equal and opposing over much of the span, and the net is "
+        "the quantity the wing is sized to.",
+        "Every case selected for the wing is drawn on each axes, so the "
+        "governing case for a quantity can be read off the figure rather than "
+        "taken on assertion. The station values behind these curves are "
+        "tabulated in "
+        + (appendix_ref(WING_LOAD_STATIONS) or "the appendix") + ".",
+    ]
+    return Section("", body=body, figures=figures)
+
+
+def _wing_loads(project: Project, results: Mapping[str, Optional[ModuleResult]],
+                *, system: UnitSystem, plan: Sequence[SectionPlan]) -> Section:
+    """Section 3 -- Wing Loads, in its four subsections (OR-48).
+
+    The subsections carry no numbers of their own: each is titled here and
+    numbered by :func:`build_section`, so a subsection cannot be renumbered
+    without the section it sits under moving with it.
+    """
+    return Section("", body=[
+        "This section states the wing loads: the data they were run from, the "
+        "cases run, the loads at the wing root, and the distributions along "
+        "the span. Every load case delivered here is ULTIMATE, and every "
+        "quantity that is not a delivered load says which it is.",
+    ], subsections=[
+        replace(_wing_inputs(project, system=system, plan=plan),
+                title="Wing input data"),
+        replace(_wing_cases(project, system=system, plan=plan),
+                title="Load cases and sign convention"),
+        replace(_wing_summary(results, system=system, plan=plan),
+                title="Load cases assessed"),
+        replace(_wing_distributions(project, system=system, plan=plan),
+                title="Critical load distributions"),
+    ])
+
+
+# --------------------------------------------------------------------------- #
+# Appendix B -- wing loads by station (OR-56)
+# --------------------------------------------------------------------------- #
+#: ``(station attribute, dimension, label)`` of each column the appendix prints.
+#:
+#: ``fz``/``fx`` are the **increment** each strip contributes; the rest are the
+#: cumulative quantities of 3.4. Both are printed because the reader checking a
+#: distribution needs the thing being summed as well as the sum, and neither is
+#: recoverable from the other on a page.
+_STATION_LOADS: Tuple[Tuple[str, str, str], ...] = (
+    ("fz", "force", "Fz increment"),
+    ("fx", "force", "Fx increment"),
+    ("sz", "force", "Sz"),
+    ("sx", "force", "Sx"),
+    ("mxx", "moment", "Mxx"),
+    ("myy", "moment", "Myy"),
+)
+
+
+def _station_table(net: Sequence[object], system: UnitSystem,
+                   assessed: str) -> Optional[Table]:
+    """Every selected case, station by station, ULTIMATE."""
+    if not net:
+        return None
+    u = Units(system)
+    length = u.label("length")
+    # Station Y locates a row; the axis point X, Z of that same station is
+    # tabulated once in 3.1 and is the same for every case, so repeating it
+    # against sixty rows would print one number sixty times and crowd the loads
+    # off the page.
+    columns = ["Case", "Station", f"Y ({length})"]
+    columns += [f"{label} ({u.ult_label(dim)})"
+                for _attr, dim, label in _STATION_LOADS]
+    rows = []
+    for result in net:
+        ref = getattr(result, "case_ref", None)
+        name = getattr(ref, "case_id", "") or getattr(result, "case", "")
+        sf = float(getattr(result, "safety_factor", ULTIMATE_FACTOR))
+        for index, station in enumerate(getattr(result, "stations", ()), start=1):
+            row = [name, str(index), u.plain(station.y, "length")]
+            row += [u.load(getattr(station, attr), dim, sf)
+                    for attr, dim, _label in _STATION_LOADS]
+            rows.append(row)
+    if not rows:
+        return None
+    axis = _torsion_axis(net)
+    return Table(
+        title="Wing loads by station (ULTIMATE)", columns=columns, rows=rows,
+        small=True,
+        note=("One row per load station per selected case, root to tip. Fz and "
+              "Fx are the load the strip at that station carries -- the "
+              "increment, not a running load per unit span. Sz, Sx, Mxx and "
+              "Myy are cumulative, summed from the tip inboard. Torsion is "
+              f"stated about the {axis or 'loads reference axis'}. Every load "
+              "is ULTIMATE, scaled by its own case's safety factor as stated "
+              f"in {assessed}; the coordinates are geometry and are neither "
+              "scaled nor marked."))
+
+
+def _station_appendix(project: Project, *, system: UnitSystem,
+                      plan: Sequence[SectionPlan]) -> Section:
+    """Appendix B's content."""
+    net = _wing_net(project)
+    table = _station_table(net, system,
+                           subsection_ref(plan, _WING_STEP, _WING_ASSESSED))
+    body = [
+        "This appendix carries the wing load distributions of "
+        + section_ref(plan, _WING_STEP) + " in full: every selected case at "
+        "every load station, in the airplane axes and about the loads "
+        "reference axis stated in "
+        + subsection_ref(plan, _WING_STEP, _WING_INPUTS) + ". It is the same "
+        "result the figures are drawn from, printed rather than plotted.",
+    ]
+    if table is None:
+        return Section("", body=body,
+                       absent_reason=("The wing load distributions were not "
+                                      "produced for this project, so there is "
+                                      "nothing to tabulate."))
+    return Section("", body=body, tables=[table])
+
+
+# --------------------------------------------------------------------------- #
 # Dispatch
 # --------------------------------------------------------------------------- #
 #: Step key -> the builder that produces its section body.
@@ -1274,6 +1968,16 @@ BUILDERS = {
     "weight_mass": _weights,
     "structural_speeds": _speeds,
     "flight_envelope": _envelope,
+    "wing_loads": _wing_loads,
+}
+
+#: Appendix title -> the builder that produces its body.
+#:
+#: Separate from :data:`BUILDERS` because an appendix is not a step: it is keyed
+#: by the slot it occupies, and a reserved slot has no builder at all -- which is
+#: what makes "reserved" renderable rather than a special case in the loop.
+APPENDIX_BUILDERS = {
+    WING_LOAD_STATIONS: _station_appendix,
 }
 
 
@@ -1297,10 +2001,54 @@ def build_section(project: Project, entry: SectionPlan,
                        absent_lead=entry.lead or "Not analysed")
     section = builder(project, results, system=system, plan=plan)
     return Section(title, body=section.body, tables=section.tables,
-                   figures=section.figures, subsections=section.subsections)
+                   figures=section.figures,
+                   subsections=_numbered(entry.number, section.subsections))
+
+
+def _numbered(parent: str, subsections: Sequence[Section]) -> List[Section]:
+    """A builder's own subsections, numbered under ``parent``.
+
+    A step that renders as subsections (section 3) titles them and does not
+    number them, exactly as a *group* of steps does not number its members --
+    :func:`sloads.report.oracle_content.subsection_number` is the one owner of
+    the child form, and a builder that wrote "3.1" into a title would be a
+    second numbering scheme that cannot renumber itself when a section is
+    inserted above it.
+    """
+    from .oracle_content import heading, subsection_number
+
+    return [replace(child, title=heading(subsection_number(parent, index),
+                                         child.title))
+            for index, child in enumerate(subsections)]
+
+
+def build_appendix(project: Project, entry: SectionPlan,
+                   results: Mapping[str, Optional[ModuleResult]], *,  # noqa: ARG001
+                   system: UnitSystem,
+                   plan: Sequence[SectionPlan]) -> Section:
+    """One appendix, lettered and either built or stated as reserved (OR-50).
+
+    The same shape as :func:`build_section` and deliberately not folded into it:
+    an appendix is lettered rather than numbered, and its state comes from the
+    slot and its step rather than from a plan row of its own.
+    """
+    from .oracle_content import appendix_heading
+
+    title = appendix_heading(entry.title)
+    builder = APPENDIX_BUILDERS.get(entry.title)
+    if not entry.included or builder is None:
+        return Section(title, absent_reason=entry.reason,
+                       absent_lead=entry.lead or "Not analysed")
+    section = builder(project, system=system, plan=plan)
+    return Section(title, body=section.body, tables=section.tables,
+                   figures=section.figures,
+                   absent_reason=section.absent_reason,
+                   absent_lead=section.absent_lead)
 
 
 __all__ = [
+    "APPENDIX_BUILDERS",
     "BUILDERS",
+    "build_appendix",
     "build_section",
 ]
