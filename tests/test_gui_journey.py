@@ -153,14 +153,24 @@ def _touch_everything(at):
     inside a form persists nothing until its Apply, so touching without
     submitting would assert nothing about the pages that matter. An Apply
     pressed over unedited widgets is precisely "no edit intended".
+
+    **Disabled widgets are skipped**, which is what "editable" above has always
+    meant: a page disables a control to say this cannot be entered here and now,
+    and a journey that drove it anyway would assert about a gesture no browser
+    user can make. Streamlit began refusing the interaction outright in 2026-09
+    ("Cannot update a disabled radio widget"), which is how the test's own
+    contract came to be enforced from the outside; the skip states it from the
+    inside, and holds on the versions that still permit it.
     """
     touched = 0
     for kind in _TOUCHABLE:
         for widget in getattr(at, kind, []):
+            if getattr(widget, "disabled", False):
+                continue
             widget.set_value(widget.value)
             touched += 1
     for button in at.button:
-        if getattr(button.proto, "form_id", ""):
+        if getattr(button.proto, "form_id", "") and not getattr(button, "disabled", False):
             button.set_value(True)
     return touched
 
