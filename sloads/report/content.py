@@ -1001,6 +1001,77 @@ def _limit_polygon(values: Dict[str, float], floor: float,
                   [w * mass_f for _x, w in corners], style="densely dotted")
 
 
+#: The Mach-limited boundaries drawn, by MACHLIM's own value keys.
+#:
+#: Declared as data and guarded against those keys, so a renamed key empties the
+#: figure in the suite rather than on the page. Styles, never colours (SS 4.3).
+_SPEED_ALTITUDE_LINES: Tuple[Tuple[str, str, str], ...] = (
+    ("V(MC) cruise", "v_mc", "solid"),
+    ("V(MNE) never-exceed", "v_mne", "dashed"),
+    ("V(MD) dive", "v_md", "dotted"),
+)
+
+
+def speed_altitude_plot_data(project: Project) -> Optional[PlotData]:
+    """The speed/altitude envelope figure's data -- the one owner (OR-7).
+
+    Sea level to the maximum operating altitude, which is the whole operating
+    envelope rather than its Mach-limited top: each boundary is **constant in
+    EAS below the shoulder altitude and Mach-limited above it**, and the kink
+    between the two is the point of the figure. The sub-shoulder segment adds no
+    arithmetic -- it is the shoulder row's own speed held constant down to sea
+    level, which is what "the shoulder altitude" means -- so every speed drawn
+    is a value MACHLIM returned.
+
+    ``Vh`` is marked, not drawn as a line: ``speeds.vh_kt`` is the maximum level
+    flight speed **at sea level** and the analysis carries no altitude variation
+    of it, so a full-height line would assert a boundary nothing computed. As a
+    sea-level marker it still shows the thing worth seeing -- where Vh sits
+    against VC, whose FAR floor is capped at 0.9 Vh (14 CFR 23.335(a)).
+
+    Speeds are KEAS and altitudes feet in every unit system: the aviation
+    channel is not converted (see :data:`AVIATION_UNITS_NOTE`). ``None`` when
+    the airplane has no Mach-limited boundary to draw.
+    """
+    from ..modules.mach_limit import mach_limit_lines
+    from ..modules.structural_speeds import design_speed_values
+
+    speeds = project.speeds
+    ml = speeds.mach_limit if speeds is not None else None
+    if speeds is None or ml is None:
+        return None
+    # MC/MD come from STRSPEED, the single producer (F25-2) -- not from ``ml``.
+    ds = _try(design_speed_values, project, speeds)
+    results = (_try(mach_limit_lines, ml, ds.mc, ds.md, speeds.shoulder_altitude_ft)
+               if ds is not None else None)
+    if not results:
+        return None
+
+    rows = [{v.key: v.value for v in r.values} for r in results[1:]]
+    if not rows:
+        return None
+    shoulder = float(speeds.shoulder_altitude_ft)
+
+    series = []
+    for name, key, style in _SPEED_ALTITUDE_LINES:
+        vs = [row[key] for row in rows if key in row]
+        alts = [row["altitude"] for row in rows if key in row]
+        if not vs:
+            continue
+        if shoulder > 0:
+            # Constant EAS below the shoulder: the first row's speed, held down
+            # to sea level. Not a second computation of it.
+            vs.insert(0, vs[0])
+            alts.insert(0, 0.0)
+        series.append(Series(name, vs, alts, style))
+    if not series:
+        return None
+
+    points = ([("Vh", float(speeds.vh_kt), 0.0)] if speeds.vh_kt else [])
+    return PlotData("V (KEAS)", "Altitude (ft)", series, points=points,
+                    points_label="Maximum level-flight speed Vh (sea level)")
+
+
 def weight_cg_plot_data(project: Project, u: Units) -> Optional[PlotData]:
     """The weight/CG envelope figure's data -- the one owner (OR-7).
 
@@ -1128,21 +1199,12 @@ def _speed_altitude_figure(project: Project) -> Tuple[Figure, Optional[Table]]:
                                      "computed from the inputs present"), None)
 
     lines = results[1:]  # results[0] is the MC/MD/MNE summary
+    data = speed_altitude_plot_data(project)
+    if data is None:
+        return (Figure("speed_altitude", "Speed / altitude envelope",
+                       absent_reason="the Mach-limit lines could not be "
+                                     "computed from the inputs present"), None)
 
-    def series_for(key: str, name: str, style: str) -> Series:
-        alts, vs = [], []
-        for r in lines:
-            by_key = {v.key: v.value for v in r.values}
-            if key in by_key:
-                vs.append(by_key[key])
-                alts.append(by_key["altitude"])
-        return Series(name, vs, alts, style)
-
-    series = [
-        series_for("v_mc", "V(MC) cruise", "solid"),
-        series_for("v_mne", "V(MNE) never-exceed", "dashed"),
-        series_for("v_md", "V(MD) dive", "dotted"),
-    ]
     rows = []
     for r in lines:
         by_key = {v.key: v.value for v in r.values}
@@ -1165,9 +1227,12 @@ def _speed_altitude_figure(project: Project) -> Tuple[Figure, Optional[Table]]:
     )
     return Figure(
         "speed_altitude", "Speed / altitude envelope",
-        data=PlotData("V (KEAS)", "Altitude (ft)", series),
-        caption="Mach-limited equivalent airspeeds from the shoulder altitude to the "
-                "maximum operating altitude (MACHLIM).",
+        data=data,
+        caption="The operating envelope from sea level to the maximum operating "
+                "altitude: each boundary is constant in equivalent airspeed below "
+                "the shoulder altitude and Mach-limited above it (MACHLIM). Vh is "
+                "marked at sea level, where it is entered; the analysis carries no "
+                "altitude variation of it.",
     ), table
 
 

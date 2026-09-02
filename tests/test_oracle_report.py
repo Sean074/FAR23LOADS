@@ -24,9 +24,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sloads import io  # noqa: E402
 from sloads import registry  # noqa: E402
 from sloads import workflow as wf  # noqa: E402
+from sloads.derived_geometry import mac_reference, station_to_pct_mac  # noqa: E402
 from sloads.field_registry import reduce_to_oracle_inputs  # noqa: E402
 from sloads.models import Project  # noqa: E402
 from sloads.models.report import ReportSpec, SignatureRow  # noqa: E402
+from sloads.report import content  # noqa: E402
 from sloads.report import oracle_content as oc  # noqa: E402
 from sloads.report import oracle_sections as osec  # noqa: E402
 from sloads.report import oracle_latex as ol  # noqa: E402
@@ -900,12 +902,15 @@ def test_every_group_member_is_a_step_and_the_members_are_contiguous():
 def test_section_two_invents_no_number():
     """G-OR-3 through the content model: every printed number has a source.
 
-    Two legitimate sources, and no third. Most of section 2 reproduces a
+    Three legitimate sources, and no fourth. Most of section 2 reproduces a
     ``ModuleResult``; the empennage and control-surface tables and the CG-case
     table echo the project **as entered**, because no module returns a
-    control-surface area or a throw. Echoing an input is not recomputation --
-    OR-6 forbids re-deriving a value, not reporting one -- but a number that is
-    neither is invented, and this is what says so.
+    control-surface area or a throw; and the CG-case table's ``% MAC`` column
+    restates an entered station in the reference the entered CG limits use,
+    through :func:`station_to_pct_mac`, which is a change of units and not a
+    derivation. Echoing an input is not recomputation -- OR-6 forbids
+    re-deriving a value, not reporting one -- but a number that is none of the
+    three is invented, and this is what says so.
 
     Checked against the modules run independently of the report and against the
     project itself, so a builder that quietly rescaled, re-rounded or derived a
@@ -943,9 +948,17 @@ def test_section_two_invents_no_number():
             value = getattr(source, attr, None)
             if value is not None:
                 sourced.add(format_value(value))
+    mac_ref = mac_reference(project)
     for case in project.weight.cg_cases:
         sourced.update(format_value(v)
                        for v in (case.weight_lb, case.xcg, case.zcg))
+        # The %MAC column is the *same* station in another reference, so its
+        # source is the entered station put through the one relation's owner.
+        # Deliberately narrow: only a case's own xcg, only through
+        # ``station_to_pct_mac``, only against the resolver's reference -- a
+        # column derived any other way, or from a second reading of the wing,
+        # still lands in ``unaccounted``.
+        sourced.add(format_value(station_to_pct_mac(case.xcg, mac_ref)))
 
     numeric = {cell for cell in printed
                if cell and (cell[0].isdigit() or cell[0] == "-")
@@ -1004,12 +1017,24 @@ def test_reported_load_factors_are_identified_as_limit():
     """Where section 2 reports a load factor, it says the factor is LIMIT.
 
     The document may not say a load factor is not a load; what it must say is
-    which of limit and ultimate it is, at the point the number appears. Every
-    V-n caption and the corner table carry it.
+    which of limit and ultimate it is, at the point the number appears.
+
+    The V-n figures carry no caption of their own since 2026-08-31 -- four
+    figures differing only in loading were printing one identical paragraph --
+    so for them the identification is required of the subsection prose that
+    governs all four, and their captions are required to stay empty rather than
+    the rule becoming "a caption states it if it has one". Every other figure
+    states it in its own caption, and every table in its note.
     """
     envelope = _envelope_section(_doc())
+    vn = _vn_figures(envelope)
+    assert vn, "section 2.4 produced no V-n figure"
+    assert any("LIMIT" in text for text in envelope.body), envelope.body
     for figure in envelope.figures:
-        assert "LIMIT" in figure.caption, figure.key
+        if figure.key.startswith("vn_"):
+            assert figure.caption == "", figure.key
+        else:
+            assert "LIMIT" in figure.caption, figure.key
     for table in envelope.tables:
         assert "LIMIT" in (table.note or ""), table.title
 
@@ -1036,6 +1061,12 @@ def test_the_envelope_boundary_order_is_the_analysis_order():
     assert sorted(gusts) == sorted(osec._GUST_CASES)
 
 
+def _vn_figures(section):
+    """2.4's V-n diagrams -- the section also opens with the speed/altitude
+    envelope, which is one figure of a different kind and not a block."""
+    return [f for f in section.figures if f.key.startswith("vn_")]
+
+
 def test_the_envelope_figures_plot_only_produced_design_points():
     """Every plotted vertex is a case the analysis returned (OR-6).
 
@@ -1051,7 +1082,7 @@ def test_the_envelope_figures_plot_only_produced_design_points():
         if "v_eas" in values and "load_factor_nz" in values:
             produced.add((values["v_eas"], values["load_factor_nz"]))
 
-    figures = _envelope_section(_doc()).figures
+    figures = _vn_figures(_envelope_section(_doc()))
     assert figures, "section 2.4 produced no envelope figure"
     for figure in figures:
         for series in figure.data.series:
@@ -1059,6 +1090,86 @@ def test_the_envelope_figures_plot_only_produced_design_points():
                 assert point in produced, f"{figure.key} plots an invented point"
         for _label, x, y in figure.data.points:
             assert (x, y) in produced
+
+
+def test_the_speed_altitude_envelope_opens_2_4_and_reaches_sea_level():
+    """The envelope before its slices, and the whole of it.
+
+    The V-n diagrams are cuts through the operating envelope at a stated
+    altitude, so the envelope comes first. It is drawn from sea level rather
+    than from the shoulder altitude, because the sub-shoulder half is where the
+    boundaries are EAS-limited and the kink at the shoulder is the figure's
+    point -- MACHLIM tabulates only the Mach-limited half, and a figure that
+    started where the table starts would show a boundary with no beginning.
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    section = _envelope_section(_doc())
+    first = section.figures[0]
+    assert first.key == "speed_altitude"
+    assert [f.key for f in section.figures[1:]] == [
+        f.key for f in _vn_figures(section)]
+
+    shoulder = project.speeds.shoulder_altitude_ft
+    assert shoulder > 0
+    for series in first.data.series:
+        assert min(series.y) == 0.0, series.name
+        assert max(series.y) == project.speeds.mach_limit.max_operating_altitude_ft
+        # Constant in EAS below the shoulder: the sea-level point and the
+        # shoulder point are one speed, and it is MACHLIM's own first row.
+        at = dict(zip(series.y, series.x))
+        assert at[0.0] == at[shoulder]
+
+
+def test_the_speed_altitude_envelope_plots_only_machlim_s_own_speeds():
+    """G-OR-3 through the figure: no speed on it is the report's arithmetic.
+
+    The sub-shoulder segment is the shoulder row held constant, not a second
+    evaluation of it, so every x-coordinate must appear in MACHLIM's result.
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    produced = {v.value for c in registry.get("mach_limit")(project).conditions
+                for v in c.values}
+    figure = _envelope_section(_doc()).figures[0]
+    for series in figure.data.series:
+        for x in series.x:
+            assert x in produced, f"{series.name} plots an invented speed"
+
+
+def test_vh_is_marked_at_sea_level_and_is_not_drawn_as_a_boundary():
+    """Vh is entered at sea level and has no altitude behaviour here.
+
+    ``speeds.vh_kt`` is the maximum level-flight speed at sea level; the
+    analysis carries no variation of it with altitude. Drawn as a full-height
+    line it would assert a boundary nothing computed, so it is a marker -- and
+    it is not a limit speed, which the caption says.
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    figure = _envelope_section(_doc()).figures[0]
+    assert figure.data.points == [("Vh", float(project.speeds.vh_kt), 0.0)]
+    assert "Vh" not in {s.name for s in figure.data.series}
+    assert "not a limit" in figure.caption
+
+
+def test_the_speed_altitude_envelope_has_one_builder_for_both_reports():
+    """OR-7: the summary report and the oracle report draw one figure.
+
+    Two documents drawing one airplane two ways is the defect the shared-owner
+    rule exists to prevent, and this figure had a second construction in the
+    summary report until 2026-08-31.
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    shared = content.speed_altitude_plot_data(project)
+    assert _envelope_section(_doc()).figures[0].data == shared
+
+
+def test_an_airplane_with_no_mach_inputs_says_so_instead_of_drawing():
+    """OR-32: an absent boundary is stated, never an empty axis."""
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    stripped = dataclasses.replace(
+        project, speeds=dataclasses.replace(project.speeds, mach_limit=None))
+    figure = osec._speed_altitude_figure(stripped)
+    assert figure.data is None
+    assert "no MACHLIM inputs are entered" in figure.absent_reason
 
 
 def test_one_envelope_figure_per_loading_and_altitude():
@@ -1072,12 +1183,31 @@ def test_one_envelope_figure_per_loading_and_altitude():
     result = registry.get("flight_envelope")(project)
     blocks = {osec._split_case(c.title)[0] for c in result.conditions}
     blocks.discard("")
-    figures = _envelope_section(_doc()).figures
+    figures = _vn_figures(_envelope_section(_doc()))
     assert len(figures) == len(blocks)
     assert len({f.key for f in figures}) == len(figures), "duplicate figure keys"
     for block in blocks:
         assert any(block in f.title for f in figures), f"{block} has no figure"
 
+
+def test_a_paired_table_drops_a_units_column_no_row_fills():
+    """A dimensionless pairing prints three columns, not a blank fourth.
+
+    The limit manoeuvre load factors have no unit: n is dimensionless, which
+    the section body states, and "g" would name an acceleration the table does
+    not state. An empty ``Units`` column beside them reads as a unit somebody
+    forgot to enter. The speeds table in the same subsection keeps its column,
+    which is what says this is a blank-column rule and not a special case.
+    """
+    doc = _doc()
+    speeds = [s for s in _flat([_section_two(doc)]) if s.tables][2]
+    factors = next(t for t in speeds.tables if "load factors" in t.title)
+    assert "Units" not in factors.columns
+    assert all(len(row) == len(factors.columns) for row in factors.rows)
+
+    design = next(t for t in speeds.tables if "design speeds" in t.title)
+    assert design.columns[-1] == "Units"
+    assert all(row[-1] for row in design.rows)
 
 def test_the_paired_tables_pair_keys_the_modules_actually_produce():
     """A renamed result key must fail here, not empty a compliance column.
@@ -1207,11 +1337,82 @@ def test_the_cg_case_table_states_every_case_and_its_role_and_analysis():
             assert row[1] == "--"
         else:
             assert case.role.value.replace("_", " ") == row[1]
+        analysis = row[table.columns.index("Analysis")]
         for kind in case.analyses:
-            assert kind.value in row[5]
+            assert kind.value in analysis
     assert "ANALYSIS is" in (table.note or "")
     assert "ROLE applies to ground cases only" in (table.note or "")
 
+
+
+def _cg_case_table(project):
+    return osec._cg_case_table(project, UnitSystem.IMPERIAL)
+
+
+def test_the_cg_case_table_states_xcg_in_percent_mac_from_the_one_reference():
+    """A station and its %MAC name the same point, measured one way.
+
+    The entered CG limits are given in %MAC and the cases in stations, so
+    without this column the reader converts by hand -- against whichever
+    XLEMAC and MAC they can find. The column is required to come from
+    ``derived_geometry.mac_reference``, the single resolver the limit lines
+    already use (C210-13), so a case and a limit on the page cannot end up
+    measured from two different wings.
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    table = _cg_case_table(project)
+    column = table.columns.index("Xcg (% MAC)")
+    ref = mac_reference(project)
+    assert ref is not None
+    for row, case in zip(table.rows, project.weight.cg_cases):
+        assert row[column] == format_value(station_to_pct_mac(case.xcg, ref))
+
+    # And the relation closes against the entered limit rather than only
+    # against itself: CG1 sits on the aft gross CG limit, which is entered in
+    # %MAC, so the column must reproduce that number.
+    aft = project.weight.envelope.aft_gross_pct_mac
+    cg1 = table.rows[[r[0] for r in table.rows].index("CG1")][column]
+    assert abs(float(cg1) - aft) < 0.05, (cg1, aft)
+
+
+def test_the_cg_case_table_prints_the_percent_mac_relation_and_its_reference():
+    """The equation is stated, both ways round, with the pair it uses.
+
+    A percentage of MAC is not checkable without the XLEMAC and MAC behind it,
+    and this suite resolves that pair two ways (typed override, else the
+    planform). The note therefore names the relation, its inverse and the
+    source, so section 2.2 can be re-derived on paper.
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    note = _cg_case_table(project).note or ""
+    assert "%MAC = 100 (X - XLEMAC) / MAC" in note
+    assert "X = XLEMAC + (%MAC / 100) MAC" in note
+    ref = mac_reference(project)
+    assert format_value(ref.xlemac) in note and format_value(ref.mac) in note
+    assert "planform" in note
+
+
+def test_a_case_table_with_no_mac_reference_says_so_instead_of_printing_zero():
+    """G-OR-32: an unresolvable %MAC is stated absent, never printed as 0.
+
+    ``station_to_pct_mac`` answers 0.0 on a degenerate MAC by contract, which
+    is the right answer for a divide and the wrong one for a page: a column of
+    zeroes reads as a centre of gravity at the leading edge.
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    stripped = dataclasses.replace(
+        project,
+        geometry=None,
+        weight=dataclasses.replace(
+            project.weight,
+            envelope=dataclasses.replace(project.weight.envelope,
+                                         xlemac=None, mac=None)))
+    assert mac_reference(stripped) is None
+    table = _cg_case_table(stripped)
+    column = table.columns.index("Xcg (% MAC)")
+    assert {row[column] for row in table.rows} == {"--"}
+    assert "not stated in %MAC" in (table.note or "")
+    assert "%MAC = 100" not in (table.note or "")
 
 def test_the_analysis_column_is_ordered_not_set_ordered():
     """``CgCase.analyses`` is a set, and set order is not a document property.

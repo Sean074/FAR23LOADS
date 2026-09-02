@@ -37,11 +37,12 @@ from __future__ import annotations
 
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
+from ..derived_geometry import MacReference, mac_reference, station_to_pct_mac
 from ..models import Project
 from ..models.enums import AnalysisKind
 from ..models.results import ConditionResult, LoadValue, ModuleResult
 from ..units import UnitSystem, convert_results
-from .content import Figure, PlotData, Section, Series, Table, Units, weight_cg_plot_data
+from .content import Figure, PlotData, Section, Series, Table, Units, speed_altitude_plot_data, weight_cg_plot_data
 from .oracle_content import SectionPlan, section_ref
 from .render import format_value, to_ultimate, ultimate_units
 
@@ -656,6 +657,33 @@ _CG_CASE_NOTE = (
 )
 
 
+def _pct_mac_note(ref: MacReference, u: Units) -> str:
+    """The relation the %MAC column applies, and the reference it applies it to.
+
+    Stated rather than assumed: a %MAC is meaningless without the XLEMAC and MAC
+    it is measured from, and this suite resolves that pair two ways (a typed
+    ``envelope.xlemac``/``mac`` override, else the wing planform of 2.1). A
+    reader checking a station against the entered CG limits -- which are given
+    in %MAC -- needs to know which pair produced the column and be able to
+    invert it, so both forms of the relation are printed.
+    """
+    length = u.label("length")
+    where = ("the entered XLEMAC and MAC, which override the planform"
+             if ref.source == "override"
+             else f"the {ref.surface_name} planform stated in 2.1")
+    return (
+        "Xcg (% MAC) is that same station expressed in percent of the mean "
+        "aerodynamic chord -- a change of reference, not a second analysis: "
+        "%MAC = 100 (X - XLEMAC) / MAC, and inverted, "
+        "X = XLEMAC + (%MAC / 100) MAC. Here XLEMAC = "
+        f"{u.plain(ref.xlemac, 'length')} {length} and MAC = "
+        f"{u.plain(ref.mac, 'length')} {length}, from {where}. The CG limits "
+        "drawn in the figure below are entered in %MAC and are converted to "
+        "stations through the same relation and the same pair, so a case and a "
+        "limit on this page are always measured from one reference."
+    )
+
+
 def _cg_case_table(project: Project, system: UnitSystem) -> Optional[Table]:
     """The weight and CG cases analysed, one row each."""
     weight = project.weight
@@ -663,6 +691,13 @@ def _cg_case_table(project: Project, system: UnitSystem) -> Optional[Table]:
     if not cases:
         return None
     u = Units(system)
+    # The one resolver (C210-13) -- never a second reading of the planform
+    # here. A degenerate MAC is treated as unresolved rather than divided by:
+    # ``station_to_pct_mac`` answers 0.0 on it, which would print a column of
+    # zeroes that looks like an answer.
+    ref = mac_reference(project)
+    if ref is not None and not ref.mac:
+        ref = None
     rows = []
     for case in cases:
         analyses = [kind.value for kind in _ANALYSIS_ORDER
@@ -673,15 +708,24 @@ def _cg_case_table(project: Project, system: UnitSystem) -> Optional[Table]:
             role.value.replace("_", " ") if role is not None else "--",
             u.plain(case.weight_lb, "mass"),
             u.plain(case.xcg, "length"),
+            # ``case.xcg`` is internal inches and a percentage is dimensionless,
+            # so this converts once, through the relation's owner, and not again.
+            format_value(station_to_pct_mac(case.xcg, ref)) if ref else "--",
             u.plain(case.zcg, "length"),
             ", ".join(analyses) or "--",
         ])
     length = u.label("length")
+    note = _CG_CASE_NOTE
+    note += (" " + _pct_mac_note(ref, u) if ref is not None else
+             " Xcg is not stated in %MAC: neither an entered XLEMAC and MAC nor "
+             "a wing planform to read them from is present, so there is no "
+             "reference to measure a percentage against.")
     return Table(
         title="Weight and centre-of-gravity cases",
         columns=["Case", "Role", f"Weight ({u.label('mass')})",
-                 f"Xcg ({length})", f"Zcg ({length})", "Analysis"],
-        rows=rows, note=_CG_CASE_NOTE)
+                 f"Xcg ({length})", "Xcg (% MAC)", f"Zcg ({length})",
+                 "Analysis"],
+        rows=rows, note=note)
 
 
 #: What the weight/CG figure states about itself, beyond the caption.
@@ -885,6 +929,16 @@ def _paired_table(title: str, condition: Optional[ConditionResult],
         rows.append([name, formatted, floor, units])
     if not rows:
         return None
+    # A units column every row leaves blank is dropped rather than printed
+    # empty. The limit manoeuvre load factors are the case that found this: n
+    # is dimensionless -- the section body says so, and "g" would name an
+    # acceleration this table does not state -- so the column carried nothing
+    # but the suggestion that a unit had gone missing. Done here rather than at
+    # the one table, so any dimensionless pairing added later behaves the same.
+    if not any(row[3] for row in rows):
+        return Table(title=title,
+                     columns=["Quantity", "As computed", "FAR 23 minimum"],
+                     rows=[row[:3] for row in rows])
     return Table(title=title,
                  columns=["Quantity", "As computed", "FAR 23 minimum", "Units"],
                  rows=rows)
@@ -965,6 +1019,21 @@ _ENVELOPE_VLINES: Tuple[Tuple[str, str], ...] = (
 )
 
 
+#: How every V-n diagram in 2.4 is constructed -- stated once, above them.
+#:
+#: It was each figure's caption until 2026-08-31, which printed the same three
+#: sentences under four figures that differ only in their loading. A caption
+#: distinguishes a figure; this describes all of them, so it belongs to the
+#: subsection and the caption line is left carrying the block name alone.
+_VN_CONSTRUCTION = (
+    "Each boundary is drawn through the design points the analysis computed and "
+    "is curved between them: the stall boundary follows the section lift curve "
+    "and the compressibility correction, not a constant-CLmax parabola. Gust "
+    "points are design points in their own right and are not vertices of the "
+    "manoeuvre boundary. Load factors are LIMIT and dimensionless."
+)
+
+
 def _split_case(title: str) -> Tuple[str, str]:
     """``"CRUISE CG1 @ 0 ft, case 3: MAN A"`` -> ``("CRUISE CG1 @ 0 ft", "MAN A")``.
 
@@ -1025,19 +1094,17 @@ def _envelope_figure(block: str, cases: Mapping[str, ConditionResult],
         point = _point(condition)
         if point is not None:
             points.append((name, point[0], point[1]))
+    # No caption. What the four V-n figures would each say is the same sentence
+    # about the same construction, and a caption repeated once per loading is
+    # not a caption but a refrain -- it is stated once in the subsection body
+    # (:data:`_VN_CONSTRUCTION`) instead. The block is in the title, which is
+    # what distinguishes one figure from another and all the caption line needs
+    # to carry (owner, 2026-08-31).
     return Figure(
         key=f"vn_{index}",
         title=f"Flight envelope -- {block}",
         data=PlotData("V (KEAS)", "Load factor n", series, points, list(vlines),
                       points_label="Gust design points"),
-        caption=(
-            "The boundary is "
-            "drawn through the design points the analysis computed and is "
-            "curved between them: the stall boundary follows the section lift "
-            "curve and the compressibility correction, not a constant-CLmax "
-            "parabola. Gust points are design points in their own right and are "
-            "not vertices of the manoeuvre boundary. Load factors are LIMIT and "
-            "dimensionless."),
     )
 
 
@@ -1066,7 +1133,89 @@ def _corner_table(blocks: Sequence[Tuple[str, Dict[str, ConditionResult]]],
              "rounded.")
 
 
-def _envelope(project: Project,  # noqa: ARG001
+#: ``(printed name, MACHLIM value key)`` of the speed/altitude table's columns.
+#:
+#: Guarded against the module's own keys, so a renamed key empties the table in
+#: the suite rather than on the page.
+_MACH_LIMIT_COLUMNS: Tuple[Tuple[str, str], ...] = (
+    ("V(MC) cruise", "v_mc"),
+    ("V(MNE) never-exceed", "v_mne"),
+    ("V(MD) dive", "v_md"),
+)
+
+
+def _speed_altitude_figure(project: Project) -> Figure:
+    """2.4's first figure: the operating envelope in speed and altitude.
+
+    Placed ahead of the V-n diagrams because it is the envelope the V-n
+    diagrams are cut from: each one is a slice at a stated altitude, and the
+    speeds their boundaries run to are the speeds this figure draws.
+
+    One builder, shared with the summary report (OR-7) --
+    :func:`sloads.report.content.speed_altitude_plot_data`.
+    """
+    data = speed_altitude_plot_data(project)
+    if data is None:
+        return Figure(
+            "speed_altitude", "Speed and altitude envelope",
+            absent_reason="this airplane has no Mach-limited boundary -- no "
+                          "MACHLIM inputs are entered, so the operating envelope "
+                          "is bounded by the design speeds of 2.3 alone",
+        )
+    return Figure(
+        "speed_altitude", "Speed and altitude envelope",
+        data=data,
+        caption="The operating envelope from sea level to the maximum operating "
+                "altitude. Each boundary is constant in equivalent airspeed below "
+                "the shoulder altitude and Mach-limited above it, so the kink in "
+                "each line is the shoulder. Vh is marked at sea level, where it is "
+                "entered: it is the maximum level-flight speed, not a limit, and "
+                "the analysis carries no altitude variation of it. Speeds are "
+                "equivalent airspeeds and are LIMIT design speeds; nothing here "
+                "is scaled to ultimate.",
+    )
+
+
+def _mach_limit_table(result: Optional[ModuleResult],
+                      system: UnitSystem) -> Optional[Table]:
+    """The plotted speed/altitude boundaries, from MACHLIM's own result.
+
+    The figure's numeric corners (SS 4.3), read rather than re-derived (G-OR-3).
+    Only the Mach-limited rows are tabulated: below the shoulder each speed is
+    its shoulder value held constant, which the note states rather than the
+    table repeating it as though it were a further computed row.
+    """
+    rows = []
+    units = ""
+    for condition in _conditions(result, system):
+        values = _by_key(condition)
+        if "altitude" not in values:
+            continue
+        row = [format_value(values["altitude"].value)]
+        for _name, key in _MACH_LIMIT_COLUMNS:
+            value = values.get(key)
+            row.append(format_value(value.value) if value is not None else "")
+            if value is not None and not units:
+                units = value.units
+        rows.append(row)
+    if not rows:
+        return None
+    speed = f" ({units})" if units else ""
+    return Table(
+        title="Mach-limited speeds by altitude",
+        columns=["Altitude (ft)"] + [f"{name}{speed}"
+                                     for name, _key in _MACH_LIMIT_COLUMNS],
+        rows=rows,
+        note="The Mach-limited half of the figure above, from the shoulder "
+             "altitude to the maximum operating altitude. Below the shoulder "
+             "each boundary is constant in equivalent airspeed at its value in "
+             "the first row, which is what the shoulder altitude is: the "
+             "altitude at which an EAS limit becomes a Mach limit. MNE = 0.9 MD "
+             "(Ch 6). These are LIMIT design speeds.",
+    )
+
+
+def _envelope(project: Project,
               results: Mapping[str, Optional[ModuleResult]], *,
               system: UnitSystem,
               plan: Sequence[SectionPlan]) -> Section:
@@ -1078,16 +1227,23 @@ def _envelope(project: Project,  # noqa: ARG001
     vlines = [(name, float(speeds[key].value))
               for name, key in _ENVELOPE_VLINES if key in speeds]
 
-    figures = [_envelope_figure(block, cases, vlines, index)
-               for index, (block, cases) in enumerate(blocks)]
+    # The speed/altitude envelope opens the subsection: the V-n diagrams that
+    # follow are slices of it, and a reader meets the envelope before its cuts.
+    figures = [_speed_altitude_figure(project)]
+    figures += [_envelope_figure(block, cases, vlines, index)
+                for index, (block, cases) in enumerate(blocks)]
     table = _corner_table(blocks)
+    mach = _mach_limit_table(results.get("mach_limit"), system)
 
     cases_ref = section_ref(plan, "flight_envelope_cases")
     body = [
-        "The flight envelope, one diagram per loading and altitude analysed. "
+        "The operating envelope in speed and altitude, and then the flight "
+        "envelope itself, one diagram per loading and altitude analysed. "
         "Each diagram shows the manoeuvre and stall boundary of that "
         "condition together with the gust design points at the cruise and dive "
         "speeds, against the design speeds of the preceding section.",
+
+        _VN_CONSTRUCTION,
 
         "The design cases selected on these envelopes -- the speed, load factor, "
         "attitude and balance of each condition carried into the component load "
@@ -1097,7 +1253,7 @@ def _envelope(project: Project,  # noqa: ARG001
     if far:
         body.append(far)
     return Section("", body=body, figures=figures,
-                   tables=[t for t in (table,) if t is not None])
+                   tables=[t for t in (mach, table) if t is not None])
 
 
 # --------------------------------------------------------------------------- #

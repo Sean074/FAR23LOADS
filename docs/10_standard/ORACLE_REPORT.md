@@ -183,6 +183,25 @@ Properties, 2.3 Structural Design Speeds, 2.4 Flight Envelope.
   The analysis tags **SHALL** be printed in a declared order: `CgCase.analyses`
   is a set, and set iteration order is not a document property the determinism
   gates can rest on.
+- **The CG-case table SHALL state Xcg in percent of MAC beside the station**,
+  and **SHALL** state the relation it used. The entered CG limits are given in
+  %MAC and the cases in stations, so a table that prints only the station makes
+  every reader convert by hand against whichever XLEMAC and MAC they can find.
+  Three rules:
+  - The column **SHALL** come from `derived_geometry.mac_reference` and
+    `station_to_pct_mac` — the one resolver and one relation the limit lines
+    and the summary report's `% MAC` column already use (C210-13). This is a
+    change of reference, not a derivation, and is the third and last source
+    G-OR-3 admits in section 2.
+  - The note **SHALL** print the relation both ways —
+    `%MAC = 100 (X - XLEMAC) / MAC` and `X = XLEMAC + (%MAC / 100) MAC` — with
+    the XLEMAC and MAC in use and whether they came from the typed override or
+    the wing planform of 2.1. A percentage of MAC is not checkable without the
+    pair behind it.
+  - Where no reference resolves, the column **SHALL** print a dash and the note
+    **SHALL** say why. `station_to_pct_mac` answers `0.0` on a degenerate MAC by
+    contract, and a column of zeroes reads as a centre of gravity at the leading
+    edge (OR-32).
 - **2.2 carries the weight and centre-of-gravity envelope figure** (design note
   45 WE-8, built 2026-08-31 — the oracle's own p140, *"USEFUL LOAD ENVELOPE AND
   STRUCTURAL LIMITS"*). Five rules govern it:
@@ -222,16 +241,48 @@ Properties, 2.3 Structural Design Speeds, 2.4 Flight Envelope.
 - **2.3 pairs each value with its regulation's floor.** A design speed or limit
   load factor **SHALL** be printed beside the FAR 23 minimum the module computed
   for it. No compliance verdict is printed: whether a value complies is the
-  reviewer's finding, not the generator's.
+  reviewer's finding, not the generator's. A paired table **SHALL NOT** print a
+  `Units` column no row fills: a limit load factor is dimensionless, and a blank
+  cell reads as a unit that went missing rather than one that does not exist.
+  "g" is not that unit -- it names an acceleration the table does not state.
 - **2.4 plots produced design points only.** The envelope boundary is the
   polyline through the cases FLTLOADS returned, one figure per loading and
   altitude block. `vn_diagram.build_vn_diagram` **SHALL NOT** be used: it is
   documented as an approximate Structural-Speeds sanity plot with a
   constant-CLmax stall boundary, which on the reference GA wing predicts n = 3.51
   where the analysis computes 3.80 — an 8% disagreement that would put the
-  report's own design points off their own boundary. The caption **SHALL** say
-  that the boundary is curved between the plotted points. Gust cases are drawn
-  as marked points, never as boundary vertices.
+  report's own design points off their own boundary. The subsection **SHALL**
+  say that the boundary is curved between the plotted points. Gust cases are
+  drawn as marked points, never as boundary vertices.
+- **A V-n figure carries no caption of its own.** What a caption would say is
+  the same for all of them — they differ only in loading — so the construction
+  statement, and the LIMIT identification of the load factors with it, is made
+  **once** in the subsection body above the figures, and the caption line
+  carries the block name alone. Captions **SHALL** stay empty rather than the
+  rule softening to "a caption states it if it has one" (owner, 2026-08-31).
+- **2.4 opens with the speed and altitude envelope** (built 2026-08-31). The
+  V-n diagrams are slices of that envelope at a stated altitude, so the
+  envelope is drawn before its cuts. Four rules:
+  - It **SHALL** run from **sea level** to the maximum operating altitude, not
+    from the shoulder altitude. Each boundary is constant in equivalent
+    airspeed below the shoulder and Mach-limited above it, and the kink at the
+    shoulder is what the figure is for; MACHLIM tabulates only the Mach-limited
+    half, and a figure starting where the table starts shows a boundary with no
+    beginning.
+  - The sub-shoulder segment **SHALL** be the shoulder row's own speed held
+    constant, never a second evaluation of it — every speed plotted is a value
+    MACHLIM returned (G-OR-3 through a figure).
+  - **Vh SHALL be marked at sea level, not drawn as a line.** `speeds.vh_kt` is
+    the maximum level-flight speed at sea level and the analysis carries no
+    altitude variation of it; a full-height line would assert a boundary
+    nothing computed. It is not a limit speed, and the caption says so.
+  - The Mach-limited half **SHALL** be tabulated beside the figure from
+    MACHLIM's own `ModuleResult`, with a note stating that the boundaries are
+    constant in EAS below the first row's altitude.
+- **The speed/altitude figure has one builder**,
+  `report.content.speed_altitude_plot_data`, shared with the summary report
+  (OR-7) — which is why the summary report's own speed/altitude figure now
+  begins at sea level and marks Vh.
 - **The case list belongs to the load-case section**, not here; 2.4 cross-refers
   to it through the numbering owner and renders "a section this issue does not
   carry" until it exists.
@@ -407,7 +458,9 @@ without a guard is prose, not a gate).
 | 2.1 Geometry and control surfaces | 2026-08-30 | `test_oracle_report.py::test_a_wing_area_is_stated_once_in_the_whole_section`, `::test_a_far_reference_that_is_not_a_regulation_is_not_printed_as_one`, `::test_every_control_surface_the_project_defines_gets_a_table`, `::test_the_echoed_surface_inputs_are_the_fields_the_project_still_has`, `::test_the_as_entered_statement_is_made_once` |
 | 2.2 Weight and Mass Properties | 2026-08-30 | `test_oracle_report.py::test_section_two_invents_no_number`, `::test_the_cg_case_table_states_every_case_and_its_role_and_analysis`, `::test_the_analysis_column_is_ordered_not_set_ordered` |
 | 2.2 Weight/CG envelope figure (note 45 WE-8) | 2026-08-31 | `test_oracle_report.py::test_the_weight_cg_figure_draws_both_loading_edges`, `::test_the_weight_cg_figure_reaches_its_own_emitter_and_closes_its_limits`, `::test_the_weight_cg_figure_marks_every_entered_case_once`, `::test_the_envelope_vertex_table_is_wtenv_s_own_result`, `::test_the_weight_cg_figure_states_no_load_and_no_safety_factor`, `::test_a_project_with_no_weight_database_says_why_instead_of_drawing`, `::test_the_limit_envelope_is_omitted_rather_than_half_drawn` |
-| 2.3 Structural Design Speeds | 2026-08-30 | `test_oracle_report.py::test_the_paired_tables_pair_keys_the_modules_actually_produce` |
+| 2.2 CG-case %MAC column | 2026-08-31 | `test_oracle_report.py::test_the_cg_case_table_states_xcg_in_percent_mac_from_the_one_reference`, `::test_the_cg_case_table_prints_the_percent_mac_relation_and_its_reference`, `::test_a_case_table_with_no_mac_reference_says_so_instead_of_printing_zero` |
+| 2.3 Structural Design Speeds | 2026-08-30 | `test_oracle_report.py::test_the_paired_tables_pair_keys_the_modules_actually_produce` , `::test_a_paired_table_drops_a_units_column_no_row_fills` |
+| 2.4 Speed/altitude envelope | 2026-08-31 | `test_oracle_report.py::test_the_speed_altitude_envelope_opens_2_4_and_reaches_sea_level`, `::test_the_speed_altitude_envelope_plots_only_machlim_s_own_speeds`, `::test_vh_is_marked_at_sea_level_and_is_not_drawn_as_a_boundary`, `::test_the_speed_altitude_envelope_has_one_builder_for_both_reports`, `::test_an_airplane_with_no_mach_inputs_says_so_instead_of_drawing` |
 | 2.4 Flight Envelope | 2026-08-30 | `test_oracle_report.py::test_the_envelope_boundary_order_is_the_analysis_order`, `::test_the_envelope_figures_plot_only_produced_design_points`, `::test_one_envelope_figure_per_loading_and_altitude` |
 | Section 2 marks nothing ultimate; load factors identified as LIMIT | 2026-08-30 | `test_oracle_report.py::test_section_two_marks_nothing_ultimate_and_states_no_safety_factor`, `::test_no_table_claims_a_load_factor_is_not_a_load`, `::test_reported_load_factors_are_identified_as_limit` |
 
@@ -423,6 +476,14 @@ without a guard is prose, not a gate).
 - [x] The weight/CG figure has one builder, shared with the summary report; its
       limit corners read the same MAC reference the `% MAC` column does —
       `test_derived_geometry.py`
+- [x] The CG-case table states Xcg in %MAC from `mac_reference`, prints the
+      relation both ways with the pair it used, and dashes rather than zeroes
+      when no reference resolves — `test_oracle_report.py`
+- [x] 2.4 opens with the speed/altitude envelope, drawn from sea level, plotting
+      only MACHLIM's own speeds, with Vh marked and not drawn as a boundary —
+      `test_oracle_report.py`
+- [x] The V-n figures carry no caption and the LIMIT identification is made once
+      in the subsection body — `test_oracle_report.py`
 
 - [x] The section set is `oracle_steps()`'s result-producing steps, both
       directions — `test_oracle_report.py`
