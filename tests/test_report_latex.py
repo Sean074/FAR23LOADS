@@ -181,6 +181,74 @@ def test_plot_tex_labels_are_escaped():
     assert r"V \& n" in tex and r"m\textsuperscript{2}" in tex and r"a\_b" in tex
 
 
+def _anchor_of(tex: str, label: str) -> str:
+    """The ``anchor=`` a marker label was emitted with."""
+    match = re.search(r"\\node\[anchor=([a-z ]+), font=\\tiny\] at "
+                      r"\(axis cs:[^)]*\) \{" + re.escape(label) + r"\};", tex)
+    assert match, f"no marker label {label!r} in the emitted figure"
+    return match.group(1)
+
+
+def test_an_uncrowded_marker_label_still_sits_above_its_point():
+    """The placement rule must not move a label that had no reason to move.
+
+    Every marker label was ``anchor=south`` before 2026-09-01. That is still the
+    right answer wherever nothing is in the way, and it leads the candidate
+    order so it also wins every tie -- which is what keeps the change confined
+    to the labels that were actually colliding.
+    """
+    data = PlotData("x", "y", [Series("line", [0.0, 10.0], [0.0, 0.0])],
+                    points=[("alone", 5.0, 8.0)])
+    assert _anchor_of(plot_tex(data), "alone") == "south"
+
+
+def test_a_marker_label_is_placed_off_the_line_it_sits_on():
+    """A label is not written through the ink beside it.
+
+    The marker here sits just below a horizontal line, which is where the GA6's
+    gust design points sit on the V-n boundary: ``anchor=south`` would put the
+    text straight across it. The rule is only required to move the label off the
+    line, not to prefer a particular side -- asserting the side would be
+    asserting the arithmetic rather than the property.
+    """
+    data = PlotData("x", "y", [Series("line", [0.0, 10.0], [1.0, 1.0]),
+                               Series("frame", [0.0, 10.0], [0.0, 4.0])],
+                    points=[("on the line", 5.0, 0.97)])
+    assert _anchor_of(plot_tex(data), "on the line") != "south"
+
+
+def test_a_long_label_is_scored_over_its_whole_length():
+    """A label is a box, not the point at the end nearest its marker.
+
+    Scoring one point beside the marker placed the GA6's "CG3 / fwd light" so
+    that its first character cleared the loading edge and the remaining fourteen
+    did not. Same geometry both times here: only the length of the text differs,
+    and the long one has to go somewhere the short one need not.
+    """
+    # A vertical line a short label clears and a long one reaches across.
+    series = [Series("frame", [0.0, 10.0], [0.0, 0.0]),
+              Series("wall", [6.0, 6.0], [0.0, 10.0])]
+    short = PlotData("x", "y", series, points=[("x", 5.0, 5.0)])
+    long = PlotData("x", "y", series,
+                    points=[("a considerably longer label", 5.0, 5.0)])
+    assert _anchor_of(plot_tex(short), "x") == "south"
+    assert _anchor_of(plot_tex(long), "a considerably longer label") != "south"
+
+
+def test_the_axes_print_fixed_ticks_rather_than_a_shared_multiplier():
+    """An altitude axis said "0.5 1 1.5" under a "*10^4" (owner, 2026-09-01).
+
+    A reviewer signing a report reads a tick; they should not have to decode
+    one. Asserted on the emitter rather than on one figure, because the next
+    axis with a large range must not have to rediscover this.
+    """
+    tex = plot_tex(PlotData("V", "Altitude (ft)",
+                            [Series("h", [1.0, 2.0], [0.0, 18000.0])]))
+    assert "scaled ticks=false" in tex
+    assert tex.count("/pgf/number format/fixed") == 2       # both axes
+    assert tex.count("/pgf/number format/1000 sep={,}") == 2
+
+
 def test_figures_do_not_float_away_from_their_corner_table():
     tex = _tex()
     assert r"\begin{figure}[H]" in tex

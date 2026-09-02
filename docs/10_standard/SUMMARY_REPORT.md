@@ -262,6 +262,21 @@ without its numeric corners is not sufficient:
 Figures SHALL be vector, SHALL use the document's fonts, and SHALL be legible in
 greyscale (line style, not colour alone, distinguishes traces).
 
+**A tick SHALL be read, not decoded.** An axis SHALL print its values in fixed
+notation with thousands separators, never under a shared `·10ⁿ` multiplier: a
+reviewer signing a report should not have to multiply an altitude back out
+(owner, 2026-09-01).
+
+**A marker label SHALL NOT be written through the figure's own ink.** Labels sit
+above their markers by convention; where that would cross a plotted line, a
+reference line or another marker, the emitter SHALL place the label clear of
+them. The placement SHALL be a rule evaluated against the figure's own geometry —
+scored over the whole label, not one point of it — and SHALL NOT be a table of
+per-figure offsets: an offset tuned on one project is silently wrong on the next,
+and these figures are built for whatever project a reader loads. An uncrowded
+label keeps its conventional position, so the placement reads as a convention
+rather than as a fault.
+
 ### 4.4 Conditions analysed and FAR coverage (required)
 
 - **Case index** — every case ID produced by the run, mapped to its full
@@ -472,6 +487,14 @@ A report conforms when all of the following hold. Each is held by a named test
 - [x] The FAR coverage matrix classifies every listed regulation, with
       "not analysed" rows visually distinct —
       `test_far_coverage.py`, `test_report_latex.py::test_not_analysed_rows_are_visually_distinct_without_colour`.
+- [x] Axes print fixed ticks with thousands separators, never a shared multiplier —
+      `test_report_latex.py::test_the_axes_print_fixed_ticks_rather_than_a_shared_multiplier`.
+- [x] A marker label is placed clear of the figure's lines and of the other
+      markers, scored over the whole label, and an uncrowded one keeps its
+      conventional position —
+      `test_report_latex.py::test_a_marker_label_is_placed_off_the_line_it_sits_on`,
+      `::test_a_long_label_is_scored_over_its_whole_length`,
+      `::test_an_uncrowded_marker_label_still_sits_above_its_point`.
 - [x] The methods statement is generated from the shared source and matches the
       statement stamped into the CSV and BDF exports —
       `test_methods_stamp.py::test_summary_report_carries_the_same_statement`.
