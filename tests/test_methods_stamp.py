@@ -399,7 +399,10 @@ def test_span_load_csv_carries_the_stamp_and_still_parses():
     plain = sb.span_load_csv(wing)
     stamped = sb.span_load_csv(wing, header_comment=csv_comment_block(project))
     assert stamped.startswith("#") and "ULTIMATE" in stamped
-    assert strip_comment_lines(stamped) == plain
+    # The file carries comment lines of its own (the moment-convention block,
+    # note 46 OR-69), so the invariant is that the stamp disturbs nothing --
+    # both sides are stripped, not just the stamped one.
+    assert strip_comment_lines(stamped) == strip_comment_lines(plain)
 
 
 def test_case_index_csv_carries_the_stamp():

@@ -34,16 +34,17 @@ Two moment sums, and the difference matters
 * ``m``  -- the full rigid-body resultant, ``m0 + Σ (p_gid - ref) x F``.
 
 They answer different questions, and a component asserts whichever one its deck
-actually claims. In particular the wing's exported ``myy`` is a **beam torsion
-about the loads reference axis**, not a rigid-body moment about a point: the
-station ``x`` sweeps aft and the station ``z`` rises with dihedral, so the
-transfer term ``Σ (p - ref) x F`` is of the same order as the torsion itself
-(≈ -93,300 lb-in against a -91,400 lb-in root torsion on ``ga6_normal`` PHAA).
-The wing deck's header says "MOMENT(My) set sums to root torsion Myy", which is
-``m0.y``; asserting ``m.y`` there would be asserting a quantity nothing in the
-suite computes. The wing *bending* check does use ``m.x``, which is exactly the
-lift's lever arm about the root station and is what the WINGINER quadrature
-independently produces.
+actually claims. The wing claims ``m.y`` -- the full rigid-body resultant -- and
+that is a change of 2026-09-03 (note 46 OR-68). Its ``MOMENT`` cards used to be
+increments of the cumulative ``Myy``, which already contained the sweep and
+dihedral transfer of the shear carried outboard; only the bare card sum
+``m0.y`` closed then, and asserting ``m.y`` would have double-counted the
+transfer (the term is of the same order as the torsion itself -- ≈ -93,300
+lb-in against a -91,400 lb-in root torsion on ``ga6_normal`` PHAA). The cards
+now carry each strip's **free** torsion at its own node, so the transfer is the
+solver's to generate and ``m.y`` is the root torsion the WINGINER quadrature
+prints. The wing *bending* check has always used ``m.x``, which is exactly the
+lift's lever arm about the root station.
 
 Conventions: ``docs/10_standard/CONVENTIONS.md`` (axes, signs, units channels,
 ULT/SF contract). Deck contract: ``docs/10_standard/PROGRAM_SPEC.md``
@@ -271,7 +272,19 @@ def resultant(forces, moments, grids, sid: int, ref: Vec3) -> Resultant:
         mx += tx
         my += ty
         mz += tz
-        m_abs = [a + abs(b) for a, b in zip(m_abs, (tx, ty, tz))]
+        # The tolerance scale is the magnitude of the arithmetic the deck's own
+        # numbers force, **before** any cancellation -- so the two products of
+        # each cross-product component are budgeted separately, and each against
+        # the *absolute* coordinate rather than the arm, because the format
+        # rounds the coordinate the card carries. A swept, dihedralled wing's
+        # torsion is a small difference of two large products, and budgeting it
+        # by |t| alone said a 44 N*mm text-rounding residue was a physics defect
+        # (note 46, ``concept_regional_jet`` in SI).
+        m_abs = [a + b for a, b in zip(m_abs, (
+            abs(gy * vz) + abs(gz * vy),
+            abs(gz * vx) + abs(gx * vz),
+            abs(gx * vy) + abs(gy * vx),
+        ))]
 
     return Resultant(
         sid=sid, ref=ref,

@@ -128,14 +128,16 @@ def _skip_if_empty(results, example, what):
 @pytest.mark.parametrize("example", EXAMPLES)
 @pytest.mark.parametrize("system", _SYSTEMS)
 def test_wing_deck_resultants(example, system):
-    """Wing: Σ``FORCE`` = SF x root ``Sz``/``Sx``, and the ``MOMENT`` set = SF x
-    root ``Myy``.
+    """Wing: Σ``FORCE`` = SF x root ``Sz``/``Sx``, and the **rigid-body** ``m.y``
+    = SF x root ``Myy``.
 
-    ``Myy`` is checked as the applied-``MOMENT``-card sum, **not** the full
-    rigid-body ``m.y``: the exported torsion is a beam torsion about the loads
-    reference axis, and the wing's chordwise ``x`` and dihedral ``z`` vary along
-    the span, so the rigid transfer term is of the same order as the torsion
-    itself. The deck's header claims the card sum, and that is what is asserted.
+    ``Myy`` is checked as the full rigid-body resultant -- the cards' own sum
+    *plus* the ``Σ (p - ref) x F`` transfer a solver forms -- which is the
+    claim the deck can make now that its ``MOMENT`` cards carry each strip's
+    **free** torsion instead of an increment of the cumulative column
+    (note 46 OR-67/OR-68). Under the old differenced cards only the bare card
+    sum ``m0.y`` closed, because the increment already contained the transfer;
+    asserting ``m.y`` there was off by 21 % to 190 %.
 
     ``Mxx`` closure is asserted separately, in
     :func:`test_wing_deck_bending_closure` -- it does **not** hold on a wing
@@ -158,7 +160,7 @@ def test_wing_deck_resultants(example, system):
         where = f"{example} {system.value} wing {r.case}"
         assert closes(got.fz, want_fz, scale=got.force_scale), f"{where} Fz"
         assert closes(got.fx, want_fx, scale=got.force_scale), f"{where} Fx"
-        assert closes(got.m0y, want_myy, scale=got.moment_scale), f"{where} Myy"
+        assert closes(got.my, want_myy, scale=got.moment_scale), f"{where} Myy"
 
 
 #: Nodes carrying an offset couple, per fixture that hangs a point mass on the
@@ -247,10 +249,14 @@ def test_wing_deck_reproduces_the_station_table_at_every_node(example, system):
             got = resultant(sub_f, sub_m, grids, sid, ref)
             _, _, want_fz = to_force(0.0, 0.0, st.sz * sf, u)
             want_mx, _, want_mz = bending_moment_vector(st.mxx * sf, st.mzz * sf, u)
+            _, want_my, _ = to_moment(0.0, st.myy * sf, 0.0, u)
             where = f"{example} {system.value} wing {r.case} station {k}"
             assert closes(got.fz, want_fz, scale=got.force_scale), f"{where} Sz"
             assert closes(got.mx, want_mx, scale=got.moment_scale), f"{where} Mxx"
             assert closes(got.mz, want_mz, scale=got.moment_scale), f"{where} Mzz"
+            # Torsion too, and by the same rigid-body sum: G-OR-37, the gate
+            # that the cards are the applied set and not a differenced column.
+            assert closes(got.my, want_my, scale=got.moment_scale), f"{where} Myy"
 
 
 @pytest.mark.parametrize("example", EXAMPLES)

@@ -45,6 +45,18 @@ def _wing_net(path):
 _SF = sb._SF
 
 
+def _nodal_torsion_about_root(nodes):
+    """The deck's rigid-body torsion about its root node: Σ my + Σ (p - root) x F.
+
+    The cards carry each strip's **free** torsion, so the root torsion is only
+    recovered once the arms are applied -- which is what a solver does and what
+    the deck now claims (note 46 OR-67/OR-68). Summing ``my`` bare would give
+    the free-torsion total, a different and much smaller number.
+    """
+    x0, z0 = nodes[0].x, nodes[0].z
+    return sum(n.my + (n.z - z0) * n.fx - (n.x - x0) * n.fz for n in nodes)
+
+
 def test_nodal_loads_sum_to_root_totals():
     for r in _wing_net(_GA):
         nodes = sb.wing_nodal_loads(r)
@@ -52,7 +64,8 @@ def test_nodal_loads_sum_to_root_totals():
         y0 = nodes[0].y
         assert math.isclose(sum(n.fz for n in nodes), root.sz * _SF, rel_tol=1e-9, abs_tol=1e-6)
         assert math.isclose(sum(n.fx for n in nodes), root.sx * _SF, rel_tol=1e-9, abs_tol=1e-6)
-        assert math.isclose(sum(n.my for n in nodes), root.myy * _SF, rel_tol=1e-9, abs_tol=1e-3)
+        assert math.isclose(_nodal_torsion_about_root(nodes), root.myy * _SF,
+                            rel_tol=1e-9, abs_tol=1e-3)
         # Bending = FORCE moments about the root strip (exact under the WINGINER quadrature).
         assert math.isclose(sum(n.fz * (n.y - y0) for n in nodes), root.mxx * _SF, rel_tol=1e-6, abs_tol=1.0)
         assert math.isclose(sum(n.fx * (n.y - y0) for n in nodes), root.mzz * _SF, rel_tol=1e-6, abs_tol=1.0)
@@ -64,7 +77,8 @@ def test_concept_closure():
     for r in results:
         nodes = sb.wing_nodal_loads(r)
         assert math.isclose(sum(n.fz for n in nodes), r.stations[0].sz * _SF, rel_tol=1e-9, abs_tol=1e-6)
-        assert math.isclose(sum(n.my for n in nodes), r.stations[0].myy * _SF, rel_tol=1e-9, abs_tol=1e-3)
+        assert math.isclose(_nodal_torsion_about_root(nodes),
+                            r.stations[0].myy * _SF, rel_tol=1e-9, abs_tol=1e-3)
 
 
 # --------------------------------------------------------------------------- #
@@ -88,7 +102,13 @@ def test_force_moment_cards_round_trip():
         root = r.stations[0]
         assert closes(got.force[2], root.sz * _SF, scale=got.force_scale)
         assert closes(got.force[0], root.sx * _SF, scale=got.force_scale)
-        assert closes(got.moment[1], root.myy * _SF, scale=got.moment_scale)
+        # The bare card deck has no GRID cards, so the lever arms come from the
+        # nodal loads rather than from the deck's own text; the deck-text sweep
+        # that integrates them lives in ``test_export_equilibrium.py``.
+        transfer = _nodal_torsion_about_root(sb.wing_nodal_loads(r)) \
+            - sum(n.my for n in sb.wing_nodal_loads(r))
+        assert closes(got.moment[1] + transfer, root.myy * _SF,
+                      scale=got.moment_scale)
 
 
 def test_force_moment_card_format():
@@ -196,8 +216,10 @@ def test_grids_match_station_geometry():
 # Span-load CSV
 # --------------------------------------------------------------------------- #
 def test_span_load_csv_shape():
+    from sloads.report.methods import strip_comment_lines
+
     results = _wing_net(_GA)
-    text = sb.span_load_csv(results)
+    text = strip_comment_lines(sb.span_load_csv(results))
     lines = text.strip().splitlines()
     header = lines[0].split(",")
     # Every dimensional column states its unit and, if it is a load, its ULT
@@ -237,7 +259,9 @@ def _lra_net(path):
 def _csv_rows(text):
     import csv as _csv
 
-    return list(_csv.DictReader(text.splitlines()))
+    from sloads.report.methods import strip_comment_lines
+
+    return list(_csv.DictReader(strip_comment_lines(text).splitlines()))
 
 
 def test_the_applied_set_carries_every_strip_and_every_concentrated_mass():
@@ -261,23 +285,73 @@ def test_a_concentrated_mass_has_no_grid_and_no_free_moment():
         assert m.fz != 0.0
 
 
-def test_the_applied_set_reproduces_the_root_torsion_through_its_own_arms():
-    """The closure gate: free moments + the forces' own arms == the root Myy.
+def _resultant(rows, about, outboard_of):
+    """The applied set's six-component resultant about ``about``, tip-inboard.
 
-    This is what makes the set a deck. A model applying ``fz``/``fx`` at the
-    stated points generates the sweep/dihedral transfer itself, so the applied
-    moment must be the *free* moment only -- if it carried the increment of the
-    cumulative ``myy`` instead, this sum would double the transfer.
+    ``rows`` are :class:`~sloads.export.sbeam_bridge.AppliedLoad` records; only
+    those at or outboard of ``outboard_of`` (a span station, in) contribute --
+    which is exactly the population the cumulative table at that station holds.
+    Moments are right-handed ``r x F`` plus the record's own free moments,
+    taken through ``applied_body_moments`` so the sign map has one owner.
+    """
+    sx = sz = mx = my = mz = 0.0
+    for r in rows:
+        if r.y < outboard_of:
+            continue
+        dx, dy, dz = r.x - about[0], r.y - about[1], r.z - about[2]
+        bmx, bmy, bmz = sb.applied_body_moments(r)
+        sx += r.fx
+        sz += r.fz
+        mx += dy * r.fz - dz * r.fy + bmx
+        my += dz * r.fx - dx * r.fz + bmy
+        mz += dx * r.fy - dy * r.fx + bmz
+    return sx, sz, mx, my, mz
+
+
+def test_the_applied_set_reproduces_the_whole_vmt_at_every_station():
+    """The closure gate: the applied vector rebuilds V, M and T along the span.
+
+    This is what makes the set a deck. A model applying the six components at
+    the stated points generates every sweep, dihedral and span transfer itself,
+    so the applied moment must be the *free* moment only -- carrying the
+    increment of the cumulative instead would double the transfer.
+
+    Checked at **every** station, not only the root, and on all five components
+    the wing chain publishes: a set that closed at the root alone could still
+    put the load in the wrong bay. ``Mzz`` is compared negated because the calc
+    stores spanwise bending as a positive-magnitude integral while the body-axis
+    resultant is ``r x F`` (``coordinates.bending_moment_vector``).
     """
     for path in (_GA, _BARON):
         for result in _lra_net(path):
             rows = sb.applied_load_rows([result])
-            x0, z0 = result.stations[0].x, result.stations[0].z
-            transfer = sum(r.fz * (r.x - x0) - r.fx * (r.z - z0) for r in rows)
-            got = sum(r.myy_free for r in rows) - transfer
-            want = result.stations[0].myy
-            assert closes(got, want, scale=abs(want)), (
-                f"{path} {result.case}: applied set gives {got}, root Myy is {want}")
+            for station in result.stations:
+                about = (station.x, station.y, station.z)
+                got = _resultant(rows, about, station.y)
+                want = (station.sx, station.sz, station.mxx, station.myy,
+                        -station.mzz)
+                for name, g, w in zip(("Sx", "Sz", "Mxx", "Myy", "Mzz"),
+                                      got, want):
+                    assert closes(g, w, scale=abs(w)), (
+                        f"{path} {result.case} y={station.y:.1f} {name}: "
+                        f"applied set gives {g}, table has {w}")
+
+
+def test_the_applied_set_states_all_six_components():
+    """Fy, Mx and Mz are published as zero, not left out (the reader's benefit).
+
+    Their being zero is a property of this load set -- no spanwise strip load
+    and no lateral wing condition; no free bending under strip theory -- and a
+    consumer building cards has to be able to tell that from an omission.
+    """
+    for path in (_GA, _BARON):
+        rows = sb.applied_load_rows(_lra_net(path))
+        assert rows
+        for r in rows:
+            assert r.fy == 0.0
+            assert sb.applied_body_moments(r)[0] == 0.0
+            assert sb.applied_body_moments(r)[2] == 0.0
+        assert any(r.myy_free for r in rows), "My is not structurally zero"
 
 
 def test_the_applied_moment_is_the_free_moment_not_the_increment():
@@ -301,14 +375,39 @@ def test_the_applied_moment_is_the_free_moment_not_the_increment():
 def test_the_applied_csv_states_its_units_axis_and_factor():
     """A distribution file is unusable without its units, axis and basis (D-21)."""
     net = _lra_net(_GA)
+    from sloads.report.methods import strip_comment_lines
+
     text = sb.applied_load_csv(net)
-    header = text.splitlines()[0]
+    header = strip_comment_lines(text).splitlines()[0]
     assert header.split(",") == [
-        "Case", "Station", "GID", "X (in)", "Y (in)", "Z (in)", "Fz (lbs-ULT)",
-        "Fx (lbs-ULT)", "Myy free (lb-in-ULT)", "MyyAxis", "SF"]
+        "Case", "Station", "GID", "X (in)", "Y (in)", "Z (in)",
+        "Fx (lbs-ULT)", "Fy (lbs-ULT)", "Fz (lbs-ULT)",
+        "Mx (lb-in-ULT)", "My (lb-in-ULT)", "Mz (lb-in-ULT)", "MyyAxis", "SF"]
     row = _csv_rows(text)[0]
     assert row["MyyAxis"] == net[0].torsion_axis
     assert row["SF"] == "1.5"
+
+
+def test_each_wing_csv_states_the_moment_convention_it_uses():
+    """The two files carry different moment conventions and must say so (OR-69).
+
+    ``Mz`` (an applied card component, right-handed) and ``Mzz`` (the beam's
+    positive-magnitude bending integral) sit in the same row of the span-load
+    file with opposite senses, and no column heading can carry that. The applied
+    file states its structural zeros for the same reason: a printed zero and an
+    omitted column are different claims.
+    """
+    net = _lra_net(_GA)
+    span = sb.span_load_csv(net)
+    assert "right-handed about" in span
+    assert "negation of the body-axis Mz" in span
+
+    applied = sb.applied_load_csv(net)
+    assert "Fy is zero throughout" in applied
+    assert "Mx and Mz are zero throughout" in applied
+    # and the statements are comments, so the file still parses as a table
+    assert len(_csv_rows(applied)) == sum(
+        len(r.stations) + len(r.point_loads) for r in net)
 
 
 def test_the_applied_csv_leaves_a_point_masss_gid_blank():
@@ -316,7 +415,7 @@ def test_the_applied_csv_leaves_a_point_masss_gid_blank():
     rows = _csv_rows(sb.applied_load_csv(_lra_net(_BARON)[:1]))
     blank = [r for r in rows if r["GID"] == ""]
     assert len(blank) == 4
-    assert all(r["Myy free (lb-in-ULT)"] == "0" for r in blank)
+    assert all(r["My (lb-in-ULT)"] == "0" for r in blank)
     assert all(r["GID"].isdigit() for r in rows if r not in blank)
 
 
@@ -338,7 +437,7 @@ def test_applied_load_writer(tmp_path=None):
     sb.write_applied_load_csv(_lra_net(_GA), path, header_comment="# ULTIMATE\n")
     text = open(path, encoding="utf-8").read()
     assert text.startswith("# ULTIMATE")
-    assert "Myy free" in text
+    assert "My (lb-in-ULT)" in text
 
 
 def test_accepts_project_and_requires_loads():
@@ -350,7 +449,9 @@ def test_accepts_project_and_requires_loads():
     else:
         raise AssertionError("expected ValueError when Project.loads is missing")
     p.loads = build_net_loads(p)
-    assert sb.span_load_csv(p).startswith("Case,GID")
+    from sloads.report.methods import strip_comment_lines
+
+    assert strip_comment_lines(sb.span_load_csv(p)).startswith("Case,GID")
 
 
 def test_project_export_transfers_to_loads_ref_axis():
@@ -361,7 +462,9 @@ def test_project_export_transfers_to_loads_ref_axis():
     p.loads = build_net_loads(p)
     wing = p.geometry.by_name(p.wing_mass.surface)
     wing.ref_axis_pct = 0.40
-    text = sb.span_load_csv(p)
+    from sloads.report.methods import strip_comment_lines
+
+    text = strip_comment_lines(sb.span_load_csv(p))
     lines = text.strip().splitlines()
     assert all(line.split(",")[-2] == "LRA 40% chord" for line in lines[1:])
     # Cumulative root torsion = the 25%-chord value + SF x Sz x (x_lra - x_25).
@@ -558,7 +661,7 @@ def test_wing_export_honours_per_case_safety_factor():
             root = r.stations[0]
             assert math.isclose(sum(n.fz for n in nodes), root.sz * sf,
                                 rel_tol=1e-9, abs_tol=1e-6), sf
-            assert math.isclose(sum(n.my for n in nodes), root.myy * sf,
+            assert math.isclose(_nodal_torsion_about_root(nodes), root.myy * sf,
                                 rel_tol=1e-9, abs_tol=1e-3), sf
 
 
@@ -584,8 +687,10 @@ def test_cards_state_the_factor_they_used():
 
 def test_span_csv_carries_the_safety_factor_column():
     """Every exported load case states its factor (the CLAUDE.md ULT contract)."""
-    rows = [ln.split(",") for ln in
-            sb.span_load_csv(_wing_net_with_sf(1.0)).strip().splitlines()]
+    from sloads.report.methods import strip_comment_lines
+
+    rows = [ln.split(",") for ln in strip_comment_lines(
+        sb.span_load_csv(_wing_net_with_sf(1.0))).strip().splitlines()]
     assert rows[0][-1] == "SF"
     assert {r[-1] for r in rows[1:]} == {"1.0"}
 
@@ -747,7 +852,16 @@ def test_sob_internal_loads_match_the_cumulative_table_at_a_cut():
             nxt = s[k + 1]
             assert math.isclose(si.sz, nxt.sz * sf, rel_tol=1e-9, abs_tol=1e-6)
             assert math.isclose(si.sx, nxt.sx * sf, rel_tol=1e-9, abs_tol=1e-6)
-            assert math.isclose(si.myy, nxt.myy * sf, rel_tol=1e-9, abs_tol=1e-3)
+            # Torsion at the cut is the next station's value transferred to the
+            # cut's own point on the LRA -- the cut is half a strip inboard, and
+            # a swept, dihedralled axis makes that a real difference (19 % at
+            # the root strip of ga6_normal). Under the old differenced cards the
+            # transfer was already inside ``my`` and this read as nxt.myy flat.
+            x_cut = 0.5 * (s[k].x + s[k + 1].x)
+            z_cut = 0.5 * (s[k].z + s[k + 1].z)
+            want_myy = (nxt.myy - nxt.sz * (nxt.x - x_cut)
+                        + nxt.sx * (nxt.z - z_cut)) * sf
+            assert math.isclose(si.myy, want_myy, rel_tol=1e-9, abs_tol=1e-3)
             assert math.isclose(si.mxx, (nxt.mxx + nxt.sz * (nxt.y - y_cut)) * sf,
                                 rel_tol=1e-6, abs_tol=1.0)
             assert math.isclose(si.mzz, (nxt.mzz + nxt.sx * (nxt.y - y_cut)) * sf,
@@ -771,11 +885,17 @@ def test_sob_collapse_plus_internal_preserves_the_resultant():
     for r in build_net_loads(p).wing_net:
         s, sf = r.stations, r.safety_factor
         si = sb.sob_internal_loads(r, y_sob)
-        cl = sb.sob_collapsed_load(r, (0.0, y_sob, 0.0))
+        cl = sb.sob_collapsed_load(r, sb.sob_reference_point(r, y_sob))
         assert cl.gid == sb.sob_gid()
         assert math.isclose(cl.fz + si.sz, s[0].sz * sf, rel_tol=1e-9, abs_tol=1e-6)
         assert math.isclose(cl.fx + si.sx, s[0].sx * sf, rel_tol=1e-9, abs_tol=1e-6)
-        assert math.isclose(cl.my + si.myy, s[0].myy * sf, rel_tol=1e-9, abs_tol=1e-3)
+        # Torsion is about the SOB reference point, so the root value transfers
+        # over the chordwise and vertical offset between it and the root station
+        # -- the same transfer the two halves already share (note 46 OR-67).
+        ref = sb.sob_reference_point(r, y_sob)
+        want_my = (s[0].myy + (s[0].z - ref[2]) * s[0].sx
+                   - (s[0].x - ref[0]) * s[0].sz) * sf
+        assert math.isclose(cl.my + si.myy, want_my, rel_tol=1e-9, abs_tol=1e-3)
         # Moments about the SOB: root bending transferred over (y0 - y_sob).
         assert math.isclose(cl.mx + si.mxx,
                             (s[0].mxx + s[0].sz * (s[0].y - y_sob)) * sf,

@@ -217,7 +217,8 @@ def test_the_headless_and_gui_wing_decks_are_the_same_deck(tmp_path):
         with open(prefix + suffix) as fh:
             assert fh.read().endswith(build(gui)), suffix
     with open(prefix + ".span_loads.csv", newline="") as fh:
-        assert strip_comment_lines(fh.read()) == sb.span_load_csv(gui)
+        assert strip_comment_lines(fh.read()) == strip_comment_lines(
+            sb.span_load_csv(gui))
 
 
 # --------------------------------------------------------------------------- #

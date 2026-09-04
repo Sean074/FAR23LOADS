@@ -768,7 +768,7 @@ shipped example × {Imperial, SI} × every deck family:
 
 | Deck | Force closure | Moment closure | Basis |
 |---|---|---|---|
-| Wing | Σ`FORCE`.Fz/Fx = SF × root `Sz`/`Sx` | Σ`MOMENT`.My = SF × root `Myy`; Σ`FORCE` moment about the root station = SF × root `Mxx` | Ch 14 (net loads); WINGINER quadrature |
+| Wing | Σ`FORCE`.Fz/Fx = SF × root `Sz`/`Sx` | the **full rigid-body** `m` about the root station = SF × root `Mxx`/`Myy`/`−Mzz`, at every station and not only the root | Ch 14 (net loads); WINGINER quadrature |
 | Body | Σ`FORCE`.Fz = 0 | Σ`FORCE` moment about the aft-most `GRID` = 0 | **Ch 15 p103** — the fuselage beam is assembled free-free (inertia + tail air load + wing carry-through), so its equilibrium statement is `Σ = 0` |
 | Tail | Σ`FORCE` = SF × (`LT25`+`LT50`) on the surface's normal axis (h-tail `Fz`, fin `Fy`) | chordwise first moment = the profile's own (deck ↔ CSV cannot disagree), about `My` / `Mz` respectively | Ch 10 |
 | Control | Σ`FORCE`.Fz = SF × critical load | — (no geometry; chord-fraction profile) | AILERON/FLAPLOAD/TABLOADS |
@@ -782,14 +782,33 @@ Two findings recorded because they are the kind that get re-proposed:
    `n·W/2` (fuselage-carried lift plus inertia relief; and doubling is wrong for
    the antisymmetric cases outright). The assembled-airframe `n·W` closure is a
    separate item, pairing with the assembled stick model.
-2. **A beam torsion is not a rigid-body moment** — see `CONVENTIONS.md` §1. The
-   wing torsion claim is on the applied `MOMENT` cards; only bending integrates
-   the `FORCE` lever arms.
+2. **A beam torsion is not a rigid-body moment** — see `CONVENTIONS.md` §1 —
+   **but the wing deck's torsion now is one** (design note 46 OR-67/OR-68,
+   2026-09-03). While the `MOMENT` cards were increments of the cumulative
+   `Myy` they already contained the sweep/dihedral transfer of the outboard
+   shear, so only the bare card sum could be asserted; measured against the
+   published table under the rigid-body accumulation a solver performs, the
+   exported torsion was wrong by 151/190/120 % on `ga6_normal`
+   (PHAA/TORS/ACRL) and 34/21 % on `baron_58`, while shear and both bending
+   columns closed exactly — which is why differencing survived the closure
+   sweep for as long as it did. The cards now carry each strip's **free**
+   torsion at its own node, so the transfer is the solver's to generate and
+   the claim is `m.y`. Closure gate: the six-component resultant of the applied
+   set reproduces `Sx`/`Sz`/`Mxx`/`Myy`/`−Mzz` at every station of every case
+   of both example airplanes to ~2.5e-15 relative
+   (`tests/test_sbeam_bridge.py::test_the_applied_set_reproduces_the_whole_vmt_at_every_station`;
+   from the deck's own text,
+   `tests/test_export_equilibrium.py::test_wing_deck_reproduces_the_station_table_at_every_node`).
 
 Tolerances have one owner (`equilibrium.REL_TOL` / `ZERO_REL_TOL`): `1e-4`
 relative against a non-zero target, and against a **zero** target
 `1e-6 × Σ|term| + 1e-3` in deck units — summed, not maxed, because the error
-being bounded is accumulated `%.6E` card truncation (~5e-7 per card).
+being bounded is accumulated `%.6E` card truncation (~5e-7 per card). A moment
+term is summed **before** the cross product cancels, and against the *absolute*
+coordinate the card format rounds rather than the arm: a swept, dihedralled
+wing's torsion is a small difference of two large products, and budgeting it by
+the cancelled result called a 44 N·mm text-rounding residue a physics failure
+(note 46).
 
 ### The solver round-trip as a closure gate (step 2, 2026-08-08)
 

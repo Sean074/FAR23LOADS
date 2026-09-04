@@ -97,7 +97,12 @@ def test_wing_nodal_loads_sum_to_root():
         root = r.stations[0]
         y0 = nodes[0].y
         assert math.isclose(sum(n.fz for n in nodes), root.sz * _SF, rel_tol=1e-9, abs_tol=1e-6)
-        assert math.isclose(sum(n.my for n in nodes), root.myy * _SF, rel_tol=1e-9, abs_tol=1e-3)
+        # The cards carry each strip's *free* torsion, so the root torsion comes
+        # back only with the arms applied -- which is what a solver does
+        # (note 46 OR-67/OR-68).
+        x0, z0 = nodes[0].x, nodes[0].z
+        rigid = sum(n.my + (n.z - z0) * n.fx - (n.x - x0) * n.fz for n in nodes)
+        assert math.isclose(rigid, root.myy * _SF, rel_tol=1e-9, abs_tol=1e-3)
         # Bending = FORCE moments about the root strip.
         assert math.isclose(sum(n.fz * (n.y - y0) for n in nodes), root.mxx * _SF,
                             rel_tol=1e-6, abs_tol=1.0)

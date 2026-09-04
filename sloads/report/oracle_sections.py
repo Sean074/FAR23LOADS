@@ -1861,9 +1861,15 @@ _NOMENCLATURE: Tuple[Tuple[str, str, str, str], ...] = (
     ("Y", "Butt line, positive outboard on the starboard wing",
      "length", "coordinate"),
     ("Z", "Waterline, positive up", "length", "coordinate"),
-    ("Fz", "Normal force applied at the station", "force", "increment"),
     ("Fx", "Chordwise force applied at the station", "force", "increment"),
-    ("Myy free", "Free torsion applied at the station", "moment", "increment"),
+    ("Fy", "Spanwise force applied at the station (none in this suite)",
+     "force", "increment"),
+    ("Fz", "Normal force applied at the station", "force", "increment"),
+    ("Mx", "Free moment applied about X (none under strip theory)",
+     "moment", "increment"),
+    ("My", "Free torsion applied about Y", "moment", "increment"),
+    ("Mz", "Free moment applied about Z (none under strip theory)",
+     "moment", "increment"),
     ("Sz", "Normal shear carried across the station", "force", "cumulative"),
     ("Sx", "Chordwise shear carried across the station", "force", "cumulative"),
     ("Mxx", "Bending moment about X", "moment", "cumulative"),
@@ -1887,7 +1893,11 @@ def _nomenclature_table(net: Sequence[object], system: UnitSystem) -> Table:
         note=("An increment is the load applied at that station alone. A "
               "cumulative value is the load the structure carries there: the "
               "sum of everything outboard of it, accumulated from the tip "
-              f"inboard. Both moments are stated about the {axis}. "
+              f"inboard. Torsion is stated about the {axis}. "
+              "The applied moments Mx, My and Mz are right-handed about the "
+              "airplane axes; the carried Mxx and Myy are the beam's own "
+              "positive-magnitude bending and torsion, so Mxx and Mx share a "
+              "sense and a chordwise bending would not. "
               "Coordinates are geometry -- they are neither scaled to ultimate "
               "nor marked."))
 
@@ -1901,7 +1911,7 @@ def _derivation_note(net: Sequence[object]) -> str:
     """
     axis = _torsion_axis(net) or "loads reference axis"
     reference = appendix_ref(WING_LOAD_STATIONS)
-    tail = (f" That is why {reference} tabulates Fz, Fx and Myy free at each "
+    tail = (f" That is why {reference} tabulates the applied vector at each "
             "station's own point rather than the differences of the cumulative "
             "columns: the differences are mostly transfer, and a model given "
             "them would count it twice.") if reference else ""
@@ -1918,7 +1928,9 @@ def _derivation_note(net: Sequence[object]) -> str:
         "into Mxx, are position transfers -- the shear already carried at the "
         "station, moved across the sweep, dihedral and span of the bay. They "
         "are not applied loads, and a structural model generates them itself "
-        "from its own geometry. Only Myy free is applied." + tail)
+        "from its own geometry. Of the six applied components only My is "
+        "non-zero: Fx and Fz are the applied forces, and Fy, Mx and Mz are "
+        "zero for every row of this load set." + tail)
 
 
 def _point_load_note(net: Sequence[object]) -> str:
@@ -2153,14 +2165,21 @@ _CUMULATIVE_LOADS: Tuple[Tuple[str, str, str], ...] = (
 )
 
 #: The applied channels of B.1 -- what a structural model is given, not what it
-#: carries. ``Fy`` is not among them: the wing has no producer for a spanwise
-#: strip load (``WingStationLoad.f_span`` is the fin's), and there is no applied
-#: ``Mxx`` or ``Mzz`` at all, because a strip applies forces and a section
-#: moment and nothing else. See :func:`_derivation_note`.
-_APPLIED_LOADS: Tuple[Tuple[str, str, str], ...] = (
-    ("fz", "force", "Fz"),
-    ("fx", "force", "Fx"),
-    ("myy_free", "moment", "Myy free"),
+#: carries. All six body-axis components are stated, in vector order, three of
+#: them structurally zero: the wing chain has no producer for a spanwise strip
+#: load and no wing condition is lateral (``Fy``), and a strip applies forces
+#: and a section moment and nothing else, so there is no free ``Mx`` or ``Mz``
+#: (all of the cumulative bending is those forces through spanwise arms). The
+#: zeros are printed rather than omitted because a reader building cards from
+#: this table cannot otherwise tell a zero from an omission. See
+#: :func:`_derivation_note`.
+_APPLIED_LOADS: Tuple[Tuple[str, str], ...] = (
+    ("force", "Fx"),
+    ("force", "Fy"),
+    ("force", "Fz"),
+    ("moment", "Mx"),
+    ("moment", "My"),
+    ("moment", "Mz"),
 )
 
 
@@ -2186,19 +2205,22 @@ def _applied_table(net: Sequence[WingLoadResult], system: UnitSystem,
     columns = ["Case", "Station", f"X ({length})", f"Y ({length})",
                f"Z ({length})"]
     columns += [f"{label} ({u.ult_label(dim)})"
-                for _attr, dim, label in _APPLIED_LOADS]
+                for dim, label in _APPLIED_LOADS]
     # The applied set has one owner, in the export channel, so the table a
     # stress analyst reads here and the CSV they load from the Wing Loads page
-    # are two views of one list and cannot disagree about what is applied.
-    from ..export.sbeam_bridge import applied_load_rows
+    # are two views of one list and cannot disagree about what is applied --
+    # including about the sign of a body-axis moment, which is why the moments
+    # come through ``applied_body_moments`` rather than off the record.
+    from ..export.sbeam_bridge import applied_body_moments, applied_load_rows
 
     rows: List[List[str]] = []
     for load in applied_load_rows(list(net)):
+        values = (load.fx, load.fy, load.fz) + applied_body_moments(load)
         rows.append([load.case_id or load.case, load.label]
                     + [u.plain(getattr(load, a), "length")
                        for a in ("x", "y", "z")]
-                    + [u.load(getattr(load, attr), dim, load.safety_factor)
-                       for attr, dim, _label in _APPLIED_LOADS])
+                    + [u.load(value, dim, load.safety_factor)
+                       for value, (dim, _label) in zip(values, _APPLIED_LOADS)])
     if not rows:
         return None
     axis = _torsion_axis(net) or "loads reference axis"
@@ -2208,12 +2230,20 @@ def _applied_table(net: Sequence[WingLoadResult], system: UnitSystem,
         note=("The load applied at each station's own point: a strip row per "
               "load station, root to tip, and a row per concentrated wing mass "
               "at its own coordinates. Together they are the whole applied "
-              f"set. Torsion is stated about the {axis}; a point mass carries "
-              "no free torsion, because every "
-              "moment it produces is its force acting through an arm the "
-              "coordinates already state. Every load is ULTIMATE, scaled by "
-              f"its own case's safety factor as stated in {assessed}; the "
-              "coordinates are geometry and are neither scaled nor marked."))
+              "set, as the six body-axis components a model is given. Three of "
+              "them are zero for every row, and are printed so that a zero "
+              "cannot be read as an omission: Fy because the wing chain "
+              "produces no spanwise strip load and no wing condition is "
+              "lateral, Mx and Mz because a strip applies forces and a section "
+              "moment and nothing else -- the whole of the cumulative Mxx and "
+              "Mzz is those forces acting through the spanwise arms these "
+              f"coordinates state. My is the free torsion about the {axis}; a "
+              "point mass carries none, because every moment it produces is "
+              "its force acting through an arm the coordinates already state. "
+              "Moments are right-handed about the airplane axes. Every load is "
+              "ULTIMATE, scaled by its own case's safety factor as stated in "
+              f"{assessed}; the coordinates are geometry and are neither "
+              "scaled nor marked."))
 
 
 def _cumulative_table(net: Sequence[object], system: UnitSystem,

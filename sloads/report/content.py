@@ -2318,8 +2318,10 @@ def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
              section_ref("results", "Wing")],
             ["sbeam/<project>_wing_applied_loads.csv",
              "The applied wing load set: one row per strip and one per "
-             "concentrated wing mass, each at its own point. Nothing in it is "
-             "a running total.", deck,
+             "concentrated wing mass, each at its own point, as all six "
+             "body-axis components. Nothing in it is a running total; Fy, Mx "
+             "and Mz are zero throughout and are printed so a zero cannot be "
+             "read as an omission.", deck,
              f"free torsion about the {axis}; ULTIMATE",
              section_ref("results", "Wing")],
             ["sbeam/<project>_wing_loads.bdf",

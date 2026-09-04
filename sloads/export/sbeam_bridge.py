@@ -37,51 +37,43 @@ the force/moment-closure guarantees intact (the exported set sums to that case's
 factor x the root/total). Every producer mints the field on its result (M4-13), so
 ``_sf`` reads it directly; ``_SF`` survives only as the default constant tests read.
 
-Nodal loads from the cumulative table
--------------------------------------
+Nodal loads: the applied set, on the deck's nodes
+------------------------------------------------
 ``WingStationLoad`` stores per-strip forces *and* cumulative shears/moments
-(root-first, i.e. ``stations[0]`` carries the integrated total). The applied
-nodal load at station ``i`` is recovered as the **increment of the cumulative
-quantity** between adjacent stations::
+(root-first, i.e. ``stations[0]`` carries the integrated total). The exported
+nodal load at station ``i`` is the **strip's own applied load** -- ``fx``,
+``fz`` and the free torsion ``myy_free`` -- placed at that station's own point.
+It is never a difference of a cumulative column.
 
-    dFz[i] = sz[i] - sz[i+1]   (sz beyond the tip = 0)
-
-Because the cumulative columns telescope, ``sum(dFz) == sz[root]`` *exactly*, so
-the exported FORCE set sums to the NETLOADS root shear and the MOMENT(My) set to
-the root torsion by construction.
+That distinction is the difference between a deck that works and one that does
+not. The cumulative ``Myy`` at a station already contains the sweep and
+dihedral transfer of the shear carried outboard of it, so a MOMENT card cut from
+its increment and applied at a point by a solver -- which generates that
+transfer itself, from the geometry -- counts the transfer twice. Measured
+against the published cumulative table, accumulating the old cards tip-inboard
+with the rigid-body transfer, the exported torsion was wrong by 151 % / 190 % /
+120 % on ``ga6_normal`` (PHAA / TORS / ACRL) and 34 % / 21 % on ``baron_58``,
+while shear and both bending columns closed exactly. Rebuilt from the applied
+set the worst error over every station of every case of both airplanes is
+2.5e-15. Design note: ``docs/30_future/46_applied_wing_load_set_note.md``
+(OR-67).
 
 Concentrated masses: the offset couples
 ---------------------------------------
-Differencing assumes the table was built by the lumped-at-nodes recursion
-``mxx[i] = mxx[i+1] + sz[i+1]*dy``, which is exactly how ``airloads`` and the
-panel part of ``wing_inertia`` build it. A **concentrated** wing mass (engine,
-gear, fuel, store) breaks that assumption: WINGINER adds it to every station
-inboard of it at its *true* station ``y_c`` (``mxx[i] += w*(y_c - ye[i])``,
-WINGINER.BAS 1180-1270), and ``y_c`` is not a station. Differencing then picks
-the mass up whole at the node inboard of it, moving its lever arm inboard by up
-to one strip width: shear still telescopes exactly, **bending does not**.
-
-The loss is recoverable from the published table alone. Define the per-station
-defect (:func:`_moment_defect`)::
-
-    delta[k] = mxx[k] - mxx[k+1] - sz[k+1]*(y[k+1] - y[k])
-
-which is identically zero wherever the recursion built the table, and equals
-``w*(y_c - y[j])`` at the single station ``j`` bracketing the mass -- precisely
-the first moment the differencing dropped. It is restored as an applied
-**offset couple** ``mx = delta[j]`` on that node's MOMENT card: a force ``w`` at
-``y_c`` is statically equivalent to that force at node ``j`` plus that couple, so
-nothing moves and the exported set reproduces the cumulative shear **and**
-bending at *every* node, not merely at the root. ``mzz`` (in-plane bending, from
-``fx``) carries the same defect and gets the same treatment.
-
-Measured: ``delta`` is non-zero at exactly one node on the three fixtures with
-concentrated masses (``atr42_100``, ``dhc8_dash8``, ``concept_heavy``) and
-machine-zero everywhere on the three without -- so this is a no-op on the
-Appendix A fixture, and the FORCE cards are unchanged for every wing. Before the
-couples existed the exported root bending read high by 1.91 % / 1.11 % / 0.44 %
-(``Mxx``) and 1.14 % / 0.67 % / 0.32 % (``Mzz``). Design note:
-``docs/40_history/19_concentrated_wing_mass_nodal_split_plan.md``.
+A **concentrated** wing mass (engine, gear, fuel, store) does not sit on a
+station: WINGINER adds it to every station inboard of it at its *true* station
+``y_c`` (``mxx[i] += w*(y_c - ye[i])``, WINGINER.BAS 1180-1270), and the stick
+model has no grid there. It is therefore reduced to the node inboard of it as
+its force plus the **full** three-component offset couple ``r x F`` about that
+node -- the exact static equivalent, so nothing moves and the exported set
+reproduces the cumulative shear, bending *and* torsion at every node. The
+bending members ``mx``/``mz`` are stored in the calc's positive-magnitude
+convention (``coordinates.bending_moment_vector`` maps them to CID 0 at the card
+writer); the ``my`` member is folded into the node's applied torsion, which is
+already body-axis. All three are zero on a wing with no concentrated masses,
+which is every fixture the printed oracle covers. Prior design note:
+``docs/40_history/19_concentrated_wing_mass_nodal_split_plan.md``, whose
+two-component couple this completes.
 
 Torsion reference axis
 ----------------------
@@ -152,6 +144,7 @@ from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .bands import band
 from .coordinates import (
     SBEAM_CID,
+    Vec3,
     bending_moment_vector,
     tail_axial_to_airplane,
     tail_force_to_airplane,
@@ -244,12 +237,6 @@ def _sf_str(sf: float) -> str:
 # sbeam/results/load_export.py).
 _TOL = 1e-9
 
-# A concentrated-mass moment defect below this fraction of its own column's
-# scale is floating-point cancellation residue, not a mass. See
-# :func:`_moment_defect` -- it must be relative, and it cannot be ``_TOL``: the
-# residue reaches 8e-10 lb-in on the shipped fixtures, which straddles it.
-_DEFECT_REL_TOL = 1e-9
-
 # GRID id of the clamped wing-root node in the stick model; station nodes follow.
 # Both come out of the band registry (:mod:`sloads.export.bands`) -- see it for
 # the whole GID/EID/SID map and why one owner replaced the per-file constants.
@@ -332,14 +319,16 @@ class NodalLoad:
     ``fx``/``fz`` are the applied force components (lb) and ``my`` the applied
     torsion (lb-in) at the torsion-reference-axis point ``(x, y, z)`` (in) --
     the station ``x`` of the source result: 25% chord as computed, or the
-    surface LRA after ``net_loads.to_loads_ref_axis`` -- recovered as
-    increments of the NETLOADS cumulative table. ``sz``/``mxx``/``myy`` are the
-    cumulative shear / bending / torsion at the station, carried through for the
-    span-load CSV's engineering columns.
+    surface LRA after ``net_loads.to_loads_ref_axis`` -- taken from the strip's
+    own applied load, never from a difference of a cumulative column (note 46
+    OR-67). ``sz``/``mxx``/``myy`` are the cumulative shear / bending / torsion
+    at the station, carried through for the span-load CSV's engineering columns.
 
-    ``mx``/``mz`` are the applied **offset couples** (lb-in) that restore the
-    first moment of a concentrated mass sitting between two stations -- zero at
-    every node of a wing that carries none. See the module docstring; they are
+    ``mx``/``mz`` are the bending members of the applied **offset couple**
+    (lb-in) that reduces a concentrated mass sitting between two stations to the
+    node inboard of it -- zero at every node of a wing that carries none; the
+    couple's torsion member is folded into ``my``. See the module docstring;
+    ``mx``/``mz`` are
     stored in the calc's own bending sign (positive-magnitude), and
     :func:`~sloads.export.coordinates.bending_moment_vector` owns the mapping to
     the card's CID-0 components."""
@@ -359,65 +348,31 @@ class NodalLoad:
     mz: float = 0.0
 
 
-def _moment_defect(s: Sequence[WingStationLoad], mom: str, shear: str) -> List[float]:
-    """The per-station bending defect ``delta[k]`` of a cumulative column.
-
-    ``delta[k] = mom[k] - mom[k+1] - shear[k+1]*(y[k+1] - y[k])`` -- the amount
-    by which the published table departs from the lumped-at-nodes recursion the
-    differencing above assumes. Identically zero wherever the table was built by
-    that recursion (both ``airloads`` and ``wing_inertia`` are), and equal to
-    ``w*(y_c - y[k])`` at the one station bracketing a concentrated mass at
-    ``y_c``. See the module docstring for the derivation.
-
-    Node spacing is read per interval rather than taken as the uniform ``dy``
-    the calc happens to use, so a future non-uniform station set needs no change
-    here.
-
-    ``delta`` is a **difference of large nearly-cancelling numbers**, so its
-    floating-point noise floor is set by the magnitude of the column it came
-    from, not by any absolute value: residues of ~1e-9 lb-in appear against
-    columns of ~1e7. Anything below :data:`_DEFECT_REL_TOL` of the column's own
-    scale is therefore cancellation residue and is snapped to zero -- otherwise
-    a wing with no concentrated mass at all would emit that residue into its
-    MOMENT cards, replacing clean zeros with float noise (and, in SI, noise
-    multiplied by the moment factor). The threshold is relative for the same
-    reason the tolerance in ``equilibrium.closes`` is: an absolute one is a
-    different test on a 200-inch wing than on a 500-inch one, and a different
-    test again in N*mm. Measured separation is ~14 orders: residue sits at
-    ~1e-16 of the column, a real concentrated mass at ~1e-2.
-    """
-    h = len(s)
-    raw: List[float] = []
-    for k in range(h):
-        if k + 1 < h:
-            dy = s[k + 1].y - s[k].y
-            raw.append(getattr(s[k], mom) - getattr(s[k + 1], mom)
-                       - getattr(s[k + 1], shear) * dy)
-        else:
-            # No station outboard of the tip: whatever the table still carries
-            # here is a mass outboard of the last station, and the couple is
-            # exactly as valid there (nothing to transfer a force to, which is
-            # why an offset couple and not a force split -- design note 14 D-1).
-            raw.append(getattr(s[k], mom))
-    floor = _DEFECT_REL_TOL * max((abs(getattr(x, mom)) for x in s), default=0.0)
-    return [0.0 if abs(v) <= floor else v for v in raw]
-
-
 def wing_nodal_loads(result: WingLoadResult) -> List[NodalLoad]:
-    """Applied nodal loads for one case, from the cumulative NETLOADS stations.
+    """Applied nodal loads for one case -- the applied set, put on the deck's nodes.
 
-    The nodal force/torsion at each station is the increment of the cumulative
-    shear/torsion to the next station outboard (the last/tip station keeps its
-    full value), so the set sums back to the root totals exactly.
+    Each station node carries the **strip's own** load: ``fx``, ``fz`` and the
+    free torsion ``myy_free``. Nothing here is a difference of a cumulative
+    column, and that is the whole point (note 46 OR-67). The cumulative ``Myy``
+    already contains the sweep and dihedral transfer of the shear carried
+    outboard, so a card cut from its increment, applied at a point by a solver
+    that generates the transfer itself, counts the transfer twice -- measured at
+    21 % to 190 % of the root torsion across the two example airplanes before
+    this was fixed.
 
-    A concentrated wing mass does not sit on a station, so differencing alone
-    loses its lever arm (it is picked up whole at the node inboard of it). The
-    missing first moment is recovered here as an applied **offset couple**
-    ``mx``/``mz`` -- the exact static equivalent of the force at its true
-    station -- so the exported set reproduces the cumulative shear *and* bending
-    at every node, not just the root. ``mx``/``mz`` are zero at every node of a
-    wing with no concentrated masses, which is every fixture the printed oracle
-    covers.
+    A concentrated wing mass has no grid of its own (the stick model nodes the
+    load stations only), so it is reduced to the node inboard of it as its force
+    plus the **full** three-component offset couple ``r x F`` about that node --
+    the exact static equivalent. ``mx``/``mz`` are that couple's bending
+    members, stored in the calc's positive-magnitude convention like the
+    cumulative columns they must agree with; the ``my`` member is folded into
+    the node's applied torsion, which is in body axes. Both are zero at every
+    node of a wing with no concentrated masses, which is every fixture the
+    printed oracle covers.
+
+    The result reproduces the published ``Sx``/``Sz``/``Mxx``/``Myy``/``Mzz`` at
+    **every** station under rigid-body transfer, not merely at the root
+    (note 46 G-OR-37).
 
     Forces/moments are returned as ULTIMATE loads (LIMIT x the case's
     ``safety_factor``); the scale is uniform within the case, which preserves the
@@ -425,23 +380,79 @@ def wing_nodal_loads(result: WingLoadResult) -> List[NodalLoad]:
     """
     s: List[WingStationLoad] = result.stations
     sf = _sf(result)
-    n = len(s)
-    d_mxx = _moment_defect(s, "mxx", "sz")
-    d_mzz = _moment_defect(s, "mzz", "sx")
-    out: List[NodalLoad] = []
-    for i in range(n):
-        nxt = s[i + 1] if i + 1 < n else None
-        dfx = (s[i].sx - (nxt.sx if nxt else 0.0)) * sf
-        dfz = (s[i].sz - (nxt.sz if nxt else 0.0)) * sf
-        dmy = (s[i].myy - (nxt.myy if nxt else 0.0)) * sf
-        out.append(NodalLoad(
-            gid=station_gid(i), x=s[i].x, y=s[i].y, z=s[i].z,
-            fx=dfx, fz=dfz, my=dmy,
-            sz=s[i].sz * sf, sx=s[i].sx * sf,
-            mxx=s[i].mxx * sf, myy=s[i].myy * sf, mzz=s[i].mzz * sf,
-            mx=d_mxx[i] * sf, mz=d_mzz[i] * sf,
-        ))
+    _require_applied_set_matches_cumulative(result)
+    out: List[NodalLoad] = [
+        NodalLoad(
+            gid=station_gid(i), x=st.x, y=st.y, z=st.z,
+            fx=st.fx * sf, fz=st.fz * sf, my=st.myy_free * sf,
+            sz=st.sz * sf, sx=st.sx * sf,
+            mxx=st.mxx * sf, myy=st.myy * sf, mzz=st.mzz * sf,
+            mx=0.0, mz=0.0,
+        )
+        for i, st in enumerate(s)
+    ]
+    for mass in result.point_loads:
+        node = out[_node_inboard_of(s, mass.y)]
+        dx, dy, dz = mass.x - node.x, mass.y - node.y, mass.z - node.z
+        node.fx += mass.fx * sf
+        node.fz += mass.fz * sf
+        # Bending members in the calc's positive-magnitude convention, so they
+        # add to the cumulative columns as written; the CID-0 map is
+        # ``coordinates.bending_moment_vector`` at the card writer.
+        node.mx += dy * mass.fz * sf
+        node.mz += dy * mass.fx * sf
+        # Torsion is already body-axis: (r x F)_y.
+        node.my += (dz * mass.fx - dx * mass.fz) * sf
     return out
+
+
+def _node_inboard_of(s: Sequence[WingStationLoad], y: float) -> int:
+    """Index of the last station at or inboard of span ``y``.
+
+    A mass outboard of the tip station reduces to the tip; a mass inboard of the
+    root reduces to the root. Both are edge cases the entered geometry permits
+    and neither may lose the load.
+    """
+    index = 0
+    for i, st in enumerate(s):
+        if st.y <= y:
+            index = i
+    return index
+
+
+def _require_applied_set_matches_cumulative(result: WingLoadResult) -> None:
+    """Fail loudly when the strips and masses cannot rebuild the root torsion.
+
+    The deck is now assembled from ``myy_free`` and ``point_loads``, both of
+    which are *additive* fields on the persisted result: a ``Project`` written
+    before either existed loads back with them defaulted to empty, and a deck
+    built from it would be short the whole free torsion, or the whole of a
+    concentrated mass, and would look exactly like a complete one. Differencing
+    the cumulative used to hide that, at the cost of the error this note fixes.
+
+    So it is checked rather than assumed. The test is the root closure the deck
+    claims (note 46 G-OR-37) applied to the source result, and it costs one pass
+    over the stations.
+    """
+    s = result.stations
+    if not s:
+        return
+    root = s[0]
+    got = math.fsum(st.myy_free for st in s)
+    got -= math.fsum(st.fz * (st.x - root.x) - st.fx * (st.z - root.z)
+                     for st in s)
+    got -= math.fsum(mass.fz * (mass.x - root.x) - mass.fx * (mass.z - root.z)
+                     for mass in result.point_loads)
+    scale = max(abs(root.myy), abs(got))
+    if scale and abs(got - root.myy) > _TOL * scale:
+        raise ValueError(
+            f"wing case {result.case!r}: the applied set does not rebuild the "
+            f"cumulative root torsion ({got:.1f} against {root.myy:.1f} lb-in). "
+            "The stations' free torsion or the concentrated wing masses are "
+            "missing from this result -- most likely it was loaded from a "
+            "project written before those fields existed. Recompute the loads "
+            "(net_loads.build_net_loads) rather than exporting a short deck."
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -566,6 +577,34 @@ def _csv_fields(u: DeliverableUnits) -> List[str]:
     ]
 
 
+#: Prepended to :func:`span_load_csv`. The file carries two moment conventions
+#: side by side -- the applied card columns are right-handed body-axis
+#: components, the cumulative columns are the beam's own positive-magnitude
+#: integrals -- so ``Mz`` and ``Mzz`` in one row have opposite senses. Nothing
+#: in a column heading can say that, and a reader who assumes one convention
+#: reads half the file backwards (note 46 OR-69).
+_SPAN_CSV_CONVENTIONS = (
+    "# Fx/Fy/Fz and Mx/My/Mz are the applied nodal loads, right-handed about\n"
+    "# the airplane axes -- the FORCE/MOMENT cards of the deck beside this file.\n"
+    "# Sx/Sz and Mxx/Myy/Mzz are the cumulative loads the structure carries,\n"
+    "# in the beam's own convention: Mxx and Mzz are positive-magnitude bending\n"
+    "# integrals, so Mzz is the negation of the body-axis Mz component.\n"
+)
+
+#: Prepended to :func:`applied_load_csv`. States the structural zeros, so a
+#: consumer writing cards cannot read a printed zero as an omission (OR-65).
+_APPLIED_CSV_CONVENTIONS = (
+    "# The applied wing load set: one row per strip and one per concentrated\n"
+    "# wing mass, each at its own point. Nothing here is a running total.\n"
+    "# Moments are right-handed about the airplane axes, about the station's\n"
+    "# own point on the axis named in MyyAxis.\n"
+    "# Fy is zero throughout: the wing carries no spanwise strip load and no\n"
+    "# wing condition in this suite is lateral. Mx and Mz are zero throughout:\n"
+    "# a strip applies forces and a section moment, and every Mxx/Mzz the\n"
+    "# structure carries is those forces acting through the arms stated here.\n"
+)
+
+
 def span_load_csv(arg: ResultsArg, header_comment: str = "", *,
                   system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """Span-load CSV: one row per wing station per case (root->tip).
@@ -607,12 +646,25 @@ def span_load_csv(arg: ResultsArg, header_comment: str = "", *,
                 "MyyAxis": r.torsion_axis,
                 "SF": f"{_sf_str(sf)}",
             })
-    return header_comment + buf.getvalue()
+    return header_comment + _SPAN_CSV_CONVENTIONS + buf.getvalue()
 
 
 # --------------------------------------------------------------------------- #
 # The applied load set -- what a structures model has cards for
 # --------------------------------------------------------------------------- #
+#: The applied set's spanwise force component. Structurally zero for the wing:
+#: no producer exists in the AIRLOADS/WINGINER chain and no delivered wing
+#: condition is lateral. Named rather than written ``0.0`` inline so the day a
+#: lateral wing condition arrives, the compiler's own search finds every place
+#: that assumed it away.
+_NO_SPANWISE_STRIP_LOAD = 0.0
+
+#: The applied set's free bending. Structurally zero by strip theory: all of
+#: ``Mxx``/``Mzz`` is the applied forces acting through the spanwise arms these
+#: coordinates already state.
+_NO_FREE_BENDING = 0.0
+
+
 @dataclass(frozen=True)
 class AppliedLoad:
     """One applied load of the wing set: a strip, or a concentrated wing mass.
@@ -631,6 +683,28 @@ class AppliedLoad:
     stick model nodes the load stations only). Its ``label`` is the mass's
     entered name.
 
+    **All six components are carried, three of them structurally zero.** A
+    consumer building FORCE/MOMENT cards needs the whole vector, and a set that
+    published only its non-zero half would leave the reader to decide whether a
+    missing column is zero or merely unstated. So:
+
+    * ``fy`` is ``0.0``. The wing chain has no producer for a spanwise strip
+      load (``WingStationLoad.f_span`` is the fin's, whose span is airplane
+      ``z``), and every delivered wing condition is symmetric or rolling -- no
+      lateral condition exists for the wing -- so the zero is a property of the
+      load set, not only of the model.
+    * ``mxx_free`` and ``mzz_free`` are ``0.0``. A strip applies forces and a
+      section moment about the span axis and nothing else; the whole of the
+      cumulative ``Mxx`` and ``Mzz`` is those forces acting through spanwise
+      arms, which a model regenerates from these coordinates. Publishing a free
+      bending here would double count it.
+
+    Moments are stored in the **calc's** sign convention (positive-magnitude
+    beam integrals for ``mxx_free``/``mzz_free``), the same as
+    :class:`~sloads.models.results.WingStationLoad`; the map to right-handed
+    CID-0 body components is :func:`applied_body_moments`, which is the one
+    place the ``Mzz -> -z`` asymmetry is applied.
+
     Values are LIMIT, Imperial (lb, lb-in, in) -- raw calc units, as everywhere
     else in this package; ``safety_factor`` is the case's own limit->ultimate
     factor, and each consumer scales at its own boundary.
@@ -643,9 +717,12 @@ class AppliedLoad:
     x: float
     y: float
     z: float
-    fz: float
     fx: float
+    fy: float
+    fz: float
+    mxx_free: float
     myy_free: float
+    mzz_free: float
     safety_factor: float
     torsion_axis: str
 
@@ -671,7 +748,9 @@ def applied_load_rows(arg: ResultsArg) -> List[AppliedLoad]:
             out.append(AppliedLoad(
                 case=result.case, case_id=case_id, label=str(i + 1),
                 gid=station_gid(i), x=s.x, y=s.y, z=s.z,
-                fz=s.fz, fx=s.fx, myy_free=s.myy_free,
+                fx=s.fx, fy=_NO_SPANWISE_STRIP_LOAD, fz=s.fz,
+                mxx_free=_NO_FREE_BENDING, myy_free=s.myy_free,
+                mzz_free=_NO_FREE_BENDING,
                 safety_factor=sf, torsion_axis=result.torsion_axis))
         for mass in result.point_loads:
             out.append(_applied_point_load(result, mass, sf, case_id))
@@ -684,8 +763,28 @@ def _applied_point_load(result: WingLoadResult, mass: ConcentratedLoad,
     return AppliedLoad(
         case=result.case, case_id=case_id, label=mass.name or "point mass",
         gid=None, x=mass.x, y=mass.y, z=mass.z,
-        fz=mass.fz, fx=mass.fx, myy_free=0.0,
+        fx=mass.fx, fy=_NO_SPANWISE_STRIP_LOAD, fz=mass.fz,
+        mxx_free=_NO_FREE_BENDING, myy_free=0.0,
+        mzz_free=_NO_FREE_BENDING,
         safety_factor=sf, torsion_axis=result.torsion_axis)
+
+
+def applied_body_moments(load: AppliedLoad) -> Vec3:
+    """``load``'s free moments as a right-handed CID-0 vector (raw lb-in).
+
+    The applied set stores its moments the way the calc does -- ``mxx``/``mzz``
+    as positive-magnitude beam integrals -- and a body-axis consumer needs
+    ``r x F`` components, which for ``Mzz`` is the negation
+    (``CONVENTIONS.md`` §Wing torsion physical sense). That map has one owner,
+    :func:`~sloads.export.coordinates.bending_moment_vector`, so this routes
+    through it rather than restating the sign: both views of B.1 -- the report
+    table and the CSV -- call this and neither carries sign logic of its own.
+
+    Called with the raw-Imperial unit set, so the return is unscaled lb-in; each
+    consumer applies its own safety factor and unit conversion afterwards.
+    """
+    mx, _zero, mz = bending_moment_vector(load.mxx_free, load.mzz_free)
+    return (mx, load.myy_free, mz)
 
 
 def _applied_csv_fields(u: DeliverableUnits) -> List[str]:
@@ -693,7 +792,11 @@ def _applied_csv_fields(u: DeliverableUnits) -> List[str]:
     ln, fo, mo = u.length.label, _ult(u.force.label), _ult(u.moment.label)
     return [
         "Case", "Station", "GID", f"X ({ln})", f"Y ({ln})", f"Z ({ln})",
-        f"Fz ({fo})", f"Fx ({fo})", f"Myy free ({mo})",
+        # The whole applied vector, in body axes and in vector order, so a
+        # consumer maps column to FORCE/MOMENT component without deciding
+        # whether an absent column is a zero or an omission.
+        f"Fx ({fo})", f"Fy ({fo})", f"Fz ({fo})",
+        f"Mx ({mo})", f"My ({mo})", f"Mz ({mo})",
         "MyyAxis",                 # torsion reference axis (in-band, like SF)
         "SF",                      # the case's limit -> ultimate factor
     ]
@@ -714,15 +817,18 @@ def applied_load_csv(arg: ResultsArg, header_comment: str = "", *,
     """
     u = _units(system)
     fields = _applied_csv_fields(u)
-    x_h, y_h, z_h, fz_h, fx_h, my_h = fields[3:9]
+    x_h, y_h, z_h, fx_h, fy_h, fz_h, mx_h, my_h, mz_h = fields[3:12]
     buf = _io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=fields)
     writer.writeheader()
     for load in applied_load_rows(arg):
         sf = load.safety_factor
         gx, gy, gz = to_grid(load.x, load.y, load.z, u)
-        fx, _, fz = to_force(load.fx * sf, 0.0, load.fz * sf, u)
-        _, my, _ = to_moment(0.0, load.myy_free * sf, 0.0, u)
+        fx, fy, fz = to_force(load.fx * sf, load.fy * sf, load.fz * sf, u)
+        # The record is in the calc's moment convention; the body-axis map has
+        # one owner and this is it.
+        bmx, bmy, bmz = applied_body_moments(load)
+        mx, my, mz = to_moment(bmx * sf, bmy * sf, bmz * sf, u)
         writer.writerow({
             "Case": load.case, "Station": load.label,
             # Blank, not a placeholder id: a concentrated mass has no grid in
@@ -730,11 +836,12 @@ def applied_load_csv(arg: ResultsArg, header_comment: str = "", *,
             # consumer could reference.
             "GID": "" if load.gid is None else load.gid,
             x_h: f"{gx:.3f}", y_h: f"{gy:.3f}", z_h: f"{gz:.3f}",
-            fz_h: f"{fz:.1f}", fx_h: f"{fx:.1f}", my_h: f"{my:.0f}",
+            fx_h: f"{fx:.1f}", fy_h: f"{fy:.1f}", fz_h: f"{fz:.1f}",
+            mx_h: f"{mx:.0f}", my_h: f"{my:.0f}", mz_h: f"{mz:.0f}",
             "MyyAxis": load.torsion_axis,
             "SF": _sf_str(sf),
         })
-    return header_comment + buf.getvalue()
+    return header_comment + _APPLIED_CSV_CONVENTIONS + buf.getvalue()
 
 
 def write_applied_load_csv(arg: ResultsArg, path: str, *,
@@ -834,10 +941,10 @@ def _offset_couple_note(loads: List[NodalLoad]) -> List[str]:
     if not any(abs(nl.mx) > _TOL or abs(nl.mz) > _TOL for nl in loads):
         return []
     note = (
-        "MOMENT(Mx/Mz) also carries the offset couples of the concentrated "
+        "MOMENT(Mx/My/Mz) also carries the offset couples of the concentrated "
         "wing masses (engine/gear/fuel/store), which do not sit on a station: "
-        "each is the exact static equivalent of its force at its true spanwise "
-        "station, so this set reproduces the NETLOADS shear AND bending at "
+        "each is the exact static equivalent of its force at its true point, "
+        "so this set reproduces the NETLOADS shear, bending AND torsion at "
         "every node. Applying the FORCE cards without the MOMENT set overstates "
         "root bending (the mass reverts to the node inboard of it)."
     )
@@ -864,9 +971,13 @@ def _case_card_block(r: WingLoadResult, sid: int, u: DeliverableUnits) -> List[s
         + _comment(f"Loads are ULTIMATE (limit x SF={_sf_str(sf)}).")
         + _comment(f"Torsion My/Myy about the {r.torsion_axis} "
                    "(station X = that axis).")
-        + _comment(f"FORCE set sums to root Sz = {root_sz:.1f} {u.force.label}; "
-                   f"MOMENT(My) set sums to root torsion Myy = {root_myy:.1f} "
-                   f"{u.moment.label}.")
+        + _comment(f"FORCE set sums to root Sz = {root_sz:.1f} {u.force.label}. "
+                   "Every load here is APPLIED at the point its GRID states: the "
+                   "MOMENT(My) cards are each strip's free torsion, so the root "
+                   f"torsion Myy = {root_myy:.1f} {u.moment.label} comes back "
+                   "as the MOMENT set PLUS the FORCE cards' own lever arms, not "
+                   "as the MOMENT set alone. Applying the cards without their "
+                   "arms understates the torsion.")
         + _offset_couple_note(loads)
     )
     lines += _force_moment_lines(loads, sid, u)
@@ -968,8 +1079,10 @@ def sob_internal_loads(result: WingLoadResult, sob_y: float) -> SobInternalLoads
     :func:`sloads.export.coordinates.transfer_couple` (note 24 R-11, shipped
     with the step 12 LRA exporter).
     """
+    loads = wing_nodal_loads(result)
+    x_cut, _y, z_cut = sob_reference_point(result, sob_y)
     sz = sx = mxx = myy = mzz = 0.0
-    for nl in wing_nodal_loads(result):
+    for nl in loads:
         if nl.y < sob_y - _SOB_COINCIDENT_TOL:
             continue
         arm = nl.y - sob_y
@@ -977,8 +1090,48 @@ def sob_internal_loads(result: WingLoadResult, sob_y: float) -> SobInternalLoads
         sx += nl.fx
         mxx += nl.fz * arm + nl.mx
         mzz += nl.fx * arm + nl.mz
-        myy += nl.my
+        # Torsion is a genuine transfer now that the cards carry free moments:
+        # the chordwise and vertical arms to the cut, plus the free moment
+        # itself. Under the old differenced cards ``my`` already held the
+        # transfer and this term would have doubled it (note 46 OR-67).
+        myy += (nl.z - z_cut) * nl.fx - (nl.x - x_cut) * nl.fz + nl.my
     return SobInternalLoads(sob_y, sz, sx, mxx, myy, mzz)
+
+
+def sob_reference_point(result: WingLoadResult,
+                        sob_y: float) -> Tuple[float, float, float]:
+    """The point the side-of-body loads are stated about: the LRA at ``sob_y``.
+
+    One owner, because a torsion is only defined about a point and the two
+    halves of the side-of-body statement -- :func:`sob_internal_loads` outboard
+    and :func:`sob_collapsed_load` inboard -- must be about the *same* one or
+    their sum is not the half-span total. Before the cards carried free torsion
+    the question did not arise: the summed ``my`` had no chordwise dependence,
+    so any reference gave the same answer and a caller could pass a placeholder.
+    Now it cannot (note 46 OR-67).
+    """
+    x, z = _lra_point_at(wing_nodal_loads(result), sob_y)
+    return (x, sob_y, z)
+
+
+def _lra_point_at(loads: List[NodalLoad], y: float) -> Tuple[float, float]:
+    """The ``(x, z)`` of the loads reference axis at span station ``y``.
+
+    The deck's nodes lie on the LRA, so the axis between them is the straight
+    line this interpolates; outside the loaded span it is held at the end node.
+    A torsion is only defined about a point, and the side-of-body cut needs one
+    that is on the same axis as the stations it is compared against.
+    """
+    if not loads:
+        return (0.0, 0.0)
+    if y <= loads[0].y:
+        return (loads[0].x, loads[0].z)
+    for a, b in zip(loads, loads[1:]):
+        if y <= b.y:
+            span = b.y - a.y
+            f = (y - a.y) / span if span else 0.0
+            return (a.x + f * (b.x - a.x), a.z + f * (b.z - a.z))
+    return (loads[-1].x, loads[-1].z)
 
 
 def sob_collapsed_load(result: WingLoadResult,
@@ -1007,7 +1160,9 @@ def sob_collapsed_load(result: WingLoadResult,
         arm = nl.y - y
         fx += nl.fx
         fz += nl.fz
-        my += nl.my
+        # The same transfer ``sob_internal_loads`` applies outboard, about the
+        # same point -- see :func:`sob_reference_point`.
+        my += (nl.z - z) * nl.fx - (nl.x - x) * nl.fz + nl.my
         mx += nl.fz * arm + nl.mx
         mz += nl.fx * arm + nl.mz
     return NodalLoad(gid=sob_gid(), x=x, y=y, z=z, fx=fx, fz=fz, my=my,

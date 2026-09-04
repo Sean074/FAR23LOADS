@@ -288,7 +288,10 @@ def test_the_stamp_still_round_trips_for_csv_readers():
     path, and a stamp they cannot skip is a header row of prose."""
     stamp = csv_comment_block(_ga_project(), system=UnitSystem.SI)
     payload = sb.span_load_csv(_ga_wing_net(), system=UnitSystem.SI)
-    assert strip_comment_lines(stamp + payload) == payload
+    # The payload carries comment lines of its own (note 46 OR-69), so what the
+    # stamp must not disturb is the payload's *rows*, not its whole text.
+    assert (strip_comment_lines(stamp + payload)
+            == strip_comment_lines(payload))
 
 
 # --------------------------------------------------------------------------- #
@@ -766,9 +769,19 @@ def test_si_deck_still_closes_on_the_root_shear_and_torsion():
     for system in (UnitSystem.IMPERIAL, UnitSystem.SI):
         blocks = _card_sums(sb.force_moment_cards(results, system=system))
         assert len(blocks) == len(results), system
-        for stated_sz, stated_myy, fz, my in blocks:
+        for r, (stated_sz, stated_myy, fz, my) in zip(results, blocks):
             assert math.isclose(fz, stated_sz, rel_tol=1e-5), (system, fz, stated_sz)
-            assert math.isclose(my, stated_myy, rel_tol=1e-5), (system, my, stated_myy)
+            # The MOMENT cards carry each strip's *free* torsion, so the root
+            # torsion is the card set plus the FORCE cards' own lever arms
+            # (note 46 OR-67). The bare card deck has no GRIDs, so the arms
+            # come from the nodal loads and are scaled into the deck's units.
+            k = deliverable_units(system, Channel.SOLVER).moment.factor
+            nodes = sb.wing_nodal_loads(r)
+            x0, z0 = nodes[0].x, nodes[0].z
+            transfer = k * math.fsum(
+                (n.z - z0) * n.fx - (n.x - x0) * n.fz for n in nodes)
+            assert math.isclose(my + transfer, stated_myy, rel_tol=1e-5), (
+                system, my + transfer, stated_myy)
 
 
 def test_si_deck_is_the_imperial_deck_times_the_solver_factors():
@@ -877,7 +890,10 @@ def test_sbeam_headers_state_their_units_in_both_systems():
         (UnitSystem.IMPERIAL, "(in)", "(lbs-ULT)", "(lb-in-ULT)"),
         (UnitSystem.SI, "(mm)", "(N-ULT)", "(Nmm-ULT)"),
     ):
-        header = sb.span_load_csv(results, system=system).splitlines()[0]
+        from sloads.report.methods import strip_comment_lines
+
+        header = strip_comment_lines(
+            sb.span_load_csv(results, system=system)).splitlines()[0]
         cells = header.split(",")
         assert cells[2] == f"X {length}", header
         assert cells[5] == f"Fx {force}", header

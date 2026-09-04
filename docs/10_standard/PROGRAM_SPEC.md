@@ -904,25 +904,37 @@ result that lacks what a deck needs is a stated error, never an empty column.
   ships the deck it always did. The h-tail attachment reads the same
   `sob_y_in` quantity (`tail_span.htail_attachment`, basis `ATTACH_ENTERED`,
   the only non-T-tail branch not marked assumed).
-- **The applied load set (2026-09-03).** `applied_load_rows` /
-  `applied_load_csv` publish the **applied** wing loads — `Fz`, `Fx` and the
-  section free moment `Myy free` at each strip's own point, plus one row per
-  concentrated wing mass at *its* own coordinates (`gid` blank: the deck has no
-  grid there) — as the file a structures model is built from. It is the single
-  owner of that row shape: the oracle report's Appendix B.1 table is a view of
-  the same list (`report/oracle_sections._applied_table`), so the table an
-  analyst reads and the CSV they load cannot disagree. Read from the published
-  `WingStationLoad.myy_free` / `WingLoadResult.point_loads` (#166), **never** by
-  differencing a cumulative column: `Myy free` and ΔMyy are different quantities
-  and differ in sign on the inboard `ga6_normal` PHAA strips, because ΔMyy
-  carries the sweep/dihedral transfer of outboard shear that a model applying
-  these forces at these coordinates regenerates for itself. The closure gate is
-  that the free moments plus the forces' own arms reproduce the cumulative root
-  `Myy` exactly, on `ga6_normal` and on `baron_58` with its four concentrated
-  masses (`test_the_applied_set_reproduces_the_root_torsion_through_its_own_arms`).
+- **The applied load set (2026-09-03, six components 2026-09-03).**
+  `applied_load_rows` / `applied_load_csv` publish the **applied** wing loads —
+  all six body-axis components `Fx`, `Fy`, `Fz`, `Mx`, `My`, `Mz` at each
+  strip's own point, plus one row per concentrated wing mass at *its* own
+  coordinates (`gid` blank: the deck has no grid there) — as the file a
+  structures model is built from. It is the single owner of that row shape: the
+  oracle report's Appendix B.1 table is a view of the same list
+  (`report/oracle_sections._applied_table`), so the table an analyst reads and
+  the CSV they load cannot disagree.
+  **Three components are structurally zero and are printed anyway** (note 46
+  OR-65): `Fy` because the wing chain has no spanwise strip-load producer and no
+  delivered wing condition is lateral, `Mx`/`Mz` because a strip applies forces
+  and a section moment and nothing else — the whole of the cumulative
+  `Mxx`/`Mzz` is those forces through spanwise arms. A consumer writing cards
+  cannot otherwise tell a zero from an omission.
+  **The map from the calc's moment convention to body axes has one owner,
+  `applied_body_moments`** (OR-66), which routes through
+  `coordinates.bending_moment_vector`; neither view carries sign logic.
+  Read from the published `WingStationLoad.myy_free` /
+  `WingLoadResult.point_loads` (#166), **never** by differencing a cumulative
+  column: `Myy free` and ΔMyy are different quantities and differ in sign on the
+  inboard `ga6_normal` PHAA strips, because ΔMyy carries the sweep/dihedral
+  transfer of outboard shear that a model applying these forces at these
+  coordinates regenerates for itself. The closure gate is that the applied set's
+  six-component resultant reproduces `Sx`/`Sz`/`Mxx`/`Myy`/`−Mzz` at **every**
+  station of every case of `ga6_normal` and of `baron_58` with its four
+  concentrated masses
+  (`test_the_applied_set_reproduces_the_whole_vmt_at_every_station`, G-OR-35).
   ULTIMATE, solver unit channel, offered on the Wing Loads page and in the
-  Export bundle. Distinct from the nodal loads below, which the deck still
-  builds by differencing — the two are not interchangeable.
+  Export bundle. The exported deck is built from this same set (see nodal loads
+  below).
 - **Deck `$` comment width.** Every generated `$` sentence in the wing, body,
   tail and control decks is emitted through `sbeam_bridge._comment`, which wraps
   at the **72-column free-field card width** (`$ ` + 70) — a property of the
@@ -931,21 +943,36 @@ result that lacks what a deck needs is a stated error, never an empty column.
   `test_deck_comments_fit_the_free_field_card_width`. A consumer parsing the
   header should read comment *runs*, not single lines; the unit statement
   (`$ Lengths in <unit>.`) is kept short enough to stand on its own line.
-- **Nodal loads:** the applied nodal force/torsion at each station is the
-  *increment of the cumulative* NETLOADS column to the next station outboard, so
-  the FORCE set sums to the root shear and the MOMENT(My) set to the root torsion
-  **exactly**; under the WINGINER quadrature (`y[i]-y[0] = i·dy`) the FORCE
-  moments about the root reproduce the root bending exactly.
+- **Nodal loads (rebuilt from the applied set, 2026-09-03, note 46 OR-67).**
+  The applied nodal load at each station is that **strip's own** `fx`, `fz` and
+  free torsion `myy_free`, at its own point — never a difference of a cumulative
+  column. The cumulative `Myy` already contains the sweep and dihedral transfer
+  of the shear carried outboard, so a `MOMENT` card cut from its increment and
+  applied at a point by a solver, which generates the transfer itself, counted
+  the transfer twice: the exported torsion was wrong by 151/190/120 % on
+  `ga6_normal` (PHAA/TORS/ACRL) and 34/21 % on `baron_58` under the rigid-body
+  accumulation a solver performs, while shear and both bending columns closed
+  exactly. The rebuilt set reproduces all five published columns at **every**
+  station to ~1e-15 relative. `FORCE` cards are unchanged by the rebuild —
+  a strip's own `fx`/`fz` and the difference of the cumulative shear are the
+  same number.
+  **The deck's equilibrium claim strengthens accordingly** (OR-68): the wing
+  asserts the full rigid-body `m.y`, not the bare card sum `m0.y`, in
+  `test_wing_deck_resultants` and at every node in
+  `test_wing_deck_reproduces_the_station_table_at_every_node` (G-OR-37).
 - **Concentrated-mass offset couples (plan 14, 2026-08-09).** A concentrated wing
   mass does not sit on a station, so differencing alone picks it up whole at the
   node inboard of it and loses its lever arm (bending ran 0.4–1.9 % high;
   in-plane `Mzz` 0.3–1.1 % high; shear was never affected). The lost first moment
-  is the per-station defect `δ[k] = mxx[k] − mxx[k+1] − sz[k+1]·dy` — zero
-  wherever the lumped-at-nodes recursion built the column, `w·(y_c − y[j])` at the
-  bracketing station — and is restored as an applied **couple on that node's
-  MOMENT card** (`Mx`, and `Mz` for the in-plane channel), the rigid-offset
-  static equivalent. The exported set therefore reproduces the cumulative shear
-  **and** bending at **every** node, not just the root, and the `FORCE` cards are
+  is restored as an applied **couple on that node's MOMENT card**, the
+  rigid-offset static equivalent `r × F` about the node. Since 2026-09-03
+  (note 46 OR-67) the couple is taken from the mass's own coordinates rather
+  than recovered as a defect of the cumulative column, and it carries **all
+  three** members: `Mx` and `Mz` for the bending channels, in the calc's
+  positive-magnitude convention, and a torsion member folded into the node's
+  `My`, which was the one the differencing had been supplying wrong. The
+  exported set therefore reproduces the cumulative shear, bending **and**
+  torsion at **every** node, not just the root, and the `FORCE` cards are
   unchanged. The couples are exactly zero on a wing with no concentrated mass.
   **Consumers must apply the `MOMENT` set**: taking the `FORCE` cards alone
   restores the smeared (high) bending — stated in the deck `$` header. Sign map

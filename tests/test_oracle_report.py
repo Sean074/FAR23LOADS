@@ -2034,7 +2034,8 @@ def test_the_appendix_separates_the_applied_loads_from_the_carried_ones():
     net = loads_ref_axis_results(project, build_net_loads(project).wing_net)
     applied, carried = _appendix_tables(_doc())
 
-    for column in ("Fz (lbs-ULT)", "Fx (lbs-ULT)", "Myy free (lb-in-ULT)"):
+    for column in ("Fx (lbs-ULT)", "Fy (lbs-ULT)", "Fz (lbs-ULT)",
+                   "Mx (lb-in-ULT)", "My (lb-in-ULT)", "Mz (lb-in-ULT)"):
         assert column in applied.columns
         assert column not in carried.columns
     for column in ("Sz (lbs-ULT)", "Mxx (lb-in-ULT)", "Myy (lb-in-ULT)"):
@@ -2081,13 +2082,17 @@ def test_the_appendix_table_and_the_exported_csv_are_one_load_set():
     net = loads_ref_axis_results(project, build_net_loads(project).wing_net)
 
     applied, _carried = _appendix_tables(_doc(_TWIN))
-    rows = list(_csv.DictReader(applied_load_csv(net).splitlines()))
+    from sloads.report.methods import strip_comment_lines
+
+    rows = list(_csv.DictReader(
+        strip_comment_lines(applied_load_csv(net)).splitlines()))
     assert len(rows) == len(applied.rows)
     ci = {c: applied.columns.index(c) for c in applied.columns}
     for table_row, csv_row in zip(applied.rows, rows):
         assert table_row[ci["Station"]] == csv_row["Station"]
-        for col, key in (("X (in)", "X (in)"), ("Fz (lbs-ULT)", "Fz (lbs-ULT)"),
-                         ("Myy free (lb-in-ULT)", "Myy free (lb-in-ULT)")):
+        for col in ("X (in)", "Fx (lbs-ULT)", "Fy (lbs-ULT)", "Fz (lbs-ULT)",
+                    "Mx (lb-in-ULT)", "My (lb-in-ULT)", "Mz (lb-in-ULT)"):
+            key = col
             assert math.isclose(float(table_row[ci[col]].replace(",", "")),
                                 float(csv_row[key]), abs_tol=1.0), (
                 f"{col} disagrees on station {csv_row['Station']}")
@@ -2115,7 +2120,7 @@ def test_every_concentrated_wing_mass_is_a_row_of_the_applied_table():
 
     # A point mass carries no free moment -- its every moment is its force
     # through an arm the coordinates state.
-    free = applied.columns.index("Myy free (lb-in-ULT)")
+    free = applied.columns.index("My (lb-in-ULT)")
     for row in applied.rows:
         if row[station_column] in {pl.name for pl in points}:
             assert float(row[free].replace(",", "")) == 0.0
@@ -2151,10 +2156,11 @@ def test_section_three_defines_every_symbol_its_tables_use():
     doc = _doc()
     notation = next(t for t in _wing_tables(doc) if t.title == "Notation")
     defined = {row[0] for row in notation.rows}
-    assert {"X", "Y", "Z", "Fz", "Fx", "Myy free", "Sz", "Sx", "Mxx", "Myy"} <= defined
+    assert {"X", "Y", "Z", "Fx", "Fy", "Fz", "Mx", "My", "Mz",
+            "Sz", "Sx", "Mxx", "Myy"} <= defined
     senses = {row[0]: row[3] for row in notation.rows}
     assert senses["Fz"] == "increment" and senses["Sz"] == "cumulative"
-    assert senses["Myy free"] == "increment" and senses["Myy"] == "cumulative"
+    assert senses["My"] == "increment" and senses["Myy"] == "cumulative"
 
     applied, carried = _appendix_tables(doc)
     for table in (applied, carried):
@@ -2175,7 +2181,8 @@ def test_section_three_states_how_the_cumulative_loads_are_built():
     body = " ".join(_section_three(_doc()).subsections[1].body)
     assert "Sz(i) = Sz(i+1) + Fz(i)" in body
     assert "Mxx(i) = Mxx(i+1) + Sz(i+1) dy" in body
-    assert "transfer" in body and "Only Myy free is applied." in body
+    assert "transfer" in body
+    assert "only My is non-zero" in body
 
 
 def test_the_point_mass_rule_is_stated_only_where_there_is_one():

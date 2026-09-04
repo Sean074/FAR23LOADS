@@ -433,10 +433,21 @@ and one appendix, built from the `wing_loads` step
   cumulative column. `Myy` accumulates a section moment *and* two position
   transfers of the outboard shear across the bay's sweep and dihedral; only the
   first is applied, and the two are not close — on `ga6_normal` PHAA's outboard
-  strip they are opposite in sign. By the same argument `Mxx` and `Mzz` have no
-  applied increment and **SHALL NOT** be given one, and `Fy` is not a column:
-  the wing has no producer for a spanwise strip load, so a zero there would read
-  as a measured zero.
+  strip they are opposite in sign. By the same argument `Mx` and `Mz` have no
+  applied increment and **SHALL NOT** be given one.
+- **B.1 SHALL state all six body-axis components, printing the structural zeros
+  (OR-65).** `Fy`, `Mx` and `Mz` are zero for every row of this load set — the
+  wing chain has no spanwise strip-load producer and no delivered wing condition
+  is lateral; a strip applies forces and a section moment and nothing else — and
+  each zero **SHALL** be printed with that reason stated in the table's note. A
+  reader building `FORCE`/`MOMENT` cards from a partial vector cannot tell a
+  zero from an omission, and the earlier rule (omit `Fy` lest a zero read as a
+  measured zero) traded one misreading for a worse one.
+- **The map from the calc's moment convention to body axes SHALL have one owner
+  (OR-66).** The calc stores `Mxx`/`Mzz` as positive-magnitude beam integrals,
+  so against a right-handed `r × F` the second is negated; B.1 and the exported
+  CSV both take their moments through `export.sbeam_bridge.applied_body_moments`
+  and neither restates the sign.
 - **B.1 SHALL be a view of the exported applied set, not a second assembler
   of it (OR-64).** The rows come from `export.sbeam_bridge.applied_load_rows`,
   the same owner behind the `wing_applied_loads.csv` download on the Wing Loads
@@ -452,8 +463,8 @@ and one appendix, built from the `wing_loads` step
   no free moment: every moment it makes is its force through an arm its own
   coordinates state.
 - **The applied set SHALL close onto the cumulative one.** Summed tip inboard,
-  with each point mass entering through its own arms, `Fz`, `Fx` and the free
-  `Myy` reproduce the published `Sz`, `Sx`, `Mxx` and `Myy` at every station of
+  with each point mass entering through its own arms, the six applied components
+  reproduce the published `Sz`, `Sx`, `Mxx`, `Myy` and `Mzz` at every station of
   every case. This is the gate under the whole appendix: a model is given the
   applied loads and returns the internal ones, and if the two disagree here they
   disagree there, invisibly.
@@ -593,7 +604,8 @@ without a guard is prose, not a gate).
 | 3.2 Notation and the cumulative-load derivation (OR-62) | 2026-09-03 | `test_oracle_report.py::test_section_three_defines_every_symbol_its_tables_use`, `::test_section_three_states_how_the_cumulative_loads_are_built`, `::test_the_point_mass_rule_is_stated_only_where_there_is_one` |
 | Appendix B: applied set and carried set (OR-59, OR-60) | 2026-09-03 | `test_oracle_report.py::test_the_appendix_separates_the_applied_loads_from_the_carried_ones`, `::test_the_applied_table_carries_the_point_every_load_acts_at`, `::test_the_appendix_subsections_are_lettered_from_their_parent` |
 | Appendix B: concentrated masses and closure (OR-59, G-OR-29) | 2026-09-03 | `test_oracle_report.py::test_every_concentrated_wing_mass_is_a_row_of_the_applied_table`, `test_net_loads.py::test_the_applied_strip_set_reproduces_the_cumulative_loads`, `::test_a_concentrated_wing_mass_is_published_as_its_own_applied_load`, `::test_the_axis_transfer_moves_the_free_moment_on_its_own_force` |
-| B.1 and the exported CSV are one load set (OR-64) | 2026-09-03 | `test_oracle_report.py::test_the_appendix_table_and_the_exported_csv_are_one_load_set`, `test_sbeam_bridge.py::test_the_applied_moment_is_the_free_moment_not_the_increment`, `::test_the_applied_set_reproduces_the_root_torsion_through_its_own_arms` |
+| B.1 and the exported CSV are one load set (OR-64) | 2026-09-03 | `test_oracle_report.py::test_the_appendix_table_and_the_exported_csv_are_one_load_set`, `test_sbeam_bridge.py::test_the_applied_moment_is_the_free_moment_not_the_increment` |
+| B.1 states all six components and prints its structural zeros (OR-65, OR-66) | 2026-09-03 | `test_sbeam_bridge.py::test_the_applied_set_states_all_six_components`, `::test_the_applied_set_reproduces_the_whole_vmt_at_every_station`; note 46 G-OR-35/36 |
 | Appendix page breaks and landscape (OR-63) | 2026-09-03 | `test_oracle_report.py::test_the_appendix_is_landscape_and_starts_a_fresh_page` |
 | Section 2 marks nothing ultimate; load factors identified as LIMIT | 2026-08-30 | `test_oracle_report.py::test_section_two_marks_nothing_ultimate_and_states_no_safety_factor`, `::test_no_table_claims_a_load_factor_is_not_a_load`, `::test_reported_load_factors_are_identified_as_limit` |
 
@@ -602,8 +614,13 @@ without a guard is prose, not a gate).
 - [x] Appendix B is two subsections — the applied loads and the loads carried —
       sharing no load column, with B.1 carrying the point each load acts at —
       `test_oracle_report.py`
-- [x] The applied moment is the free moment; `Mxx`, `Mzz` and `Fy` are given no
-      applied increment — `test_oracle_report.py`, `test_net_loads.py`
+- [x] The applied moment is the free moment; `Mx` and `Mz` are given no applied
+      increment — `test_oracle_report.py`, `test_net_loads.py`
+- [x] B.1 states all six body-axis components and prints `Fy`, `Mx`, `Mz` as
+      zero with the reason stated (OR-65) — `test_sbeam_bridge.py`,
+      `test_oracle_report.py`
+- [x] Both views take their moments through `applied_body_moments`, the one
+      owner of the body-axis sign map (OR-66) — `test_sbeam_bridge.py`
 - [x] Every concentrated wing mass is a row of B.1 at its own coordinates,
       carrying zero free moment — `test_oracle_report.py`
 - [x] The applied set summed tip inboard reproduces the published cumulative
