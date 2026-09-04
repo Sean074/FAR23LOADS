@@ -437,6 +437,13 @@ and one appendix, built from the `wing_loads` step
   applied increment and **SHALL NOT** be given one, and `Fy` is not a column:
   the wing has no producer for a spanwise strip load, so a zero there would read
   as a measured zero.
+- **B.1 SHALL be a view of the exported applied set, not a second assembler
+  of it (OR-64).** The rows come from `export.sbeam_bridge.applied_load_rows`,
+  the same owner behind the `wing_applied_loads.csv` download on the Wing Loads
+  page and in the Export bundle, so the appendix a stress analyst reads and the
+  file they build the model from cannot disagree about what is applied. The
+  report converts and marks at its own boundary, as it does for every other
+  export-owned row shape.
 - **Every concentrated wing mass SHALL be a row of B.1** at its own
   coordinates, carrying zero free moment. `WINGINER` steps the cumulative shear
   at each mass and leaves the per-strip loads panel-only, so a deck built from
@@ -586,6 +593,7 @@ without a guard is prose, not a gate).
 | 3.2 Notation and the cumulative-load derivation (OR-62) | 2026-09-03 | `test_oracle_report.py::test_section_three_defines_every_symbol_its_tables_use`, `::test_section_three_states_how_the_cumulative_loads_are_built`, `::test_the_point_mass_rule_is_stated_only_where_there_is_one` |
 | Appendix B: applied set and carried set (OR-59, OR-60) | 2026-09-03 | `test_oracle_report.py::test_the_appendix_separates_the_applied_loads_from_the_carried_ones`, `::test_the_applied_table_carries_the_point_every_load_acts_at`, `::test_the_appendix_subsections_are_lettered_from_their_parent` |
 | Appendix B: concentrated masses and closure (OR-59, G-OR-29) | 2026-09-03 | `test_oracle_report.py::test_every_concentrated_wing_mass_is_a_row_of_the_applied_table`, `test_net_loads.py::test_the_applied_strip_set_reproduces_the_cumulative_loads`, `::test_a_concentrated_wing_mass_is_published_as_its_own_applied_load`, `::test_the_axis_transfer_moves_the_free_moment_on_its_own_force` |
+| B.1 and the exported CSV are one load set (OR-64) | 2026-09-03 | `test_oracle_report.py::test_the_appendix_table_and_the_exported_csv_are_one_load_set`, `test_sbeam_bridge.py::test_the_applied_moment_is_the_free_moment_not_the_increment`, `::test_the_applied_set_reproduces_the_root_torsion_through_its_own_arms` |
 | Appendix page breaks and landscape (OR-63) | 2026-09-03 | `test_oracle_report.py::test_the_appendix_is_landscape_and_starts_a_fresh_page` |
 | Section 2 marks nothing ultimate; load factors identified as LIMIT | 2026-08-30 | `test_oracle_report.py::test_section_two_marks_nothing_ultimate_and_states_no_safety_factor`, `::test_no_table_claims_a_load_factor_is_not_a_load`, `::test_reported_load_factors_are_identified_as_limit` |
 
@@ -603,6 +611,8 @@ without a guard is prose, not a gate).
       `test_net_loads.py`
 - [x] The published free moment and `balance`'s own recovery agree where both
       are valid — `test_net_loads.py`
+- [x] B.1's rows and the `wing_applied_loads.csv` download come from one owner
+      and agree row for row — `test_oracle_report.py`, `test_sbeam_bridge.py`
 - [x] Every symbol a section 3 or Appendix B heading uses is defined in 3.2's
       notation table with its sense — `test_oracle_report.py`
 - [x] 3.2 writes out the cumulative-load recurrences and names which terms are

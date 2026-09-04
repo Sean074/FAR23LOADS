@@ -104,7 +104,8 @@ basis in-band (M4-15):** filename `*_LIMIT.csv` plus a `Basis` column (or
 LIMIT-marked column headers) — the canonical station-row shapes
 (`net_loads.wing_load_rows`, `body_loads.body_load_rows`) append `Basis = LIMIT`
 to every row, and the Wing/Fuselage Loads pages pair the LIMIT file with the
-sbeam bridge's ULTIMATE twin (`*_ULT.csv`, `SF` column).
+sbeam bridge's ULTIMATE twins (`*_ULT.csv`, `SF` column) — for the wing, the
+cumulative span loads and the applied load set.
 `tests/test_ultimate_contract.py` scans the app's CSV downloads and enforces
 this.
 
@@ -872,7 +873,8 @@ result that lacks what a deck needs is a stated error, never an empty column.
 - **Writes:** (1) a **span-load CSV** (one row per wing station per case: applied
   nodal `Fx/Fz/My` + the `Mx/Mz` offset couples + cumulative `Sx/Sz/Mxx/Myy/Mzz`
   + the in-band `MyyAxis`
-  torsion-axis column + `SF`); (2) **FORCE/MOMENT**
+  torsion-axis column + `SF`); (1b) an **applied-load CSV** (see below);
+  (2) **FORCE/MOMENT**
   bulk-data cards, comma free-field unit-scale form (`FORCE, SID, GID, 0, 1.0,
   Fx, Fy, Fz`, components `%.6E`), one load set (SID) per case; (3) an optional
   minimal **CBAR stick-model BDF** (GRID + CBAR chain + PBAR/MAT1 placeholder +
@@ -902,6 +904,25 @@ result that lacks what a deck needs is a stated error, never an empty column.
   ships the deck it always did. The h-tail attachment reads the same
   `sob_y_in` quantity (`tail_span.htail_attachment`, basis `ATTACH_ENTERED`,
   the only non-T-tail branch not marked assumed).
+- **The applied load set (2026-09-03).** `applied_load_rows` /
+  `applied_load_csv` publish the **applied** wing loads — `Fz`, `Fx` and the
+  section free moment `Myy free` at each strip's own point, plus one row per
+  concentrated wing mass at *its* own coordinates (`gid` blank: the deck has no
+  grid there) — as the file a structures model is built from. It is the single
+  owner of that row shape: the oracle report's Appendix B.1 table is a view of
+  the same list (`report/oracle_sections._applied_table`), so the table an
+  analyst reads and the CSV they load cannot disagree. Read from the published
+  `WingStationLoad.myy_free` / `WingLoadResult.point_loads` (#166), **never** by
+  differencing a cumulative column: `Myy free` and ΔMyy are different quantities
+  and differ in sign on the inboard `ga6_normal` PHAA strips, because ΔMyy
+  carries the sweep/dihedral transfer of outboard shear that a model applying
+  these forces at these coordinates regenerates for itself. The closure gate is
+  that the free moments plus the forces' own arms reproduce the cumulative root
+  `Myy` exactly, on `ga6_normal` and on `baron_58` with its four concentrated
+  masses (`test_the_applied_set_reproduces_the_root_torsion_through_its_own_arms`).
+  ULTIMATE, solver unit channel, offered on the Wing Loads page and in the
+  Export bundle. Distinct from the nodal loads below, which the deck still
+  builds by differencing — the two are not interchangeable.
 - **Deck `$` comment width.** Every generated `$` sentence in the wing, body,
   tail and control decks is emitted through `sbeam_bridge._comment`, which wraps
   at the **72-column free-field card width** (`$ ` + 70) — a property of the

@@ -132,6 +132,7 @@ from ..constants import ULTIMATE_FACTOR
 from ..derived_geometry import SobStation, sob_station
 from ..models import (
     BodyLoadResult,
+    ConcentratedLoad,
     ControlSurfaceLoadResult,
     Project,
     TailChordResult,
@@ -607,6 +608,140 @@ def span_load_csv(arg: ResultsArg, header_comment: str = "", *,
                 "SF": f"{_sf_str(sf)}",
             })
     return header_comment + buf.getvalue()
+
+
+# --------------------------------------------------------------------------- #
+# The applied load set -- what a structures model has cards for
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True)
+class AppliedLoad:
+    """One applied load of the wing set: a strip, or a concentrated wing mass.
+
+    The **applied** set, not the carried one: ``fz``/``fx`` are the load the
+    strip or the mass exerts and ``myy_free`` the section moment that is not
+    already a force acting through an arm. A model that puts ``fz``/``fx`` at
+    ``(x, y, z)`` generates every transfer term itself from its own geometry,
+    so re-applying them would count them twice -- which is why this record
+    carries ``myy_free`` and not the increment of the cumulative ``myy``. The
+    two are different quantities and can differ in sign (``ga6_normal`` PHAA,
+    inboard strips).
+
+    A concentrated mass is a pure force: ``myy_free`` is zero and ``gid`` is
+    ``None``, because the exported deck has no grid at its coordinates (the
+    stick model nodes the load stations only). Its ``label`` is the mass's
+    entered name.
+
+    Values are LIMIT, Imperial (lb, lb-in, in) -- raw calc units, as everywhere
+    else in this package; ``safety_factor`` is the case's own limit->ultimate
+    factor, and each consumer scales at its own boundary.
+    """
+
+    case: str
+    case_id: str
+    label: str
+    gid: Optional[int]
+    x: float
+    y: float
+    z: float
+    fz: float
+    fx: float
+    myy_free: float
+    safety_factor: float
+    torsion_axis: str
+
+
+def applied_load_rows(arg: ResultsArg) -> List[AppliedLoad]:
+    """The applied wing load set, one record per strip and per concentrated mass.
+
+    The single owner of that row shape: the oracle report's Appendix B.1 table
+    and :func:`applied_load_csv` are both views of this list, so the table a
+    stress analyst reads and the file they load cannot disagree about what the
+    applied set is.
+
+    Sums back to the cumulative NETLOADS distributions exactly -- shear and
+    drag by direct summation, bending and torsion once the model applies each
+    force through the arm these coordinates state.
+    """
+    out: List[AppliedLoad] = []
+    for result in _as_results(arg):
+        sf = _sf(result)
+        # The field is typed on the result (M4-16: no getattr default here).
+        case_id = result.case_ref.case_id if result.case_ref else ""
+        for i, s in enumerate(result.stations):
+            out.append(AppliedLoad(
+                case=result.case, case_id=case_id, label=str(i + 1),
+                gid=station_gid(i), x=s.x, y=s.y, z=s.z,
+                fz=s.fz, fx=s.fx, myy_free=s.myy_free,
+                safety_factor=sf, torsion_axis=result.torsion_axis))
+        for mass in result.point_loads:
+            out.append(_applied_point_load(result, mass, sf, case_id))
+    return out
+
+
+def _applied_point_load(result: WingLoadResult, mass: ConcentratedLoad,
+                        sf: float, case_id: str) -> AppliedLoad:
+    """One concentrated wing mass as its applied point load (zero free moment)."""
+    return AppliedLoad(
+        case=result.case, case_id=case_id, label=mass.name or "point mass",
+        gid=None, x=mass.x, y=mass.y, z=mass.z,
+        fz=mass.fz, fx=mass.fx, myy_free=0.0,
+        safety_factor=sf, torsion_axis=result.torsion_axis)
+
+
+def _applied_csv_fields(u: DeliverableUnits) -> List[str]:
+    """Applied-load CSV header row for unit set ``u`` (D-21: units in-band)."""
+    ln, fo, mo = u.length.label, _ult(u.force.label), _ult(u.moment.label)
+    return [
+        "Case", "Station", "GID", f"X ({ln})", f"Y ({ln})", f"Z ({ln})",
+        f"Fz ({fo})", f"Fx ({fo})", f"Myy free ({mo})",
+        "MyyAxis",                 # torsion reference axis (in-band, like SF)
+        "SF",                      # the case's limit -> ultimate factor
+    ]
+
+
+def applied_load_csv(arg: ResultsArg, header_comment: str = "", *,
+                     system: UnitSystem = UnitSystem.IMPERIAL) -> str:
+    """The applied wing load set as a CSV -- the oracle report's Appendix B.1.
+
+    One row per strip and one per concentrated wing mass, root to tip, ULTIMATE
+    (LIMIT x the case's ``SF``, stated in the last column). This is the file a
+    structures model is built from: every row is a load to apply at the point
+    the row states, and nothing in it is a running total.
+
+    Written in the solver unit channel, like the deck and the span-load CSV
+    beside it -- a set of applied loads is a deck companion, not a
+    human-readable deliverable.
+    """
+    u = _units(system)
+    fields = _applied_csv_fields(u)
+    x_h, y_h, z_h, fz_h, fx_h, my_h = fields[3:9]
+    buf = _io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=fields)
+    writer.writeheader()
+    for load in applied_load_rows(arg):
+        sf = load.safety_factor
+        gx, gy, gz = to_grid(load.x, load.y, load.z, u)
+        fx, _, fz = to_force(load.fx * sf, 0.0, load.fz * sf, u)
+        _, my, _ = to_moment(0.0, load.myy_free * sf, 0.0, u)
+        writer.writerow({
+            "Case": load.case, "Station": load.label,
+            # Blank, not a placeholder id: a concentrated mass has no grid in
+            # the exported deck, and inventing one here would read as a node a
+            # consumer could reference.
+            "GID": "" if load.gid is None else load.gid,
+            x_h: f"{gx:.3f}", y_h: f"{gy:.3f}", z_h: f"{gz:.3f}",
+            fz_h: f"{fz:.1f}", fx_h: f"{fx:.1f}", my_h: f"{my:.0f}",
+            "MyyAxis": load.torsion_axis,
+            "SF": _sf_str(sf),
+        })
+    return header_comment + buf.getvalue()
+
+
+def write_applied_load_csv(arg: ResultsArg, path: str, *,
+                           header_comment: str = "",
+                           system: UnitSystem = UnitSystem.IMPERIAL) -> None:
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(applied_load_csv(arg, header_comment, system=system))
 
 
 def write_span_load_csv(arg: ResultsArg, path: str, *,

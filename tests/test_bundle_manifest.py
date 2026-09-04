@@ -60,6 +60,7 @@ def _sbeam_artifacts(project, comps, cases):
 
         art["wing_loads.bdf"] = _try(sb.force_moment_cards, comps.wing)
         art["wing_span_loads.csv"] = _try(sb.span_load_csv, comps.wing)
+        art["wing_applied_loads.csv"] = _try(sb.applied_load_csv, comps.wing)
         art["wing_stick.bdf"] = _try(sb.stick_model_bdf, comps.wing,
                                      sob=sob_station(project))
     if comps.body:

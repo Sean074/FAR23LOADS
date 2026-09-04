@@ -218,6 +218,129 @@ def test_span_load_csv_shape():
 # --------------------------------------------------------------------------- #
 # Inputs & file writers
 # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# The applied load set (the structures deliverable, oracle report Appendix B.1)
+# --------------------------------------------------------------------------- #
+_BARON = os.path.join(_EXAMPLES, "baron_58.project.json")
+
+
+def _lra_net(path):
+    """Net wing loads transferred to the wing's loads reference axis."""
+    from sloads.modules.net_loads import loads_ref_axis_results
+
+    p = io.load_project(path)
+    if p.envelope is None:
+        p.envelope = build_envelope(p)
+    return loads_ref_axis_results(p, list(build_net_loads(p).wing_net))
+
+
+def _csv_rows(text):
+    import csv as _csv
+
+    return list(_csv.DictReader(text.splitlines()))
+
+
+def test_the_applied_set_carries_every_strip_and_every_concentrated_mass():
+    """One row per strip plus one per wing mass -- the whole applied set."""
+    net = _lra_net(_BARON)
+    one = net[0]
+    rows = sb.applied_load_rows([one])
+    assert len(rows) == len(one.stations) + len(one.point_loads)
+    assert len(one.point_loads) == 4, "the Baron enters four concentrated wing masses"
+    named = [r.label for r in rows if r.gid is None]
+    assert named == [m.name for m in one.point_loads]
+
+
+def test_a_concentrated_mass_has_no_grid_and_no_free_moment():
+    """A point mass is a pure force: every moment it makes is force x arm."""
+    rows = sb.applied_load_rows(_lra_net(_BARON)[:1])
+    masses = [r for r in rows if r.gid is None]
+    assert masses, "the Baron has concentrated wing masses"
+    for m in masses:
+        assert m.myy_free == 0.0
+        assert m.fz != 0.0
+
+
+def test_the_applied_set_reproduces_the_root_torsion_through_its_own_arms():
+    """The closure gate: free moments + the forces' own arms == the root Myy.
+
+    This is what makes the set a deck. A model applying ``fz``/``fx`` at the
+    stated points generates the sweep/dihedral transfer itself, so the applied
+    moment must be the *free* moment only -- if it carried the increment of the
+    cumulative ``myy`` instead, this sum would double the transfer.
+    """
+    for path in (_GA, _BARON):
+        for result in _lra_net(path):
+            rows = sb.applied_load_rows([result])
+            x0, z0 = result.stations[0].x, result.stations[0].z
+            transfer = sum(r.fz * (r.x - x0) - r.fx * (r.z - z0) for r in rows)
+            got = sum(r.myy_free for r in rows) - transfer
+            want = result.stations[0].myy
+            assert closes(got, want, scale=abs(want)), (
+                f"{path} {result.case}: applied set gives {got}, root Myy is {want}")
+
+
+def test_the_applied_moment_is_the_free_moment_not_the_increment():
+    """Guards the whole point of the file against a differencing 'simplification'.
+
+    ``Myy free`` and the increment of the cumulative ``Myy`` are different
+    quantities -- on ``ga6_normal`` PHAA the inboard strips disagree in sign --
+    so a set built by differencing cannot be applied at these coordinates.
+    """
+    result = _lra_net(_GA)[0]
+    s = result.stations
+    increments = [s[i].myy - (s[i + 1].myy if i + 1 < len(s) else 0.0)
+                  for i in range(len(s))]
+    rows = [r for r in sb.applied_load_rows([result]) if r.gid is not None]
+    opposed = [i for i, (r, d) in enumerate(zip(rows, increments)) if r.myy_free * d < 0]
+    assert opposed, ("the two quantities no longer differ in sign anywhere -- if "
+                     "the physics moved, restate the case; if the export was "
+                     "rewritten to difference the cumulative, that is the defect")
+
+
+def test_the_applied_csv_states_its_units_axis_and_factor():
+    """A distribution file is unusable without its units, axis and basis (D-21)."""
+    net = _lra_net(_GA)
+    text = sb.applied_load_csv(net)
+    header = text.splitlines()[0]
+    assert header.split(",") == [
+        "Case", "Station", "GID", "X (in)", "Y (in)", "Z (in)", "Fz (lbs-ULT)",
+        "Fx (lbs-ULT)", "Myy free (lb-in-ULT)", "MyyAxis", "SF"]
+    row = _csv_rows(text)[0]
+    assert row["MyyAxis"] == net[0].torsion_axis
+    assert row["SF"] == "1.5"
+
+
+def test_the_applied_csv_leaves_a_point_masss_gid_blank():
+    """No invented grid: the deck has no node at a concentrated mass (yet)."""
+    rows = _csv_rows(sb.applied_load_csv(_lra_net(_BARON)[:1]))
+    blank = [r for r in rows if r["GID"] == ""]
+    assert len(blank) == 4
+    assert all(r["Myy free (lb-in-ULT)"] == "0" for r in blank)
+    assert all(r["GID"].isdigit() for r in rows if r not in blank)
+
+
+def test_the_applied_csv_is_ultimate():
+    """LIMIT x the case's own SF, like every other deliverable in this channel."""
+    net = _lra_net(_GA)[:1]
+    rows = sb.applied_load_rows(net)
+    csv_rows = _csv_rows(sb.applied_load_csv(net))
+    for r, c in zip(rows, csv_rows):
+        assert math.isclose(float(c["Fz (lbs-ULT)"]), r.fz * r.safety_factor,
+                            abs_tol=0.05)
+
+
+def test_applied_load_writer(tmp_path=None):
+    import tempfile
+
+    d = str(tmp_path) if tmp_path else tempfile.mkdtemp()
+    path = os.path.join(d, "applied.csv")
+    sb.write_applied_load_csv(_lra_net(_GA), path, header_comment="# ULTIMATE\n")
+    text = open(path, encoding="utf-8").read()
+    assert text.startswith("# ULTIMATE")
+    assert "Myy free" in text
+
+
 def test_accepts_project_and_requires_loads():
     p = io.load_project(_GA)
     try:

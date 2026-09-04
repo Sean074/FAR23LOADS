@@ -14,6 +14,7 @@ stay distinguishable).
 import ast
 import dataclasses
 import datetime
+import math
 import os
 import sys
 
@@ -2060,6 +2061,36 @@ def test_the_applied_table_carries_the_point_every_load_acts_at():
         assert axis in applied.columns
     # The cumulative table keys on the station and does not repeat them.
     assert "X (in)" not in carried.columns
+
+
+def test_the_appendix_table_and_the_exported_csv_are_one_load_set():
+    """The SSOT gate: B.1 and ``wing_applied_loads.csv`` are two views of one list.
+
+    The stress analyst reads the appendix and loads the CSV; if the two were
+    built by separate row assemblers they could disagree about what is applied,
+    and nothing would say which one the deck was solved from. Both go through
+    ``sbeam_bridge.applied_load_rows``, and this asserts they still do -- row
+    for row, value for value.
+    """
+    import csv as _csv
+
+    from sloads.export.sbeam_bridge import applied_load_csv
+
+    project = reduce_to_oracle_inputs(io.load_project(_TWIN))
+    from sloads.modules.net_loads import build_net_loads, loads_ref_axis_results
+    net = loads_ref_axis_results(project, build_net_loads(project).wing_net)
+
+    applied, _carried = _appendix_tables(_doc(_TWIN))
+    rows = list(_csv.DictReader(applied_load_csv(net).splitlines()))
+    assert len(rows) == len(applied.rows)
+    ci = {c: applied.columns.index(c) for c in applied.columns}
+    for table_row, csv_row in zip(applied.rows, rows):
+        assert table_row[ci["Station"]] == csv_row["Station"]
+        for col, key in (("X (in)", "X (in)"), ("Fz (lbs-ULT)", "Fz (lbs-ULT)"),
+                         ("Myy free (lb-in-ULT)", "Myy free (lb-in-ULT)")):
+            assert math.isclose(float(table_row[ci[col]].replace(",", "")),
+                                float(csv_row[key]), abs_tol=1.0), (
+                f"{col} disagrees on station {csv_row['Station']}")
 
 
 def test_every_concentrated_wing_mass_is_a_row_of_the_applied_table():

@@ -40,7 +40,7 @@ from sloads.derived_geometry import wing_plane
 from sloads.export import sbeam_bridge as sb
 from sloads.modules.airloads import run as airloads_run
 from sloads.modules.airloads import schrenk_distribution
-from sloads.modules.net_loads import build_net_loads, wing_load_rows
+from sloads.modules.net_loads import build_net_loads, loads_ref_axis_results, wing_load_rows
 from sloads.modules.wing_inertia import resolve_wing_cases
 from sloads.report import module_text_report
 
@@ -376,19 +376,32 @@ st.subheader("Net load station table (LIMIT)")
 st.dataframe(pd.DataFrame(wing_limit_rows(wing_load_rows([net]), system)),
              hide_index=True, width="stretch")
 
-# Two basis-marked downloads (defect M4-15): the LIMIT file is the on-page
+# Three basis-marked downloads (defect M4-15): the LIMIT file is the on-page
 # table's converted, unit-suffixed rows (L-8i -- ``limit_csv`` owns both); the
-# ULTIMATE file is the sbeam bridge's span CSV (per-case SF column), the same
-# content family the Export page ships.
-_dl = st.columns(2)
+# two ULTIMATE files are the sbeam bridge's, the same content family the Export
+# page ships. The applied set is the structures deliverable and is stated about
+# the wing's loads reference axis, so it goes through ``loads_ref_axis_results``
+# -- the transfer the Export page's Project argument does for itself.
+_lra_net = loads_ref_axis_results(project, loads.wing_net)
+_dl = st.columns(3)
 _dl[0].download_button("Download net wing loads — LIMIT (CSV)",
                        wing_limit_csv(wing_load_rows(loads.wing_net), system),
                        file_name="net_wing_loads_LIMIT.csv", mime="text/csv")
 _dl[1].download_button("Download net wing loads — ULTIMATE (CSV)",
                        sb.span_load_csv(loads.wing_net, system=system),
                        file_name="net_wing_loads_ULT.csv", mime="text/csv")
+_dl[2].download_button("Download applied load set — ULTIMATE (CSV)",
+                       sb.applied_load_csv(_lra_net, system=system),
+                       file_name="wing_applied_loads_ULT.csv", mime="text/csv")
 st.caption(
-    "The LIMIT file carries a `Basis` column and matches the table above. The "
-    "ULTIMATE file is limit × the per-case `SF` (14 CFR 23.303) — the sbeam "
-    "span-load CSV also available on the **Export** page."
+    "The LIMIT file carries a `Basis` column and matches the table above; its "
+    "torsion is about the 25% chord and it carries no concentrated-mass row. "
+    "The two ULTIMATE files are limit × the per-case `SF` (14 CFR 23.303). "
+    "**Applied load set** is the file a structures model is built from: one row "
+    "per strip and one per concentrated wing mass, each at its own point, "
+    "`Myy free` being the section moment that is *not* already a force acting "
+    "through an arm — nothing in it is a running total. It is the oracle "
+    "report's Appendix B.1, and its torsion is about the **loads reference "
+    "axis**. The span-load file carries the cumulative distributions beside it "
+    "and is also on the **Export** page."
 )

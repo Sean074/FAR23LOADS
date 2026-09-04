@@ -42,7 +42,7 @@ from ..constants import ULTIMATE_FACTOR
 from ..derived_geometry import MacReference, mac_reference, station_to_pct_mac
 from ..models import Project
 from ..models.enums import AnalysisKind
-from ..models.results import ConditionResult, LoadValue, ModuleResult
+from ..models.results import ConditionResult, LoadValue, ModuleResult, WingLoadResult
 from ..units import UnitSystem, convert_results
 from .content import Figure, PlotData, Section, Series, Table, Units, speed_altitude_plot_data, weight_cg_plot_data
 from .oracle_content import (
@@ -1291,7 +1291,7 @@ def _load_cell(value: LoadValue, sf: float) -> Tuple[str, str]:
     return format_value(scaled), ultimate_units(value.units, value.quantity)
 
 
-def _wing_net(project: Project) -> List[object]:
+def _wing_net(project: Project) -> List[WingLoadResult]:
     """The net wing load distributions, transferred to the surface's LRA.
 
     Asked of ``net_loads``' own builders -- the same pair the Export page and the
@@ -2170,7 +2170,7 @@ def _case_name(result: object) -> str:
     return getattr(ref, "case_id", "") or getattr(result, "case", "")
 
 
-def _applied_table(net: Sequence[object], system: UnitSystem,
+def _applied_table(net: Sequence[WingLoadResult], system: UnitSystem,
                    assessed: str) -> Optional[Table]:
     """B.1 -- the applied load set: every strip, and every point mass.
 
@@ -2187,23 +2187,18 @@ def _applied_table(net: Sequence[object], system: UnitSystem,
                f"Z ({length})"]
     columns += [f"{label} ({u.ult_label(dim)})"
                 for _attr, dim, label in _APPLIED_LOADS]
+    # The applied set has one owner, in the export channel, so the table a
+    # stress analyst reads here and the CSV they load from the Wing Loads page
+    # are two views of one list and cannot disagree about what is applied.
+    from ..export.sbeam_bridge import applied_load_rows
+
     rows: List[List[str]] = []
-    for result in net:
-        name = _case_name(result)
-        sf = float(getattr(result, "safety_factor", ULTIMATE_FACTOR))
-        for index, station in enumerate(getattr(result, "stations", ()), start=1):
-            rows.append([name, str(index)]
-                        + [u.plain(getattr(station, a), "length")
-                           for a in ("x", "y", "z")]
-                        + [u.load(getattr(station, attr), dim, sf)
-                           for attr, dim, _label in _APPLIED_LOADS])
-        for point in getattr(result, "point_loads", ()):
-            rows.append([name, point.name or "point mass"]
-                        + [u.plain(getattr(point, a), "length")
-                           for a in ("x", "y", "z")]
-                        + [u.load(point.fz, "force", sf),
-                           u.load(point.fx, "force", sf),
-                           u.load(0.0, "moment", sf)])
+    for load in applied_load_rows(list(net)):
+        rows.append([load.case_id or load.case, load.label]
+                    + [u.plain(getattr(load, a), "length")
+                       for a in ("x", "y", "z")]
+                    + [u.load(getattr(load, attr), dim, load.safety_factor)
+                       for attr, dim, _label in _APPLIED_LOADS])
     if not rows:
         return None
     axis = _torsion_axis(net) or "loads reference axis"

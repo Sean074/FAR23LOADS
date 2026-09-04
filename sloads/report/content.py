@@ -1630,7 +1630,9 @@ def _wing_section(project: Project, comps: ComponentLoads, u: Units,
     section.body.append(
         f"Full station-by-station distributions for all {len(comps.wing)} wing cases "
         "are in the companion file wing_span_loads.csv and the sbeam deck "
-        "wing_loads.bdf (see the bundle manifest)."
+        "wing_loads.bdf; the applied load set they accumulate from -- strip by "
+        "strip and mass by mass, each at its own point -- is in "
+        "wing_applied_loads.csv (see the bundle manifest)."
     )
     return section
 
@@ -2313,6 +2315,12 @@ def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
             ["sbeam/<project>_wing_span_loads.csv",
              "Station-by-station net wing shear, bending and torsion.", deck,
              f"torsion Myy about the {axis}; ULTIMATE",
+             section_ref("results", "Wing")],
+            ["sbeam/<project>_wing_applied_loads.csv",
+             "The applied wing load set: one row per strip and one per "
+             "concentrated wing mass, each at its own point. Nothing in it is "
+             "a running total.", deck,
+             f"free torsion about the {axis}; ULTIMATE",
              section_ref("results", "Wing")],
             ["sbeam/<project>_wing_loads.bdf",
              "FORCE/MOMENT bulk data for the wing.", deck,

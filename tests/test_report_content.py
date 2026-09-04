@@ -486,6 +486,7 @@ MANIFEST_BASIS = {
 #: which the project may move) and so is pinned by substring, not by equality.
 MANIFEST_BASIS_CONTAINS = {
     "sbeam/<project>_wing_span_loads.csv": ("torsion Myy about the", "ULTIMATE"),
+    "sbeam/<project>_wing_applied_loads.csv": ("free torsion about the", "ULTIMATE"),
     "sbeam/<project>_wing_loads.bdf": ("torsion about the", "ULTIMATE"),
     "sbeam/<project>_fuselage_span_loads.csv": ("torsion Mxx about the body X axis",
                                                 "ULTIMATE"),
@@ -546,6 +547,7 @@ SUMMARISED_IN = {
     "load_cases/<project>_<module>.csv": ("results", ""),
     "<project>_report.txt": ("results", ""),
     "sbeam/<project>_wing_span_loads.csv": ("results", "Wing"),
+    "sbeam/<project>_wing_applied_loads.csv": ("results", "Wing"),
     "sbeam/<project>_wing_loads.bdf": ("results", "Wing"),
     "sbeam/<project>_wing_stick.bdf": ("results", "Wing"),
     "sbeam/<project>_fuselage_span_loads.csv": ("results", "Fuselage"),

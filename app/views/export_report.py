@@ -243,6 +243,8 @@ if _wing:
         sb.force_moment_cards, _wing, header_comment=_bdf_stamp, system=_system) or ""
     _bdf_artifacts["wing_span_loads.csv"] = _try(
         sb.span_load_csv, _wing, header_comment=_csv_stamp, system=_system) or ""
+    _bdf_artifacts["wing_applied_loads.csv"] = _try(
+        sb.applied_load_csv, _wing, header_comment=_csv_stamp, system=_system) or ""
     from sloads.derived_geometry import sob_station
 
     _bdf_artifacts["wing_stick.bdf"] = _try(
@@ -432,6 +434,7 @@ def _workbook_bytes() -> bytes:
         title: _bdf_artifacts[key]
         for title, key in [
             ("Wing Span Loads", "wing_span_loads.csv"),
+            ("Wing Applied Loads", "wing_applied_loads.csv"),
             ("Fuselage Span Loads", "fuselage_span_loads.csv"),
             ("Fuselage Fitting Loads", "fuselage_fitting_loads.csv"),
             ("Tail Chordwise", "tail_chordwise.csv"),
@@ -546,7 +549,8 @@ def _bdf_row(label: str, *names):
                             key=f"bdf_{name}", disabled=not content)
 
 
-_bdf_row("Wing", "wing_loads.bdf", "wing_span_loads.csv", "wing_stick.bdf")
+_bdf_row("Wing", "wing_loads.bdf", "wing_span_loads.csv",
+         "wing_applied_loads.csv", "wing_stick.bdf")
 _bdf_row("Fuselage", "fuselage_loads.bdf", "fuselage_span_loads.csv",
          "fuselage_fitting_loads.csv")
 if _body:
