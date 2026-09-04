@@ -4,7 +4,11 @@
   Schrenk span load `c*cl` at `CL = 0`, `1.0` and the airplane's own `CLmax`, and the
   airplane-less-tail lift and moment curves with every balanced condition marked on them;
   3.2 the run register of selected cases with speed, altitude, weight, CG case and 14 CFR
-  paragraph, plus the axes and sign convention; 3.3 the root loads of every case; 3.4 the net
+  paragraph, plus the axes and sign convention, **what the searched V-n matrix enumerates**
+  (every combination of configuration, weight/CG case, altitude and condition — a V-n diagram
+  states none of those) and **where the case list came from**: the critical-load selection's
+  own search, or a case list entered on the project, which wins when present. Where it is
+  entered, every condition the selection names is tabulated against whether it was run; 3.3 the root loads of every case; 3.4 the net
   distributions of `Sz`, `Mxx`, `Myy` and `Sx` along the span, every selected case on one
   axes. **Appendix B** carries the same distributions station by station, with the load
   increment at each station beside the cumulative totals.

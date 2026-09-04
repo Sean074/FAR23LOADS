@@ -836,7 +836,7 @@ same commit and the authority named in the commit message.
 
 ---
 
-## 11. Iteration 3 — Section 3, Wing Loads (OR-48 … OR-56)
+## 11. Iteration 3 — Section 3, Wing Loads (OR-48 … OR-57)
 
 *Agreed with the owner in session, 2026-09-01. Section 3 is the first section that
 states a load in force and moment units, so the rulings below are mostly about
@@ -855,6 +855,7 @@ same footing as OR-1 … OR-47.*
 filed as #163). | OR-5, OR-14 |
 | **OR-54** | **3.2 is the run register: what was run, at what condition, under which rule.** One row per selected wing case carrying the case ID, the condition, the FAR reference, the CG case and weight, the speed and altitude, and `Nz`/`Nx`. Every field of it already exists on `CaseRef` and the resolved case — this is a projection of case identity, not a new record of it, which is what OR-41 deferred to this iteration. 3.2 also states the coordinate and sign convention the section's loads are in, citing `CONVENTIONS.md` and naming the torsion axis of OR-51. | OR-41 (discharges) |
 | **OR-55** | **SELECT's chosen subset *is* the critical set; 3.3 tabulates it and 3.4 plots all of it.** No second criticality rule is invented for the report — the wing cases the analysis ran are the wing cases the section shows. 3.3 gives root values per case; 3.4 gives one figure per quantity with every selected case on it: **vertical shear `Sz`, bending `Mxx`, torsion `Myy`, and drag shear `Sx`**. Chord bending `Mzz` is omitted. The figures show the **net** loads only, and state that shear, bending and torsion are **summed from tip to root** — a cumulative quantity read as a running one is the misreading the caption exists to prevent. | OR-6 |
+| **OR-57** | **The register states where its case list came from.** The suite has two paths to a wing case set: the critical-load selection's own search of the V-n matrix, and a case list entered on the project, which **wins when it is present** (`wing_inertia.resolve_wing_cases`). A section that presents an entered list as the outcome of a search describes an analysis nobody ran, so 3.2 **SHALL** say which it is, **SHALL** state what the matrix it was searched from enumerates — every combination of configuration, weight/CG case, altitude and flight condition, not the twenty conditions a V-n diagram shows — and, where a list is entered, **SHALL** tabulate every condition the selection names with whether it was run. Found in the owner's review of iteration 3, 2026-09-03: the shipped prose claimed selection while `ga6_normal` runs an entered three of the selection's six. An entered list is legitimate and sometimes necessary — an accelerated-roll case carries an unbalanced rolling moment the selection cannot name — but it is the project's list, and the difference is the reader's to see. | OR-46 (extends), OR-54, OR-55 |
 | **OR-56** | **Appendix B is the per-station table of the selected wing cases, carrying the increment total load at each station — not the running load.** One row per station per case: the station coordinates, the strip's own increment `Fz` and `Fx`, and the cumulative `Sz`, `Sx`, `Mxx`, `Myy` with its axis named. ULTIMATE per OR-49. `net_loads.wing_load_rows` is already the canonical shape of that row, so the appendix is a view of an existing owner rather than a second layout of the same data. | OR-6, OR-49 |
 
 ### Gates added by this section
@@ -868,8 +869,21 @@ filed as #163). | OR-5, OR-14 |
 | **G-OR-24** | The three span-load curves come from AIRLOADS' own distribution function at three target `CL`s, and the `CLmax` curve's `CL` is the aero set's `stall_cl`. |
 | **G-OR-25** | A project with no flaps-down aero set renders the flaps-down figure as ABSENT with a reason, and prints no clean-configuration curve in its place. |
 | **G-OR-26** | The cases 3.2, 3.3, 3.4 and Appendix B each state are the same set, in the same order — the selected wing cases, no more and no fewer. |
+| **G-OR-27** | 3.2 states which path produced its case list, counts the V-n matrix the selection searched by every dimension it enumerates, and marks each named condition run or not run. |
 
 ### Findings to file (OR-14 — file, do not fix here)
+
+- **`examples/ga6_normal.project.json` balances at sea level only.**
+  `flight_loads.altitudes_ft` is `[0.0]`, so the V-n matrix is 80 points over
+  four CG cases, twenty conditions and **one** altitude. Appendix A names five of
+  its six critical wing conditions **at 12,000 ft** (`modules/select.py`'s own
+  validation list: PLAA MAN D, PMAA GUST +C, NMAA GUST −C, ACRL, TORS). The
+  loads still reproduce — these are equivalent-airspeed points and the module's
+  oracle tests pass — but every case in the report's own register therefore reads
+  `0 ft` where the manual reads 12,000, and the compressibility factor at those
+  points is the sea-level one. Raised in the owner's review of iteration 3,
+  2026-09-03; **filed as #164**, which also records why adding the altitude is
+  not a free change (it renumbers every V-n case).
 
 - **No flaps-down span loading.** AIRLOADS does not fair the basic distribution
   across a deflected-flap lift discontinuity, so the oracle's second set of

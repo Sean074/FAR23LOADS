@@ -1647,6 +1647,95 @@ def _cg_weight(project: Project, name: str) -> Optional[float]:
     return None
 
 
+def _wing_selection(project: Project):
+    """``(SELECT's wing conditions, the V-n matrix it searched)``, or ``([], None)``.
+
+    The selection is asked for even when it is overridden, because *whether it was
+    overridden* is a fact the register has to state (OR-57): a section that
+    presents three entered cases as the outcome of a search is describing an
+    analysis nobody ran.
+    """
+    from ..modules.flight_envelope import build_envelope
+    from ..modules.select import build_critical
+
+    try:
+        conditions = [c for c in build_critical(project).conditions
+                      if getattr(c, "component", "") == "wing"]
+    except Exception:
+        conditions = []
+    try:
+        envelope = build_envelope(project)
+    except Exception:
+        envelope = None
+    return conditions, envelope
+
+
+def _matrix_sentence(envelope) -> str:
+    """What the V-n matrix the selection searched actually enumerates.
+
+    The reader's question this answers is a real one: a V-n diagram states a
+    speed and a load factor and says nothing about weight, centre of gravity or
+    altitude, so the set of *points* behind it has to be described or the
+    selection looks like it ran on twenty conditions rather than on every
+    combination of them.
+    """
+    if envelope is None or not envelope.vn:
+        return ("The balanced V-n matrix the selection searches was not "
+                "produced for this project.")
+    points = envelope.vn
+    configs = sorted({p.config for p in points})
+    cgs = sorted({p.cg for p in points})
+    altitudes = sorted({p.altitude_ft for p in points})
+    conditions = len({p.condition for p in points})
+    altitude_text = (f"the single altitude {format_value(altitudes[0])} ft"
+                     if len(altitudes) == 1
+                     else "the altitudes "
+                          + ", ".join(f"{format_value(a)} ft" for a in altitudes))
+    return (
+        f"The selection searches the balanced V-n matrix: {len(points)} points, "
+        f"every combination of {len(configs)} configuration"
+        f"{'' if len(configs) == 1 else 's'} "
+        f"({', '.join(configs)}), {len(cgs)} weight and centre-of-gravity "
+        f"case{'' if len(cgs) == 1 else 's'} ({', '.join(cgs)}), "
+        f"{altitude_text}, and {conditions} flight conditions. A V-n diagram "
+        "states a speed and a load factor and nothing about loading or "
+        "altitude; the matrix behind it carries all three, and it is the matrix "
+        "that is searched.")
+
+
+def _selection_table(conditions: Sequence[object],
+                     run: Sequence[str]) -> Optional[Table]:
+    """Every wing condition the selection names, and whether it was run.
+
+    Printed whether or not the two agree, because the case a section does *not*
+    carry is the one a reader has no other way of finding.
+    """
+    if not conditions:
+        return None
+    rows = []
+    for condition in conditions:
+        ref = getattr(condition, "case_ref", None)
+        label = getattr(condition, "label", "")
+        rows.append([
+            getattr(ref, "case_id", "") or "--",
+            label or "--",
+            getattr(ref, "far_reference", "") or "--",
+            str(getattr(condition, "case", "") or "--"),
+            getattr(ref, "cg", "") or "--",
+            "yes" if label in run else "no",
+        ])
+    return Table(
+        title="Critical wing conditions named by the selection",
+        columns=["Case", "Condition", "14 CFR", "V-n point", "CG case",
+                 "Run here"],
+        rows=rows,
+        note=("The governing wing condition of each FAR family, as the "
+              "critical-load selection found it in the V-n matrix. A condition "
+              "marked 'no' is named by the selection and is not carried into "
+              "the wing analysis of this project, because the project enters "
+              "its own wing case list and an entered list is used as entered."))
+
+
 def _wing_case_table(project: Project, net: Sequence[object],
                      system: UnitSystem) -> Optional[Table]:
     """3.2's run register: one row per selected wing case."""
@@ -1685,26 +1774,67 @@ def _wing_case_table(project: Project, net: Sequence[object],
               "ULTIMATE below."))
 
 
+def _provenance_sentence(entered: bool, named: Sequence[str],
+                         run: Sequence[str], missing: Sequence[str]) -> str:
+    """Where the analysed case list came from -- selection, or entry (OR-57).
+
+    Two different statements, and the report may not make the first while the
+    second is true. An entered list is legitimate and is sometimes necessary --
+    the selection names a condition but not the unbalanced rolling moment an
+    accelerated-roll case needs, which only an entered case can carry -- but it
+    is the project's list, not the selection's, and the difference is the
+    reader's to see (OR-46's rule, applied to a case set rather than a value).
+    """
+    if not entered:
+        return ("The cases below are the critical-load selection's own result: "
+                "the governing condition of each FAR family, taken from the "
+                "matrix without further choice.")
+    sentence = (
+        "The cases below are the wing case list entered in this project, not "
+        "the selection's own result. An entered list is used exactly as "
+        "entered, and it is what the loads were computed from. It exists "
+        "because a condition can carry data the selection does not name -- an "
+        "accelerated-roll case needs an unbalanced rolling moment, which comes "
+        "from the aileron analysis and not from the V-n matrix.")
+    if missing:
+        sentence += (
+            " The selection names "
+            f"{len(named)} governing wing conditions and {len(run)} "
+            f"{'is' if len(run) == 1 else 'are'} carried here; "
+            f"{', '.join(missing)} "
+            f"{'is' if len(missing) == 1 else 'are'} named and not run, and "
+            "the table below states which is which.")
+    return sentence
+
+
 def _wing_cases(project: Project, *, system: UnitSystem,
                 plan: Sequence[SectionPlan]) -> Section:
     """3.2 -- what was run, at what condition, under which rule."""
     net = _wing_net(project)
     table = _wing_case_table(project, net, system)
+    conditions, envelope = _wing_selection(project)
+    run = [getattr(r, "case", "") for r in net]
+    entered = bool(getattr(project.wing_mass, "cases", ()) or ())
+    named = [getattr(c, "label", "") for c in conditions]
+    missing = [name for name in named if name not in run]
     body = [
-        "The wing is analysed at the conditions the critical-case selection "
-        "carries forward from the flight envelope: not every point of the "
-        "envelope, but the subset that governs the wing structure. Those cases "
-        "are listed below, and they are the same cases the summary, the "
+        "The wing is analysed at a subset of the flight envelope: not every "
+        "point of it, but the conditions that govern the wing structure. Those "
+        "cases are listed below, and they are the same cases the summary, the "
         "distributions and the station-by-station appendix state -- one set, "
         "projected four ways.",
+        _matrix_sentence(envelope),
+        _provenance_sentence(entered, named, run, missing),
         _sign_note(plan),
     ]
+    tables = [t for t in (table, _selection_table(conditions, run))
+              if t is not None]
     if table is None:
         return Section("", body=body,
                        absent_reason=("No wing load cases were produced for "
                                       "this project, so there is nothing to "
                                       "register."))
-    return Section("", body=body, tables=[table])
+    return Section("", body=body, tables=tables)
 
 
 def _wing_summary_table(result: Optional[ModuleResult],

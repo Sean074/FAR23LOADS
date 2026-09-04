@@ -37,6 +37,16 @@ loads, as four subsections and a lettered appendix, built from the `wing_loads` 
   second curve exists.
 - **SELECT's subset is the critical set.** No second criticality rule is invented for the
   report; 3.2, 3.3, 3.4 and Appendix B are four projections of one set, in one order.
+- **The register says where its case list came from (OR-57, owner's review 2026-09-03).**
+  Two paths reach a wing case set — the selection's search, and a list entered on the project,
+  which wins when present — and the first draft of 3.2 claimed the first while `ga6_normal`
+  runs the second: three entered cases against the six the selection names. The section now
+  states which path produced the list, counts the V-n matrix by every dimension it enumerates
+  (80 points over four CG cases, twenty conditions and one altitude), and tabulates every named
+  condition against whether it was run, so PLAA, PMAA and NMAA are visible as named-not-run
+  rather than absent without trace. The same review established that the fixture balances at
+  sea level only while Appendix A names five of the six conditions at 12,000 ft — filed as
+  **#164**, since adding the altitude renumbers every V-n case.
 
 **Test.** Thirteen new gates in `tests/test_oracle_report.py`, including: every load column
 in the section and the appendix carries `-ULT`; each root value equals the module's own LIMIT

@@ -2069,3 +2069,69 @@ def test_a_project_with_no_wing_loads_states_the_absence_and_still_builds():
     appendix = _appendix(doc, oc.WING_LOAD_STATIONS)
     assert appendix.absent_reason == oc.STATE_REASON[oc.SectionState.ABSENT]
     assert not appendix.tables
+
+
+def _case_section(doc):
+    """3.2, the run register."""
+    return _section_three(doc).subsections[1]
+
+
+def test_the_register_states_the_matrix_the_selection_actually_searched():
+    """G-OR-27 -- a V-n point is a loading and an altitude, not just a speed.
+
+    The reader's question this answers is a fair one: a V-n diagram states a
+    speed and a load factor and says nothing about weight, centre of gravity or
+    altitude, so a register that named twenty conditions would read as though
+    the selection had twenty points to choose between rather than every
+    combination of them.
+    """
+    from sloads.modules.flight_envelope import build_envelope
+
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    points = build_envelope(project).vn
+    body = " ".join(_case_section(_doc()).body)
+    assert f"{len(points)} points" in body
+    for cg in sorted({p.cg for p in points}):
+        assert cg in body
+    for altitude in sorted({p.altitude_ft for p in points}):
+        assert f"{format_value(altitude)} ft" in body
+
+
+def test_an_entered_wing_case_list_is_not_reported_as_the_selections_result():
+    """OR-57 -- the register says where its cases came from.
+
+    ``ga6_normal`` enters three wing cases, which override the six the selection
+    finds; a section that presented those three as the outcome of a search would
+    be describing an analysis nobody ran. Both the sentence and the table that
+    marks each named condition run or not are asserted, because the case a
+    section does *not* carry is the one a reader has no other way of finding.
+    """
+    doc = _doc()
+    body = " ".join(_case_section(doc).body)
+    assert "entered in this project, not the selection's own result" in body
+    for name in ("PLAA", "PMAA", "NMAA"):
+        assert name in body
+    table = next(t for t in _case_section(doc).tables
+                 if t.title.startswith("Critical wing conditions"))
+    run = dict(zip([row[1] for row in table.rows],
+                   [row[-1] for row in table.rows]))
+    assert run == {"PHAA": "yes", "PLAA": "no", "PMAA": "no", "NMAA": "no",
+                   "ACRL": "yes", "TORS": "yes"}
+
+
+def test_a_project_that_enters_no_wing_cases_reports_the_selections_own_result():
+    """The other half of OR-57, and the state the suite is designed for.
+
+    With the entered override removed the wing runs every condition the
+    selection names, and the register says so instead of explaining an override
+    that is not there.
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    project.wing_mass.cases = []
+    doc = oc.build_oracle_document(project, _spec())
+    body = " ".join(_case_section(doc).body)
+    assert "the critical-load selection's own result" in body
+    assert "not the selection's own result" not in body
+    table = next(t for t in _case_section(doc).tables
+                 if t.title.startswith("Critical wing conditions"))
+    assert {row[-1] for row in table.rows} == {"yes"}
