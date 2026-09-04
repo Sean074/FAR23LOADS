@@ -2050,6 +2050,62 @@ def test_the_appendix_separates_the_applied_loads_from_the_carried_ones():
         station.sz * result.safety_factor)
 
 
+def test_the_cumulative_table_carries_the_chord_bending():
+    """OR-71 -- B.2 prints Mzz, the fifth column the closure gate names.
+
+    It was omitted as "not delivered by this analysis", which was never true of
+    the number: ``net_loads`` publishes it, the root value is oracle-locked
+    (Appendix A p222), ``wing_span_loads.csv`` prints it, and at the root it is
+    larger than the torsion beside it on four of the five example cases.
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    from sloads.modules.net_loads import build_net_loads, loads_ref_axis_results
+    net = loads_ref_axis_results(project, build_net_loads(project).wing_net)
+    _applied, carried = _appendix_tables(_doc())
+
+    assert "Mzz (lb-in-ULT)" in carried.columns
+    column = carried.columns.index("Mzz (lb-in-ULT)")
+    row = 0
+    for result in net:
+        for station in result.stations:
+            assert carried.rows[row][column] == format_value(
+                station.mzz * result.safety_factor)
+            row += 1
+    assert row == len(carried.rows)
+
+
+def test_the_cumulative_table_says_its_moments_are_the_beams_own():
+    """OR-73 -- B.2's note restates the sign rather than only cross-referencing.
+
+    B.2's Mzz and B.1's Mz are opposite in sense, and B.1's Mz is identically
+    zero, so a reader who never reaches the notation table has nothing on the
+    page to warn them. The note states it and names 3.2 as the definition.
+    """
+    _applied, carried = _appendix_tables(_doc())
+    assert "negation of a body-axis Mz" in carried.note
+    assert "positive-magnitude bending integrals" in carried.note
+
+
+def test_every_cumulative_column_is_also_plotted():
+    """OR-72, superseding OR-55 -- the five columns of B.2 are 3.4's five figures.
+
+    OR-55 left chord bending unplotted as a load "nobody reads off a plot"; at
+    the root it exceeds the torsion that does get a figure on four of the five
+    example cases. Tying the figure list to the column list keeps the next
+    column from arriving unplotted by omission rather than by decision.
+    """
+    doc = _doc()
+    _applied, carried = _appendix_tables(doc)
+    tabulated = [c.split(" (")[0] for c in carried.columns
+                 if c.split(" (")[0] not in ("Case", "Station", "Y")]
+    plotted = [f.title.split(" (")[0].split()[-1]
+               for s in _flat([_section_three(doc)]) for f in s.figures
+               if f.key.startswith(("wing_shear", "wing_bending",
+                                    "wing_torsion", "wing_chord"))]
+    assert tabulated == ["Sz", "Sx", "Mxx", "Myy", "Mzz"]
+    assert sorted(plotted) == sorted(tabulated)
+
+
 def test_the_applied_table_carries_the_point_every_load_acts_at():
     """A force without its point is half a load definition (owner review).
 
@@ -2157,10 +2213,11 @@ def test_section_three_defines_every_symbol_its_tables_use():
     notation = next(t for t in _wing_tables(doc) if t.title == "Notation")
     defined = {row[0] for row in notation.rows}
     assert {"X", "Y", "Z", "Fx", "Fy", "Fz", "Mx", "My", "Mz",
-            "Sz", "Sx", "Mxx", "Myy"} <= defined
+            "Sz", "Sx", "Mxx", "Myy", "Mzz"} <= defined
     senses = {row[0]: row[3] for row in notation.rows}
     assert senses["Fz"] == "increment" and senses["Sz"] == "cumulative"
     assert senses["My"] == "increment" and senses["Myy"] == "cumulative"
+    assert senses["Mzz"] == "cumulative"
 
     applied, carried = _appendix_tables(doc)
     for table in (applied, carried):
@@ -2169,6 +2226,22 @@ def test_section_three_defines_every_symbol_its_tables_use():
             if symbol in ("Case", "Station"):
                 continue
             assert symbol in defined, f"{symbol!r} is used but not defined"
+
+    # 3.3's headings are prose built from ``LoadValue.label``, so the symbol they
+    # name is read off the value's own ``symbol`` field rather than parsed back
+    # out of the text (OR-74). Parsing was never a usable rule -- "Root torsion
+    # Myy (25% chord)" does not end in its symbol -- which is how "Root chord
+    # bending Mzz" shipped naming a symbol the notation did not define.
+    result = registry.get("net_loads")(io.load_project(_GA))
+    for condition in result.conditions:
+        for value in condition.values:
+            assert value.symbol, f"{value.label!r} states no notation symbol"
+            assert value.symbol in defined, (
+                f"{value.label!r} names {value.symbol!r}, which 3.2 does not "
+                "define")
+            assert value.symbol in value.label, (
+                f"{value.label!r} does not print the symbol it declares, "
+                f"{value.symbol!r}")
 
 
 def test_section_three_states_how_the_cumulative_loads_are_built():
@@ -2181,6 +2254,8 @@ def test_section_three_states_how_the_cumulative_loads_are_built():
     body = " ".join(_section_three(_doc()).subsections[1].body)
     assert "Sz(i) = Sz(i+1) + Fz(i)" in body
     assert "Mxx(i) = Mxx(i+1) + Sz(i+1) dy" in body
+    # Every column B.2 prints is built by a recurrence printed here (OR-71).
+    assert "Mzz(i) = Mzz(i+1) + Sx(i+1) dy" in body
     assert "transfer" in body
     assert "only My is non-zero" in body
 

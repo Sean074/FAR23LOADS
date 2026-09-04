@@ -122,6 +122,20 @@ def _hop_58(d: Dict[str, Any]) -> Dict[str, Any]:
     return d
 
 
+def _hop_59(d: Dict[str, Any]) -> Dict[str, Any]:
+    """v59 -> v60 (design note 47 OR-74): **identity**.
+
+    v60 adds ``LoadValue.symbol`` -- the notation symbol the quantity is written
+    as, held on the value so a document's symbol-table guard reads a field
+    rather than parsing display prose. ``""`` (no symbol named) is exactly the
+    v59 meaning and is the default, so a v59 file loads bit-identical. This is
+    ``_hop_58`` one step on, for the same reason: ``LoadValue`` is persisted
+    inside ``critical.conditions[].loads``, so an added display-neutral field is
+    still a shape change and still gets a hop.
+    """
+    return d
+
+
 #: ``{from_version: hop}`` -- applied in ascending order, each turning a file of
 #: version *n* into version *n+1* shape. A version that changes shape adds its
 #: hop here; :data:`SUPPORTED_FLOOR` names the oldest version the chain starts
@@ -131,6 +145,7 @@ MIGRATIONS: Dict[int, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     56: _hop_56,
     57: _hop_57,
     58: _hop_58,
+    59: _hop_59,
 }
 
 #: The oldest project version this build reads. It sat at ``SCHEMA_VERSION``

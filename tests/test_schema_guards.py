@@ -348,7 +348,18 @@ def fields_hash() -> str:
 #: Additive with defaults, and a **result**: ``Project`` holds no field of this
 #: type, so nothing on disk has this shape and there is no hop to write --
 #: the ``BalancedCaseResult`` standing above. ``SCHEMA_VERSION`` is unchanged.
-EXPECTED_FIELDS_HASH = "688c3a2cf818e5f4"
+#: v60 (design note 47 OR-74): ``LoadValue`` gains ``symbol`` -- the notation
+#: symbol the quantity is written as, held on the value rather than parsed back
+#: out of its display label. The oracle report's section 3 states that every
+#: column heading names a symbol from its own notation table, and 3.3's headings
+#: are prose (``"Root chord bending Mzz"``), so the guard had no way to read the
+#: symbol: ``"Root torsion Myy (25% chord)"`` does not end in its symbol and two
+#: labels carry the same one. The third instance of the v58 ``frame`` / v59
+#: ``point`` move and identical in standing -- additive with a ``""`` default
+#: that means exactly what v59 meant, so the 59->60 hop is an identity, and a
+#: shape change all the same because ``LoadValue`` is persisted inside
+#: ``critical.conditions[].loads``.
+EXPECTED_FIELDS_HASH = "7e1e929f8103e536"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():

@@ -268,18 +268,30 @@ def run(project: Project) -> ModuleResult:
         root = r.stations[0]
         # The torsion label always names its reference axis: the oracle-traceable
         # 25%-chord value, plus the LRA-transferred value when the LRA differs.
+        #
+        # ``symbol`` states the notation symbol as data rather than leaving it to
+        # be parsed back out of the label (design note 47 OR-74). Both torsions
+        # are Myy -- the axis qualifier distinguishes the labels, not the
+        # quantity -- which is precisely why "the last word of the label" was
+        # never a usable rule.
         values = [
-            LoadValue("Root shear Sz", root.sz, "lb", key="root_shear_sz"),
-            LoadValue("Root bending Mxx", root.mxx, "lb-in", key="root_bending_mxx"),
-            LoadValue("Root torsion Myy (25% chord)", root.myy, "lb-in", key="root_torsion_myy_25_pct_chord"),
+            LoadValue("Root shear Sz", root.sz, "lb", key="root_shear_sz",
+                      symbol="Sz"),
+            LoadValue("Root bending Mxx", root.mxx, "lb-in", key="root_bending_mxx",
+                      symbol="Mxx"),
+            LoadValue("Root torsion Myy (25% chord)", root.myy, "lb-in", key="root_torsion_myy_25_pct_chord",
+                      symbol="Myy"),
         ]
         if lra != 0.25:
             values.append(LoadValue(
                 f"Root torsion Myy ({torsion_axis_label(lra)})",
-                r_lra.stations[0].myy, "lb-in", key="root_torsion_myy_lra"))
+                r_lra.stations[0].myy, "lb-in", key="root_torsion_myy_lra",
+                symbol="Myy"))
         values += [
-            LoadValue("Root drag shear Sx", root.sx, "lb", key="root_drag_shear_sx"),
-            LoadValue("Root chord bending Mzz", root.mzz, "lb-in", key="root_chord_bending_mzz"),
+            LoadValue("Root drag shear Sx", root.sx, "lb", key="root_drag_shear_sx",
+                      symbol="Sx"),
+            LoadValue("Root chord bending Mzz", root.mzz, "lb-in", key="root_chord_bending_mzz",
+                      symbol="Mzz"),
         ]
         conditions.append(ConditionResult(
             title=f"Net wing loads: {r.case} (Nz={r.nz:g}, Nx={r.nx:g})",

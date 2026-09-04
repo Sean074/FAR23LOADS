@@ -1874,6 +1874,7 @@ _NOMENCLATURE: Tuple[Tuple[str, str, str, str], ...] = (
     ("Sx", "Chordwise shear carried across the station", "force", "cumulative"),
     ("Mxx", "Bending moment about X", "moment", "cumulative"),
     ("Myy", "Torsion carried across the station", "moment", "cumulative"),
+    ("Mzz", "Chord bending moment about Z", "moment", "cumulative"),
 )
 
 
@@ -1895,9 +1896,9 @@ def _nomenclature_table(net: Sequence[object], system: UnitSystem) -> Table:
               "sum of everything outboard of it, accumulated from the tip "
               f"inboard. Torsion is stated about the {axis}. "
               "The applied moments Mx, My and Mz are right-handed about the "
-              "airplane axes; the carried Mxx and Myy are the beam's own "
+              "airplane axes; the carried Mxx, Myy and Mzz are the beam's own "
               "positive-magnitude bending and torsion, so Mxx and Mx share a "
-              "sense and a chordwise bending would not. "
+              "sense while Mzz is the negation of a body-axis Mz. "
               "Coordinates are geometry -- they are neither scaled to ultimate "
               "nor marked."))
 
@@ -1923,14 +1924,15 @@ def _derivation_note(net: Sequence[object]) -> str:
         "  Sx(i) = Sx(i+1) + Fx(i)\n"
         "  Mxx(i) = Mxx(i+1) + Sz(i+1) dy\n"
         "  Myy(i) = Myy(i+1) - Sz(i+1) [X(i+1) - X(i)] + Sx(i+1) [Z(i+1) - "
-        "Z(i)] + Myy free(i)\n\n"
-        "The two terms carrying Sz and Sx into Myy, and the term carrying Sz "
-        "into Mxx, are position transfers -- the shear already carried at the "
-        "station, moved across the sweep, dihedral and span of the bay. They "
-        "are not applied loads, and a structural model generates them itself "
-        "from its own geometry. Of the six applied components only My is "
-        "non-zero: Fx and Fz are the applied forces, and Fy, Mx and Mz are "
-        "zero for every row of this load set." + tail)
+        "Z(i)] + Myy free(i)\n"
+        "  Mzz(i) = Mzz(i+1) + Sx(i+1) dy\n\n"
+        "The two terms carrying Sz and Sx into Myy, and the terms carrying Sz "
+        "into Mxx and Sx into Mzz, are position transfers -- the shear already "
+        "carried at the station, moved across the sweep, dihedral and span of "
+        "the bay. They are not applied loads, and a structural model generates "
+        "them itself from its own geometry. Of the six applied components only "
+        "My is non-zero: Fx and Fz are the applied forces, and Fy, Mx and Mz "
+        "are zero for every row of this load set." + tail)
 
 
 def _point_load_note(net: Sequence[object]) -> str:
@@ -2046,14 +2048,18 @@ def _wing_summary(results: Mapping[str, Optional[ModuleResult]], *,
 
 #: ``(figure key, station attribute, dimension, title)`` for 3.4's distributions.
 #:
-#: Chord bending Mzz is deliberately not here (OR-55): it is carried in the
-#: results and is not a quantity the wing is sized by, and a fifth figure of it
-#: would be four pages of drawing for a load nobody reads off a plot.
+#: Chord bending Mzz is here (OR-72, superseding OR-55). OR-55 left it out as a
+#: load "nobody reads off a plot"; at the root it is larger than the torsion
+#: that does get a figure on four of the five example cases, so the reason did
+#: not survive its own numbers. The five figures are the five columns of the
+#: cumulative appendix, in the same order -- one projection each, and no
+#: quantity the appendix tabulates goes unplotted.
 _DISTRIBUTION_FIGURES: Tuple[Tuple[str, str, str, str], ...] = (
     ("wing_shear_sz", "sz", "force", "Vertical shear Sz"),
     ("wing_bending_mxx", "mxx", "moment", "Bending moment Mxx"),
     ("wing_torsion_myy", "myy", "moment", "Torsion Myy"),
     ("wing_shear_sx", "sx", "force", "Drag shear Sx"),
+    ("wing_chord_bending_mzz", "mzz", "moment", "Chord bending Mzz"),
 )
 
 _CASE_STYLES = ("solid", "dashed", "dotted", "dashdotted", "densely dashed")
@@ -2155,13 +2161,20 @@ def _wing_loads(project: Project, results: Mapping[str, Optional[ModuleResult]],
 #: distribution needs the thing being summed as well as the sum, and neither is
 #: recoverable from the other on a page.
 #: The cumulative channels of B.2, in the order the structure carries them.
-#: ``Mzz`` is deliberately absent -- the drag bending is not delivered by this
-#: analysis (owner decision, iteration 3).
+#:
+#: ``Mzz`` is the chord bending the wing carries, and it is here (OR-71): it is
+#: computed for every case, oracle-locked at the root (Appendix A p222), printed
+#: by ``wing_span_loads.csv``, printed at the root by 3.3, and named by the
+#: closure gate this appendix is written under -- and at the root it *exceeds*
+#: the torsion beside it on four of the five example cases. The earlier omission
+#: was recorded as "not delivered by this analysis", which was never true of the
+#: number; see design note 47 section 1.3.
 _CUMULATIVE_LOADS: Tuple[Tuple[str, str, str], ...] = (
     ("sz", "force", "Sz"),
     ("sx", "force", "Sx"),
     ("mxx", "moment", "Mxx"),
     ("myy", "moment", "Myy"),
+    ("mzz", "moment", "Mzz"),
 )
 
 #: The applied channels of B.1 -- what a structural model is given, not what it
@@ -2274,8 +2287,13 @@ def _cumulative_table(net: Sequence[object], system: UnitSystem,
               "table above, summed from the tip inboard by the relations in "
               f"{notation}. The station coordinates are printed once, with the "
               "applied set. Torsion is stated about the "
-              f"{axis or 'loads reference axis'}. Every load is ULTIMATE, "
-              "scaled by its own case's safety factor."))
+              f"{axis or 'loads reference axis'}. These are the beam's own "
+              "quantities and not the body-axis vector of the table above: "
+              "Mxx and Mzz are positive-magnitude bending integrals, so Mxx "
+              "shares its sense with the applied Mx while Mzz is the negation "
+              f"of a body-axis Mz. The distinction is defined once, in "
+              f"{notation}. Every load is ULTIMATE, scaled by its own case's "
+              "safety factor."))
 
 
 def _station_appendix(project: Project, *, system: UnitSystem,

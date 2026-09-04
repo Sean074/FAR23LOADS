@@ -406,9 +406,9 @@ and one appendix, built from the `wing_loads` step
   names against whether it was run.
 - **SELECT's subset is the critical set.** 3.3 tabulates its root values and
   3.4 plots every one of it; no second criticality rule is invented for the
-  report. 3.4 carries one figure per quantity — `Sz`, `Mxx`, `Myy`, `Sx` —
-  showing the **net** loads only, and **SHALL** state that they are summed from
-  the tip inboard. Chord bending `Mzz` is not plotted.
+  report. 3.4 carries one figure per quantity — `Sz`, `Mxx`, `Myy`, `Sx`,
+  `Mzz` — showing the **net** loads only, and **SHALL** state that they are
+  summed from the tip inboard.
 - **The cases 3.2, 3.3, 3.4 and the appendix state SHALL be one set**, in one
   order: four projections of the same analysis.
 - **Every load in section 3 and its appendix is ULTIMATE and marked**; every
@@ -425,7 +425,7 @@ and one appendix, built from the `wing_loads` step
 - **Appendix B is a structures deck, and is split in two.** B.1 is the
   **applied** set: per row, the point the load acts at (`X`, `Y`, `Z`) and the
   load applied there (`Fz`, `Fx`, `Myy` free). B.2 is what the structure
-  **carries**: `Sz`, `Sx`, `Mxx`, `Myy` against station. No load column is
+  **carries**: `Sz`, `Sx`, `Mxx`, `Myy`, `Mzz` against station. No load column is
   shared between them. B.1 **SHALL** carry its own coordinates — a force
   without its point is half a load definition, and a deck that sends the reader
   to another section for the other half is not one.
@@ -468,6 +468,33 @@ and one appendix, built from the `wing_loads` step
   every case. This is the gate under the whole appendix: a model is given the
   applied loads and returns the internal ones, and if the two disagree here they
   disagree there, invisibly.
+- **B.2 SHALL state chord bending `Mzz` (OR-71, superseding OR-70).** It is
+  computed for every case, oracle-locked at the root (Appendix A p222), printed
+  by `wing_span_loads.csv`, printed at the root by 3.3, and named by the
+  closure gate above — and at the root it exceeds the torsion beside it on four
+  of the five example cases. The earlier omission was recorded as "not
+  delivered by this analysis", which was never true of the number, and OR-70's
+  own reason (a beam `Mzz` beside a body-axis `Mz` mixes conventions) does not
+  hold: B.2 already prints `Mxx` beside B.1's `Mx`, and 3.2 already defines the
+  difference. 3.2 **SHALL** print `Mzz`'s recurrence with the other four.
+- **3.4 SHALL plot every quantity B.2 tabulates (OR-72, superseding OR-55's
+  `Mzz` omission).** The figure set and the appendix's cumulative column set are
+  the same set, so a column cannot arrive unplotted by omission rather than by
+  decision.
+- **B.2's note SHALL restate the sign, not only cross-reference it (OR-73).**
+  Its `Mzz` and B.1's `Mz` are opposite in sense and B.1's `Mz` is identically
+  zero, so nothing else on the page would warn a reader who looks a number up
+  rather than reading the section through. 3.2's notation table remains the
+  definition and the note **SHALL** name it.
+- **A notation symbol SHALL be data on the value, never a substring of its
+  label (OR-74).** `LoadValue.symbol` carries it and `net_loads` populates it;
+  parsing was never available, since `"Root torsion Myy (25% chord)"` does not
+  end in its symbol and two labels carry the same one. This is what makes the
+  "names a symbol from that table" SHALL checkable where the heading is prose.
+- **The notation guard SHALL walk section 3's own tables, not only the
+  appendix's (OR-75).** The rule says "anywhere in section 3"; a guard that
+  covered two of its tables let 3.3 ship the heading "Root chord bending Mzz"
+  against a notation table that did not define `Mzz`.
 - **Every appendix SHALL start a fresh page**, and Appendix B **SHALL** be
   landscape throughout — one orientation per appendix, so it survives a column
   being added rather than being re-decided per table.
@@ -631,9 +658,20 @@ without a guard is prose, not a gate).
 - [x] B.1's rows and the `wing_applied_loads.csv` download come from one owner
       and agree row for row — `test_oracle_report.py`, `test_sbeam_bridge.py`
 - [x] Every symbol a section 3 or Appendix B heading uses is defined in 3.2's
-      notation table with its sense — `test_oracle_report.py`
-- [x] 3.2 writes out the cumulative-load recurrences and names which terms are
-      position transfers — `test_oracle_report.py`
+      notation table with its sense — including 3.3's prose headings, checked
+      through `LoadValue.symbol` rather than parsed out of the text, and
+      including that the label prints the symbol it declares (OR-74/OR-75,
+      G-OR-42) — `test_oracle_report.py`
+- [x] 3.2 writes out the cumulative-load recurrences — one for every column B.2
+      carries, `Mzz` included — and names which terms are position transfers
+      (G-OR-43) — `test_oracle_report.py`
+- [x] B.2 states chord bending `Mzz`, every value the module's own station value
+      × that case's SF (OR-71, G-OR-39) — `test_oracle_report.py`
+- [x] B.2's note states that its moments are the beam's own and that `Mzz` is
+      the negation of a body-axis `Mz` (OR-73, G-OR-40) —
+      `test_oracle_report.py`
+- [x] The quantities 3.4 plots are exactly the quantities B.2 tabulates
+      (OR-72, G-OR-41) — `test_oracle_report.py`
 - [x] Every appendix starts a fresh page; Appendix B is landscape and the
       environment opens and closes once — `test_oracle_report.py`
 - [x] 2.2's weight/CG figure draws both loading edges, closes its limit

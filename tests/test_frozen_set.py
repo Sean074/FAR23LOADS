@@ -52,7 +52,7 @@ MANIFEST: dict[str, str] = {
     "sloads/modules/flight_envelope.py": "acb92d1e78674588fcafb133903dc905c6e40dab05c0ea1afa6d606d60fcb067",
     "sloads/modules/landing.py": "e74744924f42f5fba83ba81fe918210db31790d88b02557f068262df052cc56c",
     "sloads/modules/mach_limit.py": "118af4d9c35b2978d5ee204912329e6c5cf2d7b7381535300ea4ed48ef1b5859",
-    "sloads/modules/net_loads.py": "36ceab490822df5ad8f19561c95a54806dbb8b03dc12d08214fa7fcba07fd831",
+    "sloads/modules/net_loads.py": "d7566c492beb61207fe90d3c47bade599cd25e2d609403a69dd2129a185855ab",
     "sloads/modules/one_engine_out.py": "d53cb6f04a47fffc2acb5a1be8c7bb93587f63a912d7db57c9bc402372f35045",
     "sloads/modules/select.py": "3f05f945107e2230593e29167d051b6e5511dbdd8eef868aca7808525b141adc",
     "sloads/modules/structural_speeds.py": "8fdbc1cc6eb17dbbdda4f5f1b224c7d5d4b86dfe14c923457292db7e123814c1",

@@ -85,6 +85,20 @@ class LoadValue:
     a load factor, a sink rate or any force whose point is not a named one, and
     is therefore the default.
 
+    ``symbol`` names the **notation symbol** the quantity is written as, for the
+    quantities a document defines in a symbol table: ``"Mzz"``, not the prose
+    ``label`` that carries it. It is the third instance of the same move
+    ``frame`` and ``point`` made -- a word that belongs to the value, held as
+    data rather than parsed back out of display text. The oracle report is why
+    it exists (design note 47 OR-74): its section 3 states that every column
+    heading names a symbol from the section's own notation table, and until this
+    field the only way to check that was to split a heading like ``"Root chord
+    bending Mzz (lb-in-ULT)"`` on its units and hope the symbol was the last
+    word -- which it is not for ``"Root torsion Myy (25% chord)"``. The guard
+    reads this field instead, so a heading may be reworded freely and a symbol
+    that leaves the notation still fails. Blank is the right answer for a
+    quantity no document gives a symbol to, and is therefore the default.
+
     ``key`` is declared before it so the long-standing positional calls
     ``LoadValue(label, value, units)`` keep working; producers pass both by
     keyword.
@@ -96,6 +110,7 @@ class LoadValue:
     key: str = ""
     frame: str = ""
     point: str = ""
+    symbol: str = ""
 
 
 @dataclass

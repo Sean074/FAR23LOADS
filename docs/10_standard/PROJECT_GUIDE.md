@@ -386,9 +386,11 @@ So that every module is copy-of-the-pattern, these are fixed once:
   handling *inside* a reader: that is the five-shims-in-five-places pattern the
   chain replaced.
   **The migration chain is live again.** `MIGRATIONS` is a
-  `{from_version: hop}` map applied in ascending order; its one hop today is
-  the v55→v56 identity of note 36's additive fields (#97), with the frozen
-  per-shape fixtures under `tests/fixtures_schema/`. The schema ledger — which
+  `{from_version: hop}` map applied in ascending order, with the frozen
+  per-shape fixtures under `tests/fixtures_schema/` — one per version the chain
+  starts from, and one at current. Most hops are identities: an additive field
+  with a backward-benign default needs a hop because the gate refuses a version
+  it has no hop for, not because there is anything to carry across. The schema ledger — which
   version added what — is the annotated `EXPECTED_FIELDS_HASH` block in
   `tests/test_schema_guards.py` plus the comment above `SCHEMA_VERSION` in
   `sloads/models/project.py`. The twelve hops that covered v18–v55 and the v0

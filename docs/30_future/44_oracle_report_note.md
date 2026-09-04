@@ -854,7 +854,7 @@ same footing as OR-1 … OR-47.*
 | **OR-53** | **The flaps-down set is stated absent, never quietly omitted.** The oracle prints two sets of span-load plots, clean and flaps-down. sloads can print the clean set only: `AeroCoefficientsInput.flaps_down` is optional and `ga6_normal` carries none, and AIRLOADS does not model the cosine fairing of the basic distribution across a deflected-flap lift discontinuity — its own documented limitation, since the Appendix A wing has no such discontinuity. So the flaps-down half renders as an ABSENT state with its reason, becoming present the moment a project carries the set, and **the missing span-load capability is filed rather than fixed here** (OR-14,
 filed as #163). | OR-5, OR-14 |
 | **OR-54** | **3.2 is the run register: what was run, at what condition, under which rule.** One row per selected wing case carrying the case ID, the condition, the FAR reference, the CG case and weight, the speed and altitude, and `Nz`/`Nx`. Every field of it already exists on `CaseRef` and the resolved case — this is a projection of case identity, not a new record of it, which is what OR-41 deferred to this iteration. 3.2 also states the coordinate and sign convention the section's loads are in, citing `CONVENTIONS.md` and naming the torsion axis of OR-51. | OR-41 (discharges) |
-| **OR-55** | **SELECT's chosen subset *is* the critical set; 3.3 tabulates it and 3.4 plots all of it.** No second criticality rule is invented for the report — the wing cases the analysis ran are the wing cases the section shows. 3.3 gives root values per case; 3.4 gives one figure per quantity with every selected case on it: **vertical shear `Sz`, bending `Mxx`, torsion `Myy`, and drag shear `Sx`**. Chord bending `Mzz` is omitted. The figures show the **net** loads only, and state that shear, bending and torsion are **summed from tip to root** — a cumulative quantity read as a running one is the misreading the caption exists to prevent. | OR-6 |
+| **OR-55** | **SELECT's chosen subset *is* the critical set; 3.3 tabulates it and 3.4 plots all of it.** No second criticality rule is invented for the report — the wing cases the analysis ran are the wing cases the section shows. 3.3 gives root values per case; 3.4 gives one figure per quantity with every selected case on it: **vertical shear `Sz`, bending `Mxx`, torsion `Myy`, and drag shear `Sx`**. ~~Chord bending `Mzz` is omitted.~~ **That omission is SUPERSEDED by OR-72 (design note 47, 2026-09-03):** it rested on `Mzz` being a load nobody reads off a plot, and at the root it exceeds the torsion that does get a figure on four of the five example cases. 3.4 now carries five figures, one per column of B.2. The figures show the **net** loads only, and state that shear, bending and torsion are **summed from tip to root** — a cumulative quantity read as a running one is the misreading the caption exists to prevent. | OR-6 |
 | **OR-57** | **The register states where its case list came from.** The suite has two paths to a wing case set: the critical-load selection's own search of the V-n matrix, and a case list entered on the project, which **wins when it is present** (`wing_inertia.resolve_wing_cases`). A section that presents an entered list as the outcome of a search describes an analysis nobody ran, so 3.2 **SHALL** say which it is, **SHALL** state what the matrix it was searched from enumerates — every combination of configuration, weight/CG case, altitude and flight condition, not the twenty conditions a V-n diagram shows — and, where a list is entered, **SHALL** tabulate every condition the selection names with whether it was run. Found in the owner's review of iteration 3, 2026-09-03: the shipped prose claimed selection while `ga6_normal` runs an entered three of the selection's six. An entered list is legitimate and sometimes necessary — an accelerated-roll case carries an unbalanced rolling moment the selection cannot name — but it is the project's list, and the difference is the reader's to see. | OR-46 (extends), OR-54, OR-55 |
 | **OR-58** | **The register states the sign convention of its load factors, and says when the set holds no negative-load-factor case.** `Nz` in a wing case is the **inertia** load factor — the negative of the airplane's flight load factor, since the inertia opposes the air load (`wing_inertia._resolve_case`: `Nz = −NZ`) — so a +3.8 g manoeuvre prints as −3.8. Every load factor in the table is a negative number whichever kind of condition it is, so *which* kind cannot be read off the page: 3.2 **SHALL** state the convention, and **SHALL** state, from the analysed set rather than by assertion, whether it contains a negative-load-factor condition. A set of positive-g cases alone does not envelop the wing — 23.333(c)'s negative manoeuvre and negative gust reverse the bending — and a section that leaves that to be worked out from a column of minus signs is not stating what it analysed. Found in the owner's review, 2026-09-03, by misreading exactly this table. The analysis half — that `ga6_normal` runs no negative case at all — is **#165**. | OR-54 (extends) |
 | **OR-56** | **Appendix B is the per-station table of the selected wing cases, carrying the increment total load at each station — not the running load.** One row per station per case: the station coordinates, the strip's own increment `Fz` and `Fx`, and the cumulative `Sz`, `Sx`, `Mxx`, `Myy` with its axis named. ULTIMATE per OR-49. `net_loads.wing_load_rows` is already the canonical shape of that row, so the appendix is a view of an existing owner rather than a second layout of the same data. | OR-6, OR-49 |
@@ -932,7 +932,7 @@ model.** Everything below follows from taking that literally.*
 | **G-OR-34** | Appendix B.1's rows and `wing_applied_loads.csv` come from `applied_load_rows` and agree row for row, station label for station label. The applied moment is the free moment and not `ΔMyy`: the two still differ in sign somewhere on `ga6_normal` PHAA, and the free moments plus the applied forces' own arms reproduce the cumulative root `Myy` on both example airplanes. |
 | **G-OR-33** | Every appendix sets `page_break`; Appendix B sets `landscape`, and the rendered document opens and closes the environment exactly once. |
 
-### The OR-15 admission of 2026-09-03
+### The OR-15 admission of 2026-09-03 (first: the concentrated wing mass)
 
 **Finding.** `WINGINER` adds each concentrated wing mass to the cumulative
 shears, bending and torsion of every station inboard of it and leaves the
@@ -971,3 +971,27 @@ Appendix A ±0.1 % gates are unchanged, which is asserted rather than assumed.
 `SCHEMA_VERSION` does not bump: `WingLoadResult` is a result, `Project` holds no
 field of that type, and nothing on disk has this shape (the `BalancedCaseResult`
 precedent in `tests/test_schema_guards.py`).
+
+### The OR-15 admission of 2026-09-03 (second: the notation symbol)
+
+**Finding.** Section 3.3 prints the column heading "Root chord bending Mzz"
+while 3.2's notation table defines no `Mzz` — against this standard's own SHALL
+that a column heading anywhere in section 3 names a symbol from that table and
+nothing else. The guard covered the two appendix tables only, so the rule was
+unguarded exactly where it was broken.
+
+**Why it prevents progress.** The document cannot be built truthfully while it
+breaks a rule it prints about itself. The guard cannot be widened without the
+fix: 3.3's headings are prose built from `LoadValue.label`, and the symbol
+cannot be parsed back out of them — `"Root torsion Myy (25% chord)"` does not
+end in its symbol, and two different labels carry the same one.
+
+**Admitted by the owner in session, 2026-09-03 (design note 47, D-6).** Frozen
+file changed: `sloads/modules/net_loads.py` — the six wing root `LoadValue`s
+gain `symbol=`. The manifest is updated in the same commit per G-OR-9.
+
+**No oracle moves.** A defaulted field on a result type and a keyword on six
+constructor calls; no value, unit, key or label changes, and
+`report.render.results_to_rows` builds its columns explicitly, so no CSV and no
+Imperial digest is touched. Full reasoning and the decisions it carries
+(OR-71 … OR-75) are in [design note 47](47_appendix_b2_chord_bending_note.md).

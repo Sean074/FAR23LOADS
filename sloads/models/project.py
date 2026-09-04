@@ -282,7 +282,13 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # x/y/z back to the geometry to learn which point a case acts at. v58's argument
 # one step on: additive, ``""`` means exactly what v58 meant, identity hop, and a
 # shape change all the same for the same persistence reason.
-SCHEMA_VERSION = 59
+# v60 (design note 47 OR-74): ``LoadValue`` gains ``symbol`` -- the notation
+# symbol the quantity is written as, held as data rather than parsed back out of
+# the display label, which the oracle report's section-3 notation guard reads.
+# The third instance of the same move, after v58's ``frame`` and v59's ``point``,
+# and identical in standing: additive, ``""`` means exactly what v59 meant,
+# identity hop, and a shape change all the same for the same persistence reason.
+SCHEMA_VERSION = 60
 
 
 @dataclass

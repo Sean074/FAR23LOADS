@@ -40,7 +40,7 @@ from sloads.models import SCHEMA_VERSION
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _FIXTURES = os.path.join(_HERE, "fixtures_schema")
 _EXAMPLES = os.path.join(os.path.dirname(_HERE), "examples")
-_CURRENT = "v59_current.json"
+_CURRENT = "v60_current.json"
 
 
 def _load(name=_CURRENT):
@@ -145,7 +145,7 @@ def test_a_v55_file_loads_through_the_identity_hop_unchanged():
     assert v55["schema_version"] == 55
     hopped = MIGRATIONS[55](copy.deepcopy(v55))
     assert hopped == v55, "the 55->56 identity hop moved something"
-    assert applied_hops(55) == [55, 56, 57, 58]
+    assert applied_hops(55) == [55, 56, 57, 58, 59]
     assert io.project_to_dict(io.project_from_dict(v55)) == \
            io.project_to_dict(io.project_from_dict(_load()))
 
@@ -162,7 +162,7 @@ def test_the_v56_hop_inverts_the_landing_override():
     assert out["schema_version"] == SCHEMA_VERSION
     assert "gear_load_factor" not in out["landing"]
     assert out["landing"]["airplane_load_factor"] == 3.167
-    assert applied_hops(56) == [56, 57, 58]
+    assert applied_hops(56) == [56, 57, 58, 59]
     # The 0.0 sentinel meant "unset": it loads to an unfilled Optional.
     sentinel = copy.deepcopy(v56)
     sentinel["landing"]["gear_load_factor"] = 0.0
@@ -192,7 +192,7 @@ def test_a_v57_file_loads_through_the_identity_hop_unchanged():
     assert v57["schema_version"] == 57
     hopped = MIGRATIONS[57](copy.deepcopy(v57))
     assert hopped == v57, "the 57->58 identity hop moved something"
-    assert applied_hops(57) == [57, 58]
+    assert applied_hops(57) == [57, 58, 59]
     assert io.project_to_dict(io.project_from_dict(v57)) == \
            io.project_to_dict(io.project_from_dict(_load()))
 
@@ -210,8 +210,26 @@ def test_a_v58_file_loads_through_the_identity_hop_unchanged():
     assert v58["schema_version"] == 58
     hopped = MIGRATIONS[58](copy.deepcopy(v58))
     assert hopped == v58, "the 58->59 identity hop moved something"
-    assert applied_hops(58) == [58]
+    assert applied_hops(58) == [58, 59]
     assert io.project_to_dict(io.project_from_dict(v58)) == \
+           io.project_to_dict(io.project_from_dict(_load()))
+
+
+def test_a_v59_file_loads_through_the_identity_hop_unchanged():
+    """Design note 47 OR-74: the 59->60 hop is an identity, on the same precedent.
+
+    v60 adds ``LoadValue.symbol``, whose ``""`` default means exactly what v59
+    meant -- no notation symbol named. The field is persisted for the same
+    reason ``frame`` and ``point`` are (``LoadValue`` rides inside
+    ``critical.conditions[].loads``), so the display-neutral addition is still a
+    shape change and still gets a hop; what the hop has to do is nothing.
+    """
+    v59 = _load("v59_current.json")
+    assert v59["schema_version"] == 59
+    hopped = MIGRATIONS[59](copy.deepcopy(v59))
+    assert hopped == v59, "the 59->60 identity hop moved something"
+    assert applied_hops(59) == [59]
+    assert io.project_to_dict(io.project_from_dict(v59)) == \
            io.project_to_dict(io.project_from_dict(_load()))
 
 
@@ -230,7 +248,7 @@ def test_migrate_is_idempotent():
 
 def test_applied_hops_matches_the_chain():
     assert applied_hops(SCHEMA_VERSION) == []            # nothing at/above current
-    assert applied_hops(SUPPORTED_FLOOR) == sorted(MIGRATIONS) == [55, 56, 57, 58]
+    assert applied_hops(SUPPORTED_FLOOR) == sorted(MIGRATIONS) == [55, 56, 57, 58, 59]
 
 
 # --------------------------------------------------------------------------- #
