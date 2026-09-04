@@ -463,9 +463,15 @@ The contract that makes pages copy-of-the-pattern (full list in
   materialised as explicitly disabled) and may re-derive; it may not delete.
 - **No airplane-shaped widget defaults** — a blank project opens with neutral
   defaults, not Appendix-A numbers baked into `value=`.
-- **LIMIT vs. ULTIMATE marking** — deliverables (CSV, sbeam cards, Review/Export)
-  are ULTIMATE; a per-module *analysis* page may show LIMIT values **only** when
-  explicitly marked (a caption + a `LIMIT` marker per column). See
+- **LIMIT vs. ULTIMATE marking** — the sbeam cards, the case index and the oracle
+  technical report are ULTIMATE; **every per-module page is LIMIT** (design note
+  48, OR-76), including its download buttons and the sidebar's results zip, with
+  the factor stated in `SF` and not applied. Pass
+  `channel=LoadChannel.LIMIT` at the call — the renderers default to ULTIMATE so
+  the frozen `oracle_app` is unchanged by construction, which means a *new* page
+  that forgets the argument silently ships ULTIMATE. `SF` reads `N/A` where the
+  condition prescribes no factor. A page still marks its basis (a caption + the
+  `SF` column). See
   [`00_program_overview.md`](00_program_overview.md) and `CLAUDE.md`.
   **A LIMIT download must carry the basis in-band (M4-15):** the filename ends
   `_LIMIT.csv` *and* the content states it (a `Basis` column, or LIMIT-marked

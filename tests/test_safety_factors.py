@@ -43,7 +43,9 @@ from sloads.safety_factors import (
     LoadClass,
     RowStatus,
     classify,
+    prescribes_factor,
 )
+from sloads.units import is_load_unit
 from sloads.validation import consistency_warnings
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -123,6 +125,77 @@ def test_the_case_ref_is_the_fallback_source_of_the_far_reference():
         far_reference = ""
         case_ref = CaseRef("W-01", "wing", "PHAA", far_reference="23.337")
     assert classify(_C())[0] == "flight"
+
+
+# --------------------------------------------------------------------------- #
+# G-OR-46: what prescribes a factor, and what does not (#154, design note 48)
+# --------------------------------------------------------------------------- #
+def _has_load(item) -> bool:
+    return any(is_load_unit(v.units, v.quantity or "")
+               for v in (getattr(item, "values", None) or []))
+
+
+@pytest.mark.parametrize("path", _EXAMPLES, ids=lambda p: os.path.basename(p))
+def test_the_factorless_rule_holds_in_both_directions(path):
+    """Both halves of OR-83, on every shipped fixture.
+
+    Forward: a condition the table resolves to *no* factor states no value in
+    load units **and** carries no ``case_ref``. Reverse: a condition that states
+    a load, or that identifies a case, resolves to a real factor. The reverse
+    half is the one that matters -- it is what stops the rule blanking SELECT's
+    critical wing conditions, whose loads live on ``WingLoadResult`` and whose
+    bulk-data cards are factored.
+    """
+    project = io.load_project(path)
+    table = GoverningTable.for_project(project)
+    for item in _all_cases(project):
+        resolved = table.factor_for(item)
+        titled = f"{path}: {getattr(item, 'title', item)!r}"
+        if resolved.factor is None:
+            assert not _has_load(item), (
+                f"{titled} prescribes no factor but states a load")
+            assert getattr(item, "case_ref", None) is None, (
+                f"{titled} prescribes no factor but identifies a case")
+        else:
+            assert _has_load(item) or getattr(item, "case_ref", None) is not None, (
+                f"{titled} resolves SF={resolved.factor} but is neither a load "
+                "nor a case -- prescribes_factor should have blanked it")
+
+
+@pytest.mark.parametrize("path", _EXAMPLES, ids=lambda p: os.path.basename(p))
+def test_a_factorless_condition_keeps_no_factor_through_the_stamp(path):
+    """The dataclass default alone would not survive ``run_all_modules``.
+
+    ``registry.run_all_modules`` re-stamps every condition through
+    ``GoverningTable.stamp``, so a ``None`` default is overwritten unless the
+    table itself carries the concept. This asserts the shipped path, not the
+    constructor.
+    """
+    project = io.load_project(path)
+    for mr in run_all_modules(project):
+        for c in mr.conditions:
+            if not prescribes_factor(c):
+                assert c.safety_factor is None, (
+                    f"{path}: {c.title!r} was stamped SF={c.safety_factor} "
+                    "though it prescribes no factor")
+
+
+def test_the_case_ref_clause_protects_a_load_case_that_states_no_load():
+    """SELECT's critical wing conditions: a case, with its loads carried elsewhere.
+
+    The counter-example that rules out a content-only test. Blanking these would
+    print N/A in the case index against six wing cases whose deck cards are
+    factored -- a worse false claim than the one #154 was filed for.
+    """
+    project = io.load_project(_GA)
+    select = [mr for mr in run_all_modules(project) if mr.module == "select"]
+    assert select, "the GA fixture must still run SELECT"
+    protected = [c for c in select[0].conditions
+                 if c.case_ref is not None and not _has_load(c)]
+    assert protected, "the fixture no longer exercises the case_ref clause"
+    for c in protected:
+        assert prescribes_factor(c), c.title
+        assert c.safety_factor is not None, c.title
 
 
 # --------------------------------------------------------------------------- #

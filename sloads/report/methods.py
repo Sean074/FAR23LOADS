@@ -44,7 +44,7 @@ from ..units import (
     system_name,
     units_statement,
 )
-from .render import ultimate_units
+from .render import LoadChannel, ultimate_units
 
 #: Bumped with the tool, not the schema; stamped into every channel so a stray
 #: CSV can be traced back to the build that produced it.
@@ -389,8 +389,17 @@ def methods_statement(
     scope: str = "",
     deselected_case_ids: Optional[List[str]] = None,
     system: UnitSystem = UnitSystem.IMPERIAL,
+    channel: LoadChannel = LoadChannel.ULTIMATE,
 ) -> str:
     """The full methods & limitations statement for ``project``.
+
+    ``channel`` states the basis of the file this stamp is going into (design
+    note 48). It defaults to ULTIMATE, so a deck, the case index and the gear
+    report are stamped exactly as before; the per-module CSVs and the bundle's
+    text report pass ``LoadChannel.LIMIT`` and say so. A stamped file that
+    travels on its own must state **its own** basis -- a bundle-wide sentence
+    that was true of the deck and false of the CSV beside it is the F-R1 defect
+    class, one level up (G8.3).
 
     ``generated`` is the caller's timestamp string (omitted when ``None`` -- see
     the module docstring on determinism). ``scope`` describes what this export
@@ -416,15 +425,29 @@ def methods_statement(
     L.append("")
 
     # 1. Basis --------------------------------------------------------------- #
-    L.append(
-        f"BASIS: All loads reported here are ULTIMATE (ultimate = limit x safety "
-        f"factor). Every case states its own safety factor in an 'SF' column or an "
-        f"'SF=' marker; the default is {ULTIMATE_FACTOR} per 14 CFR 23.303 "
-        f"(25.303 for Part 25). Load quantities carry a '-ULT' unit marker "
-        f"({_ult_markers(system)}). Load factors (n, Nz) are limit and "
-        f"dimensionless, and geometry, weights, inertias, areas, speeds and angles "
-        f"are never scaled."
-    )
+    if channel is LoadChannel.LIMIT:
+        L.append(
+            f"BASIS: All loads reported here are LIMIT -- the safety factor is "
+            f"stated but NOT applied. Every case states its factor in an 'SF' "
+            f"column or an 'SF=' marker; the default is {ULTIMATE_FACTOR} per "
+            f"14 CFR 23.303 (25.303 for Part 25), and 'N/A' means no factor "
+            f"applies to that condition because it states no load. Load "
+            f"quantities carry plain units, with no '-ULT' marker. The ULTIMATE "
+            f"deliverables are the exported sbeam deck, the case index and the "
+            f"technical report. Load factors (n, Nz) are limit and "
+            f"dimensionless, and geometry, weights, inertias, areas, speeds and "
+            f"angles are never scaled."
+        )
+    else:
+        L.append(
+            f"BASIS: All loads reported here are ULTIMATE (ultimate = limit x safety "
+            f"factor). Every case states its own safety factor in an 'SF' column or an "
+            f"'SF=' marker; the default is {ULTIMATE_FACTOR} per 14 CFR 23.303 "
+            f"(25.303 for Part 25). Load quantities carry a '-ULT' unit marker "
+            f"({_ult_markers(system)}). Load factors (n, Nz) are limit and "
+            f"dimensionless, and geometry, weights, inertias, areas, speeds and angles "
+            f"are never scaled."
+        )
     L.append("")
 
     # 1a. Safety-factor overrides -------------------------------------------- #
@@ -524,8 +547,9 @@ def csv_comment_block(project: Project, **kwargs) -> str:
 
     A consumer must be told to skip them (``pandas.read_csv(..., comment="#")``);
     every in-repo reader was audited at G8.3. The trade is deliberate: a CSV that
-    is forwarded on its own still states that its loads are ultimate and which
-    unit system it is written in (``system=``, M4-20 step 5).
+    is forwarded on its own still states its basis -- ultimate or limit, per
+    ``channel=`` (note 48) -- and which unit system it is written in
+    (``system=``, M4-20 step 5).
     """
     return _prefixed(methods_statement(project, **kwargs), "#")
 

@@ -1291,6 +1291,22 @@ def _load_cell(value: LoadValue, sf: float) -> Tuple[str, str]:
     return format_value(scaled), ultimate_units(value.units, value.quantity)
 
 
+def _required_sf(condition) -> float:
+    """The case's factor, refusing a condition that prescribes none.
+
+    The report is ULTIMATE throughout (note 48 OR-78) and these tables render
+    load cases only, so ``None`` here is a defect upstream rather than a cell to
+    render — the same loud failure the render boundary takes (OR-82).
+    """
+    sf = condition.safety_factor
+    if sf is None:
+        raise ValueError(
+            f"{condition.title!r} (FAR {condition.far_reference}) prescribes no "
+            "safety factor but is rendered in an ULTIMATE report table; see "
+            "sloads.safety_factors.prescribes_factor (design note 48)")
+    return sf
+
+
 def _wing_net(project: Project) -> List[WingLoadResult]:
     """The net wing load distributions, transferred to the surface's LRA.
 
@@ -2001,7 +2017,7 @@ def _wing_summary_table(result: Optional[ModuleResult],
     labels = {value.key: value for value in first.values}
     columns = ["Case", "Condition", "SF"]
     for key in keys:
-        _text, units = _load_cell(labels[key], first.safety_factor)
+        _text, units = _load_cell(labels[key], _required_sf(first))
         columns.append(f"{labels[key].label} ({units})".replace(" ()", ""))
     rows = []
     for condition in conditions:
@@ -2009,10 +2025,10 @@ def _wing_summary_table(result: Optional[ModuleResult],
         by_key = {value.key: value for value in condition.values}
         row = [getattr(ref, "case_id", "") or "--",
                getattr(ref, "condition", "") or condition.title,
-               format_value(condition.safety_factor)]
+               format_value(_required_sf(condition))]
         for key in keys:
             value = by_key.get(key)
-            row.append(_load_cell(value, condition.safety_factor)[0]
+            row.append(_load_cell(value, _required_sf(condition))[0]
                        if value is not None else "--")
         rows.append(row)
     return Table(

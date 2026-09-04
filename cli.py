@@ -79,7 +79,7 @@ import contextlib
 import sys
 
 from sloads import MissingInputError, io, registry
-from sloads.report import module_text_report, text_report
+from sloads.report import LoadChannel, module_text_report, text_report
 from sloads.units import UnitSystem, convert_results, unit_system_from
 
 #: Every headless export target, in the order the module docstring lists them.
@@ -102,7 +102,8 @@ def resolve_units(project, flag=None) -> UnitSystem:
     return unit_system_from(getattr(project, "unit_system", None))
 
 
-def _stamps(project, system: UnitSystem, generated: str = ""):
+def _stamps(project, system: UnitSystem, generated: str = "",
+            csv_channel: LoadChannel = LoadChannel.ULTIMATE):
     """``(csv_stamp, bdf_stamp)`` -- the Step G8.3 methods & limitations block.
 
     The headless counterpart of the Export & Report page's one-stamp-per-bundle
@@ -117,12 +118,18 @@ def _stamps(project, system: UnitSystem, generated: str = ""):
     and defaults to absent, which keeps two headless runs of one project
     byte-identical (the renderer never reads the clock -- see
     ``report.methods``).
+
+    ``csv_channel`` is the basis of the CSV stamp alone (design note 48): the
+    sbeam export's companion CSVs are ULTIMATE like the deck they describe,
+    while the per-module ``-o`` CSV is the LIMIT channel and its stamp must say
+    so. The BDF stamp is always ULTIMATE — a deck has no other basis.
     """
     from sloads.report.methods import bdf_comment_block, csv_comment_block
 
     kwargs = {"tool_version": _tool_version(), "scope": "full case set",
                   "system": system, "generated": generated or None}
-    return csv_comment_block(project, **kwargs), bdf_comment_block(project, **kwargs)
+    return (csv_comment_block(project, channel=csv_channel, **kwargs),
+            bdf_comment_block(project, **kwargs))
 
 
 def _export_conm2(project, prefix: str,
@@ -526,6 +533,10 @@ def main(argv=None) -> int:
     # The two text reports take *converted* results plus a display label; the CSV
     # writer converts internally (M4-20 step 3), so it gets the raw results and
     # the system -- handing it ``conditions`` would be a double conversion.
+    # All three render on the LIMIT channel (design note 48, OR-76/OR-79): the
+    # CLI's per-module output is an analysis surface, so it states the calc's own
+    # loads and names the factor without applying it. The ULTIMATE deliverables
+    # are ``sloads export``'s deck and the technical report.
     conditions = convert_results(result.conditions, system)
     label = "Imperial" if system == UnitSystem.IMPERIAL else "SI"
 
@@ -533,14 +544,18 @@ def main(argv=None) -> int:
         # A downloaded CSV leaves the tool, so it owes the same G8.3 basis
         # statement the GUI's does -- the text report to stdout does not, being
         # a terminal view rather than an artifact.
-        csv_stamp, _ = _stamps(project, system, args.generated)
+        csv_stamp, _ = _stamps(project, system, args.generated,
+                               csv_channel=LoadChannel.LIMIT)
         io.write_load_cases_csv(result.conditions, args.output,
-                                header_comment=csv_stamp, system=system)
+                                header_comment=csv_stamp, system=system,
+                                channel=LoadChannel.LIMIT)
         print(f"Wrote {len(conditions)} condition(s) to {args.output} ({label})")
     elif args.module == "engine" and project.engine is not None:
-        print(text_report(project.engine, conditions, unit_system=label))
+        print(text_report(project.engine, conditions, unit_system=label,
+                          channel=LoadChannel.LIMIT))
     else:
-        print(module_text_report(result.module, conditions))
+        print(module_text_report(result.module, conditions,
+                                 channel=LoadChannel.LIMIT))
 
     return 0
 

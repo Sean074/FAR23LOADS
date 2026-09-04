@@ -489,11 +489,26 @@ first recommendations. Scope is **0.8.2 only**: the module-view channel and
 | `sloads/safety_factors.py` | New owner `prescribes_factor(item) -> bool` — *no load-unit value **and** no `case_ref`* — consulted by `factor_for`, which returns a `Resolution` with `factor=None` when it fails (OR-83). **`FAMILIES`, `LoadClass`, `DERIVED_FACTOR` and `_EXACT` are unchanged**: the table still owns *which* factor a case takes; the predicate owns *whether* one is prescribed. `stamp()` writes `None` through, with no `hasattr` gate. |
 | `sloads/report/results_zip.py` | Takes the channel; its safety-factor docstring paragraph is reworded from "never a different factor than the deliverable would" to "than the page it mirrors". |
 | `app_shell/sidebar.py` | Passes a channel to `results_zip_bytes`, defaulting to ULTIMATE. Not frozen, so this is editable — and the default is what keeps the frozen `oracle_app/Oracle.py` unchanged without an argument (OR-77). |
-| `sloads/report/bundle.py` | The `_report.txt` manifest row states its channel, as do the per-module CSV rows (OR-80). |
-| `sloads/report/methods.py` | `methods_statement` carries the one-line statement of both channels, being already the bundle's basis document. |
+| `sloads/report/bundle.py` | **Unchanged — plan corrected in implementation.** The bundle manifest carries file *names* only (`BundleMember.manifest_name`, a one-row-covers-many spelling); it has no description column for a channel to go in. |
+| `sloads/report/methods.py` | `methods_statement` takes the channel and states the file's own basis: LIMIT names the factor as stated-not-applied, says `N/A` means no factor applies, and points at the ULTIMATE deliverables. `csv_comment_block` / `bdf_comment_block` pass it through, so a CSV forwarded on its own states **its** basis rather than the bundle's — which is what G8.3 asks for and what a manifest row could not have delivered. |
 | `cli.py` | Two sites opt into LIMIT: `:541` (`text_report`), `:543` (`module_text_report`). |
 | `app/Home.py` | Opts the shared sidebar into LIMIT. |
-| `app/views/` | Ten sites opt in: `configuration_layout:878`, `engine_mount:551`, `export_report:143` (OR-80), `flight_envelope:321`, `results_review:134`, `structural_speeds:479,664`, `weight_mass:256,458,774`, `wing_loads:193`. |
+| `app/views/` | **Eleven** sites opt in: `configuration_layout` (2), `engine_mount` (2), `export_report` (2, OR-80), `flight_envelope`, `landing_loads`, `results_review`, `structural_speeds` (4), `weight_mass` (6), `wing_loads` (2). |
+
+**Two call sites this plan missed, found by the work itself:**
+
+* `app/views/engine_mount.py` builds a CSV from `load_cases_to_rows` directly,
+  not through `load_cases_csv` — so it was in none of the greps behind §3.1's
+  inventory of thirteen. **G-OR-45 caught it on the gate's first run**, which is
+  the behaviour the inversion was written for: the renderers default to
+  ULTIMATE, so a site that names no channel ships ultimate loads silently and
+  plausibly, and only a source-level gate says so.
+* `summary_rows` dispatches to a registered `SUMMARY_SHAPES` shaper and was
+  dropping the channel on the floor, so SELECT's one-line-per-case table still
+  emitted `lbs-ULT` headers on a LIMIT surface. Fixed with an explicit
+  `_CHANNELLED_SHAPES = {"select"}`: `weight_envelope`'s rows are weights and
+  stations, never loads, so it takes no channel rather than accepting one and
+  ignoring it. G-OR-47 is what caught this and what catches the next one.
 
 **Untouched by design, and deliberately so:**
 
@@ -532,9 +547,24 @@ channels and each must carry its own marker.
 ### 3.3 Gates
 
 - **G-OR-44** — a no-argument call to `module_text_report`, `summary_rows`,
-  `text_report`, `load_cases_csv` and `results_zip_bytes` renders
-  byte-identically to the pre-change ULTIMATE output. The frozen oracle GUI's
-  protection (OR-77).
+  `text_report`, `load_cases_csv` and `results_zip_bytes` changes **no load
+  value and no units string** from the pre-change ULTIMATE output. The frozen
+  oracle GUI's protection (OR-77).
+
+  **Amended in implementation, 2026-09-04 (owner).** The first form of this gate
+  promised *byte*-identity, and that cannot hold alongside OR-82: #154's fix is
+  channel-independent, so a condition that prescribes no factor now prints `N/A`
+  in its `SF` cell on the ULTIMATE channel too. Measured, that alone moves **62
+  of the 330** Imperial digests, all in `txt/*`, with no caller yet opting into
+  LIMIT — and zero `csv/*`, `sbeam/*`, `case_index` or `gear_report`. The owner
+  ruled the change correct on its merits: geometry, weights and speeds should
+  never have carried a factor, and `N/A` is truer than a fabricated 1.5.
+
+  So the oracle GUI's Results page **does** change, in exactly one way: an SF
+  cell that stated a factor which does not exist now says so. No number moves,
+  no frozen file is edited, G-OR-9's manifest hash is untouched, and no OR-15
+  admission arises. C210-15 makes the fidelity target the analysis contract
+  rather than the pixels, and this is the contract being met, not broken.
 - **G-OR-45** — `tests/test_ultimate_contract.py` inverts into a **channel
   table**: every load surface in `app/`, `cli.py` and the bundle declares LIMIT
   or ULTIMATE and is checked against it. A new page with an undeclared load
@@ -546,11 +576,25 @@ channels and each must carry its own marker.
 - **G-OR-47** — no LIMIT-channel render emits `-ULT`, and every one states its
   LIMIT marker (OR-81 as it applies in 0.8.2).
 - **G-OR-48** — the regenerated Imperial baseline moves in `txt/*` and `csv/*`
-  **only**: exactly **236 of 330** digests change and **94 do not** — 83
-  `sbeam/*`, 6 `case_index`, 5 `gear_report` (OR-84). `case_index`'s immobility
-  is the direct empirical check on OR-83: every case-index row has a `case_ref`,
-  so if one moves, `select`'s six cases have been wrongly blanked — the failure
-  §1.5 predicts.
+  **only** (OR-84). Measured on regeneration, 2026-09-04: **184 of 330** digests
+  moved — all 118 `txt/*` and 66 of the 118 `csv/*` — and **146 did not**,
+  including **every** `sbeam/*` (83), `case_index` (6) and `gear_report` (5).
+
+  The note first predicted 236/94, assuming all 118 CSVs would move. Only 66 do:
+  a module whose summary table carries no load column renders identically on
+  either channel, so the diff touches exactly the files that state loads. That
+  is a sharper result than the prediction, not a weaker one.
+
+  `case_index`'s immobility is the direct empirical check on OR-83: every
+  case-index row has a `case_ref`, so if one moved, `select`'s six critical wing
+  cases would have been wrongly blanked — the failure §1.5 predicts. It did not
+  move.
+
+  `tests/imperial_baseline.py` itself changed with this: it rendered the human
+  channel with no argument, which after OR-77 means ULTIMATE, and the baseline
+  exists to represent what `cli.py` builds. It now passes
+  `channel=LoadChannel.LIMIT`, or it would have frozen bytes no shipped command
+  produces.
 - The existing guards are extended, not replaced: zero `defaulted` rows on every
   shipped fixture, and `unstampable` still empty.
 
@@ -566,7 +610,8 @@ channels and each must carry its own marker.
 By hand, the three reads that are the point of the change: the `wing_geometry`
 CLI report (no ULTIMATE banner, no factor, `N/A` in the SF column), the `engine`
 CLI report (1650 lb and 554.4 ft-lb, marked LIMIT), and the oracle GUI's Results
-page, which must be identical to before.
+page, whose loads must be identical to before — its only permitted difference is
+the `N/A` of G-OR-44's amendment.
 
 ### 3.5 Closure
 

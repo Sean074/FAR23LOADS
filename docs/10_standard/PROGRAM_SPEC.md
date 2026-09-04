@@ -95,11 +95,17 @@ load case states its SF.** The factor is per-case so a future 14 CFR 23.302/25.3
 Appendix K refinement can give a failure case a probability-interpolated value
 (1.0–1.5); sudden engine stoppage is held at 1.5. A value already at ultimate (or an
 inherently-limit value reported as-ultimate with no amplification) is **`ULT
-SF=1.0`** — still ultimate output, not a limit load. **Scope:** this applies to
-every *deliverable* (the `report.py` tables/text, the load-case CSV, the sbeam
-export, the Review/Export pages); a per-module *analysis* page may instead show the
-calc's LIMIT values when **explicitly marked `LIMIT`** (`flap_loads`, `tab_loads`,
-`one_engine_out`, `balanced_tail_verification`). **A LIMIT *download* carries the
+SF=1.0`** — still ultimate output, not a limit load. **Scope (design note 48, OR-76):** ULTIMATE is the channel of
+case selection, the sbeam export, the case index and the oracle technical
+report. **Every per-module analysis surface is LIMIT** — the CLI's text and CSV
+output, the app's per-module tables and download buttons, the export bundle's
+`_report.txt` and per-module CSVs, and the results zip built from `app/` — where
+the factor is *stated and not applied*: plain units, no `-ULT`, `SF` filled, and
+a header line naming the ultimate deliverables. `report.LoadChannel` is the
+parameter and it **defaults to ULTIMATE**, so the frozen `oracle_app` renders
+exactly as before without passing one. A condition that is not a load case
+prescribes no factor at all and its `SF` reads `N/A`
+(`safety_factors.prescribes_factor`, #154). **A LIMIT *download* carries the
 basis in-band (M4-15):** filename `*_LIMIT.csv` plus a `Basis` column (or
 LIMIT-marked column headers) — the canonical station-row shapes
 (`net_loads.wing_load_rows`, `body_loads.body_load_rows`) append `Basis = LIMIT`
@@ -107,7 +113,8 @@ to every row, and the Wing/Fuselage Loads pages pair the LIMIT file with the
 sbeam bridge's ULTIMATE twins (`*_ULT.csv`, `SF` column) — for the wing, the
 cumulative span loads and the applied load set.
 `tests/test_ultimate_contract.py` scans the app's CSV downloads and enforces
-this.
+this. M4-15 stands while both channels exist; note 48's OR-81 retires it in
+0.8.3, when the last multiply goes and LIMIT becomes the unmarked default.
 
 ---
 

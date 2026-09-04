@@ -30,8 +30,13 @@ why. Any other exception propagates (M2R-8: a genuine defect stays visible).
 
 **Safety factors.** Results are stamped from the project's governing
 safety-factor table before rendering (:func:`sloads.safety_factors.stamp`),
-exactly as :func:`sloads.registry.run_all_modules` does -- a zip member can
-never state a different factor than the deliverable would.
+exactly as :func:`sloads.registry.run_all_modules` does -- so a zip member can
+never state a different factor than the page it mirrors. Which *basis* those
+loads are on is the caller's ``channel`` (design note 48): the shared sidebar
+serves this zip in both GUIs, so ``app/Home.py`` opts into LIMIT while the
+frozen ``oracle_app/Oracle.py`` passes nothing and keeps ULTIMATE. The wording
+here used to say "than the deliverable would" -- since note 48 the per-module
+zip is not the deliverable, the exported deck is.
 
 Deterministic: the builder never reads the clock (``generated`` is the caller's
 timestamp and defaults to absent), so two runs on one project are
@@ -51,7 +56,7 @@ from ..safety_factors import stamp
 from ..units import UnitSystem
 from .bundle import BundleMember, bundle_zip_bytes
 from .methods import csv_comment_block
-from .render import module_text_report
+from .render import LoadChannel, module_text_report
 
 __all__ = ["results_zip_bytes", "results_zip_members", "results_zip_name"]
 
@@ -86,6 +91,7 @@ def results_zip_members(
     system: UnitSystem = UnitSystem.IMPERIAL,
     tool_version: str = "",
     generated: Optional[str] = None,
+    channel: LoadChannel = LoadChannel.ULTIMATE,
 ) -> Tuple[List[BundleMember], List[str]]:
     """``(zip members, manifest lines)`` for the whole-project results zip.
 
@@ -97,7 +103,7 @@ def results_zip_members(
     results, manifest = _run_all(project)
     stamp_block = csv_comment_block(
         project, tool_version=tool_version, scope="full case set",
-        system=system, generated=generated or None)
+        system=system, generated=generated or None, channel=channel)
 
     members: List[BundleMember] = [
         BundleMember(sloads_io.project_filename(project.name),
@@ -105,17 +111,20 @@ def results_zip_members(
                      "the project as analysed"),
     ]
     for result in results:
-        # Same two calls as ``cli.py``: the text report renders ULT at the
-        # boundary itself; the CSV writer converts internally (M4-20 step 3),
-        # so both get the raw results.
+        # Same two calls as ``cli.py``: the text report renders at the boundary
+        # itself; the CSV writer converts internally (M4-20 step 3), so both get
+        # the raw results. Both take the same ``channel``, so a module's text
+        # report and its CSV can never state two different bases (note 48).
         members.append(BundleMember(
             f"reports/{result.module}.txt",
-            module_text_report(result.module, result.conditions),
+            module_text_report(result.module, result.conditions,
+                               channel=channel),
             "per-module text report"))
         members.append(BundleMember(
             f"load_cases/{result.module}.csv",
             sloads_io.load_cases_csv(result.conditions,
-                                     header_comment=stamp_block, system=system),
+                                     header_comment=stamp_block, system=system,
+                                     channel=channel),
             "per-module load-case CSV"))
     header = ["Results zip -- every registered module, run against the",
               "project in this archive. One line per module; a SKIPPED or",
@@ -132,8 +141,10 @@ def results_zip_bytes(
     system: UnitSystem = UnitSystem.IMPERIAL,
     tool_version: str = "",
     generated: Optional[str] = None,
+    channel: LoadChannel = LoadChannel.ULTIMATE,
 ) -> Tuple[bytes, List[str]]:
     """``(zip bytes, manifest lines)`` -- what the download button serves."""
     members, manifest = results_zip_members(
-        project, system=system, tool_version=tool_version, generated=generated)
+        project, system=system, tool_version=tool_version, generated=generated,
+        channel=channel)
     return bundle_zip_bytes(members), manifest

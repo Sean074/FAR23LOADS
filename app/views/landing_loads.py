@@ -52,6 +52,7 @@ from sloads.modules.landing import (
     governing_load_factors,
     run,
 )
+from sloads.report import LoadChannel
 from sloads.validation import (
     landing_reaction_warnings,
 )
@@ -317,7 +318,7 @@ st.caption(
     f"or moments. The fuselage axis angle is the attitude's ground angle — an "
     f"angle, never scaled.")
 
-st.download_button("Download landing loads (CSV)", io.load_cases_csv(mod, system=system),
+st.download_button("Download landing loads (CSV)", io.load_cases_csv(mod, system=system, channel=LoadChannel.LIMIT),
                    file_name="landing_loads.csv", mime="text/csv")
 st.caption(
     f"The CSV carries **all 33 cases** — for each of the three wheels (nose, "

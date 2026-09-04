@@ -36,6 +36,7 @@ from app_shell.nav import register_pages
 from app_shell.project_state import ensure_project
 from app_shell.sidebar import render_shell_sidebar
 from sloads import workflow as wf
+from sloads.report import LoadChannel
 
 # Must be the first Streamlit call, and the ONLY set_page_config in this
 # entry point (individual views must not call it again under st.navigation;
@@ -85,5 +86,9 @@ pg = st.navigation(sections, expanded=True)
 # The sidebar wraps the page: its project-file block renders *after* the page
 # (an Apply's merge included), so the download and the dirty flag are never
 # one interaction stale (#64, PB-4).
-with render_shell_sidebar(project):
+# LIMIT is this app's channel (design note 48, OR-76): its per-module pages are
+# analysis surfaces, so the results zip they mirror states limit loads with the
+# factor named but not applied. The oracle GUI passes nothing and keeps
+# ULTIMATE — its entry point is frozen (OR-77).
+with render_shell_sidebar(project, channel=LoadChannel.LIMIT):
     pg.run()

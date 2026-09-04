@@ -52,7 +52,7 @@ from sloads.modules.structural_speeds import (
     design_speeds,
     operational_implications,
 )
-from sloads.report import module_text_report
+from sloads.report import LoadChannel, module_text_report
 
 project, system, U = page_header("structural_speeds", title="Structural Design Speeds — FAR 23")
 st.caption(
@@ -473,11 +473,11 @@ def _tab_design_speeds(project: Project, system: UnitSystem, U: dict) -> None:
     )
     st.download_button(
         "Download structural speeds (CSV)",
-        sloads_io.load_cases_csv(results, system=system),
+        sloads_io.load_cases_csv(results, system=system, channel=LoadChannel.LIMIT),
         file_name="structural_speeds.csv", mime="text/csv", key="dl_speeds_csv")
     st.download_button(
         "Download structural speeds (text)", module_text_report("Structural design speeds",
-                           convert_results(results, system)),
+                           convert_results(results, system), channel=LoadChannel.LIMIT),
         file_name="structural_speeds.txt", mime="text/plain", key="dl_speeds_txt")
 
 
@@ -658,10 +658,11 @@ def _tab_speed_altitude(project: Project, system: UnitSystem, U: dict) -> None: 
 
     st.download_button(
         "Download Mach-limit lines (CSV)",
-        sloads_io.load_cases_csv(results, system=system),
+        sloads_io.load_cases_csv(results, system=system, channel=LoadChannel.LIMIT),
         file_name="mach_limit.csv", mime="text/csv", key="dl_mach_csv")
     st.download_button(
-        "Download Mach-limit lines (text)", module_text_report("Mach limit lines", convert_results(results, system)),
+        "Download Mach-limit lines (text)", module_text_report("Mach limit lines", convert_results(results, system),
+                                                    channel=LoadChannel.LIMIT),
         file_name="mach_limit.txt", mime="text/plain", key="dl_mach_txt")
 
 

@@ -1329,7 +1329,7 @@ def _case_index_table(module_results, comps: ComponentLoads,
         for item in group:
             ref = getattr(item, "case_ref", None)
             if ref is not None and ref.case_id not in sf_by_id:
-                sf_by_id[ref.case_id] = table.factor_for(item).factor
+                sf_by_id[ref.case_id] = table.required_factor_for(item)
     comp_col, asm_col = LOAD_ID_COLUMN[COMPONENT_DECK], LOAD_ID_COLUMN[ASSEMBLED_DECK]
     return Table(
         title="Case index",

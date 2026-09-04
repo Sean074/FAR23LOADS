@@ -122,12 +122,29 @@ class ConditionResult:
     per-case so a future 14 CFR 25.302 / Appendix K refinement can give a failure
     case a probability-interpolated factor (1.0-1.5); the calc itself always emits
     LIMIT values, so the regression oracles are unaffected.
+
+    It is ``Optional`` because **not every condition is a load case** (#154, note
+    48 OR-82). Much of what the suite publishes through this type is surface
+    geometry, weights, design speeds or a dimensionless load factor, to which no
+    factor of safety applies; those resolve to ``None`` and render "N/A". Three
+    values, three meanings, and they are not interchangeable:
+
+    * ``1.5`` — a LIMIT load, factored at the deliverable (14 CFR 23.303);
+    * ``1.0`` — a load the regulation prescribes as **already ultimate**
+      (23.367(a)(2), 23.561(b)), so no further factor is applied;
+    * ``None`` — not a load case; no factor is prescribed at all.
+
+    The factor is written by the governing table, never by a caller's default:
+    :func:`sloads.safety_factors.prescribes_factor` decides which of the three a
+    condition takes. The seven dedicated load carriers below keep a plain
+    ``float`` — each exists only to carry loads, so ``None`` has no meaning for
+    them, and that asymmetry is deliberate rather than an oversight.
     """
     title: str
     far_reference: str
     values: List[LoadValue] = field(default_factory=list)
     note: str = ""
-    safety_factor: float = ULTIMATE_FACTOR
+    safety_factor: Optional[float] = ULTIMATE_FACTOR
     case_ref: Optional[CaseRef] = None
 
 

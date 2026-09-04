@@ -71,16 +71,22 @@ def artifacts(example: str) -> Dict[str, str]:
     from sloads.modules.tab import build_tabs
     from sloads.modules.tail_span import build_tail_span
     from sloads.modules.taildist import build_tail_chordwise
-    from sloads.report import module_text_report
+    from sloads.report import LoadChannel, module_text_report
 
     project = io.load_project(os.path.join(_ROOT, "examples", example))
     out: Dict[str, str] = {}
 
-    # Human channel: one load-case CSV and one text report per module.
+    # Human channel: one load-case CSV and one text report per module, on the
+    # LIMIT channel -- the baseline exists to represent what ``cli.py`` builds,
+    # and since design note 48 (OR-76/OR-79) the CLI's per-module output is the
+    # LIMIT channel. Rendering ULTIMATE here would freeze bytes no shipped
+    # command produces.
     module_results = registry.run_all_modules(project)
     for mr in module_results:
-        out[f"csv/{mr.module}"] = io.load_cases_csv(mr)
-        out[f"txt/{mr.module}"] = module_text_report(mr.module, mr.conditions)
+        out[f"csv/{mr.module}"] = io.load_cases_csv(
+            mr, channel=LoadChannel.LIMIT)
+        out[f"txt/{mr.module}"] = module_text_report(
+            mr.module, mr.conditions, channel=LoadChannel.LIMIT)
 
     # Solver channel: the component deliverables, exactly as the Export page
     # builds them (wing results transferred to the loads reference axis first).

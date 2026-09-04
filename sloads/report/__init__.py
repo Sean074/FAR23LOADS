@@ -60,6 +60,7 @@ from .methods import (
 from .render import (
     SUMMARY_GROUP_BY,
     SUMMARY_SHAPES,
+    LoadChannel,
     critical_rows,
     envelope_extremes,
     format_value,
@@ -86,6 +87,7 @@ __all__ = [
     "ComponentLoads",
     "CoverageRow",
     "Figure",
+    "LoadChannel",
     "PlotData",
     "ReportDocument",
     "Section",

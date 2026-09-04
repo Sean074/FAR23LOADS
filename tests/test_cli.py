@@ -243,14 +243,27 @@ def test_every_exported_file_carries_the_methods_stamp(tmp_path, target):
 
 
 def test_the_load_case_csv_carries_the_stamp_and_still_parses(tmp_path):
-    """The ``-o`` module CSV is stamped too, and a reader still reads it."""
+    """The ``-o`` module CSV is stamped too, and a reader still reads it.
+
+    The CLI is a per-module analysis surface, so its CSV is the **LIMIT**
+    channel (design note 48, OR-76/OR-79): plain load units, no ``-ULT``, and
+    the factor named in the ``SF`` column without being applied. The stamp says
+    so in-band, which is what a file forwarded on its own needs (G8.3).
+    """
     out = os.path.join(str(tmp_path), "engine.csv")
     assert cli.main(["engine", GA6, "-o", out]) == 0
     with open(out, newline="") as fh:
         text = fh.read()
     assert text.startswith("# METHODS AND LIMITATIONS")
+    # The stamp is wrapped across ``#`` lines, so read it as flowed text.
+    flat = " ".join(line.lstrip("#").strip() for line in text.splitlines())
+    assert "are LIMIT" in flat and "NOT applied" in flat, flat[:400]
     rows = list(csv.DictReader(_io.StringIO(strip_comment_lines(text))))
-    assert rows and any("lbs-ULT" in (h or "") for h in rows[0])
+    assert rows, "the CSV must still parse past its comment block"
+    headers = [h or "" for h in rows[0]]
+    assert any("(lb)" in h for h in headers), headers
+    assert not any("-ULT" in h for h in headers), headers
+    assert rows[0]["SF"] == "1.5", "the factor is stated, not applied"
 
 
 def test_a_stamped_headless_deck_still_parses_as_bulk_data(tmp_path):

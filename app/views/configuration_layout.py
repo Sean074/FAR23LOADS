@@ -63,7 +63,7 @@ from sloads.modules.configuration import (
     wing_surface,
 )
 from sloads.modules.wing_geometry import geometry_properties, interp_x, surface_top_outline
-from sloads.report import module_text_report
+from sloads.report import LoadChannel, module_text_report
 
 _TAIL_TYPE_LABELS = {
     TailType.CONVENTIONAL: "Conventional",
@@ -870,12 +870,14 @@ else:
         _dl = st.columns(2)
         _dl[0].download_button(
             "Download surface geometry (CSV)",
-            sloads_io.load_cases_csv(_surf_results, system=system),
+            sloads_io.load_cases_csv(_surf_results, system=system,
+                                     channel=LoadChannel.LIMIT),
             file_name="wing_geometry.csv", mime="text/csv",
         )
         _dl[1].download_button(
             "Download surface geometry (text)",
-            module_text_report("Aerodynamic surface geometry", _surf_results),
+            module_text_report("Aerodynamic surface geometry", _surf_results,
+                               channel=LoadChannel.LIMIT),
             file_name="wing_geometry.txt", mime="text/plain",
         )
 

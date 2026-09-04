@@ -42,7 +42,7 @@ from sloads.modules.airloads import run as airloads_run
 from sloads.modules.airloads import schrenk_distribution
 from sloads.modules.net_loads import build_net_loads, loads_ref_axis_results, wing_load_rows
 from sloads.modules.wing_inertia import resolve_wing_cases
-from sloads.report import module_text_report
+from sloads.report import LoadChannel, module_text_report
 
 project, system, U = page_header("wing_loads", title="Wing Loads — AIRLOADS + WINGINER + NETLOADS", banner=False)
 st.caption(
@@ -187,11 +187,11 @@ st.dataframe(pd.DataFrame({
 
 st.download_button(
     "Download airloads (CSV)",
-    sloads_io.load_cases_csv(air_results, system=system),
+    sloads_io.load_cases_csv(air_results, system=system, channel=LoadChannel.LIMIT),
     file_name="airloads.csv", mime="text/csv")
 st.download_button(
     "Download airloads (text)", module_text_report("Spanwise wing airloads",
-                       convert_results(air_results, system)),
+                       convert_results(air_results, system), channel=LoadChannel.LIMIT),
     file_name="airloads.txt", mime="text/plain")
 
 # --------------------------------------------------------------------------- #

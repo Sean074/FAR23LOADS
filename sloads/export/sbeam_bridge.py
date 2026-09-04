@@ -2612,7 +2612,7 @@ def gear_report_rows(project: Project, units: Optional[DeliverableUnits] = None,
     rows: List[dict] = []
     for case in gear_case_loads(project):
         sf = (safety_factor if safety_factor is not None
-              else table.factor_for(case).factor)
+              else table.required_factor_for(case))
         for leg in case.legs:
             if not any(leg.airplane) and not any(leg.ground_line):
                 continue          # this leg carries nothing in this case

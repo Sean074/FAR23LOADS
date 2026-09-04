@@ -125,7 +125,7 @@ from .models.report import (
     SignatureRow,
     default_spec,
 )
-from .report import summary_rows
+from .report import LoadChannel, summary_rows
 from .units import UnitSystem, convert_results, unit_system_from
 from .validation import safety_factor_valid
 
@@ -1665,6 +1665,7 @@ def load_cases_csv(
     header_comment: str = "",
     *,
     system: UnitSystem = UnitSystem.IMPERIAL,
+    channel: LoadChannel = LoadChannel.ULTIMATE,
 ) -> str:
     """Render module results to a CSV string.
 
@@ -1682,6 +1683,13 @@ def load_cases_csv(
     ``#``-prefixed, so a reader needs ``comment="#"``; every in-repo reader was
     audited when this landed.
 
+    ``channel`` (design note 48, OR-79) is the load basis: ULTIMATE by default,
+    so the frozen oracle GUI is unchanged without an argument (OR-77); ``app/``
+    and ``cli.py`` pass ``LoadChannel.LIMIT``, which renders the calc's own
+    values with plain units and states the factor in the ``SF`` column without
+    applying it. The text report and this CSV are two renderings of one module's
+    results and always share a channel.
+
     ``system`` (M4-20 step 3) is the *deliverable* unit system: pass
     :attr:`~sloads.units.UnitSystem.SI` and the whole table is converted once,
     here, before rendering. This is the **only** unit conversion in the human
@@ -1697,7 +1705,8 @@ def load_cases_csv(
     # on-screen table shows -- re-shaping one channel alone would print the
     # same data two ways. A bare list carries no module name and gets the
     # generic shapes.
-    rows = summary_rows(getattr(results, "module", ""), conditions)
+    rows = summary_rows(getattr(results, "module", ""), conditions,
+                        channel=channel)
     if not rows:
         return ""
     import io as _io
@@ -1715,10 +1724,11 @@ def write_load_cases_csv(
     header_comment: str = "",
     *,
     system: UnitSystem = UnitSystem.IMPERIAL,
+    channel: LoadChannel = LoadChannel.ULTIMATE,
 ) -> None:
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write(load_cases_csv(results, header_comment=header_comment,
-                                system=system))
+                                system=system, channel=channel))
 
 
 # --------------------------------------------------------------------------- #

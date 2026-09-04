@@ -163,7 +163,16 @@ safety-factor table, `sloads/safety_factors.py`** (M4-8 / G-11) — one row per 
 family, each with a basis; every per-case SF is a derived view of it, and a case it
 cannot classify is flagged, never silently defaulted. Solver decks use the consistent-unit
 channel (N·mm, MPa) via `units.deliverable_units(system, channel)` resolved once per
-bundle; per-module analysis pages may show LIMIT only when explicitly marked.
+bundle.
+
+**Which surfaces are ULTIMATE** is `report.LoadChannel` (note 48, OR-76): case
+selection, the deck, the case index and the oracle report; **LIMIT is every
+per-module analysis surface** (CLI, app tables and downloads), where the factor
+is stated, not applied. It defaults to ULTIMATE so the frozen `oracle_app` is
+unchanged without an edit. A non-load condition prescribes **no** factor —
+`safety_factor` is `Optional`, `None` renders `N/A`, owner
+`safety_factors.prescribes_factor` (#154). Direction of travel: *stated, never
+applied*; 0.8.3 removes the last multiply.
 
 **Math fidelity:** modernized math (`math.pi`, clean equations) — the manual's figures are
 tolerance oracles (±0.1%, `math.isclose(rel_tol=1e-3)`), printed number + page citation kept

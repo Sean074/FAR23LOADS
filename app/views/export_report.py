@@ -46,7 +46,7 @@ from sloads.export.pdf import ENGINE_ENV_VAR, compile_pdf, find_engine
 from sloads.export.workbook import build_workbook
 from sloads.modules.balance import build_balanced_cases
 from sloads.modules.net_loads import torsion_axis_label, wing_lra
-from sloads.report import module_text_report
+from sloads.report import LoadChannel, module_text_report
 from sloads.report.bundle import bundle_members, bundle_zip_bytes
 from sloads.report.content import ComponentLoads, component_loads
 from sloads.report.latex import render_report
@@ -138,9 +138,18 @@ report_header = "\n".join(_header_lines)
 # which converts internally (M4-20 step 3). Handing it already-converted results
 # AND a system would be a double conversion; these two paths are deliberately
 # asymmetric, exactly as in ``cli.py``.
+#
+# LIMIT (design note 48, OR-80). This string has two exits -- the page's
+# "Combined text report" button below and ``<stem>_report.txt`` inside the
+# bundle -- so "the artifact decides the channel" gives no answer; it is a
+# transcript of the per-module pages either way, and it ships beside the
+# per-module CSVs, which are LIMIT too. The bundle's ULTIMATE content is what
+# gets sized to: the sbeam BDF artifacts, the case index and ``component_loads``,
+# all built further down through a separate path and unchanged by this.
 text_report = "\n\n".join(
     [report_header] + [
-        module_text_report(_module_label(mr), convert_results(mr.conditions, _system))
+        module_text_report(_module_label(mr), convert_results(mr.conditions, _system),
+                           channel=LoadChannel.LIMIT)
         for mr in module_results
     ]
 )
@@ -216,12 +225,18 @@ _generated = _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
 _stamp_kw = {"tool_version": _tool_version, "scope": _scope_text,
                  "deselected_case_ids": _deselected_ids or None, "system": _system,
                  "generated": _generated}
+# Three stamps, two channels (design note 48, OR-79/OR-80). The per-module CSVs
+# and the bundle's text report are LIMIT, so their stamp says so; the decks stay
+# ULTIMATE. METHODS.txt covers the bundle as a whole and is stamped ULTIMATE --
+# it is read beside the deck, and every LIMIT file in the zip carries its own
+# basis line in-band, which is the G8.3 rule a bundle-wide sentence cannot meet.
 _methods = methods_statement(project, **_stamp_kw)
-_csv_stamp = csv_comment_block(project, **_stamp_kw)
+_csv_stamp = csv_comment_block(project, channel=LoadChannel.LIMIT, **_stamp_kw)
 _bdf_stamp = bdf_comment_block(project, **_stamp_kw)
 
 module_csvs = {mr.module: sloads_io.load_cases_csv(mr, header_comment=_csv_stamp,
-                                                   system=_system)
+                                                   system=_system,
+                                                   channel=LoadChannel.LIMIT)
                for mr in module_results}
 
 if _selected_ids is not None:

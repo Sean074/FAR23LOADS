@@ -39,6 +39,7 @@ PSI_TO_KPA = 6.894757            # lb/in^2 -> kilopascal
 
 # Moments are force x length, and are computed as such rather than quoted, so
 # the identity holds exactly in every unit set (see ``deliverable_units``).
+
 LB_IN_TO_N_M = LBF_TO_N * (IN_TO_MM / 1000.0)    # lb-in -> N*m  (0.112984829...)
 LB_IN_TO_N_MM = LBF_TO_N * IN_TO_MM              # lb-in -> N*mm (solver set)
 FT_LB_TO_N_M = LBF_TO_N * FT_TO_M                # ft-lb -> N*m
@@ -97,6 +98,52 @@ HP_TO_KW = 0.745699872                                   # hp -> kW (exact, NIST
 # A slug is lbf*s^2/ft, so slug*ft^2 = lbf*ft*s^2 and kg*m^2 = N*m*s^2: the
 # inertia factor *is* the torque factor (1.3558179483314), and is written so.
 SLUG_FT2_TO_KG_M2 = FT_LB_TO_N_M                         # slug-ft^2 -> kg*m^2
+# --------------------------------------------------------------------------- #
+# What counts as a structural load (one owner, design note 48 OR-83)
+# --------------------------------------------------------------------------- #
+#: The unit strings whose values are structural loads — forces, moments and
+#: design pressures — as opposed to the lengths, masses, inertias, areas, speeds,
+#: angles and dimensionless load factors a condition also publishes. Both the
+#: canonical Imperial strings the modules emit and the SI strings
+#: :func:`convert_results` may produce.
+#:
+#: This lived in ``report/render.py`` until note 48, where the limit/ultimate
+#: boundary was its only consumer. It has two now — the render boundary and
+#: :func:`sloads.safety_factors.prescribes_factor`, which decides whether a
+#: condition prescribes a safety factor at all — and a rule with two consumers
+#: gets one owner (CLAUDE.md rule 3). ``units.py`` owns unit vocabulary, so it
+#: owns this.
+LOAD_UNITS = {
+    "lb",        # force (lbf); a *weight* uses quantity="mass" and is excluded below
+    "ft-lb",     # moment / torque
+    "lb-in",     # moment (root bending/torsion, pitching moment)
+    "lb/in^2",   # control-surface / tab / tail design pressure
+    "N",         # SI force
+    "N·m",       # SI moment (human-readable deliverables)
+    "N·mm",      # SI moment (sbeam solver deck -- consistent N/mm set, M4-20 D-19)
+    "kPa",       # SI design pressure
+    "MPa",       # SI design pressure (sbeam solver deck -- N/mm^2, M4-20 D-19)
+}
+
+
+def is_load_unit(units: str, quantity: str = "") -> bool:
+    """True if a value in these ``units`` is a structural load.
+
+    A bare ``"lb"`` is pounds-force (a load) unless ``quantity == "mass"`` (a
+    weight). Wing loading (``lb/ft^2``), positions (``in``), inertias, areas,
+    speeds and angles are not loads.
+
+    **Known limitation** (note 48 §2.4, filed not fixed): the test is on the
+    unit, so a machine characteristic that happens to be stated in load units —
+    ENGLOADS' mean takeoff torque in ``ft-lb`` — reads as a load here. Nothing
+    is mis-scaled by it once note 48's endpoint lands, but the fix belongs to
+    this function, not to its callers.
+    """
+    if quantity == "mass":
+        return False
+    return units in LOAD_UNITS
+
+
 
 # --------------------------------------------------------------------------- #
 # The human-channel SI table -- THE owner of every Imperial -> SI display factor

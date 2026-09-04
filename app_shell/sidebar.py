@@ -59,6 +59,7 @@ from sloads.derived_geometry import (
     pct_mac_to_station,
     station_to_pct_mac,
 )
+from sloads.report import LoadChannel
 from sloads.report.results_zip import results_zip_bytes
 from sloads.report.results_zip import results_zip_name as _results_zip_name
 from sloads.units import (
@@ -79,7 +80,9 @@ _UPLOAD_PROCESSED_KEY = "_uploader_processed"
 
 @contextmanager
 def render_shell_sidebar(project: Project, *,
-                         examples_dir: str = EXAMPLES_DIR) -> Iterator[None]:
+                         examples_dir: str = EXAMPLES_DIR,
+                         channel: LoadChannel = LoadChannel.ULTIMATE,
+                         ) -> Iterator[None]:
     """The units + project-file + About sidebar for ``project``, around the page.
 
     ``with render_shell_sidebar(project): pg.run()``. Units and About render on
@@ -87,6 +90,14 @@ def render_shell_sidebar(project: Project, *,
     persisted its edits, into the slot reserved for it between the two -- so
     the dirty caption and the download payload describe the project the user is
     looking at, not the one before the last keystroke (#64). A page leaves early
+    ``channel`` is the load basis of the results zip this sidebar builds. It
+    defaults to ULTIMATE so the **frozen** ``oracle_app/Oracle.py`` — which
+    cannot be edited to pass an argument — keeps today's zip byte-for-byte;
+    ``app/Home.py`` passes ``LoadChannel.LIMIT`` so the zip matches the pages it
+    mirrors (design note 48, OR-77/OR-79). One sidebar serves both GUIs, which
+    is why the choice is a parameter rather than a constant.
+
+    A page leaves early
     through :func:`app_shell.components.stop_page`, never ``st.stop()``: the
     exit is caught here and the block is still filled -- Streamlit discards
     everything emitted after ``st.stop()``, which would have lost Save /
@@ -105,7 +116,7 @@ def render_shell_sidebar(project: Project, *,
     finally:
         st.session_state[IN_SHELL_KEY] = False
         with slot:
-            _render_project_file(project, examples_dir)
+            _render_project_file(project, examples_dir, channel)
 
 
 def _render_units(project: Project) -> None:
@@ -144,7 +155,8 @@ def _render_units(project: Project) -> None:
     st.session_state["unit_system"] = selected
 
 
-def _render_project_file(project: Project, examples_dir: str) -> None:
+def _render_project_file(project: Project, examples_dir: str,
+                         channel: LoadChannel = LoadChannel.ULTIMATE) -> None:
     st.header("Project file")
     # The name is document metadata, not an oracle input, so no oracle page
     # renders it -- and a project built there was called "" for its whole life:
@@ -250,7 +262,8 @@ def _render_project_file(project: Project, examples_dir: str) -> None:
         ident = sloads_io.project_to_json(project)  # identity of what was built
         try:
             data, manifest = results_zip_bytes(
-                project, system=unit_system_from(project.unit_system))
+                project, system=unit_system_from(project.unit_system),
+                channel=channel)
         except Exception as exc:  # a genuine defect: show it, don't swallow it
             st.error(f"{type(exc).__name__}: {exc}")
         else:

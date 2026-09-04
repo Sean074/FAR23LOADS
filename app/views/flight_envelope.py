@@ -53,7 +53,7 @@ from sloads.modules.flight_envelope import run as flt_run
 from sloads.modules.landing import build_landing
 from sloads.modules.select import build_critical
 from sloads.modules.structural_speeds import design_speed_values
-from sloads.report import governing_loads_table, module_text_report
+from sloads.report import LoadChannel, governing_loads_table, module_text_report
 
 st.title("Flight Envelope (V-n), Balancing Tail Loads & Critical Loads")
 st.caption(
@@ -318,7 +318,8 @@ def _tab_vn() -> None:
     }), hide_index=True, width="stretch")
 
     st.download_button(
-        "Download V-n data (text)", module_text_report("Flight envelope (V-n)", results),
+        "Download V-n data (text)", module_text_report("Flight envelope (V-n)", results,
+                                              channel=LoadChannel.LIMIT),
         file_name="flight_envelope.txt", mime="text/plain", key="dl_vn_txt")
 
 

@@ -37,7 +37,7 @@ from sloads import (
 )
 from sloads import io as sloads_io
 from sloads.modules import engine as calc
-from sloads.report import load_cases_to_rows, text_report
+from sloads.report import LoadChannel, load_cases_to_rows, text_report
 
 st.title("Engine Mount Loads — FAR 23")
 st.caption(
@@ -549,13 +549,15 @@ with d1:
     st.download_button(
         "Download text report",
         text_report(inp, export_conditions,
-                   unit_system="Imperial" if system == UnitSystem.IMPERIAL else "SI"),
+                   unit_system="Imperial" if system == UnitSystem.IMPERIAL else "SI",
+                   channel=LoadChannel.LIMIT),
         file_name="engine_mount_loads.txt",
         mime="text/plain",
     )
 
 with d2:
-    csv = pd.DataFrame(load_cases_to_rows(export_conditions)).to_csv(index=False)
+    csv = pd.DataFrame(load_cases_to_rows(
+        export_conditions, channel=LoadChannel.LIMIT)).to_csv(index=False)
     st.download_button(
         "Download load cases (CSV)",
         csv,

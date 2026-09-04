@@ -18,7 +18,7 @@ from app_shell.components import active_system, gate
 from sloads import Project, UnitSystem, convert_results, registry
 from sloads import workflow as wf
 from sloads.modules.select import build_critical
-from sloads.report import governing_loads_table, summary_rows
+from sloads.report import LoadChannel, governing_loads_table, summary_rows
 
 st.title("Results Review")
 st.caption(
@@ -131,7 +131,7 @@ for phase in wf.PHASES:
             conds = convert_results(mr.conditions, system)
             # The one summary-shape dispatch (#95, C210-8/27), shared with the
             # module CSV channel and the oracle results page.
-            rows = summary_rows(mr.module, conds)
+            rows = summary_rows(mr.module, conds, channel=LoadChannel.LIMIT)
             if rows:
                 st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
             else:

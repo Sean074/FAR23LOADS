@@ -39,7 +39,7 @@ from sloads.report.methods import (
     methods_statement,
     strip_comment_lines,
 )
-from sloads.report.render import _LOAD_UNITS, _ULT_UNITS, ultimate_units
+from sloads.report.render import _ULT_UNITS, ultimate_units
 from sloads.units import (
     _RESULT_TO_SI,
     Channel,
@@ -49,6 +49,7 @@ from sloads.units import (
     unit_system_from,
     units_statement,
 )
+from sloads.units import LOAD_UNITS as _LOAD_UNITS
 
 _DIMENSIONS = ("force", "length", "moment", "torque", "pressure")
 
@@ -1077,8 +1078,13 @@ def test_cli_writes_the_requested_system():
     # The stamp states the run's own unit set, so it moves with the flag too --
     # a stamp that disagreed with its own numbers would be worse than none.
     assert plain.startswith("# METHODS AND LIMITATIONS")
-    assert "lbs-ULT" in _cli_csv_header(plain)
-    assert "N-ULT" in _cli_csv_header(si)
+    # The CLI renders the LIMIT channel (note 48 OR-79), so the load columns
+    # carry plain units -- the unit *system* still moves with the flag, which is
+    # what this test is about.
+    assert "(lb)" in _cli_csv_header(plain)
+    assert "(N)" in _cli_csv_header(si)
+    for head in (_cli_csv_header(plain), _cli_csv_header(si)):
+        assert "-ULT" not in head, head
     # The aviation carve-out survives the CLI boundary too.
     for carved in ("(kt(EAS))", "(ft)"):
         assert _cli_csv_header(plain).count(carved) == _cli_csv_header(si).count(carved)

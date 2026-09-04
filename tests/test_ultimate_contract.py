@@ -1,17 +1,26 @@
-"""Ultimate-load contract guard for app-layer CSV downloads (defect M4-15).
+"""Load-basis contract guard for app-layer CSV downloads (M4-15; note 48 G-OR-45).
 
 Every *load-bearing* CSV a view offers for download must carry its basis with the
-file (CLAUDE.md "Ultimate-load output"): either it is routed through an ULTIMATE
-channel (the sbeam bridge CSVs / the report-layer load-case rows -- ``SF`` column,
-``-ULT`` units), or it is a LIMIT analysis artifact whose filename is marked
-``*_LIMIT.csv`` with in-band LIMIT markers (a ``Basis`` column or LIMIT-marked
-column headers).
+file (``CONVENTIONS.md`` §3). Since design note 48 there are two bases and each
+download declares which one it is on:
+
+* **ULTIMATE** -- content built by the sbeam bridge or the case index, or a
+  filename marked ``*_ULT.csv``. This is the export deliverable.
+* **LIMIT** -- content built by ``load_cases_csv``, which on a per-module page is
+  the LIMIT channel (OR-76/OR-79) and **must pass ``channel=LoadChannel.LIMIT``
+  at the call**, or a filename marked ``*_LIMIT.csv``.
+
+That last clause is the point of the inversion. The renderers default to
+ULTIMATE so the frozen ``oracle_app`` is unchanged by construction (OR-77) --
+which means a new page that simply forgets the argument ships ULTIMATE loads on
+an analysis surface, silently and plausibly. Nothing at runtime would say so.
+This gate does.
 
 This is a source scan, not a runtime test: it reads ``app/views/*.py`` and checks
-every ``download_button`` CSV ``file_name``. A new page adding a load CSV with a
-neutral name fails here until the author either marks the basis or (for a
-genuinely non-load table) adds the filename to the explicit allowlist below --
-the failure is the point.
+every ``download_button`` CSV ``file_name``. A new page adding a load CSV that
+declares no basis fails here until the author declares one or (for a genuinely
+non-load table) adds the filename to the explicit allowlist below -- the failure
+is the point.
 """
 
 import os
@@ -23,10 +32,18 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _VIEWS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                       "app", "views")
 
-# Content expressions that mean the file is ULTIMATE by construction (the sbeam
-# bridge renderers and the report-layer rows carry SF / -ULT units themselves).
-_ULT_CHANNEL = re.compile(
-    r"sb\.|sbeam_bridge|load_cases_csv|load_cases_to_rows|case_index_csv")
+# Content expressions that mean the file is ULTIMATE by construction: the sbeam
+# bridge renderers and the case index carry SF / -ULT units themselves.
+# ``load_cases_csv`` is deliberately NOT here any more -- since note 48 it is the
+# LIMIT channel on these pages, and it must say so at the call.
+_ULT_CHANNEL = re.compile(r"sb\.|sbeam_bridge|case_index_csv")
+
+#: The report-layer renderers whose channel is a *caller* decision. Finding one
+#: of these in a download's context obliges the caller to state its channel.
+_CHANNELLED = re.compile(r"load_cases_csv|load_cases_to_rows")
+
+#: How a caller opts a per-module surface into LIMIT.
+_LIMIT_OPT_IN = re.compile(r"channel\s*=\s*LoadChannel\.LIMIT")
 
 # Non-load tables (geometry, design speeds, mass properties): no basis to state.
 _NON_LOAD = {
@@ -51,8 +68,10 @@ _SKIP_FILES: set = set()
 #: (view, csv name) pairs whose ULTIMATE channel is out of the context window,
 #: with the owner that makes them ULTIMATE.
 _ULT_BY_CONSTRUCTION = {
-    # `module_csvs` is built by `report.load_cases_csv` at the top of the page.
-    ("export_report.py", "{_stem}_{mr.module}.csv"): "report.load_cases_csv",
+    # `module_csvs` is built by `report.load_cases_csv` at the top of the page,
+    # on the LIMIT channel since note 48 (OR-79/OR-80) -- named here because the
+    # call is far above the context window, and covered at runtime by G-OR-47.
+    ("export_report.py", "{_stem}_{mr.module}.csv"): "report.load_cases_csv (LIMIT)",
     # `case_index_csv` is the bridge's own case index, built once per run.
     ("export_report.py", "{_stem}_case_index.csv"): "case_ids/case_index_csv",
 }
@@ -77,16 +96,29 @@ def test_csv_downloads_state_their_basis():
                 continue
             if (fn, name) in _ULT_BY_CONSTRUCTION:
                 continue
-            # Unmarked filename: the content must come from an ULTIMATE channel.
-            # Look at the download_button call and the few lines building its
-            # content argument.
+            # Unmarked filename: read the download_button call and the few
+            # lines building its content argument.
             line_no = src[: m.start()].count("\n")
             context = "\n".join(lines[max(0, line_no - 6):line_no + 2])
+            if _CHANNELLED.search(context):
+                # A renderer whose channel the caller chooses. On an app page
+                # that choice is LIMIT and it has to be written down -- the
+                # default is ULTIMATE, so silence here is not neutral.
+                assert _LIMIT_OPT_IN.search(context), (
+                    f"{fn}: CSV download '{name}' is built by a channelled "
+                    "renderer but names no channel. A per-module page is the "
+                    "LIMIT channel (note 48 OR-76): pass "
+                    "channel=LoadChannel.LIMIT at the call. The renderer "
+                    "defaults to ULTIMATE to protect the frozen oracle GUI "
+                    "(OR-77), so omitting it ships ultimate loads silently."
+                )
+                continue
             assert _ULT_CHANNEL.search(context), (
                 f"{fn}: CSV download '{name}' states no basis -- mark the "
-                "filename *_LIMIT.csv (with in-band LIMIT markers) or route the "
-                "content through an ULTIMATE channel (sbeam bridge / "
-                "load_cases_csv), or allowlist it here if it is not a load table."
+                "filename *_LIMIT.csv or *_ULT.csv, route the content through "
+                "an ULTIMATE channel (sbeam bridge / case index), pass "
+                "channel=LoadChannel.LIMIT to a report renderer, or allowlist "
+                "it here if it is not a load table."
             )
     # The scan must actually be seeing the app layer (guards against a moved dir).
     assert checked >= 10, f"only {checked} CSV downloads found under app/views"

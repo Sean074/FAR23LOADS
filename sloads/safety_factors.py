@@ -39,6 +39,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .constants import ULTIMATE_FACTOR
+from .units import is_load_unit
 
 __all__ = [
     "DEFAULT_FAMILY",
@@ -256,13 +257,59 @@ def classify(item: Any) -> Tuple[Optional[str], str]:
 
 
 # --------------------------------------------------------------------------- #
+# Does this condition prescribe a factor at all? (note 48 OR-83)
+# --------------------------------------------------------------------------- #
+def prescribes_factor(item: Any) -> bool:
+    """True unless ``item`` is a condition to which no safety factor applies.
+
+    A safety factor is a property of a **load case**. Much of what the suite
+    publishes as a ``ConditionResult`` is not one: surface geometry, weights and
+    centres of gravity, design speeds, Mach-limit lines, spanwise `c·cl`
+    distributions, a dimensionless landing load factor. Before note 48 those
+    carried ``safety_factor = 1.5`` from the dataclass default and printed it,
+    which is the false claim **#154** was filed for.
+
+    Two clauses, and the second is the one that matters:
+
+    * the item states no value in load units (:func:`sloads.units.is_load_unit`),
+      **and**
+    * it carries no ``case_ref``.
+
+    The second clause protects the group a content-only test gets wrong.
+    SELECT's six *Critical wing load* conditions publish only CL, V, Nz, Nx and
+    altitude — their loads live on ``WingLoadResult`` — but they are load cases,
+    they carry a ``CaseRef``, and their bulk-data cards are factored. Blanking
+    them would print ``N/A`` in the case index against a factored case, which is
+    worse than the banner #154 was filed for. Measured over both shipped
+    airframes: 38 conditions prescribe no factor on GA6 and 38 on the Baron 58,
+    with those 6 protected in each.
+
+    Anything that is not a ``ConditionResult``-shaped item — every dedicated load
+    carrier — prescribes a factor: those types exist only to carry loads.
+    """
+    if getattr(item, "case_ref", None) is not None:
+        return True
+    values = getattr(item, "values", None)
+    if values is None:
+        return True
+    return any(is_load_unit(getattr(v, "units", "") or "",
+                            getattr(v, "quantity", "") or "")
+               for v in values)
+
+
+# --------------------------------------------------------------------------- #
 # The table itself
 # --------------------------------------------------------------------------- #
 @dataclass(frozen=True)
 class Resolution:
-    """One case's factor and where it came from — never a bare float."""
+    """One case's factor and where it came from — never a bare float.
 
-    factor: float
+    ``factor`` is ``None`` when the condition prescribes no factor at all
+    (:func:`prescribes_factor`, note 48 OR-82/OR-83) — distinct from 1.0, which
+    means *already at ultimate* and is a factor like any other.
+    """
+
+    factor: Optional[float]
     basis: str
     status: str
     family_key: str
@@ -368,8 +415,21 @@ class GoverningTable:
         conservative ``ULTIMATE_FACTOR`` and is returned as
         :data:`RowStatus.DEFAULTED`, and its reference is recorded in
         :attr:`defaulted` so the report and the methods stamp can name it.
+
+        A condition that prescribes no factor at all resolves to ``factor=None``
+        with its family still named (note 48 OR-83). That is **not** a defaulted
+        case — nothing failed to classify — so it is not recorded in
+        :attr:`defaulted` and does not trip the "no defaulted row on a shipped
+        fixture" gate.
         """
         key, ref = classify(item)
+        if not prescribes_factor(item):
+            return Resolution(None,
+                              "Not a load case — this condition states no load "
+                              "and identifies no case, so no factor of safety "
+                              "applies to it (14 CFR 23.303 applies to limit "
+                              "loads).",
+                              RowStatus.DERIVED, key or DEFAULT_FAMILY, ref)
         if key is None:
             if ref not in self.defaulted:
                 self.defaulted.append(ref)
@@ -379,6 +439,25 @@ class GoverningTable:
                               "conservative default and flagged.",
                               RowStatus.DEFAULTED, DEFAULT_FAMILY, ref)
         return self.resolve(key, ref)
+
+    def required_factor_for(self, item: Any) -> float:
+        """The factor for an item the caller knows to be a load case.
+
+        The ULTIMATE channels — the case index and the solver decks — only ever
+        see load cases, so a ``None`` there is not a value to render but a defect
+        upstream: a factored bulk-data card would be written from a condition
+        that prescribes no factor. Raises rather than substituting 1.0, which is
+        the loud failure note 48 OR-82 asks for (a silent 1.0 is how the F-R1
+        defect class returns).
+        """
+        resolution = self.factor_for(item)
+        if resolution.factor is None:
+            raise ValueError(
+                f"{type(item).__name__} prescribes no safety factor "
+                f"(FAR {resolution.far_reference or '—'}) but was handed to a "
+                "channel that applies one; see sloads.safety_factors."
+                "prescribes_factor and design note 48.")
+        return resolution.factor
 
     def stamp(self, items: Sequence[Any]) -> "GoverningTable":
         """Write the table's factor onto each result's ``safety_factor`` carrier.
@@ -391,6 +470,9 @@ class GoverningTable:
         """
         for item in items or ():
             if hasattr(item, "safety_factor"):
+                # ``None`` is written through like any other resolution: a
+                # condition that prescribes no factor must not keep the
+                # dataclass default, or #154 survives the fix (note 48 OR-82).
                 item.safety_factor = self.factor_for(item).factor
             else:
                 # Recorded, not passed over: see ``unstampable``.

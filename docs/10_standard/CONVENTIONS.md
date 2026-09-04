@@ -359,6 +359,22 @@ conventions"** section (`SUMMARY_REPORT.md` §4.2.1), single-sourced in
 - **Calc emits LIMIT; every deliverable is ULTIMATE.** The factor is applied exactly
   once, at the render/export boundary: `report/render.py` (`results_to_rows`,
   `to_ultimate`) and `export/sbeam_bridge.py` (`_sf()`).
+- **Two channels, and the renderers take which one** (design note 48, OR-76/OR-77).
+  `report.LoadChannel` is the parameter: **ULTIMATE** is case selection
+  (`governing_loads_table`, `critical_rows`), the export deck, the case index and
+  the oracle technical report; **LIMIT** is every per-module analysis surface —
+  the CLI's text and CSV output, the app's per-module tables and download
+  buttons, and the results zip built from `app/`. On LIMIT the factor is
+  **stated and not applied**: plain units, no `-ULT`, the `SF` column filled, and
+  a header line pointing at the ultimate deliverables. The parameter **defaults
+  to ULTIMATE**, which is what keeps the frozen `oracle_app` output unchanged
+  without an edit; `app/` and `cli.py` opt into LIMIT explicitly.
+- **Direction of travel** (OR-86): the factor is to be *stated, never applied* —
+  the render/export boundary loses its last multiply in 0.8.3, under that
+  milestone's own note. Until then both channels exist and every artifact says
+  which one it is on. The `safety_factor` field itself is **not** going away:
+  two families are computed already-ultimate at SF = 1.0 (23.367(a)(2),
+  23.561(b)) and nothing else records that.
 - **Loads only** — forces/moments/pressures. Never geometry, weights, inertias, areas,
   speeds, angles, or dimensionless load factors (`_is_load_unit`,
   `render.py:66-95`; `load_keys.py` marks application points "geometry, never scaled").
@@ -378,9 +394,18 @@ conventions"** section (`SUMMARY_REPORT.md` §4.2.1), single-sourced in
   whose bulk-data card can still state different factors, which is the F-R1
   defect class — and a test asserts it is empty on every shipped path.
   Layer 1 is `DERIVED_FACTOR`: `LIMIT → 1.5`, `ULTIMATE → 1.0` (14 CFR 23.303/25.303).
-- `ConditionResult.safety_factor` is the **carrier** (default
-  `constants.ULTIMATE_FACTOR = 1.5`); **1.0 means "already at ultimate"** — still
-  ULTIMATE output, marked `ULT SF=1.0`. The table **writes** the carrier at three
+- `ConditionResult.safety_factor` is the **carrier** (`Optional[float]`, default
+  `constants.ULTIMATE_FACTOR = 1.5`). Three values, three meanings, and they are
+  not interchangeable: **1.5** a limit load factored at the deliverable; **1.0**
+  "already at ultimate" — still ULTIMATE output, marked `ULT SF=1.0`; **`None`**
+  *not a load case at all*, rendered `N/A` (#154, design note 48 OR-82).
+  `safety_factors.prescribes_factor` is the single owner of that last
+  distinction — a condition prescribes no factor exactly when it states no value
+  in load units **and** carries no `case_ref`. The `case_ref` clause is
+  load-bearing: SELECT's critical wing conditions publish no load value (their
+  loads live on `WingLoadResult`) but are load cases whose deck cards are
+  factored. Measured, 38 conditions prescribe no factor on both shipped
+  airframes. The table **writes** the carrier at three
   boundaries (`registry.run_all_modules`, `report.content.component_loads`,
   `balanced_run`), so the report's SF column and a deck's `SF=` marker cannot
   disagree about one case (the defect class review finding **F-R1** closed).
@@ -393,8 +418,12 @@ conventions"** section (`SUMMARY_REPORT.md` §4.2.1), single-sourced in
   and no shipped fixture carries one.
 - Uniform per-case scaling preserves closure: `sum(dFz) == sf × root` survives the
   boundary (`sbeam_bridge.py:234`).
-- Per-module analysis pages may display LIMIT only with the explicit LIMIT marker and a
-  pointer to the ultimate deliverables (the CLAUDE.md carve-out).
+- Per-module analysis pages **are** the LIMIT channel (OR-76 — this was a
+  carve-out permitting LIMIT and is now the rule for those surfaces). The
+  explicit marker and the pointer to the ultimate deliverables are still
+  required, and while the ULTIMATE channel exists a LIMIT *download* still
+  carries its basis in-band per **M4-15** (`PROGRAM_SPEC.md`): a stamped file
+  travelling on its own states its own basis, never the bundle's.
 
 ## 4. Case identity
 

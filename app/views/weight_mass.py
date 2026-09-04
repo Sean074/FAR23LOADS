@@ -59,7 +59,7 @@ from sloads.modules.weight_estimate import (
     resolve_max_continuous_hp_for,
 )
 from sloads.modules.weight_onecg import refresh_mass, weights_and_inertia
-from sloads.report import module_text_report
+from sloads.report import LoadChannel, module_text_report
 from sloads.report.methods import bdf_comment_block
 from sloads.validation import wtenv_cg_limits
 
@@ -250,10 +250,11 @@ def _tab_estimate(project: Project, system: UnitSystem, U: dict) -> None:
         # both would be the double conversion step 3's guard exists to prevent.
     st.download_button(
         "Download weight estimate (CSV)",
-        sloads_io.load_cases_csv(results, system=system),
+        sloads_io.load_cases_csv(results, system=system, channel=LoadChannel.LIMIT),
         file_name="weight_estimate.csv", mime="text/csv", key="dl_est_csv")
     st.download_button(
-        "Download weight estimate (text)", module_text_report("Weight estimate", display_results),
+        "Download weight estimate (text)", module_text_report("Weight estimate", display_results,
+                                                        channel=LoadChannel.LIMIT),
         file_name="weight_estimate.txt", mime="text/plain", key="dl_est_txt")
 
 
@@ -451,11 +452,12 @@ def _tab_cg_inertia(project: Project, system: UnitSystem, U: dict) -> None:
 
     st.download_button(
         "Download weight/CG/inertia (CSV)",
-        sloads_io.load_cases_csv([result], system=system),
+        sloads_io.load_cases_csv([result], system=system, channel=LoadChannel.LIMIT),
         file_name="weight_cg_inertia.csv", mime="text/csv", key="dl_cg_csv")
     st.download_button(
         "Download weight/CG/inertia (text)",
-        module_text_report("Weight, CG and inertia", convert_results([result], system)),
+        module_text_report("Weight, CG and inertia",
+                           convert_results([result], system), channel=LoadChannel.LIMIT),
         file_name="weight_cg_inertia.txt", mime="text/plain", key="dl_cg_txt")
 
 
@@ -767,11 +769,12 @@ def _tab_envelope(project: Project, system: UnitSystem, U: dict) -> None:
 
     st.download_button(
         "Download weight envelope (CSV)",
-        sloads_io.load_cases_csv(results, system=system),
+        sloads_io.load_cases_csv(results, system=system, channel=LoadChannel.LIMIT),
         file_name="weight_envelope.csv", mime="text/csv", key="dl_env_csv")
     st.download_button(
         "Download weight envelope (text)",
-        module_text_report("Weight envelope", convert_results(results, system)),
+        module_text_report("Weight envelope", convert_results(results, system),
+                           channel=LoadChannel.LIMIT),
         file_name="weight_envelope.txt", mime="text/plain", key="dl_env_txt")
 
 
