@@ -47,6 +47,14 @@ loads, as four subsections and a lettered appendix, built from the `wing_loads` 
   rather than absent without trace. The same review established that the fixture balances at
   sea level only while Appendix A names five of the six conditions at 12,000 ft — filed as
   **#164**, since adding the altitude renumbers every V-n case.
+- **The register states the load-factor sign convention and whether the set envelops the wing
+  (OR-58, same review).** `Nz` in a wing case is the *inertia* load factor, the negative of
+  the flight load factor, so a +3.8 g manoeuvre prints as −3.8 — and every load factor in the
+  table is negative whichever kind of condition it is, which is how the review came to read a
+  set of positive-g cases as negative ones. 3.2 now states the convention, and states from the
+  analysed set whether it holds a negative-load-factor case. On `ga6_normal` it does not, and
+  the section says the distributions therefore do not envelop the wing — the analysis half of
+  that, adding the selection's NMAA beside the entered oracle cases, is filed as **#165**.
 
 **Test.** Thirteen new gates in `tests/test_oracle_report.py`, including: every load column
 in the section and the appendix carries `-ULT`; each root value equals the module's own LIMIT

@@ -8,7 +8,9 @@
   (every combination of configuration, weight/CG case, altitude and condition — a V-n diagram
   states none of those) and **where the case list came from**: the critical-load selection's
   own search, or a case list entered on the project, which wins when present. Where it is
-  entered, every condition the selection names is tabulated against whether it was run; 3.3 the root loads of every case; 3.4 the net
+  entered, every condition the selection names is tabulated against whether it was run. It also
+  states that `Nz` is the inertia load factor (so a +3.8 g case prints as −3.8) and says, from
+  the analysed set, whether that set holds a negative-load-factor condition at all; 3.3 the root loads of every case; 3.4 the net
   distributions of `Sz`, `Mxx`, `Myy` and `Sx` along the span, every selected case on one
   axes. **Appendix B** carries the same distributions station by station, with the load
   increment at each station beside the cumulative totals.

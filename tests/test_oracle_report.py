@@ -2135,3 +2135,41 @@ def test_a_project_that_enters_no_wing_cases_reports_the_selections_own_result()
     table = next(t for t in _case_section(doc).tables
                  if t.title.startswith("Critical wing conditions"))
     assert {row[-1] for row in table.rows} == {"yes"}
+
+
+def test_the_register_states_what_the_sign_of_a_load_factor_means():
+    """OR-58 -- `Nz = -3.8` is a +3.8 g condition, and the table says so.
+
+    ``Nz`` in the wing case list is the **inertia** load factor, the negative of
+    the airplane's flight load factor, because the inertia opposes the air load.
+    A reader who does not know that reads a table of positive-g conditions as a
+    table of negative ones -- which is what happened in the owner's review of
+    this section.
+    """
+    table = next(t for t in _case_section(_doc()).tables
+                 if t.title == "Wing load cases run")
+    assert "negative of the airplane's flight load factor" in table.note
+    assert "Nz = -3.8 is a +3.8 g condition" in table.note
+
+
+def test_a_case_set_with_no_negative_load_factor_says_it_does_not_envelop():
+    """OR-58 -- a set of positive-g cases alone does not envelop the wing.
+
+    Invisible at a glance on the printed sign convention: every load factor in
+    the table is a negative number whichever kind of condition it is. So it is
+    stated, and it is stated from the data rather than asserted -- a project
+    whose set does carry a negative case gets the other sentence.
+    """
+    body = " ".join(_case_section(_doc()).body)
+    assert "no negative-load-factor case" in body
+    assert "do not envelop the wing" in body
+    assert "23.333(c)" in body
+
+    # The other branch, from a set that does carry one: the sentence names it
+    # rather than repeating the warning.
+    project = reduce_to_oracle_inputs(io.load_project(_GA))
+    project.wing_mass.cases = []
+    other = " ".join(_case_section(
+        oc.build_oracle_document(project, _spec())).body)
+    assert "negative-load-factor condition" in other
+    assert "do not envelop the wing" not in other

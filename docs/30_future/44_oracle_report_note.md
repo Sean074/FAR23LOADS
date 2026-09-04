@@ -836,7 +836,7 @@ same commit and the authority named in the commit message.
 
 ---
 
-## 11. Iteration 3 — Section 3, Wing Loads (OR-48 … OR-57)
+## 11. Iteration 3 — Section 3, Wing Loads (OR-48 … OR-58)
 
 *Agreed with the owner in session, 2026-09-01. Section 3 is the first section that
 states a load in force and moment units, so the rulings below are mostly about
@@ -856,6 +856,7 @@ filed as #163). | OR-5, OR-14 |
 | **OR-54** | **3.2 is the run register: what was run, at what condition, under which rule.** One row per selected wing case carrying the case ID, the condition, the FAR reference, the CG case and weight, the speed and altitude, and `Nz`/`Nx`. Every field of it already exists on `CaseRef` and the resolved case — this is a projection of case identity, not a new record of it, which is what OR-41 deferred to this iteration. 3.2 also states the coordinate and sign convention the section's loads are in, citing `CONVENTIONS.md` and naming the torsion axis of OR-51. | OR-41 (discharges) |
 | **OR-55** | **SELECT's chosen subset *is* the critical set; 3.3 tabulates it and 3.4 plots all of it.** No second criticality rule is invented for the report — the wing cases the analysis ran are the wing cases the section shows. 3.3 gives root values per case; 3.4 gives one figure per quantity with every selected case on it: **vertical shear `Sz`, bending `Mxx`, torsion `Myy`, and drag shear `Sx`**. Chord bending `Mzz` is omitted. The figures show the **net** loads only, and state that shear, bending and torsion are **summed from tip to root** — a cumulative quantity read as a running one is the misreading the caption exists to prevent. | OR-6 |
 | **OR-57** | **The register states where its case list came from.** The suite has two paths to a wing case set: the critical-load selection's own search of the V-n matrix, and a case list entered on the project, which **wins when it is present** (`wing_inertia.resolve_wing_cases`). A section that presents an entered list as the outcome of a search describes an analysis nobody ran, so 3.2 **SHALL** say which it is, **SHALL** state what the matrix it was searched from enumerates — every combination of configuration, weight/CG case, altitude and flight condition, not the twenty conditions a V-n diagram shows — and, where a list is entered, **SHALL** tabulate every condition the selection names with whether it was run. Found in the owner's review of iteration 3, 2026-09-03: the shipped prose claimed selection while `ga6_normal` runs an entered three of the selection's six. An entered list is legitimate and sometimes necessary — an accelerated-roll case carries an unbalanced rolling moment the selection cannot name — but it is the project's list, and the difference is the reader's to see. | OR-46 (extends), OR-54, OR-55 |
+| **OR-58** | **The register states the sign convention of its load factors, and says when the set holds no negative-load-factor case.** `Nz` in a wing case is the **inertia** load factor — the negative of the airplane's flight load factor, since the inertia opposes the air load (`wing_inertia._resolve_case`: `Nz = −NZ`) — so a +3.8 g manoeuvre prints as −3.8. Every load factor in the table is a negative number whichever kind of condition it is, so *which* kind cannot be read off the page: 3.2 **SHALL** state the convention, and **SHALL** state, from the analysed set rather than by assertion, whether it contains a negative-load-factor condition. A set of positive-g cases alone does not envelop the wing — 23.333(c)'s negative manoeuvre and negative gust reverse the bending — and a section that leaves that to be worked out from a column of minus signs is not stating what it analysed. Found in the owner's review, 2026-09-03, by misreading exactly this table. The analysis half — that `ga6_normal` runs no negative case at all — is **#165**. | OR-54 (extends) |
 | **OR-56** | **Appendix B is the per-station table of the selected wing cases, carrying the increment total load at each station — not the running load.** One row per station per case: the station coordinates, the strip's own increment `Fz` and `Fx`, and the cumulative `Sz`, `Sx`, `Mxx`, `Myy` with its axis named. ULTIMATE per OR-49. `net_loads.wing_load_rows` is already the canonical shape of that row, so the appendix is a view of an existing owner rather than a second layout of the same data. | OR-6, OR-49 |
 
 ### Gates added by this section
@@ -870,6 +871,7 @@ filed as #163). | OR-5, OR-14 |
 | **G-OR-25** | A project with no flaps-down aero set renders the flaps-down figure as ABSENT with a reason, and prints no clean-configuration curve in its place. |
 | **G-OR-26** | The cases 3.2, 3.3, 3.4 and Appendix B each state are the same set, in the same order — the selected wing cases, no more and no fewer. |
 | **G-OR-27** | 3.2 states which path produced its case list, counts the V-n matrix the selection searched by every dimension it enumerates, and marks each named condition run or not run. |
+| **G-OR-28** | 3.2 states what the sign of a load factor means, and says from the analysed set whether it holds a negative-load-factor condition. |
 
 ### Findings to file (OR-14 — file, do not fix here)
 
@@ -884,6 +886,15 @@ filed as #163). | OR-5, OR-14 |
   points is the sea-level one. Raised in the owner's review of iteration 3,
   2026-09-03; **filed as #164**, which also records why adding the altitude is
   not a free change (it renumbers every V-n case).
+
+- **The GA6 wing case set holds no negative-load-factor condition.** The entered
+  three (PHAA, TORS, ACRL) are all positive-g, and the selection's **NMAA**
+  (23.333(c), V-n point 53, GUST −C at CG3) is one of the three the entered list
+  overrides. So the wing distributions do not envelop the wing. A plain deletion
+  of the entered list is not the fix: the entered three are the set Appendix A
+  prints net loads for, and the entered ACRL carries an `unbal_moment` the
+  selection cannot name — so the shape is additive. **Filed as #165**; the
+  reporting half is OR-58 and is done.
 
 - **No flaps-down span loading.** AIRLOADS does not fair the basic distribution
   across a deflected-flap lift discontinuity, so the oracle's second set of

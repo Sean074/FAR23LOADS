@@ -389,6 +389,13 @@ from the `wing_loads` step (`AIRLOADS+WINGINER+NETLOADS`).
   and **SHALL** compose its own cross-references through the numbering owner —
   a subsection reference typed as "3.1" is the F-R2 defect one level down
   (`oracle_content.subsection_ref`).
+- **3.2 states the sign convention of its load factors and whether the set is
+  enveloping.** `Nz` in a wing case is the *inertia* load factor, the negative of
+  the airplane's flight load factor, so a +3.8 g manoeuvre prints as −3.8. Every
+  load factor in the table is negative whichever kind of condition it is, so 3.2
+  **SHALL** state the convention and **SHALL** state — from the analysed set, not
+  by assertion — whether it holds a negative-load-factor case. A set of
+  positive-g cases alone does not envelop the wing.
 - **3.2 states where its case list came from.** Two paths reach a wing case set:
   the critical-load selection's search, and a case list entered on the project,
   which wins when present. 3.2 **SHALL** name which, **SHALL** state what the
@@ -536,6 +543,7 @@ without a guard is prose, not a gate).
 | 2.4 Flight Envelope | 2026-08-30 | `test_oracle_report.py::test_the_envelope_boundary_order_is_the_analysis_order`, `::test_the_envelope_figures_plot_only_produced_design_points`, `::test_one_envelope_figure_per_loading_and_altitude` |
 | 3. Wing Loads (subsections, appendix lettering) | 2026-09-01 | `test_oracle_report.py::test_the_wing_section_renders_its_four_subsections_numbered_by_the_owner`, `::test_wing_loads_is_appendix_b_while_the_input_echo_holds_appendix_a`, `::test_the_reserved_appendix_states_its_state_and_is_not_pointed_at` |
 | 3.1 Loads reference axis and wing inputs | 2026-09-01 | `test_oracle_report.py::test_every_wing_torsion_names_the_axis_it_is_stated_about`, `::test_the_reference_axis_is_drawn_open_on_a_closed_planform`, `::test_the_span_load_is_drawn_at_zero_unit_and_the_airplanes_own_clmax`, `::test_the_span_load_curves_are_airloads_own_distribution`, `::test_a_project_with_no_flaps_down_set_says_so_and_draws_nothing` |
+| 3.2 Load-factor sign and envelope coverage (OR-58) | 2026-09-03 | `test_oracle_report.py::test_the_register_states_what_the_sign_of_a_load_factor_means`, `::test_a_case_set_with_no_negative_load_factor_says_it_does_not_envelop` |
 | 3.2 Case-list provenance (OR-57) | 2026-09-03 | `test_oracle_report.py::test_the_register_states_the_matrix_the_selection_actually_searched`, `::test_an_entered_wing_case_list_is_not_reported_as_the_selections_result`, `::test_a_project_that_enters_no_wing_cases_reports_the_selections_own_result` |
 | 3.2-3.4 Cases, root loads and distributions | 2026-09-01 | `test_oracle_report.py::test_the_wing_cases_are_one_set_seen_four_ways`, `::test_the_wing_root_loads_are_the_limit_result_times_the_case_factor`, `::test_a_project_with_no_wing_loads_states_the_absence_and_still_builds` |
 | Section 3 delivers ULTIMATE; inputs stated LIMIT | 2026-09-01 | `test_oracle_report.py::test_every_load_the_wing_section_prints_is_marked_ultimate`, `::test_the_appendix_carries_the_station_increment_and_the_running_total` |
@@ -579,6 +587,8 @@ without a guard is prose, not a gate).
 - [x] 3.2 says whether its cases are the selection's result or the project's
       entered list, counts the matrix searched, and marks each named condition
       run or not — `test_oracle_report.py`
+- [x] 3.2 states that Nz is the inertia load factor and says when the analysed
+      set holds no negative-load-factor case — `test_oracle_report.py`
 - [x] Appendix B carries the station increment and the cumulative total, and the
       station coordinates are printed once — `test_oracle_report.py`
 

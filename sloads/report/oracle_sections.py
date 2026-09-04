@@ -1647,6 +1647,48 @@ def _cg_weight(project: Project, name: str) -> Optional[float]:
     return None
 
 
+#: What the sign of the register's load factors means.
+#:
+#: Not a footnote. ``Nz`` here is the **inertia** load factor -- the negative of
+#: the airplane's flight load factor, because the inertia opposes the air load
+#: (``wing_inertia._resolve_case``: ``Nz = -NZ``) -- so a +3.8 g manoeuvre is
+#: printed as -3.8. A reader who does not know that reads a table of positive-g
+#: conditions as a table of negative ones, which is exactly what happened in the
+#: owner's review of this section (2026-09-03).
+_LOAD_FACTOR_SIGN = (
+    "Nz is the inertia load factor, which opposes the air load and is therefore "
+    "the negative of the airplane's flight load factor: a case printed at "
+    "Nz = -3.8 is a +3.8 g condition. Nx is the inertia drag factor on the same "
+    "convention.")
+
+
+def _negative_case_sentence(net: Sequence[object]) -> str:
+    """Whether the analysed set contains a negative-flight-load-factor case.
+
+    A wing is enveloped by its positive *and* its negative conditions -- FAR
+    23.333(c)'s negative manoeuvre and the negative gust reverse the bending the
+    positive cases produce. A set holding only positive-g cases does not envelop
+    the wing, and on the printed sign convention that is not visible at a glance:
+    every load factor in the table is a negative number either way. So it is
+    stated (OR-58).
+    """
+    if not net:
+        return ""
+    # Inertia Nz < 0 is a positive-g condition; > 0 is a negative-g one.
+    negative = [r for r in net if float(getattr(r, "nz", 0.0)) > 0.0]
+    if negative:
+        names = ", ".join(getattr(r, "case", "") for r in negative)
+        return (f"The set includes {len(negative)} negative-load-factor "
+                f"condition{'' if len(negative) == 1 else 's'} ({names}), which "
+                "reverse the bending the positive cases produce.")
+    return (
+        "Every case run here is a positive-load-factor condition. The set holds "
+        "no negative-load-factor case, so the distributions in this section do "
+        "not envelop the wing: the negative manoeuvre and negative gust "
+        "conditions of 14 CFR 23.333(c), which reverse the bending, are not "
+        "among them.")
+
+
 def _wing_selection(project: Project):
     """``(SELECT's wing conditions, the V-n matrix it searched)``, or ``([], None)``.
 
@@ -1764,14 +1806,14 @@ def _wing_case_table(project: Project, net: Sequence[object],
                  f"Weight ({u.label('mass')})", "V (KEAS)", "Altitude (ft)",
                  "Nz", "Nx"],
         rows=rows,
-        note=("The cases the critical-case selection carried into the wing "
-              "analysis, each with the loading it was run at and the paragraph "
-              "of 14 CFR Part 23 it is required by. Speed is equivalent "
-              "airspeed and altitude is feet: both are aviation standard in "
-              "either unit system and are never converted. The weight is the "
-              "CG case as entered. Nz and Nx are LIMIT load factors, "
-              "dimensionless, and the loads they produce are delivered "
-              "ULTIMATE below."))
+        note=("The cases carried into the wing analysis, each with the loading "
+              "it was run at and the paragraph of 14 CFR Part 23 it is required "
+              "by. Speed is equivalent airspeed and altitude is feet: both are "
+              "aviation standard in either unit system and are never converted. "
+              "The weight is the CG case as entered. "
+              + _LOAD_FACTOR_SIGN
+              + " Nz and Nx are LIMIT and dimensionless, and the loads they "
+              "produce are delivered ULTIMATE below."))
 
 
 def _provenance_sentence(entered: bool, named: Sequence[str],
@@ -1825,8 +1867,10 @@ def _wing_cases(project: Project, *, system: UnitSystem,
         "projected four ways.",
         _matrix_sentence(envelope),
         _provenance_sentence(entered, named, run, missing),
+        _negative_case_sentence(net),
         _sign_note(plan),
     ]
+    body = [paragraph for paragraph in body if paragraph]
     tables = [t for t in (table, _selection_table(conditions, run))
               if t is not None]
     if table is None:
