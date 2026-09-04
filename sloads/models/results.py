@@ -413,6 +413,35 @@ class WingStationLoad:
 
 
 @dataclass
+class ConcentratedLoad:
+    """One concentrated wing mass, as the **applied point load** it exerts.
+
+    A concentrated wing mass (engine, gear, fuel, a store) is not part of any
+    strip: ``WINGINER`` adds it to the cumulative shears, bending and torsion of
+    every station inboard of it and leaves the per-strip ``fx``/``fz``
+    panel-only. That is right for the cumulative column and leaves the *applied*
+    set — the thing a structures model is built from — short by the whole of the
+    point mass, which on ``baron_58`` PHAA is 4821.5 lb of a 5004.1 lb root
+    shear. So the load is published here as well as accumulated there.
+
+    It is a **pure force**. Every cumulative term the mass contributes is a
+    transfer of that force to the station's axis --
+    ``mxx += W*(y_cw - y_i)``, ``tyy += W*(x_axis_i - x_cw)``,
+    ``tvyy += W*(z_cw - z_i)`` -- so a model that applies ``fx``/``fz`` at
+    ``(x, y, z)`` generates the arms itself and there is no free moment to
+    carry. Pounds, inches, **LIMIT**, on the parent result's safety factor.
+    """
+    #: The entered mass' own name (``"Engine+prop+nacelle"``), so a deck row and
+    #: the weight statement it came from can be read against each other.
+    name: str
+    x: float
+    y: float
+    z: float
+    fx: float
+    fz: float
+
+
+@dataclass
 class WingLoadResult:
     """One condition's spanwise wing load table (root-last, mirroring the manual).
 
@@ -432,6 +461,11 @@ class WingLoadResult:
     case_ref: Optional[CaseRef] = None
     safety_factor: float = ULTIMATE_FACTOR   # limit -> ultimate factor for this case
     torsion_axis: str = "25% chord"          # reference axis of station x / myy
+    #: The concentrated wing masses as applied point loads (empty when none are
+    #: entered). Additive with a default, so no on-disk shape moves; see
+    #: :class:`ConcentratedLoad` for why the strip table alone is not the
+    #: applied set.
+    point_loads: List[ConcentratedLoad] = field(default_factory=list)
 
 
 @dataclass
@@ -1057,6 +1091,7 @@ __all__ = [
     "BodyLoadResult",
     "BodyStationLoad",
     "CaseRef",
+    "ConcentratedLoad",
     "ConditionResult",
     "ControlPointLoad",
     "ControlSurfaceLoadResult",

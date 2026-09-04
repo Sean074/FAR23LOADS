@@ -230,6 +230,17 @@ class Section:
     #: with "Not analysed" tells the reader their data was incomplete when it was
     #: the tool that was.
     absent_lead: str = "Not analysed"
+    #: Start this section on a fresh page. Back matter is reference material a
+    #: reader turns to rather than reads through, so an appendix that begins
+    #: halfway down the last page of the section before it reads as a
+    #: continuation of it. Set by the appendix builder, not by section content.
+    page_break: bool = False
+    #: Render this section rotated. A station-by-station applied-load table is
+    #: wide because a load needs its point as well as its components, and
+    #: shrinking the type to fit is the wrong trade for a table meant to be read
+    #: number by number. Applies to the whole section, so one appendix has one
+    #: orientation throughout.
+    landscape: bool = False
 
     @property
     def table(self) -> Optional[Table]:

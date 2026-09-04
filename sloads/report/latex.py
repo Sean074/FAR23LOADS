@@ -52,6 +52,7 @@ PREAMBLE = r"""\documentclass[11pt,a4paper]{article}
 \usepackage{fancyhdr}
 \usepackage{float}
 \usepackage{lastpage}
+\usepackage{pdflscape}
 \usepackage{pgfplots}
 \usepackage[hidelinks]{hyperref}
 \pgfplotsset{compat=1.16}
@@ -372,7 +373,11 @@ def section_tex(section: Section, level: int) -> str:
     """
     command = {0: "section", 1: "subsection", 2: "subsubsection"}.get(level, "paragraph")
     title = escape(section.title)
-    out = [f"\\{command}*{{{title}}}",
+    out = []
+    if section.page_break and not section.landscape:
+        # ``landscape`` breaks the page itself; emitting both would leave a blank.
+        out.append(r"\clearpage")
+    out += [f"\\{command}*{{{title}}}",
            f"\\addcontentsline{{toc}}{{{command}}}{{{title}}}"]
     if section.absent_reason:
         out.append(r"\textbf{" + escape(section.absent_lead) + ".} "
@@ -385,7 +390,10 @@ def section_tex(section: Section, level: int) -> str:
         out.append(table_tex(table))
     for sub in section.subsections:
         out.append(section_tex(sub, level + 1))
-    return "\n\n".join(p for p in out if p)
+    body = "\n\n".join(p for p in out if p)
+    if section.landscape:
+        body = "\n\n".join([r"\begin{landscape}", body, r"\end{landscape}"])
+    return body
 
 
 def render_document(doc: ReportDocument) -> str:

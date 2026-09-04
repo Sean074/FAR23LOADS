@@ -48,6 +48,7 @@ from .models import (
     BodyStationLoad,
     CaseRef,
     CgCase,
+    ConcentratedLoad,
     ConcentratedWeight,
     ConditionResult,
     ControlSurfaceLoadResult,
@@ -1225,6 +1226,11 @@ def _wing_load_result_from_dict(d: Dict[str, Any]) -> WingLoadResult:
         case_ref=_case_ref_from_dict(d.get("case_ref")),
         safety_factor=_safety_factor(d),
         torsion_axis=d.get("torsion_axis", "25% chord"),
+        # The concentrated wing masses as applied point loads. Absent from any
+        # file written before they were published, and absent is right there:
+        # a project that enters no concentrated mass has none.
+        point_loads=[ConcentratedLoad(**_filtered(ConcentratedLoad, c))
+                     for c in d.get("point_loads", []) or []],
     )
 
 

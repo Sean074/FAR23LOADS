@@ -425,6 +425,15 @@ def air_load_distribution(geom: SurfaceInput, aero: AeroSurfaceInput, cl: float,
         WingStationLoad(
             x=cx25[i], y=t.ye[i], z=zc[i], fx=dx[i], fz=lz[i], sx=sx[i], sz=sz[i],
             mxx=mxx[i], myy=tyy[i] + tvyy[i] + trq[i], mzz=mzz[i],
+            # ``ml`` is the only free term in the three ``myy`` sums above:
+            # ``tyy``/``tvyy`` are position transfers of the outboard shear that
+            # a structural model generates for itself from the geometry. The
+            # strip's lift acts on the reference axis, so there is no offset to
+            # add here (contrast ``wing_inertia``, whose panel mass sits at the
+            # 50% chord). Published so the applied set does not have to be
+            # reconstructed from the cumulative column -- which cannot be done
+            # at all once a concentrated mass steps the shear (OR-15, 2026-09-03).
+            myy_free=ml[i],
         )
         for i in range(h)
     ]

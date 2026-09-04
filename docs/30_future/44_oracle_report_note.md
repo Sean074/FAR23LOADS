@@ -902,3 +902,70 @@ filed as #163). | OR-5, OR-14 |
   built — a documented limitation of the ported method — but it is the gap OR-53
   renders as an absence, and the absence should point at a filed item rather than
   at nothing. **Filed 2026-09-01 as #163.**
+
+---
+
+## 12. Appendix B as a structures deck (OR-59 … OR-63)
+
+*Owner rulings 2026-09-03, in session, in the review of iteration 3's Appendix B.
+Same footing as OR-1 … OR-58. The ruling that starts them: **the aim of the
+Appendix B table is to give the sectional loads to apply to a structures
+model.** Everything below follows from taking that literally.*
+
+| # | Decision | Amends |
+|---|---|---|
+| **OR-59** | **Appendix B is split: B.1 the applied loads, B.2 the loads carried.** They are different quantities and a reader who takes one for the other builds the wrong model, so the distinction is enforced by the table boundary and the heading rather than by a word in a note. B.1 gives, per row, the point the load acts at (`X`, `Y`, `Z`) and the load applied there (`Fz`, `Fx`, `Myy` free) — a deck, self-contained, with no coordinate to fetch from another section. B.2 gives `Sz`, `Sx`, `Mxx`, `Myy` against station: what a model built from B.1 should return. | **OR-56 (supersedes)** |
+| **OR-60** | **The applied moment is the *free* moment, never a difference of the cumulative column.** `AIRLOADS` forms `myy = tyy + tvyy + trq`, of which only `trq` accumulates a strip increment; `tyy` and `tvyy` are position transfers of the outboard shear across the bay's sweep and dihedral, which a structural model generates for itself from the geometry. `ΔMyy` and the free moment are not close — at `ga6_normal` PHAA's outboard strip they are −5,313 and +5,917 lb·in, opposite in sign — so applying the difference double-counts the transfer, which is the 20 % error `balance._free_moments` was written to prevent. By the same argument **`Mxx` and `Mzz` have no applied increment at all**: a strip applies forces and a section moment and nothing else. | OR-6 |
+| **OR-61** | **`Fy` is not a column, because the wing has no producer for it.** `WingStationLoad.f_span` is the fin's — a v-tail's span is airplane `Z`, so vertical acceleration is an axial column load in its deck — and is `0.0` at every wing station by construction, a wing carrying its spanwise inertia as `fz`. A column of zeros in a deck reads as a measured zero; the absence is stated in the derivation instead. | OR-32 |
+| **OR-62** | **Section 3.2 owns the notation and the derivation.** It carries a symbol table — symbol, quantity, units, **and whether the quantity is an applied increment or a cumulative load** — and writes out the recurrences that build `Sz`, `Sx`, `Mxx`, `Myy` from the applied set, naming which terms are position transfers. A column heading anywhere in section 3 or Appendix B names a symbol from that table and nothing else. The prose form this replaces carried the same facts and let the ambiguity through, which is the argument for the table: increment-versus-cumulative is a property of each symbol, and prose that states it for ten symbols at once is prose nobody checks a heading against. | OR-54 (extends) |
+| **OR-63** | **Every appendix starts a fresh page; Appendix B is landscape throughout.** Back matter is reference material a reader turns to, and an appendix that begins halfway down the last page of the section before it reads as a continuation of it. One orientation per appendix rather than a per-table rule, so the orientation survives a column being added. `Section` gains `page_break` and `landscape`; `pdflscape` joins the shared preamble. | `SUMMARY_REPORT.md` §2 |
+
+### Gates added by this ruling
+
+| Gate | Statement |
+|---|---|
+| **G-OR-29** | The applied set closes onto the cumulative one: `Fz`, `Fx` and `myy_free` summed tip inboard, with each concentrated mass entering as a point force through the arms its own coordinates state, reproduce the published `Sz`, `Sx`, `Mxx` and `Myy` at every station of every case, on `ga6_normal` **and** on `baron_58`. |
+| **G-OR-30** | Every symbol a section 3 or Appendix B column heading uses is defined in 3.2's notation table, with its sense stated. |
+| **G-OR-31** | Appendix B renders as two lettered subsections, applied and cumulative, with no load column shared between them. |
+| **G-OR-32** | Every concentrated wing mass is a row of B.1 at its own coordinates, carrying zero free moment; the row count is the station count plus the mass count. |
+| **G-OR-33** | Every appendix sets `page_break`; Appendix B sets `landscape`, and the rendered document opens and closes the environment exactly once. |
+
+### The OR-15 admission of 2026-09-03
+
+**Finding.** `WINGINER` adds each concentrated wing mass to the cumulative
+shears, bending and torsion of every station inboard of it and leaves the
+per-strip `fx`/`fz` panel-only — stated outright at `wing_inertia.py:212-215`.
+The mass is therefore published nowhere as an applied load, and an Appendix B
+built from the strip table alone is short by the whole of it: on `baron_58` PHAA,
+**4,821.5 lb of a 5,004.1 lb root shear**, exactly `nz × ΣW` over the four entered
+masses. It is inertia relief, so a model built from the short deck is
+unconservative in shear and, with the masses at `y = 57–95 in`, substantially so
+in root bending. `ga6_normal` enters no concentrated wing mass, which is why the
+closure was exact there and the defect invisible until the Baron ran.
+
+**Why it prevents progress.** OR-15's first row is narrow by design — a wrong
+number the report can state accurately is not blocking. This is not that. The
+appendix's stated purpose is to be applied to a structures model; a table that
+cannot be applied without silently losing most of the inertia relief cannot be
+written truthfully around the gap.
+
+**Admitted by the owner in session, 2026-09-03, filed as #166.** Frozen files changed:
+`sloads/modules/wing_inertia.py` (publish each mass as a `ConcentratedLoad`),
+`sloads/modules/airloads.py` and `sloads/modules/wing_inertia.py` (populate
+`WingStationLoad.myy_free`, which the wing chain left `0.0`), and
+`sloads/modules/net_loads.py` (sum and transfer both). The manifest is updated in
+the same commit per G-OR-9.
+
+**Why `myy_free` had to be published rather than recovered.**
+`balance._free_moments` reverses the transfer recurrence from the cumulative
+column, which is exact for an air load and **wrong** once a point mass steps the
+shear: the step is not a transfer, so it lands in the recovered free moment as a
+spurious term. The two owners are guarded against each other on the air loads,
+where both are valid.
+
+**No oracle moved.** Every change is additive — a new field, a field that was
+`0.0`, a new list — and no cumulative value is touched. The oracle tests and the
+Appendix A ±0.1 % gates are unchanged, which is asserted rather than assumed.
+`SCHEMA_VERSION` does not bump: `WingLoadResult` is a result, `Project` holds no
+field of that type, and nothing on disk has this shape (the `BalancedCaseResult`
+precedent in `tests/test_schema_guards.py`).

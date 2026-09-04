@@ -347,8 +347,9 @@ every future section free to find another.
 
 ## 3.4 Section 3: Wing Loads
 
-Design note 44 §11 (OR-48 … OR-56). Four subsections and one appendix, built
-from the `wing_loads` step (`AIRLOADS+WINGINER+NETLOADS`).
+Design note 44 §11 (OR-48 … OR-58) and §12 (OR-59 … OR-63). Four subsections
+and one appendix, built from the `wing_loads` step
+(`AIRLOADS+WINGINER+NETLOADS`).
 
 - **3.1 states the wing data the cases were run from**, not the planform: the
   planform is 2.1's and **SHALL** be cross-referred rather than repeated.
@@ -414,9 +415,44 @@ from the `wing_loads` step (`AIRLOADS+WINGINER+NETLOADS`).
   input distribution is LIMIT and says so. This is where G-OR-4 stops being
   vacuous — section 2 held it by carrying no force or moment at all (OR-44),
   and section 3 holds it only by marking every one of them.
-- **Appendix B carries the increment at each station, not a running load.**
-  `Fz`/`Fx` are what the strip at that station carries; `Sz`, `Sx`, `Mxx`, `Myy`
-  are cumulative. Station coordinates are tabulated once, in 3.1.
+- **3.2 owns the notation and the derivation.** It **SHALL** carry a symbol
+  table giving, for every symbol section 3 or its appendix prints, the quantity,
+  its units, and **whether it is an applied increment or a cumulative load** —
+  and it **SHALL** write out the recurrences that build `Sz`, `Sx`, `Mxx` and
+  `Myy` from the applied set, naming which terms are position transfers a
+  structural model generates for itself. A column heading anywhere in section 3
+  **SHALL** name a symbol from that table and nothing else.
+- **Appendix B is a structures deck, and is split in two.** B.1 is the
+  **applied** set: per row, the point the load acts at (`X`, `Y`, `Z`) and the
+  load applied there (`Fz`, `Fx`, `Myy` free). B.2 is what the structure
+  **carries**: `Sz`, `Sx`, `Mxx`, `Myy` against station. No load column is
+  shared between them. B.1 **SHALL** carry its own coordinates — a force
+  without its point is half a load definition, and a deck that sends the reader
+  to another section for the other half is not one.
+- **The applied moment SHALL be the free moment**, never a difference of the
+  cumulative column. `Myy` accumulates a section moment *and* two position
+  transfers of the outboard shear across the bay's sweep and dihedral; only the
+  first is applied, and the two are not close — on `ga6_normal` PHAA's outboard
+  strip they are opposite in sign. By the same argument `Mxx` and `Mzz` have no
+  applied increment and **SHALL NOT** be given one, and `Fy` is not a column:
+  the wing has no producer for a spanwise strip load, so a zero there would read
+  as a measured zero.
+- **Every concentrated wing mass SHALL be a row of B.1** at its own
+  coordinates, carrying zero free moment. `WINGINER` steps the cumulative shear
+  at each mass and leaves the per-strip loads panel-only, so a deck built from
+  the strip table alone loses the whole of the point-mass inertia relief — on
+  `baron_58` PHAA, 4,821.5 lb of a 5,004.1 lb root shear. A point mass produces
+  no free moment: every moment it makes is its force through an arm its own
+  coordinates state.
+- **The applied set SHALL close onto the cumulative one.** Summed tip inboard,
+  with each point mass entering through its own arms, `Fz`, `Fx` and the free
+  `Myy` reproduce the published `Sz`, `Sx`, `Mxx` and `Myy` at every station of
+  every case. This is the gate under the whole appendix: a model is given the
+  applied loads and returns the internal ones, and if the two disagree here they
+  disagree there, invisibly.
+- **Every appendix SHALL start a fresh page**, and Appendix B **SHALL** be
+  landscape throughout — one orientation per appendix, so it survives a column
+  being added rather than being re-decided per table.
 - **The Appendix A input echo holds a reserved slot** that renders its OR-32
   state. Lettering is derived from position, so an unreserved slot would print
   the wing appendix as A today and move it to B when the echo lands — and an
@@ -546,11 +582,33 @@ without a guard is prose, not a gate).
 | 3.2 Load-factor sign and envelope coverage (OR-58) | 2026-09-03 | `test_oracle_report.py::test_the_register_states_what_the_sign_of_a_load_factor_means`, `::test_a_case_set_with_no_negative_load_factor_says_it_does_not_envelop` |
 | 3.2 Case-list provenance (OR-57) | 2026-09-03 | `test_oracle_report.py::test_the_register_states_the_matrix_the_selection_actually_searched`, `::test_an_entered_wing_case_list_is_not_reported_as_the_selections_result`, `::test_a_project_that_enters_no_wing_cases_reports_the_selections_own_result` |
 | 3.2-3.4 Cases, root loads and distributions | 2026-09-01 | `test_oracle_report.py::test_the_wing_cases_are_one_set_seen_four_ways`, `::test_the_wing_root_loads_are_the_limit_result_times_the_case_factor`, `::test_a_project_with_no_wing_loads_states_the_absence_and_still_builds` |
-| Section 3 delivers ULTIMATE; inputs stated LIMIT | 2026-09-01 | `test_oracle_report.py::test_every_load_the_wing_section_prints_is_marked_ultimate`, `::test_the_appendix_carries_the_station_increment_and_the_running_total` |
+| Section 3 delivers ULTIMATE; inputs stated LIMIT | 2026-09-01 | `test_oracle_report.py::test_every_load_the_wing_section_prints_is_marked_ultimate` |
+| 3.2 Notation and the cumulative-load derivation (OR-62) | 2026-09-03 | `test_oracle_report.py::test_section_three_defines_every_symbol_its_tables_use`, `::test_section_three_states_how_the_cumulative_loads_are_built`, `::test_the_point_mass_rule_is_stated_only_where_there_is_one` |
+| Appendix B: applied set and carried set (OR-59, OR-60) | 2026-09-03 | `test_oracle_report.py::test_the_appendix_separates_the_applied_loads_from_the_carried_ones`, `::test_the_applied_table_carries_the_point_every_load_acts_at`, `::test_the_appendix_subsections_are_lettered_from_their_parent` |
+| Appendix B: concentrated masses and closure (OR-59, G-OR-29) | 2026-09-03 | `test_oracle_report.py::test_every_concentrated_wing_mass_is_a_row_of_the_applied_table`, `test_net_loads.py::test_the_applied_strip_set_reproduces_the_cumulative_loads`, `::test_a_concentrated_wing_mass_is_published_as_its_own_applied_load`, `::test_the_axis_transfer_moves_the_free_moment_on_its_own_force` |
+| Appendix page breaks and landscape (OR-63) | 2026-09-03 | `test_oracle_report.py::test_the_appendix_is_landscape_and_starts_a_fresh_page` |
 | Section 2 marks nothing ultimate; load factors identified as LIMIT | 2026-08-30 | `test_oracle_report.py::test_section_two_marks_nothing_ultimate_and_states_no_safety_factor`, `::test_no_table_claims_a_load_factor_is_not_a_load`, `::test_reported_load_factors_are_identified_as_limit` |
 
 ## 8. Conformance
 
+- [x] Appendix B is two subsections — the applied loads and the loads carried —
+      sharing no load column, with B.1 carrying the point each load acts at —
+      `test_oracle_report.py`
+- [x] The applied moment is the free moment; `Mxx`, `Mzz` and `Fy` are given no
+      applied increment — `test_oracle_report.py`, `test_net_loads.py`
+- [x] Every concentrated wing mass is a row of B.1 at its own coordinates,
+      carrying zero free moment — `test_oracle_report.py`
+- [x] The applied set summed tip inboard reproduces the published cumulative
+      loads at every station of every case, on both example airplanes —
+      `test_net_loads.py`
+- [x] The published free moment and `balance`'s own recovery agree where both
+      are valid — `test_net_loads.py`
+- [x] Every symbol a section 3 or Appendix B heading uses is defined in 3.2's
+      notation table with its sense — `test_oracle_report.py`
+- [x] 3.2 writes out the cumulative-load recurrences and names which terms are
+      position transfers — `test_oracle_report.py`
+- [x] Every appendix starts a fresh page; Appendix B is landscape and the
+      environment opens and closes once — `test_oracle_report.py`
 - [x] 2.2's weight/CG figure draws both loading edges, closes its limit
       envelope, and omits the limits rather than half-drawing them —
       `test_oracle_report.py`

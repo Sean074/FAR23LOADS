@@ -1830,7 +1830,8 @@ def _appendix(doc, title):
 def _wing_tables(doc):
     """Every table section 3 and its appendix print."""
     return ([t for s in _flat([_section_three(doc)]) for t in s.tables]
-            + _appendix(doc, oc.WING_LOAD_STATIONS).tables)
+            + [t for s in _flat([_appendix(doc, oc.WING_LOAD_STATIONS)])
+               for t in s.tables])
 
 
 def test_the_wing_section_renders_its_four_subsections_numbered_by_the_owner():
@@ -2004,7 +2005,7 @@ def test_the_wing_cases_are_one_set_seen_four_ways():
     summary = next(t for t in _wing_tables(doc)
                    if t.title.startswith("Wing root loads"))
     stations = next(t for t in _wing_tables(doc)
-                    if t.title.startswith("Wing loads by station"))
+                    if t.title.startswith("Applied wing loads by station"))
     cases = [row[0] for row in register.rows]
     assert cases and [row[0] for row in summary.rows] == cases
     assert sorted({row[0] for row in stations.rows}) == sorted(cases)
@@ -2014,26 +2015,145 @@ def test_the_wing_cases_are_one_set_seen_four_ways():
         assert [s.name.split()[0] for s in figure.data.series] == cases
 
 
-def test_the_appendix_carries_the_station_increment_and_the_running_total():
-    """OR-56 -- the increment at a station, not a running load per unit span.
+def _appendix_tables(doc):
+    """``(B.1 applied, B.2 cumulative)``."""
+    subs = _appendix(doc, oc.WING_LOAD_STATIONS).subsections
+    return subs[0].tables[0], subs[1].tables[0]
 
-    Both are printed because a reader checking a distribution needs the thing
-    being summed as well as the sum, and neither is recoverable from the other
-    on a printed page.
+
+def test_the_appendix_separates_the_applied_loads_from_the_carried_ones():
+    """OR-56, restated 2026-09-03 -- B.1 is a deck, B.2 is what it should return.
+
+    They were one table with both sets of columns, which invited exactly the
+    reading that put this section's purpose at risk: a difference of the
+    cumulative column taken for an applied load. Two tables, two headings.
     """
     project = reduce_to_oracle_inputs(io.load_project(_GA))
     from sloads.modules.net_loads import build_net_loads, loads_ref_axis_results
     net = loads_ref_axis_results(project, build_net_loads(project).wing_net)
-    table = _appendix(_doc(), oc.WING_LOAD_STATIONS).tables[0]
-    assert "Fz increment (lbs-ULT)" in table.columns
-    assert "Sz (lbs-ULT)" in table.columns
-    assert len(table.rows) == sum(len(r.stations) for r in net)
-    station = net[0].stations[0]
-    row = table.rows[0]
-    assert row[table.columns.index("Fz increment (lbs-ULT)")] == format_value(
-        station.fz * net[0].safety_factor)
-    assert row[table.columns.index("Sz (lbs-ULT)")] == format_value(
-        station.sz * net[0].safety_factor)
+    applied, carried = _appendix_tables(_doc())
+
+    for column in ("Fz (lbs-ULT)", "Fx (lbs-ULT)", "Myy free (lb-in-ULT)"):
+        assert column in applied.columns
+        assert column not in carried.columns
+    for column in ("Sz (lbs-ULT)", "Mxx (lb-in-ULT)", "Myy (lb-in-ULT)"):
+        assert column in carried.columns
+        assert column not in applied.columns
+
+    station, result = net[0].stations[0], net[0]
+    row = applied.rows[0]
+    assert row[applied.columns.index("Fz (lbs-ULT)")] == format_value(
+        station.fz * result.safety_factor)
+    assert carried.rows[0][carried.columns.index("Sz (lbs-ULT)")] == format_value(
+        station.sz * result.safety_factor)
+
+
+def test_the_applied_table_carries_the_point_every_load_acts_at():
+    """A force without its point is half a load definition (owner review).
+
+    X and Z were dropped to 3.1 when the table overflowed; an appendix a
+    structural model is built from cannot make the reader fetch half the load
+    definition from another section.
+    """
+    applied, carried = _appendix_tables(_doc())
+    for axis in ("X (in)", "Y (in)", "Z (in)"):
+        assert axis in applied.columns
+    # The cumulative table keys on the station and does not repeat them.
+    assert "X (in)" not in carried.columns
+
+
+def test_every_concentrated_wing_mass_is_a_row_of_the_applied_table():
+    """The Baron's four wing masses, each at its own coordinates.
+
+    Without them the applied set is short by most of the inertia relief -- the
+    defect the OR-15 admission of 2026-09-03 was granted to fix, #166 -- and a short
+    deck reads exactly like a complete one.
+    """
+    project = reduce_to_oracle_inputs(io.load_project(_TWIN))
+    from sloads.modules.net_loads import build_net_loads, loads_ref_axis_results
+    net = loads_ref_axis_results(project, build_net_loads(project).wing_net)
+    points = [pl for r in net for pl in r.point_loads]
+    assert points, "the Baron enters concentrated wing masses"
+
+    applied, _carried = _appendix_tables(_doc(_TWIN))
+    station_column = applied.columns.index("Station")
+    named = [row[station_column] for row in applied.rows]
+    for pl in points:
+        assert pl.name in named
+    assert len(applied.rows) == sum(len(r.stations) for r in net) + len(points)
+
+    # A point mass carries no free moment -- its every moment is its force
+    # through an arm the coordinates state.
+    free = applied.columns.index("Myy free (lb-in-ULT)")
+    for row in applied.rows:
+        if row[station_column] in {pl.name for pl in points}:
+            assert float(row[free].replace(",", "")) == 0.0
+
+
+def test_the_appendix_is_landscape_and_starts_a_fresh_page():
+    """Back matter a reader turns to, not one that trails the section before it."""
+    doc = _doc()
+    station_appendix = _appendix(doc, oc.WING_LOAD_STATIONS)
+    assert station_appendix.landscape and station_appendix.page_break
+    echo = _appendix(doc, oc.INPUT_ECHO)
+    assert echo.page_break, "every appendix starts a page, built or reserved"
+
+    tex = ol.render_oracle_document(doc)
+    assert r"\usepackage{pdflscape}" in tex
+    assert tex.count(r"\begin{landscape}") == tex.count(r"\end{landscape}") == 1
+
+
+def test_the_appendix_subsections_are_lettered_from_their_parent():
+    """B.1 and B.2 -- composed by the numbering owner, never typed (F-R2)."""
+    subs = _appendix(_doc(), oc.WING_LOAD_STATIONS).subsections
+    letter = oc.appendix_letter(oc.WING_LOAD_STATIONS)
+    assert [s.title.split()[0] for s in subs] == [f"{letter}.1", f"{letter}.2"]
+
+
+def test_section_three_defines_every_symbol_its_tables_use():
+    """The notation table is the one owner of increment-versus-cumulative.
+
+    A column heading anywhere in section 3 or its appendix names a symbol from
+    it; a heading that named something else would be a definition living only in
+    the reader's head.
+    """
+    doc = _doc()
+    notation = next(t for t in _wing_tables(doc) if t.title == "Notation")
+    defined = {row[0] for row in notation.rows}
+    assert {"X", "Y", "Z", "Fz", "Fx", "Myy free", "Sz", "Sx", "Mxx", "Myy"} <= defined
+    senses = {row[0]: row[3] for row in notation.rows}
+    assert senses["Fz"] == "increment" and senses["Sz"] == "cumulative"
+    assert senses["Myy free"] == "increment" and senses["Myy"] == "cumulative"
+
+    applied, carried = _appendix_tables(doc)
+    for table in (applied, carried):
+        for column in table.columns:
+            symbol = column.split(" (")[0]
+            if symbol in ("Case", "Station"):
+                continue
+            assert symbol in defined, f"{symbol!r} is used but not defined"
+
+
+def test_section_three_states_how_the_cumulative_loads_are_built():
+    """The recurrences, printed -- including which terms are transfer.
+
+    A reader assembling a model from the appendix has to know that the Sz and Sx
+    terms of Myy are position transfers the model generates for itself; there is
+    no way to tell that from a column heading.
+    """
+    body = " ".join(_section_three(_doc()).subsections[1].body)
+    assert "Sz(i) = Sz(i+1) + Fz(i)" in body
+    assert "Mxx(i) = Mxx(i+1) + Sz(i+1) dy" in body
+    assert "transfer" in body and "Only Myy free is applied." in body
+
+
+def test_the_point_mass_rule_is_stated_only_where_there_is_one():
+    """Stated for the Baron, absent for the GA6, which enters none."""
+    def _text(path):
+        return " ".join(_section_three(_doc(path)).subsections[1].body)
+
+    assert "A concentrated wing mass" in _text(_TWIN)
+    assert "A concentrated wing mass" not in _text(_GA)
 
 
 def test_the_reference_axis_is_drawn_open_on_a_closed_planform():

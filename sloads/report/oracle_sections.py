@@ -1273,6 +1273,7 @@ _WING_STEP = "wing_loads"
 #: Positions of the subsections other prose points at, so a cross-reference is
 #: composed from the numbering owner rather than typed as "3.1" (F-R2).
 _WING_INPUTS = 0
+_WING_CASES = 1
 _WING_ASSESSED = 2
 _WING_DISTRIBUTIONS = 3
 
@@ -1628,14 +1629,11 @@ def _wing_inputs(project: Project, *, system: UnitSystem,
 def _sign_note(plan: Sequence[SectionPlan]) -> str:
     """The axes and sign statement, with its own cross-reference composed."""
     return (
-        "Loads are stated in airplane axes: X aft along the fuselage reference "
-        "line, Y out the starboard wing, Z up. Sz is the vertical shear carried "
-        "across a station, Sx the drag shear, Mxx the bending moment about the "
-        "X axis and Myy the torsion about the loads reference axis stated in "
-        + subsection_ref(plan, _WING_STEP, _WING_INPUTS) + ". Each is the sum "
-        "of the loads outboard of its station, accumulated from the tip "
-        "inboard, so a value at a station is what the wing carries there and "
-        "not what one strip contributes. The full convention is the "
+        "Loads are stated in airplane axes, and both moments are stated about "
+        "the loads reference axis given in "
+        + subsection_ref(plan, _WING_STEP, _WING_INPUTS) + ". The symbols, "
+        "their units and whether each is an applied increment or a cumulative "
+        "load are tabulated below; the full sign convention is the "
         "analysis-wide one and is not restated per section.")
 
 
@@ -1849,6 +1847,94 @@ def _provenance_sentence(entered: bool, named: Sequence[str],
     return sentence
 
 
+#: The symbols section 3 uses, in the order a reader meets them: the point
+#: first, then what is applied at it, then what the structure carries there.
+#:
+#: A table rather than a sentence because the distinction the section turns on
+#: -- which quantities are per-strip increments and which are running totals --
+#: is a property of each symbol, and prose that carries it for ten symbols at
+#: once is prose nobody checks a column heading against (owner review,
+#: 2026-09-03).
+_NOMENCLATURE: Tuple[Tuple[str, str, str, str], ...] = (
+    ("X", "Station, positive aft along the fuselage reference line",
+     "length", "coordinate"),
+    ("Y", "Butt line, positive outboard on the starboard wing",
+     "length", "coordinate"),
+    ("Z", "Waterline, positive up", "length", "coordinate"),
+    ("Fz", "Normal force applied at the station", "force", "increment"),
+    ("Fx", "Chordwise force applied at the station", "force", "increment"),
+    ("Myy free", "Free torsion applied at the station", "moment", "increment"),
+    ("Sz", "Normal shear carried across the station", "force", "cumulative"),
+    ("Sx", "Chordwise shear carried across the station", "force", "cumulative"),
+    ("Mxx", "Bending moment about X", "moment", "cumulative"),
+    ("Myy", "Torsion carried across the station", "moment", "cumulative"),
+)
+
+
+def _nomenclature_table(net: Sequence[object], system: UnitSystem) -> Table:
+    """The symbols of section 3, each stated as increment or cumulative.
+
+    The one owner of the distinction: a column heading anywhere in section 3 or
+    its appendix names a symbol from this table and nothing else.
+    """
+    u = Units(system)
+    axis = _torsion_axis(net) or "loads reference axis"
+    rows = [[symbol, quantity, u.label(dim), sense]
+            for symbol, quantity, dim, sense in _NOMENCLATURE]
+    return Table(
+        title="Notation", columns=["Symbol", "Quantity", "Units", "Sense"],
+        rows=rows,
+        note=("An increment is the load applied at that station alone. A "
+              "cumulative value is the load the structure carries there: the "
+              "sum of everything outboard of it, accumulated from the tip "
+              f"inboard. Both moments are stated about the {axis}. "
+              "Coordinates are geometry -- they are neither scaled to ultimate "
+              "nor marked."))
+
+
+def _derivation_note(net: Sequence[object]) -> str:
+    """How the cumulative loads are built from the applied ones.
+
+    Written out because the appendix is a deck: a reader assembling a structural
+    model from it has to know which of these terms the model will generate for
+    itself, and there is no way to tell that from the column headings alone.
+    """
+    axis = _torsion_axis(net) or "loads reference axis"
+    reference = appendix_ref(WING_LOAD_STATIONS)
+    tail = (f" That is why {reference} tabulates Fz, Fx and Myy free at each "
+            "station's own point rather than the differences of the cumulative "
+            "columns: the differences are mostly transfer, and a model given "
+            "them would count it twice.") if reference else ""
+    return (
+        "The cumulative loads are the applied loads summed from the tip "
+        "inboard. Writing i for a station, i+1 for the station outboard of it "
+        f"and dy for the strip width, all moments about the {axis}:\n"
+        "  Sz(i) = Sz(i+1) + Fz(i)\n"
+        "  Sx(i) = Sx(i+1) + Fx(i)\n"
+        "  Mxx(i) = Mxx(i+1) + Sz(i+1) dy\n"
+        "  Myy(i) = Myy(i+1) - Sz(i+1) [X(i+1) - X(i)] + Sx(i+1) [Z(i+1) - "
+        "Z(i)] + Myy free(i)\n\n"
+        "The two terms carrying Sz and Sx into Myy, and the term carrying Sz "
+        "into Mxx, are position transfers -- the shear already carried at the "
+        "station, moved across the sweep, dihedral and span of the bay. They "
+        "are not applied loads, and a structural model generates them itself "
+        "from its own geometry. Only Myy free is applied." + tail)
+
+
+def _point_load_note(net: Sequence[object]) -> str:
+    """How a concentrated wing mass enters, stated only where there is one."""
+    if not any(getattr(r, "point_loads", ()) for r in net):
+        return ""
+    return (
+        "A concentrated wing mass -- an engine, a gear leg, fuel, a store -- is "
+        "not part of any strip. It applies a point force at its own X, Y and Z, "
+        "and enters the cumulative loads of every station inboard of it: Fz and "
+        "Fx into the shears, and their moments about that station's axis into "
+        "Mxx and Myy. It carries no free moment of its own, because every "
+        "moment it produces is that force acting through an arm the geometry "
+        "already states.")
+
+
 def _wing_cases(project: Project, *, system: UnitSystem,
                 plan: Sequence[SectionPlan]) -> Section:
     """3.2 -- what was run, at what condition, under which rule."""
@@ -1869,9 +1955,12 @@ def _wing_cases(project: Project, *, system: UnitSystem,
         _provenance_sentence(entered, named, run, missing),
         _negative_case_sentence(net),
         _sign_note(plan),
+        _derivation_note(net),
+        _point_load_note(net),
     ]
     body = [paragraph for paragraph in body if paragraph]
-    tables = [t for t in (table, _selection_table(conditions, run))
+    tables = [t for t in (table, _selection_table(conditions, run),
+                          _nomenclature_table(net, system))
               if t is not None]
     if table is None:
         return Section("", body=body,
@@ -2000,15 +2089,16 @@ def _wing_distributions(project: Project, *, system: UnitSystem,
                         plan: Sequence[SectionPlan]) -> Section:
     """3.4 -- the net distributions of every selected case."""
     net = _wing_net(project)
+    axis = _torsion_axis(net)
     assessed = subsection_ref(plan, _WING_STEP, _WING_ASSESSED)
     figures = [_distribution_figure(net, key, attr, dim, title, system, assessed)
                for key, attr, dim, title in _DISTRIBUTION_FIGURES]
     body = [
         "The distributions below are the net wing loads: the air load and "
         "the inertia load of the same case summed station by station, which is "
-        "what the structure carries. Air and inertia are not drawn separately "
-        "-- they are equal and opposing over much of the span, and the net is "
-        "the quantity the wing is sized to.",
+        "what the structure carries. Air and inertia are not shown separately; "
+        "the loads shown are the net external load, referred to the loads "
+        "reference axis" + (f" ({axis})" if axis else "") + ".",
         "Every case selected for the wing is drawn on each axes, so the "
         "governing case for a quantity can be read off the figure rather than "
         "taken on assertion. The station values behind these curves are "
@@ -2052,62 +2142,125 @@ def _wing_loads(project: Project, results: Mapping[str, Optional[ModuleResult]],
 #: cumulative quantities of 3.4. Both are printed because the reader checking a
 #: distribution needs the thing being summed as well as the sum, and neither is
 #: recoverable from the other on a page.
-_STATION_LOADS: Tuple[Tuple[str, str, str], ...] = (
-    ("fz", "force", "Fz increment"),
-    ("fx", "force", "Fx increment"),
+#: The cumulative channels of B.2, in the order the structure carries them.
+#: ``Mzz`` is deliberately absent -- the drag bending is not delivered by this
+#: analysis (owner decision, iteration 3).
+_CUMULATIVE_LOADS: Tuple[Tuple[str, str, str], ...] = (
     ("sz", "force", "Sz"),
     ("sx", "force", "Sx"),
     ("mxx", "moment", "Mxx"),
     ("myy", "moment", "Myy"),
 )
 
+#: The applied channels of B.1 -- what a structural model is given, not what it
+#: carries. ``Fy`` is not among them: the wing has no producer for a spanwise
+#: strip load (``WingStationLoad.f_span`` is the fin's), and there is no applied
+#: ``Mxx`` or ``Mzz`` at all, because a strip applies forces and a section
+#: moment and nothing else. See :func:`_derivation_note`.
+_APPLIED_LOADS: Tuple[Tuple[str, str, str], ...] = (
+    ("fz", "force", "Fz"),
+    ("fx", "force", "Fx"),
+    ("myy_free", "moment", "Myy free"),
+)
 
-def _station_table(net: Sequence[object], system: UnitSystem,
+
+def _case_name(result: object) -> str:
+    """The case identity a table row is keyed by."""
+    ref = getattr(result, "case_ref", None)
+    return getattr(ref, "case_id", "") or getattr(result, "case", "")
+
+
+def _applied_table(net: Sequence[object], system: UnitSystem,
                    assessed: str) -> Optional[Table]:
-    """Every selected case, station by station, ULTIMATE."""
+    """B.1 -- the applied load set: every strip, and every point mass.
+
+    Deck-grade, which is why the point travels with the load: ``Fz`` applied at
+    a station other than the one stated here produces a different ``Myy``, so a
+    table that left the coordinates to a cross-reference would be half a load
+    definition.
+    """
     if not net:
         return None
     u = Units(system)
     length = u.label("length")
-    # Station Y locates a row; the axis point X, Z of that same station is
-    # tabulated once in 3.1 and is the same for every case, so repeating it
-    # against sixty rows would print one number sixty times and crowd the loads
-    # off the page.
-    columns = ["Case", "Station", f"Y ({length})"]
+    columns = ["Case", "Station", f"X ({length})", f"Y ({length})",
+               f"Z ({length})"]
     columns += [f"{label} ({u.ult_label(dim)})"
-                for _attr, dim, label in _STATION_LOADS]
-    rows = []
+                for _attr, dim, label in _APPLIED_LOADS]
+    rows: List[List[str]] = []
     for result in net:
-        ref = getattr(result, "case_ref", None)
-        name = getattr(ref, "case_id", "") or getattr(result, "case", "")
+        name = _case_name(result)
         sf = float(getattr(result, "safety_factor", ULTIMATE_FACTOR))
         for index, station in enumerate(getattr(result, "stations", ()), start=1):
-            row = [name, str(index), u.plain(station.y, "length")]
-            row += [u.load(getattr(station, attr), dim, sf)
-                    for attr, dim, _label in _STATION_LOADS]
-            rows.append(row)
+            rows.append([name, str(index)]
+                        + [u.plain(getattr(station, a), "length")
+                           for a in ("x", "y", "z")]
+                        + [u.load(getattr(station, attr), dim, sf)
+                           for attr, dim, _label in _APPLIED_LOADS])
+        for point in getattr(result, "point_loads", ()):
+            rows.append([name, point.name or "point mass"]
+                        + [u.plain(getattr(point, a), "length")
+                           for a in ("x", "y", "z")]
+                        + [u.load(point.fz, "force", sf),
+                           u.load(point.fx, "force", sf),
+                           u.load(0.0, "moment", sf)])
+    if not rows:
+        return None
+    axis = _torsion_axis(net) or "loads reference axis"
+    return Table(
+        title="Applied wing loads by station (ULTIMATE)", columns=columns,
+        rows=rows, small=True,
+        note=("The load applied at each station's own point: a strip row per "
+              "load station, root to tip, and a row per concentrated wing mass "
+              "at its own coordinates. Together they are the whole applied "
+              f"set. Torsion is stated about the {axis}; a point mass carries "
+              "no free torsion, because every "
+              "moment it produces is its force acting through an arm the "
+              "coordinates already state. Every load is ULTIMATE, scaled by "
+              f"its own case's safety factor as stated in {assessed}; the "
+              "coordinates are geometry and are neither scaled nor marked."))
+
+
+def _cumulative_table(net: Sequence[object], system: UnitSystem,
+                      notation: str) -> Optional[Table]:
+    """B.2 -- what the structure carries at each station."""
+    if not net:
+        return None
+    u = Units(system)
+    length = u.label("length")
+    columns = ["Case", "Station", f"Y ({length})"]
+    columns += [f"{label} ({u.ult_label(dim)})"
+                for _attr, dim, label in _CUMULATIVE_LOADS]
+    rows: List[List[str]] = []
+    for result in net:
+        name = _case_name(result)
+        sf = float(getattr(result, "safety_factor", ULTIMATE_FACTOR))
+        for index, station in enumerate(getattr(result, "stations", ()), start=1):
+            rows.append([name, str(index), u.plain(station.y, "length")]
+                        + [u.load(getattr(station, attr), dim, sf)
+                           for attr, dim, _label in _CUMULATIVE_LOADS])
     if not rows:
         return None
     axis = _torsion_axis(net)
     return Table(
-        title="Wing loads by station (ULTIMATE)", columns=columns, rows=rows,
-        small=True,
-        note=("One row per load station per selected case, root to tip. Fz and "
-              "Fx are the load the strip at that station carries -- the "
-              "increment, not a running load per unit span. Sz, Sx, Mxx and "
-              "Myy are cumulative, summed from the tip inboard. Torsion is "
-              f"stated about the {axis or 'loads reference axis'}. Every load "
-              "is ULTIMATE, scaled by its own case's safety factor as stated "
-              f"in {assessed}; the coordinates are geometry and are neither "
-              "scaled nor marked."))
+        title="Cumulative wing loads by station (ULTIMATE)", columns=columns,
+        rows=rows, small=True,
+        note=("What the wing carries at each station: the applied loads of the "
+              "table above, summed from the tip inboard by the relations in "
+              f"{notation}. The station coordinates are printed once, with the "
+              "applied set. Torsion is stated about the "
+              f"{axis or 'loads reference axis'}. Every load is ULTIMATE, "
+              "scaled by its own case's safety factor."))
 
 
 def _station_appendix(project: Project, *, system: UnitSystem,
                       plan: Sequence[SectionPlan]) -> Section:
-    """Appendix B's content."""
+    """Appendix B's content: the applied set, then the cumulative one."""
     net = _wing_net(project)
-    table = _station_table(net, system,
-                           subsection_ref(plan, _WING_STEP, _WING_ASSESSED))
+    assessed = subsection_ref(plan, _WING_STEP, _WING_ASSESSED)
+    notation = subsection_ref(plan, _WING_STEP, _WING_CASES)
+    applied = _applied_table(net, system, assessed)
+    carried = _cumulative_table(net, system, notation)
     body = [
         "This appendix carries the wing load distributions of "
         + section_ref(plan, _WING_STEP) + " in full: every selected case at "
@@ -2115,13 +2268,22 @@ def _station_appendix(project: Project, *, system: UnitSystem,
         "reference axis stated in "
         + subsection_ref(plan, _WING_STEP, _WING_INPUTS) + ". It is the same "
         "result the figures are drawn from, printed rather than plotted.",
+        "It is given in two parts, because they are two different quantities "
+        "and a reader who takes one for the other builds the wrong model. The "
+        "first is the load applied at each station -- what a structural model "
+        "is given. The second is the load carried across each station -- what "
+        "that model should return. The symbols and the relation between them "
+        "are stated in " + notation + ".",
     ]
-    if table is None:
+    if applied is None or carried is None:
         return Section("", body=body,
                        absent_reason=("The wing load distributions were not "
                                       "produced for this project, so there is "
-                                      "nothing to tabulate."))
-    return Section("", body=body, tables=[table])
+                                      "nothing to tabulate."),
+                       page_break=True)
+    return Section("", body=body, page_break=True, landscape=True,
+                   subsections=[Section("Applied loads", tables=[applied]),
+                                Section("Cumulative loads", tables=[carried])])
 
 
 # --------------------------------------------------------------------------- #
@@ -2206,18 +2368,26 @@ def build_appendix(project: Project, entry: SectionPlan,
     an appendix is lettered rather than numbered, and its state comes from the
     slot and its step rather than from a plan row of its own.
     """
-    from .oracle_content import appendix_heading
+    from .oracle_content import appendix_heading, appendix_letter
 
     title = appendix_heading(entry.title)
     builder = APPENDIX_BUILDERS.get(entry.title)
     if not entry.included or builder is None:
         return Section(title, absent_reason=entry.reason,
-                       absent_lead=entry.lead or "Not analysed")
+                       absent_lead=entry.lead or "Not analysed",
+                       page_break=True)
     section = builder(project, system=system, plan=plan)
     return Section(title, body=section.body, tables=section.tables,
                    figures=section.figures,
+                   # An appendix' children are lettered from their parent by the
+                   # same owner a section's are numbered from theirs, so "B.1"
+                   # cannot be written down anywhere but here.
+                   subsections=_numbered(appendix_letter(entry.title),
+                                         section.subsections),
                    absent_reason=section.absent_reason,
-                   absent_lead=section.absent_lead)
+                   absent_lead=section.absent_lead,
+                   page_break=section.page_break,
+                   landscape=section.landscape)
 
 
 __all__ = [

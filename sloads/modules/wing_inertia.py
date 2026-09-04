@@ -43,6 +43,7 @@ from ..convergence import solver_failure
 from ..derived_geometry import require_integrable_planform, sync_geometry_derived, wing_plane
 from ..models import (
     CaseRef,
+    ConcentratedLoad,
     ConditionResult,
     CriticalCondition,
     LoadValue,
@@ -64,6 +65,17 @@ from .wing_geometry import interp_x
 # 1e-5 per trip this is a density excursion of 1.0 from a 0.02 start: exhausting
 # it is a defect, not a tuning knob.
 _DENSITY_TRIPS = 100000
+
+
+@dataclass
+class _UnitPointMass:
+    """One concentrated wing mass with its unit-roll force, before Nz/Nx/UNB."""
+    name: str
+    x: float
+    y: float
+    z: float
+    w: float
+    fz_r: float
 
 
 @dataclass
@@ -89,6 +101,13 @@ class _InertiaUnits:
     sz_r: List[float] = field(default_factory=list)
     mxx_r: List[float] = field(default_factory=list)
     tyy_r: List[float] = field(default_factory=list)
+    #: The entered concentrated masses, each with the unit-roll force
+    #: ``fz_r = W*y*1e5/Iwxx`` that pairs with ``w``'s ``fz_r`` for a strip.
+    #: Held so :func:`wing_inertia_distribution` can scale a point mass by the
+    #: case's Nz/Nx/UNB exactly as it scales a strip -- the cumulative
+    #: distributions below already have them folded in and cannot be read back
+    #: apart (OR-15 admission #166, 2026-09-03).
+    point_masses: List["_UnitPointMass"] = field(default_factory=list)
     density_root: float = 0.0
     density_tip: float = 0.0
 
@@ -215,6 +234,9 @@ def inertia_units(geom: SurfaceInput, wm: WingMassInput,
     # is a point load carried in the cumulative shear.
     for cw in wm.concentrated:
         fzcwt = cw.weight_lb * cw.y * 100000.0 / iwxx
+        u.point_masses.append(_UnitPointMass(
+            name=getattr(cw, "name", ""), x=cw.x, y=cw.y, z=cw.z,
+            w=cw.weight_lb, fz_r=fzcwt))
         for i in range(h):
             if ye[i] < cw.y:
                 sz_v[i] += cw.weight_lb
@@ -257,8 +279,23 @@ def wing_inertia_distribution(case: WingLoadCase, units: _InertiaUnits
             mxx=nz * u.mxx_v[i] + ur * u.mxx_r[i],
             myy=nz * u.tyy_v[i] + nx * u.tvyy_d[i] + ur * u.tyy_r[i],
             mzz=nx * u.mzz_d[i],
+            # The panel mass acts at the 50% chord, the axis is at the 25%, so
+            # the strip's own inertia force carries an offset moment about the
+            # axis -- the ``- w*(c50x - c25x)`` and ``- fz_r*(c50x - c25x)``
+            # terms of ``tyy_v``/``tyy_r``. The drag case has no free term:
+            # ``tvyy_d`` is transfer only.
+            myy_free=(nz * -u.w[i] * (u.c50x[i] - u.c25x[i])
+                      + ur * -u.fz_r[i] * (u.c50x[i] - u.c25x[i])),
         ))
-    return WingLoadResult(case=case.name, nz=nz, nx=nx, stations=stations)
+    # The same three factors the strips are scaled by, applied to the point
+    # masses -- so the published applied set sums to the published cumulative
+    # one. A concentrated mass carries no free moment: its whole contribution to
+    # ``mxx``/``myy`` above is the transfer of this force to the station's axis.
+    points = [ConcentratedLoad(name=pm.name, x=pm.x, y=pm.y, z=pm.z,
+                               fx=nx * pm.w, fz=nz * pm.w + ur * pm.fz_r)
+              for pm in u.point_masses]
+    return WingLoadResult(case=case.name, nz=nz, nx=nx, stations=stations,
+                          point_loads=points)
 
 
 # --------------------------------------------------------------------------- #

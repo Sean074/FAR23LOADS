@@ -12,8 +12,16 @@
   states that `Nz` is the inertia load factor (so a +3.8 g case prints as −3.8) and says, from
   the analysed set, whether that set holds a negative-load-factor condition at all; 3.3 the root loads of every case; 3.4 the net
   distributions of `Sz`, `Mxx`, `Myy` and `Sx` along the span, every selected case on one
-  axes. **Appendix B** carries the same distributions station by station, with the load
-  increment at each station beside the cumulative totals.
+  axes. **Appendix B** carries the same distributions station by station, in two parts:
+  **B.1 the applied loads** — the point each load acts at (`X`, `Y`, `Z`) and the `Fz`, `Fx`
+  and free `Myy` applied there, which is a deck a structural model can be built from directly
+  — and **B.2 the loads carried**, the cumulative `Sz`, `Sx`, `Mxx` and `Myy` that model
+  should return. The applied moment is the **free** moment, never a difference of the
+  cumulative column: most of that difference is the outboard shear carried across the bay's
+  sweep and dihedral, which a model generates for itself. Section 3.2 gains a **notation
+  table** — every symbol with its units and whether it is an applied increment or a cumulative
+  load — and writes out the recurrences that build one from the other. Each appendix starts a
+  fresh page, and Appendix B is landscape.
 
   **Every load the section delivers is ULTIMATE and carries the `-ULT` marker; every input
   distribution is LIMIT and says so.** Section 2 satisfied G-OR-4 by carrying no force or

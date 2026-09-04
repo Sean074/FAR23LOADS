@@ -58,6 +58,7 @@ def _sum_stations(air: WingStationLoad, inertia: WingStationLoad) -> WingStation
         fx=air.fx + inertia.fx, fz=air.fz + inertia.fz,
         sx=air.sx + inertia.sx, sz=air.sz + inertia.sz,
         mxx=air.mxx + inertia.mxx, myy=air.myy + inertia.myy, mzz=air.mzz + inertia.mzz,
+        myy_free=air.myy_free + inertia.myy_free,
     )
 
 
@@ -129,8 +130,16 @@ def to_loads_ref_axis(results: List[WingLoadResult],
             stations.append(WingStationLoad(
                 x=x_lra, y=s.y, z=s.z, fx=s.fx, fz=s.fz, sx=s.sx, sz=s.sz,
                 mxx=s.mxx, myy=s.myy + s.sz * (x_lra - s.x), mzz=s.mzz,
+                # The free moment moves on the strip's **own** force, the
+                # cumulative one on the shear it carries -- the same shift, two
+                # different lever populations.
+                myy_free=s.myy_free + s.fz * (x_lra - s.x),
             ))
+        # A point load is a force at a physical point: moving the reference
+        # axis moves the arm the model applies it through, not the load itself,
+        # so the point set passes through the transfer unchanged.
         out.append(WingLoadResult(case=r.case, nz=r.nz, nx=r.nx, stations=stations,
+                                  point_loads=list(r.point_loads),
                                   case_ref=r.case_ref, safety_factor=r.safety_factor,
                                   torsion_axis=axis))
     return out
@@ -210,7 +219,12 @@ def build_net_loads(project: Project) -> LoadsResult:
         inertia.safety_factor = sf
         net = WingLoadResult(case=case.name, nz=inertia.nz, nx=inertia.nx,
                              stations=[_sum_stations(a, i) for a, i in zip(air.stations, inertia.stations)],
-                             case_ref=ref, safety_factor=sf)
+                             case_ref=ref, safety_factor=sf,
+                             # The air load has no point loads; the concentrated
+                             # wing masses are the inertia's, and they are the
+                             # part of the applied set the strip table does not
+                             # carry (``ConcentratedLoad``).
+                             point_loads=list(inertia.point_loads))
         air_results.append(air)
         inertia_results.append(inertia)
         net_results.append(net)

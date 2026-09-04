@@ -65,3 +65,41 @@ states the absence in both the section and its appendix and still builds a compl
 Three existing structural tests were restated rather than relaxed: a rendered section is now a
 plan row, a builder's own subsection, or an appendix, so plan and document are paired **by
 number** instead of by position.
+- **Appendix B became a structures deck, and the concentrated wing masses turned out to be
+  missing from it (OR-59 … OR-63, second review round, 2026-09-03).** The owner's ruling —
+  *the aim of the Appendix B table is to give the sectional loads to apply to a structures
+  model* — settled three questions and exposed a fourth. The table is now two: **B.1** the
+  applied loads, each with the point it acts at, and **B.2** the loads carried. The applied
+  moment is the **free** moment, not a difference of the cumulative column: `Myy` accumulates
+  a section moment and two position transfers of the outboard shear, and at `ga6_normal`
+  PHAA's outboard strip the free moment and the column difference are +5,917 and −5,313
+  lb·in — opposite in sign, so applying the difference double-counts the transfer. `Mxx`,
+  `Mzz` and `Fy` get no applied column for the same reason: a strip applies forces and a
+  section moment and nothing else, and the wing has no producer for a spanwise strip load.
+  3.2 gains the notation table and the recurrences that connect the two halves.
+
+  Writing the closure check — the applied set, summed tip inboard, must reproduce the
+  published cumulative loads — turned up the fourth. It closed to machine precision on
+  `ga6_normal` and failed on `baron_58` by 4,821.5 lb of a 5,004.1 lb root shear: `WINGINER`
+  steps the cumulative shear at each concentrated wing mass and leaves the per-strip loads
+  panel-only, so the mass was published nowhere as an applied load. `ga6_normal` enters none,
+  which is why nothing had caught it. **Admitted under OR-15** by the owner in session and filed as **#166**, since
+  an appendix whose stated purpose is to be applied to a model cannot be written truthfully
+  around losing most of the inertia relief: `wing_inertia` now publishes each mass as a
+  `ConcentratedLoad`, and `airloads`/`wing_inertia`/`net_loads` populate the long-empty
+  `WingStationLoad.myy_free` — the recovery from the cumulative column that would otherwise
+  have served is exact for an air load and wrong the moment a point mass steps the shear.
+  Every change is additive, no cumulative value moves, and the frozen manifest is updated in
+  the same commit per G-OR-9.
+
+**Test (second round).** The closure identity is the gate: `test_net_loads.py` re-accumulates
+`Fz`, `Fx` and `myy_free` — with each point mass entering through the arms its own coordinates
+state — and compares against the published `Sz`, `Sx`, `Mxx` and `Myy` at every station of
+every case on **both** example airplanes, with a companion assertion that the strip set alone
+is visibly short on the Baron, so the guard cannot pass vacuously. Beside it: the published
+free moment agrees with `balance._free_moments` on the air loads where both are valid; the
+axis transfer moves the free moment on the strip's own force and leaves a point load
+untouched; point loads survive the I/O round trip. In the report, eight more gates cover the
+two-table split, the point every applied load acts at, a row per concentrated mass carrying
+zero free moment, the symbol table's coverage of every column heading, the printed
+recurrences, and the page break and landscape environment.

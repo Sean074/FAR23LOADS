@@ -337,7 +337,18 @@ def fields_hash() -> str:
 #: a ``""`` default that means exactly what v58 meant, so the 58->59 hop is an
 #: identity -- and a shape change all the same, because ``LoadValue`` is
 #: persisted inside ``critical.conditions[].loads``.
-EXPECTED_FIELDS_HASH = "412f1e57bccc3f1b"
+#: applied wing point loads (OR-15 admission, 2026-09-03, #166): a new
+#: ``ConcentratedLoad`` and ``WingLoadResult.point_loads`` holding it. The
+#: concentrated wing masses were accumulated into the cumulative shears and
+#: moments and published nowhere else, so the *applied* set -- what a structural
+#: model is built from -- was short by the whole of them (4821.5 lb of a 5004.1
+#: lb root shear on ``baron_58`` PHAA). ``WingStationLoad.myy_free`` is now
+#: populated by the wing chain for the same reason: the free moment cannot be
+#: recovered from the cumulative column once a point mass steps the shear.
+#: Additive with defaults, and a **result**: ``Project`` holds no field of this
+#: type, so nothing on disk has this shape and there is no hop to write --
+#: the ``BalancedCaseResult`` standing above. ``SCHEMA_VERSION`` is unchanged.
+EXPECTED_FIELDS_HASH = "688c3a2cf818e5f4"
 
 
 def test_persisted_dataclass_shapes_are_unchanged():
