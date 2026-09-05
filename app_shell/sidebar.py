@@ -81,7 +81,7 @@ _UPLOAD_PROCESSED_KEY = "_uploader_processed"
 @contextmanager
 def render_shell_sidebar(project: Project, *,
                          examples_dir: str = EXAMPLES_DIR,
-                         channel: LoadChannel = LoadChannel.ULTIMATE,
+                         channel: LoadChannel = LoadChannel.LIMIT,
                          ) -> Iterator[None]:
     """The units + project-file + About sidebar for ``project``, around the page.
 
@@ -91,7 +91,8 @@ def render_shell_sidebar(project: Project, *,
     the dirty caption and the download payload describe the project the user is
     looking at, not the one before the last keystroke (#64). A page leaves early
     ``channel`` is the load basis of the results zip this sidebar builds. It
-    defaults to ULTIMATE so the **frozen** ``oracle_app/Oracle.py`` — which
+    defaults to LIMIT, the project's one basis since note 49 OR-116; the
+    **frozen** ``oracle_app/Oracle.py`` — which
     cannot be edited to pass an argument — keeps today's zip byte-for-byte;
     ``app/Home.py`` passes ``LoadChannel.LIMIT`` so the zip matches the pages it
     mirrors (design note 48, OR-77/OR-79). One sidebar serves both GUIs, which
@@ -156,7 +157,7 @@ def _render_units(project: Project) -> None:
 
 
 def _render_project_file(project: Project, examples_dir: str,
-                         channel: LoadChannel = LoadChannel.ULTIMATE) -> None:
+                         channel: LoadChannel = LoadChannel.LIMIT) -> None:
     st.header("Project file")
     # The name is document metadata, not an oracle input, so no oracle page
     # renders it -- and a project built there was called "" for its whole life:

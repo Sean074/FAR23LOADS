@@ -110,16 +110,35 @@ def test_si_render_carries_si_markers_only():
 # --------------------------------------------------------------------------- #
 def test_title_page_states_the_basis_the_units_and_the_signature_block():
     tex = _tex()
-    assert "All loads are ULTIMATE" in tex
+    # Inverted by note 49 OR-116/OR-117: the title page states the basis AND
+    # whose job the factor is, because "LIMIT" alone leaves a reader to guess
+    # whether sizing has already happened.
+    assert "All loads are LIMIT" in tex
+    assert "applied nowhere" in tex and "sizing analysis" in tex
     assert "Airspeed is KEAS" in tex
     assert r"\hrulefill" in tex, "unsigned control rows must still leave a line"
     assert r"\pageref{LastPage}" in tex, "a controlled document numbers page n of m"
 
 
-def test_ultimate_markers_and_sf_columns_are_present():
+def test_the_sf_column_is_present_and_the_ult_marker_is_not_on_data():
+    """Under note 49 OR-116 the report is LIMIT, so the ``SF`` column carries the
+    basis and no data cell is marked ``-ULT``.
+
+    This replaces ``test_ultimate_markers_and_sf_columns_are_present``, which
+    asserted ``"lbs-ULT" in tex``. That assertion still passes today -- but only
+    because the methods stamp *explains* the marker in prose ("...which state
+    SF=1.0 and carry a '-ULT' marker (lbs-ULT, ...)"). A gate satisfied by the
+    explanation of a thing rather than the thing is no gate at all, which is why
+    the check below is on table rows and the prose is excluded from it.
+    """
     tex = _tex()
-    assert "lbs-ULT" in tex and "lb-in-ULT" in tex
-    assert r"\textbf{SF}" in tex
+    assert r"\textbf{SF}" in tex, "the SF column carries the basis; it must exist"
+    # The GA fixture exports no already-ultimate case to a report table, so every
+    # marker in the document belongs to the stamp's own explanation of it.
+    explanation = tex.split("-ULT' marker")[0] if "-ULT' marker" in tex else tex
+    assert "-ULT" not in explanation, (
+        "a data cell is marked -ULT on a LIMIT report; under OR-118 the marker "
+        "survives only on 23.367(a)(2) and 23.561(b)")
 
 
 def test_not_analysed_rows_are_visually_distinct_without_colour():

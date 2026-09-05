@@ -13,7 +13,9 @@ shared calc package + a multi-page UI.
 
 **Mission (Phase C):** a demonstrated **concept-loads → sbeam sizing loop** — a
 concept configuration (which may exceed the FAR23 caps) goes in, per-component
-distributed ULTIMATE loads come out as `FORCE`/`MOMENT` bulk-data cards, and the
+distributed **LIMIT** loads come out as `FORCE`/`MOMENT` bulk-data cards with the
+14 CFR 23.303 factor **stated per subcase and applied nowhere** — sloads delivers
+the loads, the sizing step applies the factor (note 49 OR-116/OR-117) — and the
 exported deck solves in sbeam with verified global equilibrium, continuously in CI.
 The primary deliverable is the **full-span balanced free-free airplane model** (aero +
 inertia together, left and right cases, CONM2 mass export) — per-component decks
@@ -155,24 +157,25 @@ oracle/closure test per module.
 
 ## Load-output contract (summary — full rules in CONVENTIONS.md)
 
-**All deliverable load output is ULTIMATE**; internal calc stays LIMIT (oracles
-unaffected); the factor is applied once at the render/export boundary, to load
-quantities only. The `-ULT` marker is part of the units string; every case states its
-SF (`ULT SF=1.0` = already-ultimate). **The authority for every factor is the governing
+**Every load sloads delivers is LIMIT** — module views, case index, both reports,
+the exported CSVs **and the sbeam deck** — with the safety factor **stated per case
+and applied nowhere** (note 49 OR-116); **G-OR-71** scans the tree for a surviving
+multiply. Every case states its SF; the `-ULT` marker survives only on the two
+families the regulation prescribes already ultimate (23.367(a)(2), 23.561(b) —
+`ULT SF=1.0`, apply nothing). **The authority for every factor is the governing
 safety-factor table, `sloads/safety_factors.py`** (M4-8 / G-11) — one row per condition
 family, each with a basis; every per-case SF is a derived view of it, and a case it
 cannot classify is flagged, never silently defaulted. Solver decks use the consistent-unit
 channel (N·mm, MPa) via `units.deliverable_units(system, channel)` resolved once per
 bundle.
 
-**Which surfaces are ULTIMATE** is `report.LoadChannel` (note 48, OR-76): case
-selection, the deck, the case index and the oracle report; **LIMIT is every
-per-module analysis surface** (CLI, app tables and downloads), where the factor
-is stated, not applied. It defaults to ULTIMATE so the frozen `oracle_app` is
-unchanged without an edit. A non-load condition prescribes **no** factor —
-`safety_factor` is `Optional`, `None` renders `N/A`, owner
-`safety_factors.prescribes_factor` (#154). Direction of travel: *stated, never
-applied*; 0.8.3 removes the last multiply.
+**Every artifact states the factor it did not apply**, in band and per subcase —
+the statement *replaces* the multiply, so it is gated: **G-OR-73** (decks +
+companion documents), **G-OR-74** (rendered documents), **G-OR-72** (the balanced
+deck closes against `nz × W` *without* the factor). `report.LoadChannel` has one
+member, `LIMIT` (#29 removes the parameter). A non-load condition prescribes **no**
+factor — `safety_factor` is `Optional`, `None` renders `N/A`, owner
+`safety_factors.prescribes_factor` (#154).
 
 **Math fidelity:** modernized math (`math.pi`, clean equations) — the manual's figures are
 tolerance oracles (±0.1%, `math.isclose(rel_tol=1e-3)`), printed number + page citation kept

@@ -71,7 +71,6 @@ from .render import (
     results_to_rows,
     summary_rows,
     text_report,
-    to_ultimate,
     ultimate_units,
     weight_station_rows,
 )
@@ -116,7 +115,6 @@ __all__ = [
     "strip_comment_lines",
     "summary_rows",
     "text_report",
-    "to_ultimate",
     "ultimate_units",
     "weight_station_rows",
 ]

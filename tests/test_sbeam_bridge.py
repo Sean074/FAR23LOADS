@@ -62,13 +62,13 @@ def test_nodal_loads_sum_to_root_totals():
         nodes = sb.wing_nodal_loads(r)
         root = r.stations[0]
         y0 = nodes[0].y
-        assert math.isclose(sum(n.fz for n in nodes), root.sz * _SF, rel_tol=1e-9, abs_tol=1e-6)
-        assert math.isclose(sum(n.fx for n in nodes), root.sx * _SF, rel_tol=1e-9, abs_tol=1e-6)
-        assert math.isclose(_nodal_torsion_about_root(nodes), root.myy * _SF,
+        assert math.isclose(sum(n.fz for n in nodes), root.sz, rel_tol=1e-9, abs_tol=1e-6)
+        assert math.isclose(sum(n.fx for n in nodes), root.sx, rel_tol=1e-9, abs_tol=1e-6)
+        assert math.isclose(_nodal_torsion_about_root(nodes), root.myy,
                             rel_tol=1e-9, abs_tol=1e-3)
         # Bending = FORCE moments about the root strip (exact under the WINGINER quadrature).
-        assert math.isclose(sum(n.fz * (n.y - y0) for n in nodes), root.mxx * _SF, rel_tol=1e-6, abs_tol=1.0)
-        assert math.isclose(sum(n.fx * (n.y - y0) for n in nodes), root.mzz * _SF, rel_tol=1e-6, abs_tol=1.0)
+        assert math.isclose(sum(n.fz * (n.y - y0) for n in nodes), root.mxx, rel_tol=1e-6, abs_tol=1.0)
+        assert math.isclose(sum(n.fx * (n.y - y0) for n in nodes), root.mzz, rel_tol=1e-6, abs_tol=1.0)
 
 
 def test_concept_closure():
@@ -76,9 +76,9 @@ def test_concept_closure():
     assert results
     for r in results:
         nodes = sb.wing_nodal_loads(r)
-        assert math.isclose(sum(n.fz for n in nodes), r.stations[0].sz * _SF, rel_tol=1e-9, abs_tol=1e-6)
+        assert math.isclose(sum(n.fz for n in nodes), r.stations[0].sz, rel_tol=1e-9, abs_tol=1e-6)
         assert math.isclose(_nodal_torsion_about_root(nodes),
-                            r.stations[0].myy * _SF, rel_tol=1e-9, abs_tol=1e-3)
+                            r.stations[0].myy, rel_tol=1e-9, abs_tol=1e-3)
 
 
 # --------------------------------------------------------------------------- #
@@ -100,14 +100,14 @@ def test_force_moment_cards_round_trip():
     for idx, r in enumerate(results):
         got = totals[sb._sid(1, idx, r)]
         root = r.stations[0]
-        assert closes(got.force[2], root.sz * _SF, scale=got.force_scale)
-        assert closes(got.force[0], root.sx * _SF, scale=got.force_scale)
+        assert closes(got.force[2], root.sz, scale=got.force_scale)
+        assert closes(got.force[0], root.sx, scale=got.force_scale)
         # The bare card deck has no GRID cards, so the lever arms come from the
         # nodal loads rather than from the deck's own text; the deck-text sweep
         # that integrates them lives in ``test_export_equilibrium.py``.
         transfer = _nodal_torsion_about_root(sb.wing_nodal_loads(r)) \
             - sum(n.my for n in sb.wing_nodal_loads(r))
-        assert closes(got.moment[1] + transfer, root.myy * _SF,
+        assert closes(got.moment[1] + transfer, root.myy,
                       scale=got.moment_scale)
 
 
@@ -228,10 +228,10 @@ def test_span_load_csv_shape():
     # Mx/Mz are the concentrated-mass offset couples -- part of the applied
     # nodal load, hence beside Fx/Fz/My rather than with the cumulative columns.
     assert header == ["Case", "GID", "X (in)", "Y (in)", "Z (in)",
-                      "Fx (lbs-ULT)", "Fz (lbs-ULT)", "My (lb-in-ULT)",
-                      "Mx (lb-in-ULT)", "Mz (lb-in-ULT)",
-                      "Sx (lbs-ULT)", "Sz (lbs-ULT)", "Mxx (lb-in-ULT)",
-                      "Myy (lb-in-ULT)", "Mzz (lb-in-ULT)", "MyyAxis", "SF"]
+                      "Fx (lb)", "Fz (lb)", "My (lb-in)",
+                      "Mx (lb-in)", "Mz (lb-in)",
+                      "Sx (lb)", "Sz (lb)", "Mxx (lb-in)",
+                      "Myy (lb-in)", "Mzz (lb-in)", "MyyAxis", "SF"]
     assert len(lines) - 1 == sum(len(r.stations) for r in results)
     # The torsion axis travels in-band: untransferred results state 25% chord.
     assert all(line.split(",")[-2] == "25% chord" for line in lines[1:])
@@ -381,8 +381,8 @@ def test_the_applied_csv_states_its_units_axis_and_factor():
     header = strip_comment_lines(text).splitlines()[0]
     assert header.split(",") == [
         "Case", "Station", "GID", "X (in)", "Y (in)", "Z (in)",
-        "Fx (lbs-ULT)", "Fy (lbs-ULT)", "Fz (lbs-ULT)",
-        "Mx (lb-in-ULT)", "My (lb-in-ULT)", "Mz (lb-in-ULT)", "MyyAxis", "SF"]
+        "Fx (lb)", "Fy (lb)", "Fz (lb)",
+        "Mx (lb-in)", "My (lb-in)", "Mz (lb-in)", "MyyAxis", "SF"]
     row = _csv_rows(text)[0]
     assert row["MyyAxis"] == net[0].torsion_axis
     assert row["SF"] == "1.5"
@@ -415,7 +415,7 @@ def test_the_applied_csv_leaves_a_point_masss_gid_blank():
     rows = _csv_rows(sb.applied_load_csv(_lra_net(_BARON)[:1]))
     blank = [r for r in rows if r["GID"] == ""]
     assert len(blank) == 4
-    assert all(r["My (lb-in-ULT)"] == "0" for r in blank)
+    assert all(r["My (lb-in)"] == "0" for r in blank)
     assert all(r["GID"].isdigit() for r in rows if r not in blank)
 
 
@@ -425,7 +425,7 @@ def test_the_applied_csv_is_ultimate():
     rows = sb.applied_load_rows(net)
     csv_rows = _csv_rows(sb.applied_load_csv(net))
     for r, c in zip(rows, csv_rows):
-        assert math.isclose(float(c["Fz (lbs-ULT)"]), r.fz * r.safety_factor,
+        assert math.isclose(float(c["Fz (lb)"]), r.fz,
                             abs_tol=0.05)
 
 
@@ -437,7 +437,7 @@ def test_applied_load_writer(tmp_path=None):
     sb.write_applied_load_csv(_lra_net(_GA), path, header_comment="# ULTIMATE\n")
     text = open(path, encoding="utf-8").read()
     assert text.startswith("# ULTIMATE")
-    assert "My (lb-in-ULT)" in text
+    assert "My (lb-in)" in text
 
 
 def test_accepts_project_and_requires_loads():
@@ -473,10 +473,10 @@ def test_project_export_transfers_to_loads_ref_axis():
     x_le = interp_x(wing.leading_edge, raw.y)
     x_te = interp_x(wing.trailing_edge, raw.y)
     x_lra = x_le + 0.40 * (x_te - x_le)
-    expected = (raw.myy + raw.sz * (x_lra - raw.x)) * sf
+    expected = (raw.myy + raw.sz * (x_lra - raw.x))
     # Look the column up by name -- a positional index silently follows the
     # wrong column the next time one is added (it did, when Mx/Mz arrived).
-    myy_col = lines[0].split(",").index("Myy (lb-in-ULT)")
+    myy_col = lines[0].split(",").index("Myy (lb-in)")
     row = lines[1].split(",")
     assert math.isclose(float(row[myy_col]), expected, rel_tol=1e-3, abs_tol=1.0)
     # The BDF headers and stick-model beam axis carry the same label.
@@ -562,7 +562,7 @@ def test_control_surface_force_closure():
     assert results
     for r in results:
         forces = sb._control_nodal_forces(r)
-        assert math.isclose(sum(forces), r.load_lb * _SF, rel_tol=1e-6, abs_tol=1e-6), r.case
+        assert math.isclose(sum(forces), r.load_lb, rel_tol=1e-6, abs_tol=1e-6), r.case
     cards = sb.control_surface_force_moment_cards(results)
     assert "FORCE" in cards
     assert sb.control_surface_csv(results).startswith("Surface,Case,GID")
@@ -659,9 +659,9 @@ def test_wing_export_honours_per_case_safety_factor():
         for r in _wing_net_with_sf(sf):
             nodes = sb.wing_nodal_loads(r)
             root = r.stations[0]
-            assert math.isclose(sum(n.fz for n in nodes), root.sz * sf,
+            assert math.isclose(sum(n.fz for n in nodes), root.sz,
                                 rel_tol=1e-9, abs_tol=1e-6), sf
-            assert math.isclose(_nodal_torsion_about_root(nodes), root.myy * sf,
+            assert math.isclose(_nodal_torsion_about_root(nodes), root.myy,
                                 rel_tol=1e-9, abs_tol=1e-3), sf
 
 
@@ -673,15 +673,20 @@ def test_wing_export_mixes_factors_across_cases():
     results[1].safety_factor = 1.5
     for r in results[:2]:
         nodes = sb.wing_nodal_loads(r)
-        assert math.isclose(sum(n.fz for n in nodes), r.stations[0].sz * r.safety_factor,
+        assert math.isclose(sum(n.fz for n in nodes), r.stations[0].sz,
                             rel_tol=1e-9, abs_tol=1e-6), r.case
 
 
 def test_cards_state_the_factor_they_used():
-    """The ``$`` header quotes the case's actual SF, never a baked-in 1.5."""
+    """The ``$`` header quotes the case's actual SF, never a baked-in 1.5.
+
+    At ``SF = 1.0`` that sentence is the already-ultimate one (note 49 OR-118):
+    no shipped fixture exports a 23.367(a)(2) or 23.561(b) case to a deck, so
+    this is where the branch is exercised on a real deck rather than on a string.
+    """
     cards = sb.force_moment_cards(_wing_net_with_sf(1.0))
     # "SF=1.0", not "SF=1" -- deliverable formatting (M4-16).
-    assert "$ Loads are ULTIMATE (limit x SF=1.0)." in cards
+    assert "$ Loads are ALREADY ULTIMATE (SF=1.0) -- apply no further" in cards
     assert "SF=1.5" not in cards
 
 
@@ -696,7 +701,10 @@ def test_span_csv_carries_the_safety_factor_column():
 
 
 def test_body_tail_control_exports_honour_the_factor():
-    """The other three component families scale by the result's factor too."""
+    """The other three component families state the result's own factor too.
+
+    They *stated* and *scaled* by it until note 49 OR-116; now they only state
+    it, so what this holds is that the number still comes off the case."""
     from sloads.modules.body_loads import build_body_loads
     from sloads.modules.taildist import build_tail_chordwise
 
@@ -709,7 +717,8 @@ def test_body_tail_control_exports_honour_the_factor():
         r.safety_factor = 1.0
     body_rows = [ln.split(",") for ln in sb.body_span_load_csv(body).strip().splitlines()]
     assert body_rows[0][-1] == "SF" and {r[-1] for r in body_rows[1:]} == {"1.0"}
-    assert "$ Loads are ULTIMATE (limit x SF=1.0)." in sb.body_force_moment_cards(body)
+    assert ("$ Loads are ALREADY ULTIMATE (SF=1.0) -- apply no further"
+            in sb.body_force_moment_cards(body))
 
     tail = build_tail_chordwise(p)
     assert tail
@@ -850,8 +859,8 @@ def test_sob_internal_loads_match_the_cumulative_table_at_a_cut():
             y_cut = 0.5 * (s[k].y + s[k + 1].y)
             si = sb.sob_internal_loads(r, y_cut)
             nxt = s[k + 1]
-            assert math.isclose(si.sz, nxt.sz * sf, rel_tol=1e-9, abs_tol=1e-6)
-            assert math.isclose(si.sx, nxt.sx * sf, rel_tol=1e-9, abs_tol=1e-6)
+            assert math.isclose(si.sz, nxt.sz, rel_tol=1e-9, abs_tol=1e-6)
+            assert math.isclose(si.sx, nxt.sx, rel_tol=1e-9, abs_tol=1e-6)
             # Torsion at the cut is the next station's value transferred to the
             # cut's own point on the LRA -- the cut is half a strip inboard, and
             # a swept, dihedralled axis makes that a real difference (19 % at
@@ -860,11 +869,11 @@ def test_sob_internal_loads_match_the_cumulative_table_at_a_cut():
             x_cut = 0.5 * (s[k].x + s[k + 1].x)
             z_cut = 0.5 * (s[k].z + s[k + 1].z)
             want_myy = (nxt.myy - nxt.sz * (nxt.x - x_cut)
-                        + nxt.sx * (nxt.z - z_cut)) * sf
+                        + nxt.sx * (nxt.z - z_cut))
             assert math.isclose(si.myy, want_myy, rel_tol=1e-9, abs_tol=1e-3)
-            assert math.isclose(si.mxx, (nxt.mxx + nxt.sz * (nxt.y - y_cut)) * sf,
+            assert math.isclose(si.mxx, (nxt.mxx + nxt.sz * (nxt.y - y_cut)),
                                 rel_tol=1e-6, abs_tol=1.0)
-            assert math.isclose(si.mzz, (nxt.mzz + nxt.sx * (nxt.y - y_cut)) * sf,
+            assert math.isclose(si.mzz, (nxt.mzz + nxt.sx * (nxt.y - y_cut)),
                                 rel_tol=1e-6, abs_tol=1.0)
 
 
@@ -887,21 +896,21 @@ def test_sob_collapse_plus_internal_preserves_the_resultant():
         si = sb.sob_internal_loads(r, y_sob)
         cl = sb.sob_collapsed_load(r, sb.sob_reference_point(r, y_sob))
         assert cl.gid == sb.sob_gid()
-        assert math.isclose(cl.fz + si.sz, s[0].sz * sf, rel_tol=1e-9, abs_tol=1e-6)
-        assert math.isclose(cl.fx + si.sx, s[0].sx * sf, rel_tol=1e-9, abs_tol=1e-6)
+        assert math.isclose(cl.fz + si.sz, s[0].sz, rel_tol=1e-9, abs_tol=1e-6)
+        assert math.isclose(cl.fx + si.sx, s[0].sx, rel_tol=1e-9, abs_tol=1e-6)
         # Torsion is about the SOB reference point, so the root value transfers
         # over the chordwise and vertical offset between it and the root station
         # -- the same transfer the two halves already share (note 46 OR-67).
         ref = sb.sob_reference_point(r, y_sob)
         want_my = (s[0].myy + (s[0].z - ref[2]) * s[0].sx
-                   - (s[0].x - ref[0]) * s[0].sz) * sf
+                   - (s[0].x - ref[0]) * s[0].sz)
         assert math.isclose(cl.my + si.myy, want_my, rel_tol=1e-9, abs_tol=1e-3)
         # Moments about the SOB: root bending transferred over (y0 - y_sob).
         assert math.isclose(cl.mx + si.mxx,
-                            (s[0].mxx + s[0].sz * (s[0].y - y_sob)) * sf,
+                            (s[0].mxx + s[0].sz * (s[0].y - y_sob)),
                             rel_tol=1e-6, abs_tol=1.0)
         assert math.isclose(cl.mz + si.mzz,
-                            (s[0].mzz + s[0].sx * (s[0].y - y_sob)) * sf,
+                            (s[0].mzz + s[0].sx * (s[0].y - y_sob)),
                             rel_tol=1e-6, abs_tol=1.0)
 
 
@@ -1032,3 +1041,51 @@ if __name__ == "__main__":
             traceback.print_exc()
     print(f"\n{len(tests) - failed}/{len(tests)} passed")
     sys.exit(1 if failed else 0)
+
+
+def test_no_export_csv_carries_an_already_ultimate_case():
+    """The guard `_load_label` rests on (note 49 OR-116/OR-118/OR-118a).
+
+    Export load columns carry plain units because LIMIT is the only basis and
+    the two already-ultimate families -- ``engine_ultimate`` (23.367(a)(2)) and
+    ``emergency`` (23.561(b)) -- do not reach these per-component CSVs. That is
+    a fact about the current result set, not a law, so it is asserted rather
+    than assumed: the day a component result arrives at ``SF = 1.0``, this
+    fails and OR-118a's per-table marking has to be threaded through the
+    ``_*_fields(u)`` helpers before the column can be trusted.
+    """
+    import glob
+    import os
+
+    from sloads.io import load_project
+    from sloads.modules.body_loads import build_body_loads
+    from sloads.modules.net_loads import build_net_loads
+    from sloads.modules.taildist import build_tail_chordwise
+
+    def _results(builder, project):
+        """Every per-case result a builder yields, however it packages them."""
+        out = builder(project)
+        if isinstance(out, list):
+            return [("", r) for r in out]
+        # ``build_net_loads`` returns a LoadsResult bundle of named lists.
+        return [(f.name, r) for f in dataclasses.fields(out)
+                for r in (getattr(out, f.name) or [])]
+
+    import dataclasses
+
+    offenders = []
+    for path in sorted(glob.glob(os.path.join(_EXAMPLES, "*.project.json"))):
+        project = load_project(path)
+        for builder in (build_net_loads, build_body_loads, build_tail_chordwise):
+            try:
+                found = _results(builder, project)
+            except Exception:
+                continue
+            for slot, r in found:
+                if getattr(r, "safety_factor", None) == 1.0:
+                    offenders.append(
+                        f"{os.path.basename(path)}: {builder.__name__}"
+                        f"{'.' + slot if slot else ''} {getattr(r, 'case', '?')}")
+    assert not offenders, (
+        "an export result is already ultimate, so its CSV column must carry "
+        "the -ULT marker (OR-118a): " + "; ".join(offenders))

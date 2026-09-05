@@ -975,14 +975,13 @@ def test_the_deck_applies_the_reports_reference_point_reaction(example):
     checked = 0
     for case in cases:
         sid = balanced_subcase_id(case.case_ref.case_id, case.hand)
-        sf = case.safety_factor
         for load in case.loads:
             if not load.source.startswith("gear-"):
                 continue
             gid = nodes[(load.side, round(load.x, 6), round(load.y, 6),
                          round(load.z, 6))]
             got = applied[(sid, gid)]
-            want = (load.fx * sf, load.fy * sf, load.fz * sf)
+            want = (load.fx, load.fy, load.fz)
             for g, w in zip(got, want):
                 assert math.isclose(g, w, rel_tol=1e-5, abs_tol=1e-6), (
                     example, case.case_ref.case_id, gid)
@@ -991,13 +990,14 @@ def test_the_deck_applies_the_reports_reference_point_reaction(example):
 
 
 @pytest.mark.parametrize("example", _WITH_GEAR)
-def test_the_report_rows_are_ultimate_at_the_governing_factor(example):
-    """Every load in the report is ULTIMATE at the factor the governing table gives.
+def test_the_report_rows_are_limit_and_state_the_governing_factor(example):
+    """Every load in the report is LIMIT, and states the factor it does not apply.
 
-    Ground loads are **limit** loads by the regulation's own words (23.471), so
-    the factor is 1.5 (23.303) -- G-10. The report states loads, so the standing
-    load-output contract applies to it exactly as to every other channel, and the
-    factor comes from the governing table rather than from a literal here.
+    Ground loads are **limit** loads by the regulation's own words (23.471), and
+    since note 49 OR-116 the 23.303 factor is stated and applied nowhere -- so
+    the row's value is the calc's own and its ``SF`` cell carries the factor the
+    governing table gives. The factor still comes from the table rather than
+    from a literal here: what changed is that it is reported, not multiplied.
     """
     from sloads.safety_factors import table_for
 
@@ -1012,8 +1012,9 @@ def test_the_report_rows_are_ultimate_at_the_governing_factor(example):
     for row in rows:
         if row["Leg"] != MAIN or not row["Ground-line V"]:
             continue
-        want = limit[int(row["Case"])].vmp * factor
+        want = limit[int(row["Case"])].vmp
         assert math.isclose(float(row["Ground-line V"]), want, rel_tol=1e-6), row["ID"]
+        assert float(row["SF"]) == factor, row["ID"]
 
 
 # --------------------------------------------------------------------------- #
@@ -1043,9 +1044,9 @@ def test_the_csv_states_its_units_its_factor_and_its_wheel():
 
     header, rows = _parsed_csv(
         gear_report_csv(_project("ga6_normal.project.json")))
-    for label in ("Ground-line V (lbs-ULT)", "Datum Fz (lbs-ULT)",
-                  "Transfer Mx (lb-in-ULT)", "Leg inertia Fz (lbs-ULT)",
-                  "Net Fz above trunnion (lbs-ULT)", "Stroke (in)",
+    for label in ("Ground-line V (lb)", "Datum Fz (lb)",
+                  "Transfer Mx (lb-in)", "Leg inertia Fz (lb)",
+                  "Net Fz above trunnion (lb)", "Stroke (in)",
                   "Patch X (in)", "Design weight (lb)", "Leg weight (lb)"):
         assert label in header, label
     assert header[-1] == "SF"
@@ -1073,18 +1074,18 @@ def test_the_si_channel_states_si_units_and_converted_values():
     _, imperial = _parsed_csv(gear_report_csv(project))
     si_header, si = _parsed_csv(
         gear_report_csv(project, system=UnitSystem.SI))
-    for label in ("Stroke (mm)", "Ground-line V (N-ULT)",
-                  "Transfer Mx (Nmm-ULT)", "Design weight (N)"):
+    for label in ("Stroke (mm)", "Ground-line V (N)",
+                  "Transfer Mx (N·mm)", "Design weight (N)"):
         assert label in si_header, label
     assert len(si) == len(imperial)
     a, b = imperial[0], si[0]
     assert math.isclose(float(b["Stroke (mm)"]),
                         float(a["Stroke (in)"]) * 25.4, rel_tol=1e-5)
-    assert math.isclose(float(b["Ground-line V (N-ULT)"]),
-                        float(a["Ground-line V (lbs-ULT)"]) * 4.448222,
+    assert math.isclose(float(b["Ground-line V (N)"]),
+                        float(a["Ground-line V (lb)"]) * 4.448222,
                         rel_tol=1e-5)
-    assert math.isclose(float(b["Transfer Mx (Nmm-ULT)"]),
-                        float(a["Transfer Mx (lb-in-ULT)"]) * 4.448222 * 25.4,
+    assert math.isclose(float(b["Transfer Mx (N·mm)"]),
+                        float(a["Transfer Mx (lb-in)"]) * 4.448222 * 25.4,
                         rel_tol=1e-5)
 
 

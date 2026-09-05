@@ -400,10 +400,13 @@ not a regulation being encoded wrongly; and the exposure is narrow — `GRA(2)` 
 zero on `concept_regional_jet`, `atr42_100` and `dhc8_dash8`, leaving
 `ga6_normal` and `cessna_210` as the only fixtures where the question exists.
 
-**What holds the decision in place.** The state is pinned, not assumed:
-`tests/test_gear_report.py::test_the_ground_roll_attitude_is_resolved_against_the_other_sign`
-asserts `ρ = −GRA` per attitude on all five gear fixtures **and `+GRA` on the
-ground-roll one**, so a silent change to either goes red and lands on this entry.
+**What held the decision in place** (while it stood — this entry is superseded,
+and the pin below went with it). The state was pinned, not assumed: the test then
+named `test_the_ground_roll_attitude_is_resolved_against_the_other_sign` — since
+flipped and renamed
+`tests/test_gear_report.py::test_rho_is_minus_the_ground_angle_in_every_attitude`
+— asserted `ρ = −GRA` per attitude on all five gear fixtures **and `+GRA` on the
+ground-roll one**, so a silent change to either went red and landed on this entry.
 G-6's rotational gate compares each moment line in the frame LANDLOAD's own arm
 is built in and says which; the braked family's pitch line is bounded at 5 % with
 this as the named cause. Should a legible Appendix A/B or a `LANDLOAD.OUT`

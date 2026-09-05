@@ -534,8 +534,10 @@ def test_csv_has_three_load_cases():
     assert lines[0].startswith(
         "ID,FAR,Case description,Component,Condition,CG,Speed (kt),Altitude (ft),SF,"
     )
-    # Loads are reported ultimate: force/moment headers carry the ULT marker.
-    assert "ULT" in lines[0]
+    # Loads are reported LIMIT (note 49 OR-116): the headers carry plain units
+    # and the SF column states the factor that was not applied.
+    assert "-ULT" not in lines[0]
+    assert ",SF," in lines[0]
 
 
 def test_reading_a_project_dict_does_not_migrate_it():

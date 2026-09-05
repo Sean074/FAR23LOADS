@@ -96,15 +96,15 @@ def test_wing_nodal_loads_sum_to_root():
         nodes = sb.wing_nodal_loads(r)
         root = r.stations[0]
         y0 = nodes[0].y
-        assert math.isclose(sum(n.fz for n in nodes), root.sz * _SF, rel_tol=1e-9, abs_tol=1e-6)
+        assert math.isclose(sum(n.fz for n in nodes), root.sz, rel_tol=1e-9, abs_tol=1e-6)
         # The cards carry each strip's *free* torsion, so the root torsion comes
         # back only with the arms applied -- which is what a solver does
         # (note 46 OR-67/OR-68).
         x0, z0 = nodes[0].x, nodes[0].z
         rigid = sum(n.my + (n.z - z0) * n.fx - (n.x - x0) * n.fz for n in nodes)
-        assert math.isclose(rigid, root.myy * _SF, rel_tol=1e-9, abs_tol=1e-3)
+        assert math.isclose(rigid, root.myy, rel_tol=1e-9, abs_tol=1e-3)
         # Bending = FORCE moments about the root strip.
-        assert math.isclose(sum(n.fz * (n.y - y0) for n in nodes), root.mxx * _SF,
+        assert math.isclose(sum(n.fz * (n.y - y0) for n in nodes), root.mxx,
                             rel_tol=1e-6, abs_tol=1.0)
 
 
@@ -144,7 +144,7 @@ def test_tail_nodal_loads_sum_to_total():
     assert results
     for r in results:
         forces = sb._tail_nodal_forces(r)
-        assert math.isclose(sum(forces), (r.lt25 + r.lt50) * _SF, rel_tol=1e-9, abs_tol=1e-6)
+        assert math.isclose(sum(forces), (r.lt25 + r.lt50), rel_tol=1e-9, abs_tol=1e-6)
 
 
 # --------------------------------------------------------------------------- #
@@ -212,7 +212,7 @@ def test_control_nodal_loads_sum_to_critical():
     for build in (aileron_mod.build_aileron, flap_mod.build_flap, tab_mod.build_tabs):
         for r in build(p):
             forces = sb._control_nodal_forces(r)
-            assert math.isclose(sum(forces), r.load_lb * _SF, rel_tol=1e-9, abs_tol=1e-6)
+            assert math.isclose(sum(forces), r.load_lb, rel_tol=1e-9, abs_tol=1e-6)
 
 
 # --------------------------------------------------------------------------- #
@@ -234,7 +234,7 @@ def test_full_airframe_exports_cleanly():
     assert len(wf) == len(wing)
     for idx, r in enumerate(wing):
         got = wf[sb._sid(1, idx, r)]
-        assert closes(got.force[2], r.stations[0].sz * _SF, scale=got.force_scale)
+        assert closes(got.force[2], r.stations[0].sz, scale=got.force_scale)
 
     # Tail: the FORCE set re-sums to ULTIMATE (LT25 + LT50) on the surface's own
     # axis -- vertical for the h-tail, lateral for the fin (D-R4).
@@ -242,7 +242,7 @@ def test_full_airframe_exports_cleanly():
     assert len(tf) == len(tail)
     for idx, r in enumerate(tail):
         got = tf[sb._sid(1, idx, r)]
-        want = tail_force_to_airplane((r.lt25 + r.lt50) * _SF, r.component)
+        want = tail_force_to_airplane((r.lt25 + r.lt50), r.component)
         for axis in range(3):
             assert closes(got.force[axis], want[axis], scale=got.force_scale)
 
@@ -251,7 +251,7 @@ def test_full_airframe_exports_cleanly():
     assert len(cf) == len(control)
     for idx, r in enumerate(control):
         got = cf[sb._sid(1, idx, r)]
-        assert closes(got.force[2], r.load_lb * _SF, scale=got.force_scale)
+        assert closes(got.force[2], r.load_lb, scale=got.force_scale)
 
     # Body: FORCE deck parses and closes to ~0 (already asserted per case above).
     assert len(card_totals(sb.body_force_moment_cards(body, sid_base=1))) == len(body)

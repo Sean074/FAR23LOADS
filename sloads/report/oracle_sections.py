@@ -12,7 +12,7 @@ limit.
 is a value some module returned, reproduced without re-derivation. The only
 arithmetic is unit conversion and the ULTIMATE boundary, and neither is done
 here either -- :func:`sloads.units.convert_results` and
-:func:`sloads.report.render.to_ultimate` are their owners, and both are asked
+:func:`sloads.report.render.ultimate_units` is their owner, and it is asked
 rather than re-implemented. That is what makes G-OR-4 hold by construction: this
 module never decides what a load is, so it cannot mark a load factor as one.
 
@@ -52,7 +52,7 @@ from .oracle_content import (
     section_ref,
     subsection_ref,
 )
-from .render import format_value, to_ultimate, ultimate_units
+from .render import format_value, ultimate_units
 
 
 # --------------------------------------------------------------------------- #
@@ -84,15 +84,14 @@ def _find(conditions: Sequence[ConditionResult], prefix: str,
 def _cell(value: LoadValue) -> Tuple[str, str]:
     """``(formatted value, units)`` for one result value, through the boundary.
 
-    ``sf=1.0``: section 2 holds no loads, so the boundary has nothing to scale.
-    Passing the condition's stamped 1.5 would be indistinguishable in the output
-    -- non-loads pass through either way -- and would encode a claim this section
-    does not make. If a load ever reaches here the empty marking will be wrong
-    and visible, which is better than a silently plausible number.
+    Nothing is scaled anywhere since note 49 OR-116, so the value passes
+    through and only the marking is decided here. Section 2 holds no loads, so
+    ``ultimate_units`` returns the plain unit for everything it sees; if a load
+    ever reaches here the marking will be wrong and visible, which is better
+    than a silently plausible number.
     """
-    scaled = to_ultimate(value.value, value.units, value.quantity, 1.0)
     units = ultimate_units(value.units, value.quantity)
-    return format_value(scaled), units
+    return format_value(value.value), units
 
 
 def _rows(condition: Optional[ConditionResult], *, skip: Sequence[str] = (),
@@ -1279,30 +1278,40 @@ _WING_DISTRIBUTIONS = 3
 
 
 def _load_cell(value: LoadValue, sf: float) -> Tuple[str, str]:
-    """``(formatted value, ULT units)`` for one **load**, through the boundary.
+    """``(formatted value, units)`` for one **load**, through the boundary.
 
     :func:`_cell`'s sibling, and deliberately a separate function rather than a
     parameter on it. Section 2 passes ``sf=1.0`` because it holds no loads and a
-    factor there would encode a claim it does not make (OR-44); section 3 holds
-    nothing but loads and every one of them is delivered ULTIMATE at its own
-    case's factor (OR-49). Two callers, two statements, no default to get wrong.
+    factor there would encode a claim it does not make (OR-44).
+
+    **The boundary no longer scales** (note 49 OR-89/OR-116): the value printed
+    is the calc's own and the case's factor is stated in the table's ``SF``
+    column. This is what lets the report be read against Appendix A, which is a
+    **limit** oracle — the defect note 49 E-c found was §3 printing 1.5x the
+    manual's figures with every oracle test still green, because the oracle
+    tests compare below this line and never cross it.
+
+    A load computed already ultimate keeps its ``-ULT`` marker (OR-118); section
+    2's ``sf=1.0`` cannot trip that, because it passes no loads.
     """
-    scaled = to_ultimate(value.value, value.units, value.quantity, sf)
-    return format_value(scaled), ultimate_units(value.units, value.quantity)
+    marked = ultimate_units(value.units, value.quantity) if sf == 1.0 else value.units
+    return format_value(value.value), marked
 
 
 def _required_sf(condition) -> float:
     """The case's factor, refusing a condition that prescribes none.
 
-    The report is ULTIMATE throughout (note 48 OR-78) and these tables render
-    load cases only, so ``None`` here is a defect upstream rather than a cell to
-    render — the same loud failure the render boundary takes (OR-82).
+    These tables render load cases only, so ``None`` here is a defect upstream
+    rather than a cell to render — the same loud failure the render boundary
+    takes (OR-82). (Note 48 OR-78 made the report ULTIMATE; note 49 OR-116 made
+    it LIMIT like everything else. Either way a load case has a factor and a
+    non-load case is not in this table.)
     """
     sf = condition.safety_factor
     if sf is None:
         raise ValueError(
             f"{condition.title!r} (FAR {condition.far_reference}) prescribes no "
-            "safety factor but is rendered in an ULTIMATE report table; see "
+            "safety factor but is rendered in a load-case report table; see "
             "sloads.safety_factors.prescribes_factor (design note 48)")
     return sf
 
@@ -1469,7 +1478,7 @@ def _span_load_figure(project: Project, clmax: Optional[float],
     **These are LIMIT.** A span load at a target ``CL`` is an input to the load
     cases below, not a delivered load, so it is neither scaled nor marked -- and
     it says so, because a figure in a section whose every other number is
-    ULTIMATE must not leave the reader to assume which kind this is (OR-49).
+    LIMIT must not leave the reader to assume which kind this is (OR-49, OR-94a).
     """
     from dataclasses import replace as _replace
 
@@ -1634,7 +1643,7 @@ def _wing_inputs(project: Project, *, system: UnitSystem,
         _LRA_NOTE,
         "The span loading and the coefficient curves below are inputs to the "
         "load cases and are stated LIMIT. Every load case in the rest of this "
-        "section is delivered ULTIMATE. Both kinds carry the label wherever "
+        "section is delivered LIMIT. Both kinds carry the label wherever "
         "they are printed, so no number in this section leaves its basis to be "
         "inferred.",
     ]
@@ -1827,7 +1836,7 @@ def _wing_case_table(project: Project, net: Sequence[object],
               "The weight is the CG case as entered. "
               + _LOAD_FACTOR_SIGN
               + " Nz and Nx are LIMIT and dimensionless, and the loads they "
-              "produce are delivered ULTIMATE below."))
+              "produce are delivered LIMIT below."))
 
 
 def _provenance_sentence(entered: bool, named: Sequence[str],
@@ -2002,7 +2011,8 @@ def _wing_cases(project: Project, *, system: UnitSystem,
 
 def _wing_summary_table(result: Optional[ModuleResult],
                         system: UnitSystem) -> Optional[Table]:
-    """3.3's root values, one row per case, ULTIMATE at each case's own factor.
+    """3.3's root values, one row per case, LIMIT with each case's own factor
+    stated beside it.
 
     Built from the module's own conditions, so the quantities printed are the
     ones ``net_loads`` publishes -- including both torsions where the loads
@@ -2032,9 +2042,9 @@ def _wing_summary_table(result: Optional[ModuleResult],
                        if value is not None else "--")
         rows.append(row)
     return Table(
-        title="Wing root loads by case (ULTIMATE)",
+        title="Wing root loads by case (LIMIT)",
         columns=columns, rows=rows, small=True,
-        note=("Root values of each selected case. Every load is ULTIMATE: the "
+        note=("Root values of each selected case. Every load is LIMIT: the "
               "limit load the analysis computed multiplied by the safety factor "
               "stated in its own row, applied once at this boundary. The "
               "torsion names the axis it is stated about; where the loads "
@@ -2087,7 +2097,7 @@ def _distribution_figure(net: Sequence[object], key: str, attr: str, dim: str,
     axis = _torsion_axis(net)
     named = f"{title} ({axis})" if attr == "myy" and axis else title
     if not net:
-        return Figure(key=key, title=f"{named} (ULTIMATE)",
+        return Figure(key=key, title=f"{named} (LIMIT)",
                       absent_reason=("the wing load distributions were not "
                                      "produced for this project."))
     u = Units(system)
@@ -2104,18 +2114,18 @@ def _distribution_figure(net: Sequence[object], key: str, attr: str, dim: str,
             [u.plain_value(s.y, "length") for s in stations],
             [u.load_value(getattr(s, attr), dim, sf) for s in stations], style))
     if not series:
-        return Figure(key=key, title=f"{named} (ULTIMATE)",
+        return Figure(key=key, title=f"{named} (LIMIT)",
                       absent_reason=("the wing load distributions carry no "
                                      "stations to plot."))
     return Figure(
-        key=key, title=f"{named} (ULTIMATE)",
+        key=key, title=f"{named} (LIMIT)",
         data=PlotData(f"Butt line Y ({u.label('length')})",
                       f"{named} ({u.ult_label(dim)})", series),
         caption=(f"{named} along the semi-span, every selected wing case on one "
                  "axes. The quantity is cumulative: it is summed from the tip "
                  "inboard, so a value is what the wing carries across that "
                  "station and not the load applied at it. All values are "
-                 "ULTIMATE, each case scaled by its own safety factor as "
+                 "LIMIT, each case stating its own safety factor as "
                  f"stated in {assessed}."))
 
 
@@ -2153,8 +2163,9 @@ def _wing_loads(project: Project, results: Mapping[str, Optional[ModuleResult]],
     return Section("", body=[
         "This section states the wing loads: the data they were run from, the "
         "cases run, the loads at the wing root, and the distributions along "
-        "the span. Every load case delivered here is ULTIMATE, and every "
-        "quantity that is not a delivered load says which it is.",
+        "the span. Every load case delivered here is LIMIT with its safety "
+        "factor stated and not applied, and every quantity that is not a "
+        "delivered load says which it is.",
     ], subsections=[
         replace(_wing_inputs(project, system=system, plan=plan),
                 title="Wing input data"),
@@ -2254,7 +2265,7 @@ def _applied_table(net: Sequence[WingLoadResult], system: UnitSystem,
         return None
     axis = _torsion_axis(net) or "loads reference axis"
     return Table(
-        title="Applied wing loads by station (ULTIMATE)", columns=columns,
+        title="Applied wing loads by station (LIMIT)", columns=columns,
         rows=rows, small=True,
         note=("The load applied at each station's own point: a strip row per "
               "load station, root to tip, and a row per concentrated wing mass "
@@ -2270,7 +2281,7 @@ def _applied_table(net: Sequence[WingLoadResult], system: UnitSystem,
               "point mass carries none, because every moment it produces is "
               "its force acting through an arm the coordinates already state. "
               "Moments are right-handed about the airplane axes. Every load is "
-              "ULTIMATE, scaled by its own case's safety factor as stated in "
+              "LIMIT, with its case's safety factor stated but not applied, as set out in "
               f"{assessed}; the coordinates are geometry and are neither "
               "scaled nor marked."))
 
@@ -2297,7 +2308,7 @@ def _cumulative_table(net: Sequence[object], system: UnitSystem,
         return None
     axis = _torsion_axis(net)
     return Table(
-        title="Cumulative wing loads by station (ULTIMATE)", columns=columns,
+        title="Cumulative wing loads by station (LIMIT)", columns=columns,
         rows=rows, small=True,
         note=("What the wing carries at each station: the applied loads of the "
               "table above, summed from the tip inboard by the relations in "
@@ -2308,7 +2319,7 @@ def _cumulative_table(net: Sequence[object], system: UnitSystem,
               "Mxx and Mzz are positive-magnitude bending integrals, so Mxx "
               "shares its sense with the applied Mx while Mzz is the negation "
               f"of a body-axis Mz. The distinction is defined once, in "
-              f"{notation}. Every load is ULTIMATE, scaled by its own case's "
+              f"{notation}. Every load is LIMIT; its case's safety factor is stated but not applied. Its "
               "safety factor."))
 
 

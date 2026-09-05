@@ -103,7 +103,7 @@ def resolve_units(project, flag=None) -> UnitSystem:
 
 
 def _stamps(project, system: UnitSystem, generated: str = "",
-            csv_channel: LoadChannel = LoadChannel.ULTIMATE):
+            csv_channel: LoadChannel = LoadChannel.LIMIT):
     """``(csv_stamp, bdf_stamp)`` -- the Step G8.3 methods & limitations block.
 
     The headless counterpart of the Export & Report page's one-stamp-per-bundle

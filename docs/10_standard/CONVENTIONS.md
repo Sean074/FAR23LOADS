@@ -354,27 +354,41 @@ conventions"** section (`SUMMARY_REPORT.md` §4.2.1), single-sourced in
   (`lbs-ULT`/`N-ULT`, `lb-in-ULT`/`Nmm-ULT`, `lb/in^2-ULT`/`MPa-ULT`); mapping table
   `_ULT_UNITS` in `sloads/report/render.py:101`. Non-load units never carry it.
 
-## 3. LIMIT → ULTIMATE contract
+## 3. LIMIT load contract — stated, never applied
 
-- **Calc emits LIMIT; every deliverable is ULTIMATE.** The factor is applied exactly
-  once, at the render/export boundary: `report/render.py` (`results_to_rows`,
-  `to_ultimate`) and `export/sbeam_bridge.py` (`_sf()`).
-- **Two channels, and the renderers take which one** (design note 48, OR-76/OR-77).
-  `report.LoadChannel` is the parameter: **ULTIMATE** is case selection
-  (`governing_loads_table`, `critical_rows`), the export deck, the case index and
-  the oracle technical report; **LIMIT** is every per-module analysis surface —
-  the CLI's text and CSV output, the app's per-module tables and download
-  buttons, and the results zip built from `app/`. On LIMIT the factor is
-  **stated and not applied**: plain units, no `-ULT`, the `SF` column filled, and
-  a header line pointing at the ultimate deliverables. The parameter **defaults
-  to ULTIMATE**, which is what keeps the frozen `oracle_app` output unchanged
-  without an edit; `app/` and `cli.py` opt into LIMIT explicitly.
-- **Direction of travel** (OR-86): the factor is to be *stated, never applied* —
-  the render/export boundary loses its last multiply in 0.8.3, under that
-  milestone's own note. Until then both channels exist and every artifact says
-  which one it is on. The `safety_factor` field itself is **not** going away:
-  two families are computed already-ultimate at SF = 1.0 (23.367(a)(2),
-  23.561(b)) and nothing else records that.
+- **Every load sloads delivers is LIMIT.** The calc emits LIMIT and so does every
+  surface: the module views, the case index, the oracle technical report, the
+  summary report, the exported CSVs **and the sbeam deck**. The safety factor of
+  14 CFR 23.303 is **stated per case and applied nowhere** — there is no
+  render/export boundary multiply left to point at (design note 49 **OR-116**,
+  which overrules note 48's OR-87 and OR-93).
+- **The sizing step applies it** (**OR-117**). A deck goes to a solver that sizes
+  structure to ultimate, so the deck **states, per subcase, the factor it did not
+  apply** (`export.sbeam_bridge.basis_sentence`) and the recipient applies it.
+  That statement is the obligation which *replaces* the multiply, and it is
+  gated: **G-OR-73** (`tests/test_deck_basis.py`) holds every deck and its
+  companion document to it, and **G-OR-74** (`tests/test_basis_statements.py`)
+  holds every rendered document to the same claim.
+- **No path in `sloads/` multiplies a load by a safety factor** — **G-OR-71**,
+  a scan over the whole tree (`tests/test_limit_channel.py`). The structural form
+  of the rule, because prose could not hold it: the multiply came out of 81 sites
+  across 7 files, and one creeping back would be invisible to every other gate
+  except G-OR-72, which sees only the balanced deck.
+- **`report.LoadChannel` has one member, `LIMIT`.** Note 48 built it as a switch
+  and defaulted it to ULTIMATE so the frozen `oracle_app` needed no edit (OR-77);
+  with the project on one basis the default inverted underneath that file and the
+  `ULTIMATE` member was **removed**, so a stale caller fails at import rather than
+  silently receiving limit loads. The parameter itself goes at #29.
+- **The `-ULT` marker survives on exactly two families** (**OR-118**):
+  23.367(a)(2) sudden engine stoppage and 23.561(b) emergency-landing inertia are
+  computed already ultimate at SF = 1.0 and cannot be un-factored. They are now
+  the only ultimate loads in the project, which makes the marker rare enough to
+  be conspicuous — its whole purpose. A **shared column header** is marked only
+  when *every* case in its table is already ultimate (**OR-118a**); otherwise it
+  is plain and the per-case `SF` column carries the basis. **G-OR-51** pins the
+  marker in both directions across every fixture.
+- The `safety_factor` field is **not** going away: it is what states the factor,
+  and it is the only record that those two families are already ultimate.
 - **Loads only** — forces/moments/pressures. Never geometry, weights, inertias, areas,
   speeds, angles, or dimensionless load factors (`_is_load_unit`,
   `render.py:66-95`; `load_keys.py` marks application points "geometry, never scaled").
@@ -396,34 +410,39 @@ conventions"** section (`SUMMARY_REPORT.md` §4.2.1), single-sourced in
   Layer 1 is `DERIVED_FACTOR`: `LIMIT → 1.5`, `ULTIMATE → 1.0` (14 CFR 23.303/25.303).
 - `ConditionResult.safety_factor` is the **carrier** (`Optional[float]`, default
   `constants.ULTIMATE_FACTOR = 1.5`). Three values, three meanings, and they are
-  not interchangeable: **1.5** a limit load factored at the deliverable; **1.0**
-  "already at ultimate" — still ULTIMATE output, marked `ULT SF=1.0`; **`None`**
+  not interchangeable: **1.5** a limit load, with 1.5 stated and left for the
+  sizing analysis; **1.0** "already at ultimate" — apply nothing further, marked
+  `ULT SF=1.0`; **`None`**
   *not a load case at all*, rendered `N/A` (#154, design note 48 OR-82).
   `safety_factors.prescribes_factor` is the single owner of that last
   distinction — a condition prescribes no factor exactly when it states no value
   in load units **and** carries no `case_ref`. The `case_ref` clause is
   load-bearing: SELECT's critical wing conditions publish no load value (their
-  loads live on `WingLoadResult`) but are load cases whose deck cards are
-  factored. Measured, 38 conditions prescribe no factor on both shipped
+  loads live on `WingLoadResult`) but are load cases whose deck cards state a
+  factor. Measured, 38 conditions prescribe no factor on both shipped
   airframes. The table **writes** the carrier at three
   boundaries (`registry.run_all_modules`, `report.content.component_loads`,
   `balanced_run`), so the report's SF column and a deck's `SF=` marker cannot
   disagree about one case (the defect class review finding **F-R1** closed).
 - **The table is fully user-editable, including the regulation rows**
-  (`Project.safety_factors`, schema v46) — safe for the oracles, since the factor is
-  applied at the render/export boundary only, but *not* for the deliverable. Four
-  mitigations are part of the contract: an override is declared in the report **and**
+  (`Project.safety_factors`, schema v46) — safe for every number sloads prints,
+  since no number is scaled by it, but *not* for the deliverable: it changes the
+  factor **stated** against a case, and so the ultimate load a sizing analysis
+  will derive. Four mitigations are part of the contract: an override is declared in the report **and**
   the methods stamp, it must state a basis, an override **below** the derived value
   raises a certification-risk warning (`validation._check_safety_factor_overrides`),
   and no shipped fixture carries one.
-- Uniform per-case scaling preserves closure: `sum(dFz) == sf × root` survives the
-  boundary (`sbeam_bridge.py:234`).
-- Per-module analysis pages **are** the LIMIT channel (OR-76 — this was a
-  carve-out permitting LIMIT and is now the rule for those surfaces). The
-  explicit marker and the pointer to the ultimate deliverables are still
-  required, and while the ULTIMATE channel exists a LIMIT *download* still
-  carries its basis in-band per **M4-15** (`PROGRAM_SPEC.md`): a stamped file
-  travelling on its own states its own basis, never the bundle's.
+- Closure is exact rather than scaled: `sum(dFz) == root`. **G-OR-72**
+  (`tests/test_export_equilibrium.py`) asserts the deck's `FORCE` resultant closes
+  against `nz × W` **without** the factor — every other deck check in the suite is
+  scale-invariant and so cannot see the basis at all, which is why this one had
+  to be written rather than inferred from a green suite.
+- Every artifact still states its basis **in band**, per **M4-15**
+  (`PROGRAM_SPEC.md`) — a stamped file travelling on its own says what it is,
+  and now says who applies the factor. One basis for the project does not make
+  the statement redundant: it makes it uniform, and it is the only thing standing
+  between a recipient and a 1.5× error now that the numbers themselves no longer
+  carry the answer.
 
 ## 4. Case identity
 

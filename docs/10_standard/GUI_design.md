@@ -463,24 +463,24 @@ The contract that makes pages copy-of-the-pattern (full list in
   materialised as explicitly disabled) and may re-derive; it may not delete.
 - **No airplane-shaped widget defaults** — a blank project opens with neutral
   defaults, not Appendix-A numbers baked into `value=`.
-- **LIMIT vs. ULTIMATE marking** — the sbeam cards, the case index and the oracle
-  technical report are ULTIMATE; **every per-module page is LIMIT** (design note
-  48, OR-76), including its download buttons and the sidebar's results zip, with
-  the factor stated in `SF` and not applied. Pass
-  `channel=LoadChannel.LIMIT` at the call — the renderers default to ULTIMATE so
-  the frozen `oracle_app` is unchanged by construction, which means a *new* page
-  that forgets the argument silently ships ULTIMATE. `SF` reads `N/A` where the
-  condition prescribes no factor. A page still marks its basis (a caption + the
-  `SF` column). See
+- **LIMIT marking** — **every surface is LIMIT**, pages and deliverables alike:
+  the per-module pages, their download buttons, the sidebar's results zip, the
+  sbeam cards, the case index and both reports, with the factor stated in `SF`
+  and applied nowhere (design note 48 OR-76, generalised to the whole project by
+  note 49 **OR-116**). `LoadChannel` now has a single member, so a call that
+  forgets the argument gets the one basis there is — the *"a new page that
+  forgets it silently ships ULTIMATE"* hazard is closed by construction rather
+  than by review. `SF` reads `N/A` where the condition prescribes no factor. A
+  page still marks its basis (a caption + the `SF` column). See
   [`00_program_overview.md`](00_program_overview.md) and `CLAUDE.md`.
-  **A LIMIT download must carry the basis in-band (M4-15):** the filename ends
+  **A download must carry the basis in-band (M4-15):** the filename ends
   `_LIMIT.csv` *and* the content states it (a `Basis` column, or LIMIT-marked
-  column headers) — an on-page caption does not travel with the file. Pages may
-  pair it with the ULTIMATE twin from the sbeam bridge (`*_ULT.csv`, `SF`
-  column), as Wing Loads / Fuselage Loads do.
-  `tests/test_ultimate_contract.py` scans every view's CSV `download_button`
-  and fails on an unmarked load CSV that doesn't route through an ULTIMATE
-  channel.
+  column headers) — an on-page caption does not travel with the file. There is no
+  ULTIMATE twin to pair it with any more; where Wing Loads / Fuselage Loads
+  offered a `*_ULT.csv` beside it, both files were the same numbers and only the
+  marker differed, which is why OR-81 retires the per-artifact marker vocabulary.
+  `tests/test_ultimate_contract.py` scans every view's CSV `download_button` and
+  fails on an unmarked load CSV.
 
 ---
 
@@ -979,8 +979,8 @@ reader maps a stored 0.25 — which the pre-v52 writer emitted unconditionally �
 back to unset). All additive/widening with unchanged effective defaults, so no
 hop.
 This paragraph's version number is guarded by
-`tests/test_data_dictionary.py::test_gui_design_schema_line_current` — update
-it (and this list) with every `SCHEMA_VERSION` bump.
+`tests/test_data_dictionary.py::test_gui_design_schema_paragraph_points_at_the_owner`
+— update it (and this list) with every `SCHEMA_VERSION` bump.
 Phases D–F (the six-section GUI restructure, the
 usability/concept-awareness work, and fleet comparison) are all complete, and Phase G
 is under way (G0–G6 + G6b shipped). The **open GUI plan is now

@@ -190,7 +190,7 @@ def test_the_units_statement_repeats_the_aviation_carve_out():
 def test_the_ult_markers_are_derived_from_the_unit_sets():
     """BASIS lists the markers a bundle can actually contain, per system.
 
-    The list was hard-coded (``lbs-ULT, ft-lb-ULT, N-ULT, Nm-ULT``) and named
+    The list was hard-coded (``lb, ft-lb, N, N·m``) and named
     markers no Imperial file carries while omitting every marker step 4 added. It
     is now generated from both channels' sets, so it cannot fall out of step with
     what the writers emit.
@@ -642,11 +642,16 @@ def test_si_csv_converts_loads_and_leaves_speed_and_altitude_alone():
         # Speed and altitude columns are byte-identical in both systems.
         for carved in ("(kt)", "(ft)", "(kt(EAS))"):
             assert imp_head.count(carved) == si_head.count(carved), (key, carved)
-        # ...while no load column keeps its Imperial marker.
-        for imperial_marker in ("lbs-ULT", "lb-in-ULT", "ft-lb-ULT", "psi-ULT"):
-            assert imperial_marker not in si_head, (key, imperial_marker)
-        if "lbs-ULT" in imp_head:
-            assert "N-ULT" in si_head, key
+        # ...while no column keeps an Imperial unit. Since note 49 OR-116 the
+        # ``-ULT`` marker no longer distinguishes a load column from a weight
+        # one, so the check is on the unit token itself, parenthesised so a
+        # word like "Waterline" cannot satisfy it.
+        for imperial_unit in ("(lb)", "(lb-in)", "(ft-lb)", "(psi)", "(in)"):
+            assert imperial_unit not in si_head, (key, imperial_unit)
+        if "(lb)" in imp_head:
+            # a pound column is a force (-> N) or a weight (-> kg); either way
+            # it must not still be a pound.
+            assert "(N)" in si_head or "(kg)" in si_head, key
             converted += 1
     assert converted, "no module produced a force column -- sweep is degenerate"
 
@@ -664,8 +669,8 @@ def test_si_csv_values_are_the_imperial_values_times_the_factor():
         io.load_cases_csv(result, system=UnitSystem.SI).splitlines()))
     assert len(imp) == len(si) and imp
 
-    force_imp = next(c for c in imp[0] if "lbs-ULT" in c)
-    force_si = next(c for c in si[0] if "N-ULT" in c)
+    force_imp = next(c for c in imp[0] if "lb" in c)
+    force_si = next(c for c in si[0] if "N" in c)
     checked = 0
     for a, b in zip(imp, si):
         if not a[force_imp] or not b[force_si]:
@@ -718,7 +723,7 @@ def test_write_load_cases_csv_passes_the_system_through():
         with open(path, newline="") as fh:
             written = fh.read()
     assert written == io.load_cases_csv(result, system=UnitSystem.SI)
-    assert "N-ULT" in written.splitlines()[0]
+    assert "N" in written.splitlines()[0]
 
 
 # --------------------------------------------------------------------------- #
@@ -888,8 +893,8 @@ def test_sbeam_headers_state_their_units_in_both_systems():
     """Every dimensional column carries its unit; no column is left bare (D-21)."""
     results = _ga_wing_net()
     for system, length, force, moment in (
-        (UnitSystem.IMPERIAL, "(in)", "(lbs-ULT)", "(lb-in-ULT)"),
-        (UnitSystem.SI, "(mm)", "(N-ULT)", "(Nmm-ULT)"),
+        (UnitSystem.IMPERIAL, "(in)", "(lb)", "(lb-in)"),
+        (UnitSystem.SI, "(mm)", "(N)", "(N·mm)"),
     ):
         from sloads.report.methods import strip_comment_lines
 
@@ -1117,7 +1122,7 @@ def test_cli_exports_an_si_sbeam_deck():
         span = next(f for f in written if f.endswith(".csv"))
         with open(os.path.join(d, span)) as fh:
             header = _cli_csv_header(fh.read())
-        assert "X (mm)" in header and "Nmm-ULT" in header, header
+        assert "X (mm)" in header and "N·mm" in header, header
 
 
 # --------------------------------------------------------------------------- #

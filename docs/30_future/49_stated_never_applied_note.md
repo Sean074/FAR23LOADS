@@ -2,11 +2,22 @@
 
 **Owner:** @Sean074 · **Reviewers:** — *(design note 28 MD-6)*
 
-**Status: AGREED, 2026-09-04 (owner).** E-a … E-f, including the two
-sub-questions E-a′ and E-c′, were ruled in session; **OR-87 … OR-93**. §5 is
-written against the rulings as taken. Milestone **0.8.3**. Closure tier **L**:
-it rewrites `CONVENTIONS.md` §3 and `ORACLE_REPORT.md` §3.3/§8. The Phase C
-mission sentence in `CLAUDE.md` is **unchanged** — OR-87 is what preserves it.
+**Status: AGREED 2026-09-04 (owner); AMENDED 2026-09-05 (§8); §8's basis core
+BUILT and SHIPPED 2026-09-05 — read §8 first.** What shipped: the multiply
+removed from 81 sites, `LoadChannel.ULTIMATE` retired, `basis_sentence` as the
+deck's single per-subcase statement, the in-band statements on every artifact,
+the standard docs, and gates **G-OR-71 … G-OR-74**. What did not, and stays
+0.8.3: OR-81's marker sweep, OR-90 … OR-92, the `sbeam_bridge` helper extraction
+(#15) and the package splits (#191).
+E-a … E-f, including the two sub-questions E-a′ and E-c′, were ruled in session;
+**OR-87 … OR-93**, and §5 is written against them. **§8 (OR-116 … OR-120)
+overrules OR-87 and OR-93**: every load in sloads is LIMIT, the factor stated
+and applied nowhere, the sbeam deck included. Milestone: the **basis core moves
+to 0.8.2** (OR-120); the marker sweep and the refactors stay 0.8.3. Closure tier
+**L**, and wider than §7 states — it rewrites `CONVENTIONS.md` §3,
+`ORACLE_REPORT.md` §3.3/§8, **`CLAUDE.md`'s Phase C mission sentence** and
+**`SUMMARY_REPORT.md` §2**. The sentences below that call those two unchanged
+are the pre-amendment record, kept as written; §8 is the decision of record.
 
 Design note 48 (0.8.2, shipped) split the render boundary into two channels and
 took the module-analysis half: the CLI and the app render LIMIT, ULTIMATE stays
@@ -312,6 +323,11 @@ keeps protecting every caller that renders a deck-side artifact.
 
 ## 5. As-built plan
 
+> **Amended 2026-09-05 — see §5.4.** The tables below are written against the
+> 2026-09-04 rulings, in which OR-87 and OR-93 held the export deck and the
+> summary report at ULTIMATE. §8 overrules both. The rows are kept as the
+> pre-amendment record; **§5.4 states what actually gets built.**
+
 Written against the rulings as taken. **Order matters:** E-c moves every load
 figure in the technical report, so it lands first and the report is re-read once,
 against the manual, rather than twice.
@@ -343,6 +359,30 @@ against the manual, rather than twice.
 - `SUMMARY_REPORT.md` — **unchanged** (OR-93).
 - `CLAUDE.md` — the mission sentence unchanged (OR-87); the load-output
   paragraph gains the one-line channel table.
+
+### 5.4 Amendment — what is actually built (OR-116 … OR-120)
+
+Replaces 5.1's last row and the `SUMMARY_REPORT.md` / `CLAUDE.md` rows of 5.2.
+
+**Measured 2026-09-05**, so the plan rests on a count rather than an estimate:
+**81 arithmetic multiply sites in 7 files** — `export/sbeam_bridge.py` 59,
+`export/lra_model.py` 6, `export/lra_import.py` 6, `export/balanced_deck.py` 4,
+`report/content.py` 3, `report/render.py` 2, `modules/flap.py` 1 (the last is an
+internal calc, **not** a boundary site — `flap.py` scales a dynamic pressure, and
+it stays).
+
+| File | Change |
+|---|---|
+| `sloads/report/render.py` | `LoadChannel.LIMIT` becomes the only basis. Note 48 built the switch and defaulted it to ULTIMATE to keep the frozen `oracle_app` unchanged by construction (OR-77); with the whole project on one basis the default inverts and the enum's reason for existing goes with it. `_ult`/`_ULT_UNITS` survive for OR-118's two already-ultimate families and for nothing else. |
+| `sloads/export/sbeam_bridge.py`, `balanced_deck.py`, `lra_import.py`, `lra_model.py` | the multiplies are **removed**, not neutralised. Setting `_sf()` to return 1.0 would make every `* sf` a no-op and leave 75 sites of dead arithmetic that read as if a factor were applied — the opposite of what OR-116 is for. `_sf` survives as the *stated* factor, feeding `_sf_str` and the per-subcase deck statement OR-117 requires. |
+| `sloads/report/content.py` | the 3 sites go with them (this is what OR-119 resolves — R-12's migration is a deletion). |
+| `sloads/safety_factors.py` | OR-88's rewording, unchanged from 5.1. |
+
+**Order.** The owner first (`render.py`, `safety_factors.py`), then the export
+sites, then the standard docs, then the fixture regeneration **last and
+deliberately** — the digests and roundtrip fixtures move wholesale, and
+regenerating before the guards have failed once would destroy the evidence of
+what moved. The history fragment states the before/after shape.
 
 ### 5.3 Not in this note
 
@@ -390,3 +430,90 @@ No frozen set exists in 0.8.3 (`tests/test_frozen_set.py` is deleted at the
 0.8.2 cut), so no OR-15 admission arises — E-d's two module edits are ordinary
 work. Whether a `SCHEMA_VERSION` hop is needed depends on no ruling here: none
 of these changes a persisted dataclass's shape.
+
+---
+
+## 8. Amendment — every load is LIMIT (OR-116 … OR-120)
+
+**Status: AGREED 2026-09-05 (owner, in session).** Owner directive, verbatim:
+*"Note FAR 23.303 safety factor IS an external loads factor. For this version of
+sloads all loads will be identified as limit loads WITHOUT the safety factor
+applied."* This **overrules OR-87 and OR-93** — the two rulings of 2026-09-04
+that held a surface at ULTIMATE — and takes §2's question the other way. It is
+recorded as an amendment rather than a rewrite so the record shows the argument
+that was weighed and the ground on which it was set aside.
+
+**What §2 argued, and what answers it.** §2's case for the deck was that a
+machine consumer cannot learn a factor it is not given, so the sizing would be
+silently unconservative by 1.5. The owner's ruling does not dispute the
+mechanism; it relocates the responsibility. 23.303 **is** an external-loads
+factor — which is why sloads *states* it, and why it is unlike the Subpart D
+special factors of note 44 §16, which sloads does not even name per case — but
+applying it belongs to the analysis that sizes the part, exactly as the casting
+and fitting factors do. §2's third option, *"the loop is documented as producing
+limit-load sizing, which is not the mission"*, is answered by OR-117: the
+mission sentence changes.
+
+| # | Decision | Amends |
+|---|---|---|
+| **OR-116** | **Every delivered load in sloads is LIMIT, on every surface, with its safety factor stated and never applied** — the module views, the case index, the oracle technical report, the summary report, the exported CSVs **and the sbeam deck**. OR-86's *stated, never applied* reaches its literal endpoint; the four multiply sites of §1 are removed rather than narrowed, and `CONVENTIONS.md` §3 stops saying "applied once at the render/export boundary" and says the factor is **applied nowhere**. This is one basis for the whole project, which dissolves the cost §3 accepted under protest — *"the project ends 0.8.3 with two reports on two bases"*. | **OR-87 (overrules)**, **OR-93 (overrules)**, OR-86 |
+| **OR-117** | **The mission delivers limit loads; the sizing step applies 23.303.** `CLAUDE.md`'s Phase C sentence — *"per-component distributed **ULTIMATE** loads come out as `FORCE`/`MOMENT` bulk-data cards"* — is rewritten to limit, and `SUMMARY_REPORT.md` §2's *"Every load figure in the report SHALL be ULTIMATE"* inverts with it. The deck and the summary report travel together and now travel on one basis, so E-c′'s argument for OR-93 (consistency by audience) is satisfied by the move rather than broken by it. **The deck header SHALL state, per subcase, the factor that has not been applied**, so a recipient cannot mistake the basis: this is the obligation that replaces the multiply, and it is the one new thing this amendment asks for. | `CLAUDE.md`, `SUMMARY_REPORT.md` §2 |
+| **OR-118** | **OR-88's inversion becomes the entire marking scheme, unchanged.** `engine_ultimate` (23.367(a)(2)) and `emergency` (23.561(b)) are computed already ultimate at SF = 1.0 and cannot be un-factored; under OR-116 they are the only loads in the project that are ultimate, so the `-ULT` marker survives on exactly them and nowhere else. E-a′'s third obligation — *"the deck carries two bases at once and must mark which per subcase"* — is discharged by a mechanism already ruled, not by a new one. **G-OR-51 stands as written** and becomes the project's single basis guard. | OR-88 (confirms) |
+| **OR-118a** | **A shared column header marks only when every case in its table is already ultimate.** OR-118 puts the surviving `-ULT` marker "in the units string", which is exact for a per-value `Units` cell and undefined for a header spanning many cases — `render.py`'s station and governing-load tables build one header for a whole result set, and a table mixing an `engine_ultimate` case with ordinary ones has no single basis to state. **Ruled 2026-09-05:** the header is marked iff *every* result in the table is already ultimate; otherwise it is plain and the per-case `SF` column carries the basis, which is the job OR-116 gives that column. Determinable where the header is built, no new field, and no header ever states a basis true of only some of its rows. | OR-118 (completes) |
+| **OR-119** | **Review R-12 (#182) is resolved by this ruling, not amended around it.** R-12 found G-OR-49 (*"no `sloads/report/**` path multiplies"*) unsatisfiable while OR-93 kept the summary report ULTIMATE through `report/content.py`. With OR-93 overruled the gate becomes satisfiable as written, and `content.py`'s multiply sites (`Units.load_value`, and the inline sites §5.1 omitted) are removed by OR-116 rather than migrated. The issue closes as *decided, not fixed*, citing this section. | R-12 / #182 |
+| **OR-120** | **The LIMIT core moves from 0.8.3 into 0.8.2, and §4 is built on the final basis.** Note 44 §13/§15 specify section 4's loads as ULTIMATE by inheritance from OR-49; §4 is **new content**, so shipping it on a basis about to invert would mean writing every load table, gate and conformance row twice and re-reading the section against Appendix A twice. OR-49 is therefore amended for §4 in the same pass — see the amendments recorded in note 44 §13 (OR-102) and §15. What stays in 0.8.3 is the part that is not a basis decision: OR-81's marker sweep, OR-90…OR-92, the `sbeam_bridge` helper extraction (#15) and the package splits. | note 44 OR-49, §13, §15 |
+
+### Gates
+
+- **G-OR-71** — **no path in `sloads/` multiplies a load by a safety factor.**
+  The whole-project form of G-OR-49, now satisfiable: the four `sloads/export/`
+  sites of §1, `report/content.py`'s and `report/render.py`'s, and
+  `oracle_sections._load_cell`. One assertion over the tree, so a new multiply
+  cannot appear anywhere.
+- **G-OR-72** — the deck's `FORCE` resultant closes against `nz × W` **without**
+  the factor, on every fixture and both unit channels. This is E-a′'s second
+  obligation and the gate the existing suite could not provide: every current
+  deck check is scale-invariant, so **none of them can see this change** —
+  which is precisely why the basis needs an assertion of its own rather than
+  being inferred from a green suite.
+- **G-OR-73** — every deck and every bundle document states, per subcase, the
+  safety factor that was **not** applied (OR-117), and the two agree.
+  **Built 2026-09-05**, `tests/test_deck_basis.py`. It found what it was written
+  for on its first run: five blocks in `sbeam_bridge` (fuselage, chordwise tail,
+  spanwise tail, control surface and the wing card block) still read *"Loads are
+  ULTIMATE (limit × SF=1.5)"* over LIMIT cards after the multiplies came out,
+  and two of them printed a derivation — `= 1.5 × (LT25 + LT50)` — for a sum
+  that no longer had the 1.5 in it. Nothing else in the suite could see any of
+  it. Restoring one of the five now fails the gate on **all six fixtures**; the
+  wording is `basis_sentence`'s alone, so a sixth cannot be hand-written. The
+  first version of the scan matched only that one phrase and **missed two live
+  sites saying the same thing in other words** — the balanced deck's *"the cards
+  below are ULTIMATE"* (ten times per deck) and the wing stick deck's
+  *"(closed-form, ULTIMATE)"*. It now scans a list of spellings: a gate that
+  catches one phrasing of a false statement licenses every other phrasing.
+- **G-OR-74** — **no rendered document claims its own loads are ULTIMATE.**
+  Added 2026-09-05, `tests/test_basis_statements.py`, and not foreseen by §5.4:
+  that table listed the files whose *multiplies* had to go, which was complete,
+  but never listed the **in-band statements those multiplies justified**. An AST
+  sweep for live string literals (excluding docstrings) found **~35 still
+  asserting ULTIMATE** — the summary report's `BASIS_STATEMENT` on the title
+  page, **fourteen rows of Appendix A's bundle manifest**, the compiled PDF's
+  per-page footer, the oracle report's §1 basis paragraph, the issue package
+  README, the workbook's units line on both channels, and three validation
+  warnings. One of them — the manifest's `<project>_<module>.csv` row — had been
+  wrong since **note 48**, because the per-module CSVs went LIMIT then and the
+  manifest was never re-read. G-OR-51 pins the unit *marker* and G-OR-73 the
+  *deck's* sentence; nothing read prose, so nothing could see any of it. The
+  gate blanks the sanctioned already-ultimate sentences and scans the residue,
+  so an exemption cannot widen to cover a false claim written beside a true one.
+- **G-OR-51** — unchanged, and now the single basis guard: `-ULT` appears on
+  `engine_ultimate` and `emergency` and on nothing else, in both directions,
+  across every fixture.
+
+### Closure — superseding §7
+
+**Tier L**, and wider than §7 anticipated: `CONVENTIONS.md` §3,
+`ORACLE_REPORT.md` §3.3/§8, **`CLAUDE.md`'s Phase C mission sentence** and
+**`SUMMARY_REPORT.md` §2** — the last two of which §7 recorded as *unchanged,
+because OR-87 and OR-93 preserve them*. They do not any more. `PROGRAM_SPEC.md`
+M4-15 moves with them.

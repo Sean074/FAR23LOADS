@@ -59,6 +59,8 @@ from sloads.export.equilibrium import (
     resultant,
 )
 from sloads.modules.aileron import build_aileron
+from sloads.export.balanced_deck import balanced_deck, case_sids
+from sloads.modules.balance import build_balanced_cases
 from sloads.modules.body_loads import build_body_loads
 from sloads.modules.flap import build_flap
 from sloads.modules.flight_envelope import build_envelope
@@ -154,9 +156,9 @@ def test_wing_deck_resultants(example, system):
 
     for idx, r in enumerate(wing):
         got = res[sb._sid(1, idx, r)]
-        root, sf = r.stations[0], r.safety_factor
-        want_fx, _, want_fz = to_force(root.sx * sf, 0.0, root.sz * sf, u)
-        _, want_myy, _ = to_moment(0.0, root.myy * sf, 0.0, u)
+        root = r.stations[0]
+        want_fx, _, want_fz = to_force(root.sx, 0.0, root.sz, u)
+        _, want_myy, _ = to_moment(0.0, root.myy, 0.0, u)
         where = f"{example} {system.value} wing {r.case}"
         assert closes(got.fz, want_fz, scale=got.force_scale), f"{where} Fz"
         assert closes(got.fx, want_fx, scale=got.force_scale), f"{where} Fx"
@@ -212,8 +214,8 @@ def test_wing_deck_bending_closure(example, system):
                           ref_first_loaded)
     for idx, r in enumerate(wing):
         got = res[sb._sid(1, idx, r)]
-        root, sf = r.stations[0], r.safety_factor
-        want_mx, _, want_mz = bending_moment_vector(root.mxx * sf, root.mzz * sf, u)
+        root = r.stations[0]
+        want_mx, _, want_mz = bending_moment_vector(root.mxx, root.mzz, u)
         where = f"{example} {system.value} wing {r.case}"
         assert closes(got.mx, want_mx, scale=got.moment_scale), f"{where} Mxx"
         assert closes(got.mz, want_mz, scale=got.moment_scale), f"{where} Mzz"
@@ -239,7 +241,6 @@ def test_wing_deck_reproduces_the_station_table_at_every_node(example, system):
     grids, _, _, forces, moments = parse_cards(text)
     for idx, r in enumerate(wing):
         sid = sb._sid(1, idx, r)
-        sf = r.safety_factor
         gids = [sb.station_gid(i) for i in range(len(r.stations))]
         for k, st in enumerate(r.stations):
             keep = set(gids[k:])          # this station and everything outboard
@@ -247,9 +248,9 @@ def test_wing_deck_reproduces_the_station_table_at_every_node(example, system):
             sub_f = {sid: [c for c in forces.get(sid, ()) if c[0] in keep]}
             sub_m = {sid: [c for c in moments.get(sid, ()) if c[0] in keep]}
             got = resultant(sub_f, sub_m, grids, sid, ref)
-            _, _, want_fz = to_force(0.0, 0.0, st.sz * sf, u)
-            want_mx, _, want_mz = bending_moment_vector(st.mxx * sf, st.mzz * sf, u)
-            _, want_my, _ = to_moment(0.0, st.myy * sf, 0.0, u)
+            _, _, want_fz = to_force(0.0, 0.0, st.sz, u)
+            want_mx, _, want_mz = bending_moment_vector(st.mxx, st.mzz, u)
+            _, want_my, _ = to_moment(0.0, st.myy, 0.0, u)
             where = f"{example} {system.value} wing {r.case} station {k}"
             assert closes(got.fz, want_fz, scale=got.force_scale), f"{where} Sz"
             assert closes(got.mx, want_mx, scale=got.moment_scale), f"{where} Mxx"
@@ -463,7 +464,7 @@ def test_tail_deck_resultants(example, system):
     for idx, r in enumerate(tail):
         got = res[sb._sid(1, idx, r)]
         where = f"{example} {system.value} tail {r.component} {r.case}"
-        total = (r.lt25 + r.lt50) * r.safety_factor
+        total = (r.lt25 + r.lt50)
         want_f = to_force(*tail_force_to_airplane(total, r.component), u)
         for axis, want in zip("xyz", want_f):
             assert closes(getattr(got, f"f{axis}"), want, scale=got.force_scale), \
@@ -529,7 +530,7 @@ def test_control_deck_force_resultant(example, system):
         sid = sb._sid(1, idx, r)
         got = sum(sc * v[2] for _, sc, v in forces[sid])
         scale = max(abs(sc * v[2]) for _, sc, v in forces[sid])
-        _, _, want = to_force(0.0, 0.0, r.load_lb * r.safety_factor, u)
+        _, _, want = to_force(0.0, 0.0, r.load_lb, u)
         assert closes(got, want, scale=scale), \
             f"{example} {system.value} control {r.surface} {r.case} Fz"
 
@@ -576,7 +577,7 @@ def test_htail_span_deck_resultants(example, system):
         sid = sb._sid(1, idx, r)
         where = f"{example} {system.value} htail-span {r.case}"
         got = resultant(forces, moments, grids, sid, (0.0, 0.0, 0.0))
-        _, _, want = to_force(0.0, 0.0, (r.air_total + ts_inertia(r)) * r.safety_factor, u)
+        _, _, want = to_force(0.0, 0.0, (r.air_total + ts_inertia(r)), u)
         assert closes(got.fz, want, scale=got.force_scale), f"{where} Fz"
         assert closes(got.fy, 0.0, scale=got.force_scale), f"{where} Fy"
 
@@ -628,16 +629,16 @@ def test_vtail_span_deck_resultants(example, system):
         transfer = r.tip_transfer
         got = resultant(forces, moments, grids, sid, (0.0, 0.0, 0.0))
         _, _, want = to_force(
-            0.0, 0.0, (r.air_total + ts_inertia(r)) * r.safety_factor, u)
+            0.0, 0.0, (r.air_total + ts_inertia(r)), u)
         assert closes(got.fy, want, scale=got.force_scale), f"{where} Fy"
         _, _, want_axial = to_force(
             0.0, 0.0, (ts_axial(r) + (transfer.fz if transfer else 0.0))
-            * r.safety_factor, u)
+           , u)
         assert closes(got.fz, want_axial, scale=got.force_scale), f"{where} Fz axial"
         # Torsion is about the fin's span axis, z -- not y -- so the only applied
         # ``Myy`` card a fin deck may carry is the T-tail transfer's, and a
         # conventional fin's is exactly none.
-        want_m0y = to_moment((transfer.myy if transfer else 0.0) * r.safety_factor,
+        want_m0y = to_moment((transfer.myy if transfer else 0.0),
                              0.0, 0.0, u)[0]
         assert closes(got.m0y, want_m0y, scale=got.moment_scale), f"{where} Myy card"
         # And the free-body statement about the origin: the axial column at its
@@ -646,7 +647,7 @@ def test_vtail_span_deck_resultants(example, system):
         arm = sum(st.x * st.f_span for st in r.stations)
         if transfer is not None:
             arm += transfer.x_tip * transfer.fz - transfer.myy
-        assert closes(got.my, -to_moment(arm * r.safety_factor, 0.0, 0.0, u)[0],
+        assert closes(got.my, -to_moment(arm, 0.0, 0.0, u)[0],
                       scale=got.moment_scale), f"{where} Myy free body"
         assert all(g[1] == 0.0 for g in grids.values()), f"{where}: fin is on the CL"
 
@@ -805,3 +806,92 @@ def test_every_example_has_decks():
 
 if __name__ == "__main__":
     sys.exit(pytest.main([os.path.abspath(__file__), "-q"]))
+
+
+# --------------------------------------------------------------------------- #
+# G-OR-72 -- the deck's *basis*, not only its balance (design note 49 OR-116)
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("example", EXAMPLES)
+def test_the_balanced_deck_is_limit_and_no_existing_gate_can_see_it(example):
+    """The gate the suite could not previously provide.
+
+    Every other deck check in this file is an **equilibrium** check, and
+    equilibrium is scale-invariant: multiply every card by 1.5 and each one
+    still passes, because both sides of the comparison move together. That is
+    exactly why note 49 §2 could argue the deck's basis "needs deciding in a
+    design note rather than discovering in a diff" -- the whole suite was green
+    at either basis. This asserts the basis itself.
+
+    **Measured, 2026-09-05.** Re-applying ``case.safety_factor`` in
+    ``balanced_deck._load_lines`` -- the multiply OR-116 removed -- fails this
+    gate on **all six fixtures** and leaves **all 154 other checks in this file
+    green**. The mutation is the regression this exists to catch, and nothing
+    else in the suite can see it.
+
+    Two independent statements, because one alone is weak:
+
+    1. **The physics.** For a balanced free-free case the inertia load set sums
+       to ``-nz * W`` exactly -- measured -1.000 on every case of every fixture.
+       The airplane's own load factor and weight are the datum, so the assertion
+       is against the regulation's quantity rather than against another of our
+       own numbers. With the 23.303 factor applied this would read ``-1.5 nz W``.
+    2. **The shipped artifact.** The written deck's ``FORCE`` cards carry the
+       calc's own magnitudes. This reads the file rather than the model, which
+       is the project's standing lesson about gates that read what actually
+       ships.
+    """
+    project = io.load_project(os.path.join(_ROOT, "examples", example))
+    built = _try(build_balanced_cases, project)
+    cases = (built[0] if isinstance(built, tuple) else built) or []
+    if not cases:
+        pytest.skip(f"{example} assembles no balanced case")
+
+    checked = 0
+    for case in cases:
+        # (1) the basis, against nz * W. Flight cases only: a ground case carries
+        # gear reactions rather than a distributed inertia set, so the identity
+        # is not defined for it -- ``checked`` keeps the gate from going vacuous
+        # if that ever becomes true of every case.
+        inertia = math.fsum(lv.fz for lv in case.loads if "inertia" in lv.source)
+        if inertia == 0.0:
+            continue
+        checked += 1
+        nz_w = case.nz * case.weight_lb
+        sf = case.safety_factor or 1.0
+        assert math.isclose(inertia, -nz_w, rel_tol=1e-6), (
+            f"{example}/{case.label}: inertia resultant {inertia:.1f} is not "
+            f"-nz*W = {-nz_w:.1f}; at SF={sf} an ULTIMATE deck "
+            f"would read {-nz_w * sf:.1f}")
+        # ...and, where the factor is not unity, the ultimate value is excluded
+        # by name rather than merely not matched by the line above.
+        if sf != 1.0:
+            assert not math.isclose(inertia, -nz_w * sf, rel_tol=1e-6), (
+                f"{example}/{case.label}: inertia resultant carries its factor")
+    assert checked, f"{example}: no case carried an inertia set -- gate vacuous"
+
+    # (2) the same statement read off the written deck.
+    #
+    # The *signed* total is useless here: the deck is balanced, so both sides
+    # are zero and the comparison is dominated by the card format's rounding.
+    # The scale-carrying quantity is the sum of absolute card loads, which is
+    # what a factor at the writer would multiply.
+    #
+    # One card per load, not one per node: ``_load_lines`` writes a card for
+    # every load and several may share a GID, which the solver sums. Merging
+    # the model side first would cancel opposite-signed loads at a node and
+    # under-count by ~0.3 % -- enough to look like a real discrepancy and not
+    # enough to look like a factor.
+    text = balanced_deck(project, system=UnitSystem.IMPERIAL, cases=cases)
+    for sid, case in zip(case_sids(cases), cases):
+        want = math.fsum(
+            abs(lv.fz) for lv in case.loads
+            if max(abs(lv.fx), abs(lv.fy), abs(lv.fz)) > 1e-9)
+        got = math.fsum(
+            abs(float(ln.split(",")[7]))
+            for ln in text.splitlines()
+            if ln.startswith(f"FORCE, {sid},"))
+        assert want > 0.0, f"{example}/{case.label}: no nodal load to check"
+        assert math.isclose(got, want, rel_tol=1e-4), (
+            f"{example}/{case.label}: the deck's total |Fz| {got:.1f} is not "
+            f"the calc's {want:.1f} (ratio {got / want:.4f}) -- a factor was "
+            f"applied at the writer")

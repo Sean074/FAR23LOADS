@@ -13,7 +13,7 @@ whenever you port or change a calculation** (see `CLAUDE.md`).
 | **FAA User's Guide** | `reference/FAR23Loads_UserGuide.pdf` (DOT/FAA/AR-96/46) | Module data-flow reference (Table 2.2) — which module consumes which upstream quantity. |
 | **Brochure** | `reference/FAR-23-Loads-Brochure-2023.pdf` | Product overview / context. |
 | **Digital DATCOM** | `reference/datcom/` (added 2026-08-15 — see its `PROVENANCE.md`) | USAF Digital DATCOM, the computer implementation of the *USAF Stability and Control DATCOM* chart methods (public domain, via PDAS). Carries the chart data as `DATA` statements, so a method can be ported without the printed charts. Used for the lateral body derivatives of decision **L-7** (`sloads/lateral_body_aero.py`, shipped 2026-08-17): wing-body `Cn_β` (DATCOM 5.2.3.1, subsonic subroutine `SUBLAT`, `datcom.f:29038-29052`; chart data `X158A..Y58C` at `:28723-28756`), wing-body `Cy_β` (5.2.1.1, `:29027-29036`) and the body lift-curve slope `CL_α,B` (4.2.1.1, `BODYRT`, `:2326-2462`); the interpolators `TLINEX`/`TLIN1X`/`TBFUNX` (`:40816`/`:40501`/`:39130`) are ported with their per-call extrapolation flags because the Fortran, not the printed chart, is what the sample output reproduces. **The oracle is its printed sample output** — the *applicable* subsonic body-alone / wing-body rows of `examples/ex1, ex3, ex4, ex5` (`ex2` wing-alone, `ex1` c3–4 / `ex4` c2 supersonic, `ex3` c2–5 experimental overrides, `ex7`/`ex8` fin-inclusive totals only, `ex9`–`11` hypersonic are inapplicable — note 19 rev. 3 decision L-7.8); because `reference/` is gitignored, `tests/test_lateral_body_aero.py` carries the printed numbers and case geometry as literals with this citation, exactly as the Appendix A tests do. |
-| **Factor of safety** | `reference/14CFR_factor_of_safety.md` | Limit vs. ultimate: 14 CFR 23.303 / 25.303 (FS = 1.5); 23.302 / 25.302 / Appendix K (case-dependent factor for failure conditions, future). Basis for the ULTIMATE rendered/exported output. |
+| **Factor of safety** | `reference/14CFR_factor_of_safety.md` | Limit vs. ultimate: 14 CFR 23.303 / 25.303 (FS = 1.5); 23.302 / 25.302 / Appendix K (case-dependent factor for failure conditions, future). The factor sloads **states** against every case and applies to none — all rendered and exported output is LIMIT (note 49 OR-116). |
 
 ## Oracle status (canonical) <a id="oracle-status"></a>
 
@@ -41,24 +41,45 @@ do not restate it elsewhere.**
   it at 200 dpi produced a clean transcription of all three pages. Any cell still
   genuinely unavailable is called out per-module below with which of the two it is.
 
-## Limit vs. ultimate loads (ALL output is ULTIMATE)
+## Limit vs. ultimate loads (ALL output is LIMIT — stated, never applied)
 
-The calc reproduces McMaster's **LIMIT** loads (the printed oracle figures), but
-**all load output is ULTIMATE** — every force/moment/pressure that leaves the calc
-(rendered table, text report, load-case CSV, sbeam export) is `ultimate = limit ×
-SF`, never a bare limit load. The factor is the per-case factor of safety
-(`ConditionResult.safety_factor`, default `constants.ULTIMATE_FACTOR = 1.5`,
-**14 CFR 23.303**; Part 25 equivalent 25.303). It is applied only at the
-render/export boundary and only to force/moment/pressure quantities, so the
-regression oracles below (asserted on the calc's limit results) are unaffected.
+**Source: 14 CFR 23.303 / 25.303**, *"a factor of safety of 1.5 must be applied to
+the prescribed limit load"* (`reference/14CFR_factor_of_safety.md`). The
+regulation says the factor **must be applied**; it does not say by whom. sloads
+is an external-loads program, so it delivers the limit load the regulation
+prescribes and **states** the factor; the sizing analysis applies it. This is the
+reading of record from 2026-09-05 (design note 49 **OR-116/OR-117**, owner's
+ruling), and it inverts the rule that stood before it — *"ALL output is
+ULTIMATE"* — under which the render/export boundary multiplied.
 
-The `ULT` marker is treated as **part of the units string** — force `lbs-ULT`
-(SI `N-ULT`), moment `ft-lb-ULT` / `lb-in-ULT` (SI `Nm-ULT`), pressure
-`lb/in^2-ULT` (`psi-ULT`) — and **every load case states its SF**. The per-case
-field anticipates a 14 CFR 23.302/25.302 / Appendix K probability-based factor
-(1.0–1.5) for failure conditions; sudden engine stoppage is currently held at 1.5.
-A value already at ultimate (or an inherently-limit value reported as-ultimate with
-no amplification) is `ULT SF=1.0`. See `reference/14CFR_factor_of_safety.md`.
+The calc reproduces McMaster's **LIMIT** loads (the printed oracle figures) and
+**every surface reports them unchanged**: the rendered tables, the text report,
+the load-case CSV, both reports and the sbeam deck. No path in `sloads/`
+multiplies a load by a safety factor (**G-OR-71**). The per-case factor
+(`ConditionResult.safety_factor`, default `constants.ULTIMATE_FACTOR = 1.5`) is
+stated in an `SF` column or an `SF=` line and applied nowhere.
+
+**Why this matters for the oracles.** Appendix A is a **limit-load** oracle, and
+the oracle tests compare at calc level — they never cross the render boundary. So
+while the render boundary multiplied, the oracle technical report printed 1.5×
+the manual's figures and the whole oracle suite stayed green (note 49 E-c). One
+basis end to end removes that class of blind spot rather than guarding against
+it: what a reader checks against p131 is now the number the test checked.
+
+Load quantities carry **plain units**. The `ULT` marker — force `lbs-ULT` (SI
+`N-ULT`), moment `ft-lb-ULT` / `lb-in-ULT` (SI `Nm-ULT`), pressure `lb/in^2-ULT`
+(`psi-ULT`) — survives only where the regulation prescribes the load **already
+ultimate**: **23.367(a)(2)** sudden engine stoppage and **23.561(b)**
+emergency-landing inertia, which are `ULT SF=1.0` and ask for nothing further.
+The per-case field also anticipates a 14 CFR 23.302/25.302 / Appendix K
+probability-based factor (1.0–1.5) for failure conditions.
+
+**Subpart D's special factors are not sloads' to apply** (note 44 OR-114/OR-115):
+**23.619** special factors, **23.621** casting, **23.623** bearing and **23.625**
+fitting factors are properties of a *part* — its material, its process, its joint
+— none of which is an input to a loads analysis. They are applied by stress, and
+the class is excluded, not merely the list. Registered in
+`02_approved_corrections.md` §Withdrawn from scope.
 
 ### The governing safety-factor table (M4-8 / decision G-11, 2026-08-14)
 
@@ -321,7 +342,7 @@ and their sources (`tests/test_concept_closure.py`):
 | Body (fuselage) | terminal cumulative shear `Sz = 0` **and** terminal `Myy = 0` — the net distribution (inertia + tail air load + the front/rear spar carry-through reaction) is built free-free in both ΣFz and ΣM (M4-1, closed 2026-08-03). The flagged `closure_artifact` fallback closes the same two residuals with a whole-body correction that has no physical source. | Ch 15 p103 (fuselage beam) |
 | Tail (chordwise) | TAILDIST's `lt25`/`lt50` equal SELECT's stamped split verbatim, so the chordwise pressure profile sums back to the SELECT-critical tail load | Ch 10; SELECT→TAILDIST |
 | Control surfaces | each `build_*` critical load matches its `run` analysis report (`lb`-unit `LoadValue`) | AILERON/FLAPLOAD/TABLOADS build↔run |
-| All (export) | every component's nodal FORCE set — and its re-parsed cards — sums to that component's root/total at ULTIMATE (`limit × that case's safety_factor`, default 1.5; the factor is uniform within a case, so closure is scale-invariant — defect M4-7) | `export/sbeam_bridge` increment construction + `_sf()` |
+| All (export) | every component's nodal FORCE set — and its re-parsed cards — sums to that component's root/total, exactly, at **LIMIT** (note 49 OR-116; nothing is scaled, so the closure is `sum(dFz) == root` rather than `== sf × root`). **These gates are scale-invariant and therefore cannot see the basis at all** — they were green at either — which is why **G-OR-72** asserts the balanced deck's resultant against `nz × W` *without* the factor, as a check the existing set structurally could not provide | `export/sbeam_bridge` increment construction + `tests/test_export_equilibrium.py` (G-OR-72) |
 
 ### The balanced free-free case as a closure gate (step B2–B6, 2026-08-08)
 

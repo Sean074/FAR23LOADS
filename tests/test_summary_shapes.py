@@ -68,7 +68,7 @@ def test_select_load_cells_match_the_governing_loads_table():
     mr = registry.get("select")(project)
     rows = [r for r in summary_rows("select", mr.conditions)
             if r["Component"] == "htail"]
-    col = "Total tail load (lbs-ULT)"
+    col = "Total tail load (lb)"
     assert [r[col] for r in rows] == [r[col] for r in reference]
     assert [r["SF"] for r in rows] == [r["SF"] for r in reference]
 
@@ -111,8 +111,8 @@ def test_the_grouped_screen_frames_drop_only_all_blank_columns():
                                                 UnitSystem.IMPERIAL)}
     frames = dict(_block_frames(blocks["select"]))
     assert set(frames) >= {"wing", "htail", "vtail", "fuselage"}
-    assert "Total tail load (lbs-ULT)" in frames["htail"].columns
-    assert "Total tail load (lbs-ULT)" not in frames["wing"].columns
+    assert "Total tail load (lb)" in frames["htail"].columns
+    assert "Total tail load (lb)" not in frames["wing"].columns
     for frame in frames.values():
         assert "Component" not in frame.columns  # it became the sub-title
 

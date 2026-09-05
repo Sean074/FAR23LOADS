@@ -21,7 +21,6 @@ from sloads.modules import select
 from sloads.report import (
     format_value,
     governing_loads_table,
-    to_ultimate,
     ultimate_units,
 )
 
@@ -41,23 +40,22 @@ def test_public_wrappers_mark_and_scale_loads_only():
     assert ultimate_units("lb") == "lbs-ULT"
     assert ultimate_units("") == ""            # dimensionless (n, CL)
     assert ultimate_units("kt(EAS)") == "kt(EAS)"  # speed -- unmarked
-    assert to_ultimate(100.0, "lb") == 150.0
-    assert to_ultimate(3.8, "") == 3.8         # load factor, not a load
 
 
-def test_governing_loads_table_renders_ultimate_with_sf():
+def test_governing_loads_table_renders_limit_with_sf():
     conds = select.build_critical(_ga6()).conditions
     rows = governing_loads_table(conds, UnitSystem.IMPERIAL)
     assert len(rows) == len(conds)
 
     # Find a condition carrying a real force (fuselage conditions do); check its
-    # rendered cell is limit x 1.5 under a `-ULT` header.
+    # rendered cell is the calc's own LIMIT value under a plain header, with the
+    # factor stated in the SF column (note 49 OR-116).
     idx = next(i for i, c in enumerate(conds)
                if any(lv.units == "lb" for lv in c.loads))
     lv = next(lv for lv in conds[idx].loads if lv.units == "lb")
-    header = f"{lv.label} ({ultimate_units(lv.units)})"
-    assert "-ULT" in header
-    assert rows[idx][header] == format_value(lv.value * ULTIMATE_FACTOR)
+    header = f"{lv.label} ({lv.units})"
+    assert "-ULT" not in header
+    assert rows[idx][header] == format_value(lv.value)
 
     # (b) A dimensionless quantity (load factor NZ) is unscaled and unmarked.
     nz_headers = [h for h in rows[0] if h.startswith("Load factor NZ")]
@@ -100,10 +98,10 @@ def test_per_case_safety_factor_is_honoured():
     after = governing_loads_table(conds, UnitSystem.IMPERIAL)
 
     lv = next(lv for lv in conds[idx].loads if lv.units == "lb")
-    header = f"{lv.label} ({ultimate_units(lv.units)})"
+    header = f"{lv.label} ({lv.units})"
     assert after[idx][header] == format_value(lv.value)          # x1.0, not x1.5
     assert after[idx]["SF"] == format_value(1.0)                 # and it says so
-    assert "-ULT" in header                                      # still an ULTIMATE column
+    assert "-ULT" not in header                                  # a LIMIT column
     assert after[other] == before[other]                         # neighbours untouched
     assert after[other]["SF"] == format_value(ULTIMATE_FACTOR)
 

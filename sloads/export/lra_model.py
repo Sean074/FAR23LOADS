@@ -106,8 +106,8 @@ from .sbeam_bridge import (
     _comment,
     _fmt,
     _fmt3,
-    _sf_str,
     _stamped,
+    basis_sentence,
     sob_gid,
     tail_control_gid,
     tail_span_gid,
@@ -693,8 +693,8 @@ def _case_header(case: BalancedCaseResult, sid: int) -> List[str]:
     return _comment(
         f"LRA model case {label} -- {case.label}"
         f"{('-' + case.hand) if case.hand else ''}, SID {sid}: the balanced "
-        f"case's load set transferred onto the beam nodes (ULTIMATE, limit x "
-        f"SF={_sf_str(case.safety_factor)}). Identical resultant to the "
+        f"case's load set transferred onto the beam nodes. "
+        f"{basis_sentence(case.safety_factor)} Identical resultant to the "
         "assembled deck's set by the transfer rule (note 25 LM-1).")
 
 
@@ -817,18 +817,15 @@ def lra_model_bdf(project: Project, *,
     ]
     for sid, case in zip(sids, cases):
         bulk += ["$", *_case_header(case, sid)]
-        sf = case.safety_factor
         loads = transferred_case_loads(case, model)
         for gid in sorted(loads):
             force, moment = loads[gid]
-            fx, fy, fz = to_force(force[0] * sf, force[1] * sf,
-                                  force[2] * sf, u)
-            if max(abs(v) for v in force) * sf > _TOL:
+            fx, fy, fz = to_force(force[0], force[1], force[2], u)
+            if max(abs(v) for v in force) > _TOL:
                 bulk.append(f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, "
                             f"{_fmt3(fx, fy, fz)}")
-            mx, my, mz = to_moment(moment[0] * sf, moment[1] * sf,
-                                   moment[2] * sf, u)
-            if max(abs(v) for v in moment) * sf > _TOL:
+            mx, my, mz = to_moment(moment[0], moment[1], moment[2], u)
+            if max(abs(v) for v in moment) > _TOL:
                 bulk.append(f"MOMENT, {sid}, {gid}, {SBEAM_CID}, 1.0, "
                             f"{_fmt3(mx, my, mz)}")
 

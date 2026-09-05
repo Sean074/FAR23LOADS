@@ -164,23 +164,25 @@ def test_load_factors_are_reported_limit_and_unmarked():
 # --------------------------------------------------------------------------- #
 # The ultimate-load contract (§3.1, §3.3)
 # --------------------------------------------------------------------------- #
-def test_every_load_column_is_ultimate_marked():
-    """No deliverable column may carry a bare load unit.
+def test_no_load_column_is_ultimate_marked():
+    """Every deliverable load column carries a plain unit (note 49 OR-116).
 
-    ``(lb)`` is the one ambiguous case: pounds-*force* is a load and must be
-    marked, pounds-*mass* is a weight and must not be (§3.1). A weight column
-    says so in its name, which is exactly the distinction the calc carries as
-    ``LoadValue.quantity == "mass"``.
+    The inverse of what this asserted until 2026-09-05. While the report was
+    ULTIMATE, a bare ``(lb)`` on a force column was the defect -- an unmarked
+    ultimate load. Now LIMIT is the project's only basis: the plain unit is
+    correct and the factor is stated per case, so the defect is the opposite,
+    a ``-ULT`` marker claiming a load is ultimate when it is not.
+
+    The marker survives only on the two families computed already ultimate
+    (OR-118), and the summary report carries none of them -- asserted here
+    rather than assumed, so the day one arrives this fails and OR-118a's
+    per-table rule has to be applied to this document too.
     """
     doc = _report()
-    bare = {"(ft-lb)", "(lb-in)", "(lb/in^2)"}
     for section, table in _all_tables(doc):
         for column in table.columns:
-            assert not any(column.endswith(u) for u in bare), \
-                f"{section.title}/{table.title}: bare limit unit in '{column}'"
-            if column.endswith("(lb)"):
-                assert "weight" in column.lower(), \
-                    f"{section.title}/{table.title}: unmarked force in '{column}'"
+            assert "-ULT" not in column, \
+                f"{section.title}/{table.title}: ultimate marker in '{column}'"
 
 
 def test_wing_maxima_are_two_sided_and_name_their_station_and_axis():
@@ -211,7 +213,7 @@ def test_the_wing_root_design_loads_are_the_sob_cut_not_the_half_span_totals():
     table = sob[0]
     assert "BL 52.5" in table.title
     assert table.columns[0] == "Case" and table.columns[-1] == "SF"
-    assert all("-ULT" in c for c in table.columns[1:6])
+    assert not any("-ULT" in c for c in table.columns[1:6])
     assert table.rows and all(len(r) == 7 for r in table.rows)
     assert "outboard of the side of body" in table.note
     assert "ASSUMED" in table.note        # the half-width fallback says so
@@ -461,20 +463,20 @@ MANIFEST_BASIS = {
     "METHODS.txt": "\u2014",
     "<project>_summary_report.tex": "the basis of every other file here",
     "<project>_summary_report.pdf": "identical content to the .tex beside it",
-    "load_cases/<project>_<module>.csv": "ULTIMATE loads, SF column per case",
-    "<project>_report.txt": "ULTIMATE",
+    "load_cases/<project>_<module>.csv": "LIMIT loads, SF column per case",
+    "<project>_report.txt": "LIMIT",
     "<project>_gear_loads.csv":
-        "ULTIMATE; contact patch ground-line, reference point airplane-datum",
+        "LIMIT; contact patch ground-line, reference point airplane-datum",
     "sbeam/<project>_wing_stick.bdf": "geometry only",
-    "sbeam/<project>_fuselage_loads.bdf": "ULTIMATE",
+    "sbeam/<project>_fuselage_loads.bdf": "LIMIT",
     "sbeam/<project>_fuselage_fitting_loads.csv":
         "already carried by the span loads \u2014 do not superpose",
     "sbeam/<project>_control_surface_loads.csv":
-        "standard simplified distributions; ULTIMATE",
-    "sbeam/<project>_control_surface_loads.bdf": "ULTIMATE",
+        "standard simplified distributions; LIMIT",
+    "sbeam/<project>_control_surface_loads.bdf": "LIMIT",
     "sbeam/<project>_balanced_airframe.bdf":
-        "ULTIMATE; determinate support, its reaction is the residual",
-    "sbeam/<project>_lra_model.bdf": "ULTIMATE; torsion about each surface's LRA",
+        "LIMIT; determinate support, its reaction is the residual",
+    "sbeam/<project>_lra_model.bdf": "LIMIT; torsion about each surface's LRA",
     "sbeam/<project>_mass_model.bdf":
         "mass, NOT weight; do not apply with the load decks",
     "sbeam/<project>_mass_check.bdf": "no load cards, by construction",
@@ -485,13 +487,13 @@ MANIFEST_BASIS = {
 #: Rows whose basis cell names a **live** value (the wing's loads reference axis,
 #: which the project may move) and so is pinned by substring, not by equality.
 MANIFEST_BASIS_CONTAINS = {
-    "sbeam/<project>_wing_span_loads.csv": ("torsion Myy about the", "ULTIMATE"),
-    "sbeam/<project>_wing_applied_loads.csv": ("free torsion about the", "ULTIMATE"),
-    "sbeam/<project>_wing_loads.bdf": ("torsion about the", "ULTIMATE"),
+    "sbeam/<project>_wing_span_loads.csv": ("torsion Myy about the", "LIMIT"),
+    "sbeam/<project>_wing_applied_loads.csv": ("free torsion about the", "LIMIT"),
+    "sbeam/<project>_wing_loads.bdf": ("torsion about the", "LIMIT"),
     "sbeam/<project>_fuselage_span_loads.csv": ("torsion Mxx about the body X axis",
-                                                "ULTIMATE"),
-    "sbeam/<project>_tail_chordwise.csv": ("Fn is normal to the surface", "ULTIMATE"),
-    "sbeam/<project>_tail_loads.bdf": ("normal to each surface", "ULTIMATE"),
+                                                "LIMIT"),
+    "sbeam/<project>_tail_chordwise.csv": ("Fn is normal to the surface", "LIMIT"),
+    "sbeam/<project>_tail_loads.bdf": ("normal to each surface", "LIMIT"),
 }
 
 
@@ -501,6 +503,15 @@ def test_every_manifest_row_states_the_basis_its_file_actually_carries():
     Exhaustive on the GA fixture, both ways: a row with an unpinned basis fails
     here, and a pin with no row fails too \u2014 the pair of holes that let the
     ``inertia_only`` mislabel sit through two reviews.
+
+    **What this gate is and is not.** It pins prose against prose, and both sides
+    are hand-maintained, so it detects *drift* between the manifest and this map
+    -- not *falsehood* in the pair. That distinction is not academic: when note
+    48 moved the per-module CSVs to LIMIT, the manifest row and its pin here both
+    went on saying ULTIMATE, and this test stayed green for a whole release
+    against a manifest that contradicted the file it described. The truth side is
+    ``tests/test_basis_statements.py`` (G-OR-74, note 49), which reads the
+    rendered document and knows what the basis actually is; keep both.
     """
     rows = _report().section("Appendix A. Bundle manifest").table.rows
     for row in rows:
@@ -681,7 +692,7 @@ def test_si_report_carries_si_markers_and_converts_the_loads():
 
     imp_units, imp_value = wing_shear(imperial)
     si_units, si_value = wing_shear(si)
-    assert imp_units == "lbs-ULT" and si_units == "N-ULT"
+    assert imp_units == "lb" and si_units == "N"
     assert si_value == pytest.approx(imp_value * 4.4482216152605, rel=1e-3)
 
 

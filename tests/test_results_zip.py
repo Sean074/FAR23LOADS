@@ -59,7 +59,7 @@ def test_report_is_the_cli_renderer(ga6_zip):
     """The text report carries the ULT contract statement, as cli.py's does."""
     _, z, _ = ga6_zip
     txt = z.read("reports/flap.txt").decode()
-    assert "Loads are ULTIMATE (= limit x SF); load factors are limit." in txt
+    assert "Loads are LIMIT" in txt and "sizing analysis" in txt
 
 
 def test_csv_carries_the_basis_statement(ga6_zip):

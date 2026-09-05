@@ -61,12 +61,12 @@ def test_every_row_has_a_location():
 def test_units_appear_in_headers():
     # All load output is ULTIMATE: the -ULT marker is part of the load's units string.
     imp = load_cases_to_rows(run_all(io520bb()))
-    assert "(lbs-ULT)" in _col(imp, "Vertical load")
-    assert "(ft-lb-ULT)" in _col(imp, "Engine mount torque")
+    assert "(lb)" in _col(imp, "Vertical load")
+    assert "(ft-lb)" in _col(imp, "Engine mount torque")
 
     si = load_cases_to_rows(convert_results(run_all(io520bb()), UnitSystem.SI))
-    assert "(N-ULT)" in _col(si, "Vertical load")
-    assert "(Nm-ULT)" in _col(si, "Engine mount torque")
+    assert "(N)" in _col(si, "Vertical load")
+    assert "(N·m)" in _col(si, "Engine mount torque")
 
 
 def test_blank_cells_for_inapplicable_loads():
@@ -86,21 +86,28 @@ def _limit(results, far, key):
     return next(v.value for v in cond.values if v.key == key)
 
 
-def test_loads_are_ultimate_with_sf_column():
-    # The CSV reports ULTIMATE = limit x 1.5; the SF column states the factor and the
-    # force/moment headers carry the ULT marker (14 CFR 25.303).
+def test_loads_are_limit_with_sf_column():
+    """The CSV reports the calc's LIMIT value; the ``SF`` column states the
+    factor that was **not** applied (note 49 OR-116, 14 CFR 23.303).
+
+    The inverse of what this asserted until 2026-09-05. The recoverability
+    check inverts with it and is worth keeping in the new direction: the
+    consumer's ultimate load is the printed value times the stated factor, and
+    that multiplication is now theirs to do.
+    """
     results = run_all(io520bb())
     rows = load_cases_to_rows(results)
     vert = _col(rows, "Vertical load")
-    assert "ULT" in vert
+    assert "-ULT" not in vert
     a2 = next(r for r in rows if r["FAR"] == "23.361(a)(2)")
     assert a2["SF"] == "1.5"
     limit_vert = _limit(results, "23.361(a)(2)", "fz_vertical")
     # rel_tol matches the 4-significant-figure display formatting of the CSV cell.
     import math
-    assert math.isclose(float(a2[vert]), 1.5 * limit_vert, rel_tol=1e-3)
-    # Limit is recoverable from ultimate / SF.
-    assert math.isclose(float(a2[vert]) / float(a2["SF"]), limit_vert, rel_tol=1e-3)
+    assert math.isclose(float(a2[vert]), limit_vert, rel_tol=1e-3)
+    # Ultimate is recoverable by the consumer as printed x SF.
+    assert math.isclose(float(a2[vert]) * float(a2["SF"]),
+                        1.5 * limit_vert, rel_tol=1e-3)
 
 
 def test_locations_are_not_scaled():

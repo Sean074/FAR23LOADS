@@ -995,3 +995,200 @@ constructor calls; no value, unit, key or label changes, and
 `report.render.results_to_rows` builds its columns explicitly, so no CSV and no
 Imperial digest is touched. Full reasoning and the decisions it carries
 (OR-71 … OR-75) are in [design note 47](47_appendix_b2_chord_bending_note.md).
+
+---
+
+## 13. Iteration 4 — Section 4, Fuselage Loads (OR-94 … OR-102)
+
+**Status: AGREED 2026-09-05 (owner, in session).** OR-8 agrees a section before
+it is built, and iteration 3 is the argument for holding to that: three of its
+rulings (OR-57, OR-58, OR-62) were retrofits after the owner read a shipped
+section. Ruled in one pass after §14, §15 and §16 were settled, so the section
+spec below already reflects them: **OR-94 re-cut to five subsections**, **OR-95
+rewritten** under OR-108, **OR-97 amended** by OR-103, and **OR-102 governed** by
+§16.
+Content spec per OR-8; SHALL list to a new `ORACLE_REPORT.md` §3.5; decisions on
+the same footing as OR-1 … OR-93.
+
+*The measurements the recommendations rest on were taken 2026-09-05 against
+`examples/ga6_normal.project.json` and `examples/baron_58.project.json` — the two
+airplanes G-OR-1 builds — and are quoted where they carry a decision.*
+
+| # | Decision | Amends |
+|---|---|---|
+| **OR-94** | **Section 4 is Fuselage Loads, built from the `fuselage_loads` step** (`NETLOADS`, Ref 1 Ch 15 p103, primary module `body_loads`), in **five** subsections: 4.1 the fuselage beam the loads were run on, 4.2 the run register of cases and their FAR conditions, 4.3 **Critical Fuselage Loads** — the seven blocks of printed p198 (§15), 4.4 the closure of the beam and the wing-attach fitting loads, 4.5 the distributions themselves. The per-station numbers go to **Appendix C**, not into the body. Five rather than §3's four because §15 gave the section a summary that an analyst turns to first, and folding the manual's own summary into a subsection about closure machinery would make it a footnote to the machinery (owner, 2026-09-05). Adding `"fuselage_loads"` to `oracle_content.IMPLEMENTED` is the switch; the OR-32 placeholder it replaces is the mechanism that has been holding the slot. | OR-8 (iteration) |
+| **OR-94a** | **Section 4 delivers LIMIT loads, and OR-49 does not extend to it.** *(Added 2026-09-05, note 49 OR-116/OR-120.)* OR-49 made every §3 load ULTIMATE at the render boundary; that boundary is being removed project-wide, and §4 is new content, so it is built on the final basis rather than written twice. **Every load §4 and Appendix C print is LIMIT, marked as such, with its case's safety factor stated in an `SF` column and applied nowhere.** The two already-ultimate families keep `-ULT` under note 49 OR-118. G-OR-54 inverts with this. | **OR-49 (does not extend)**, note 49 OR-116 |
+| **OR-95** | **§4 projects the published `ModuleResult`; the builder is read for the station table only.** *(Rewritten 2026-09-05 under OR-108, which makes `body_loads.run()` publish the four conditions it had been discarding. The original ruling — that §4 read `build_body_loads` throughout because there was no result to project — is superseded; it is rewritten rather than withdrawn so the record shows why it turned over.)* §4's cases, root values and register come from `body_loads`' own `ConditionResult`s, identical in mechanism to §3, which removes a special case from the report and makes the section and the GUI provably show one case set. The **station table and Appendix C still read `build_body_loads`**, because that is where stations live and no result type carries them. The alternative — report and GUI reaching the same case set by two routes — is the drift OR-108 was chosen to prevent. | **OR-108**, OR-6 |
+| **OR-96** | **4.1 states the beam, and states where the beam's mass came from.** `fuselage_beam_stations` returns the **mass SSOT's derived** table (step B1) — derived from `weight.items` unless the project explicitly overrides it — and *not* `fuselage_mass.stations` as entered, which is what it read before B1 and which left every fixture's beam lighter than its airplane. A section that presents a derived table as entered input describes a table nobody typed, which is OR-57's finding in a second place. 4.1 **SHALL** state which of the two it is, tabulate station and weight, and print `ΣW` against the airplane's own weight so the reader can see the beam is whole. **In this document it is always the derived table:** `stations_are_override` is `Origin.SLOADS`, so `reduce_to_oracle_inputs` strips it and OR-43's projection forecloses the override branch before the section sees it — 4.1 states the derivation, not a choice between two. Measured on the projected inputs: `ga6_normal` 17 derived stations totalling 3,070.0 lb from 5 entered, `baron_58` 15 from 6. | OR-57 (extends), OR-43 |
+| **OR-97** | **4.1 states the carry-through, and 4.4 states that its spar stations were *assumed*.** Measured, and this is the sharpest thing in the iteration: on **both** report fixtures **every** fuselage case runs with `spars_assumed=True` — neither airplane enters `front_spar_pct`/`rear_spar_pct`, so `DEFAULT_FRONT_SPAR_PCT`/`DEFAULT_REAR_SPAR_PCT` (0.15 / 0.65) are substituted, giving `ga6_normal` a carry-through of x = 60.15 → 110.65 in and `baron_58` 74.6 → 116.6 in. 4.3's fitting loads are the sizing loads for the wing-attach fittings, and on every example this report ships they are computed against **assumed** geometry. **And it is not a fixture-data gap — it is structural**: `front_spar_pct`/`rear_spar_pct` are `Origin.SLOADS`, so the oracle GUI never offers them (gate G5's reduced input set) *and* `reduce_to_oracle_inputs` strips them, which I verified by entering 20 %/60 % on `ga6_normal` and watching the projection return the carry-through to the 15 %/65 % default. **Every fuselage fitting load this document can ever print is derived from assumed spar stations**, whatever the project file carries. `CarryThrough.assumed` is already documented as "the provenance flag every deliverable states, so an assumed spar location is never reported as input"; §4 **SHALL** state it beside the fitting-load table itself, in the same visual field as the numbers, and **SHALL** state it as a fact about this airplane rather than about the tool. **Amended the same day by OR-103**: the structural half of this finding is fixed rather than filed — the spar pair becomes an oracle input, the field the reader would go looking for exists, and "assumed" recovers its plain meaning of *nobody entered one*. The measured 15 %/65 % figures above are the pre-OR-104 defaults and are kept as the record of what was found. | `CONVENTIONS.md`, OR-53, OR-43, OR-103 |
+| **OR-98** | **A closure-artifact result is stated, never printed as a distribution.** With no carry-through resolvable, `body_distribution` keeps the single wing reaction and cancels the residual moment with a self-equilibrated whole-body correction — its own docstring: *"Closes the beam, invents the source."* `BodyLoadResult.closure_artifact` flags it. A section that prints that station table as a load distribution publishes a load with no physical source and no fitting loads to go with it. 4.5 **SHALL** render an artifact result under its own stated state, by OR-32's gap-state machinery rather than a fourth way of saying it, and **SHALL NOT** print its distribution. Neither report fixture takes that path, so the clause is written from the code rather than from the example — and is therefore guarded on a constructed project, not on `ga6_normal`. | OR-32 (applies), OR-53 |
+| **OR-99** | **4.2's register carries OR-57 and OR-58 whole, because §4 has both of their conditions.** Two paths to a case list again: the persisted `envelope.critical` filtered to `component == "fuselage"`, or a fresh `select_fuselage(project)` — so 4.2 **SHALL** say which it was. And OR-58's obligations apply unchanged: the register **SHALL** state the sign convention of its load factors and **SHALL** state, from the analysed set rather than by assertion, whether it contains a negative-load-factor condition. Measured: both fixtures run four conditions — `MAX DOWN LOAD ON WING`, `AFT DOWN BENDING`, `AFT UP BENDING`, `GREATEST NZ`. Those names carry the sense in words, which is exactly the trap OR-58 was written from: a name is not the number, and a reader checking the envelope reads the column. | OR-57, OR-58 (extend) |
+| **OR-100** | **The quantities §4 delivers are `Fz`, `Sz` and `Myy`, and the absences are stated in the derivation rather than printed as zero columns.** `BodyStationLoad` carries no lateral shear and no lateral bending: Ch 15 p103 is a symmetric-flight vertical beam solve, and the lateral body case is a different analysis with a different producer. By OR-61's argument — a column of zeros reads as a measured zero — the absence is written out in 4.2's notation and derivation, not tabulated. 4.2's symbol table and recurrences are §3.2's, restricted to the three symbols §4 uses, with `Myy`'s axis named. | OR-61 (applies), OR-62 |
+| **OR-101** | **Appendix C is the per-station table, and it is a view of the export owner, not a second assembler.** OR-64's ruling stands unchanged one section over: `sbeam_bridge.body_span_load_csv` and `body_fitting_load_csv` already exist, are already offered by the CLI (`--export-sbeam`) and the Export bundle, and are already the ULTIMATE deliverable `body_load_rows`' own docstring points at. Appendix C consumes those rows and converts at the report's own boundary. `APPENDICES` gains `Appendix(BODY_LOAD_STATIONS, step_key="fuselage_loads", built=True)` in third position — the letter follows position, so Appendix A stays the reserved input echo and Appendix B stays the wing. | OR-64 (applies), OR-50 |
+| **OR-102** | **4.4 states the factors it applies, and states that it applies no factor at all.** **Amended 2026-09-05 by note 49 OR-116/OR-120:** the fitting loads are **LIMIT**, like every other delivered load in the project, with the case's safety factor stated beside them and applied nowhere. The `-ULT` marker appears in §4 only if a fuselage case is `engine_ultimate` or `emergency` (note 49 OR-118), which none is. **Ruled by the owner 2026-09-05, and wider than this section: no sloads load carries a Subpart D special factor, ever** — see **§16 (OR-114/OR-115)**, which is the decision of record; 4.3 states its consequence and cites it. This closes review **R-11** as *decided, not fixed*. | OR-49, **§16 (governs)** |
+
+### Gates added by this section
+
+- **G-OR-53** — §4 renders its five subsections numbered by the numbering owner,
+  and Fuselage Loads is **Appendix C** behind the reserved A and the wing's B.
+- **G-OR-54** — *(inverted 2026-09-05, OR-94a)* every load §4 and Appendix C
+  print is **LIMIT**, states its case's safety factor, and carries **no** `-ULT`
+  marker — except a case of the two already-ultimate families, which carries it
+  and states `SF=1.0`. Asserted in both directions, as note 49 G-OR-51 does
+  project-wide.
+- **G-OR-55** — 4.1 states the provenance of its beam and prints `ΣW`; a project
+  with no beam stations says so and still builds.
+- **G-OR-56** — the fitting-load table states `assumed` against `entered` spar
+  stations, asserted on a project of each. **Live from OR-103**: the `entered`
+  branch is reachable through the oracle GUI and through the projection, so it
+  is asserted where the reader meets it rather than only at `carry_through`.
+  G-OR-60 pins the projection half.
+- **G-OR-57** — a `closure_artifact` result renders its stated state and no
+  distribution (constructed project; no shipped fixture reaches this path).
+- **G-OR-58** — 4.2 states which of the two paths its case list came from, states
+  what the load-factor sign means, and says whether the set holds a
+  negative-load-factor condition.
+- **G-OR-59** — Appendix C's rows and the `body_span_load_csv` download are one
+  load set and agree row for row.
+
+### Findings to file (OR-14 — file, do not fix here)
+
+- ~~**The wing-attach fitting loads in the oracle report are permanently derived
+  from assumed spar stations.**~~ **Not filed — fixed, §14.** Found 2026-09-05 by
+  entering 20 %/60 % on `ga6_normal` and watching OR-43's projection revert the
+  carry-through to the default; put to the owner the same day and ruled fixed in
+  this milestone (OR-103 … OR-107). The question it raised — whether a *sizing*
+  deliverable may be reachable only from outside the oracle input set — is
+  answered *no*, and answered structurally, by the `supplied` mark.
+  Related but not the same: `select_input.wing_weight_lb` is `Origin.ORIGINAL`
+  and *is* offered, defaulting to `0.09 × MTOW` when left at zero — already
+  disclosed on the page (#95, C210-22).
+
+---
+
+## 14. The carry-through becomes an oracle input (OR-103 … OR-107)
+
+**Status: AGREED 2026-09-05 (owner, in session).** Raised by §13's OR-97 finding
+and ruled the same day. Milestone **0.8.2**; closure tier **L** (schema hop, and
+the oracle input set is a stated contract — gate G5).
+
+*The owner's instruction: "the carry-through should be added to the geometry GUI
+of the oracle. the default can 20%/60% but the user should be able to overwrite."
+Four questions were put and ruled, then two of the rulings were superseded by
+what the code turned out to already provide — recorded below as taken.*
+
+| # | Decision | Amends |
+|---|---|---|
+| **OR-103** | **The spar fractions become an oracle input by `supplied=True`, not by reclassifying their origin.** `oracle_app/form.py` builds every page from the registry — *"no field on a page the registry does not put there"* — over `keep = fr.oracle_input_paths()`, which is `ORIGINAL │ supplied`; `reduce_to_oracle_inputs` reduces to the same set. So one mark makes the field render **and** survive OR-43's projection. The mark is earned on `SUPPLIED_RULE` route 2, *demonstrably load-bearing*: dropping the entered value changes a Fuselage Loads result on a shipped example, which is the demonstration G-OR-61 makes. **Origin stays `SLOADS`, and that is the true row** — Ch 15 ships no `.BAS` (the module docstring: "a *suggested procedure* rather than a ported `.BAS` program") and the distributed carry-through is this project's refinement of p103's two point reactions, so `ORIGINAL` would enter a false claim in the table gate G5 is measured against. The two marks are mutually exclusive by guard (`test_a_supplied_field_is_never_original`), so this is a choice, not an addition. **This supersedes the owner's first ruling of 2026-09-05** (`Origin.ORIGINAL`), which was taken against a question that did not offer the supplied route. | OR-97 (discharges) |
+| **OR-104** | **The assumed carry-through becomes 20 % / 60 % of root chord**, from 15 % / 65 %. One owner, changed once: `constants.DEFAULT_FRONT_SPAR_PCT` / `DEFAULT_REAR_SPAR_PCT`, so `body_loads` and `export/lra_model` — its only two readers, through `carry_through` — move together and no front-end carries a second default. Measured on `ga6_normal`, front fitting load: `MAX DOWN LOAD ON WING` −1.5 %, `AFT DOWN BENDING` −11.6 %, `AFT UP BENDING` −10.6 %, `GREATEST NZ` −4.2 %; the carry-through moves from x = 60.15–110.65 in to 65.20–105.60 in. **No printed oracle moves** — Ch 15 ships none — so the acceptance is the equilibrium-closure gates the module has always been held to, re-run and stated, per `CLAUDE.md` practice 2. | `constants.py` |
+| **OR-105** | **The spar fractions are stored as a percentage (0–100), not a fraction.** They were the only `_pct` leaves in the schema holding a fraction: `weight.envelope.aft_gross_pct_mac` and its siblings hold `30.0`, `front_spar_pct` held `0.15`, and `units._DIMENSIONLESS_RULES` classifies both off the same `_pct$` pattern. The oracle widget renders a stored number raw, so the moment OR-103 made the field visible the oracle GUI would have asked for `0.20` where the main GUI asks for `20` — **one quantity in two scales across two front-ends, and a spar at 2000 % of chord for anyone who typed the number the label implied**. Storing percent removes the trap rather than labelling it: `carry_through` divides by 100 at the one place it reads them, the main GUI's ×100 goes, and the suffix stops lying. Schema **v60 → v61**, `_hop_60` multiplying an entered value by 100. No shipped fixture data moves — all seven examples write both keys as `null`. | `units.py` §`_pct`, schema |
+| **OR-106** | **`None` still means assumed, and the widget stays blank.** The provenance flag is `CarryThrough.assumed`, driven by the field being unset; a widget pre-filled with the default would make every deliverable claim its fitting loads were sized on entered geometry when the user only accepted a default. No new state and no schema field are needed for this: the oracle form already renders an unfilled `Optional` **empty**, not as a fake 0 (#35, CR-A-3), with a placeholder and a clear button, so accepting the default is not recorded as an entry. The default is disclosed in the field's registry `basis`, which is the widget's help text. | #35/CR-A-3 |
+| **OR-107** | **No frozen file is edited, so OR-13's freeze is not engaged and OR-15 is not invoked.** The owner granted an OR-15 admission for this work on 2026-09-05; it turned out not to be needed, and is recorded as unused rather than quietly spent. The frozen set is `sloads/modules/**` and `oracle_app/`'s five pages; this change touches `field_registry.py`, `constants.py`, `derived_geometry.py`, `io.py`, `migrations.py`, `units.py` and `app/views/` — none of them frozen — and the oracle GUI gains the field **without an edit** because its pages are registry-built. `tests/test_frozen_set.py`'s manifest is therefore unchanged and G-OR-9 does not apply. **This supersedes the owner's fourth ruling of 2026-09-05.** | OR-13, OR-15 (neither engaged) |
+
+### Gates added by this ruling
+
+- **G-OR-60** — the spar pair is in `oracle_input_paths()` and survives
+  `reduce_to_oracle_inputs`: a project entering 25 %/55 % reports 25 %/55 % in
+  the oracle report, not the default. This is the assertion OR-97's finding
+  turned on, run from the other side.
+- **G-OR-61** — the **G5 demonstration** that earns the supplied mark: dropping
+  the entered spar fractions changes a Fuselage Loads result on a shipped
+  example. Without this the mark is speculative, which `SUPPLIED_RULE` forbids.
+- **G-OR-62** — `CarryThrough.assumed` is True exactly when the field is unset,
+  asserted **through the projection** as well as on the raw project, so a future
+  reducer change cannot silently turn an entered station into an assumed one.
+- **G-OR-63** — the percent hop: a v60 file carrying `0.15`/`0.65` loads as
+  `15.0`/`65.0` and reproduces its pre-hop carry-through stations exactly, so
+  the hop is a representation change and not a geometry change.
+
+---
+
+## 15. The critical fuselage summary (OR-108 … OR-113)
+
+**Status: AGREED 2026-09-05 (owner, in session).** Raised by the owner reading
+printed **p198, `CRITICAL FUSELAGE LOADS`**, against the Fuselage Loads page.
+Milestone **0.8.2**; closure tier **L**. Carries an **OR-15 admission** over two
+frozen files.
+
+**The finding.** The manual prints a seven-block critical-fuselage summary.
+`select_fuselage` already computes four of those blocks — labels, FAR references,
+V-n case numbers and the same three quantities each — and then
+`body_loads.run()` returns `ModuleResult(conditions=[])`, so every one of them is
+discarded. The oracle GUI's Fuselage Loads page renders, verbatim,
+*"Body Loads produced no conditions."* beside a 92-row station table, where the
+manual prints its summary. Every other component page shows its critical cases.
+
+| p198 block | sloads today | After this note |
+|---|---|---|
+| 1 MAXIMUM TOTAL FUSELAGE LOAD ACTING DOWN ON WING | `MAX DOWN LOAD ON WING` (23.301) — computed, discarded | published |
+| 2 MAXIMUM AFT FUSELAGE DOWN BENDING | `AFT DOWN BENDING` (23.331) — computed, discarded | published |
+| 3 MAXIMUM AFT FUSELAGE UP BENDING | `AFT UP BENDING` (23.331) — computed, discarded | published |
+| 4 UNCHECKED PULL UP MANEUVER | absent from the page | published, referred |
+| 5 CHECKED PULL UP MANEUVER | absent from the page | published, referred |
+| 6 LANDING CONDITIONS (advisory) | absent | stated |
+| 7 GREATEST VERTICAL INERTIA FACTOR | `GREATEST NZ` — computed, discarded | published |
+
+| # | Decision | Amends |
+|---|---|---|
+| **OR-108** | **`body_loads.run()` returns the four conditions it already builds.** One owner, not four: the same `ModuleResult` then feeds the oracle GUI, the main GUI, the CLI, `load_cases_csv` and report §4 through renderers that are already generic — `oracle_app/results.py` needs no edit to show them. The alternative considered and rejected was each surface calling `select_fuselage` for itself, which is rule 3's failure mode with a deliverable on the end of it. **OR-15 admission, granted by the owner 2026-09-05**, over `sloads/modules/body_loads.py`: additive, no value changes, nothing recomputed. Manifest updated in the same commit per G-OR-9. **This supersedes OR-95**, which recorded the empty result as "not a defect" — reading the builder for the *station table* stays right; discarding the *case summary* was the defect. | **OR-95 (supersedes)** |
+| **OR-109** | **All seven blocks are reproduced, and a number that also appears elsewhere carries its reference.** The manual's own device — *"SEE HORIZONTAL TAIL LOADS FOR FURTHER DATA"* — is the answer to the two-pages-one-number objection: the reader gets the value where the fuselage question is asked, and is told where it is derived. Blocks 4 and 5 therefore print their tail-load quantities on the fuselage page **with a stated reference to the Tail Loads section**, and the values are **read from SELECT's own htail conditions**, never reassembled, so the two pages cannot drift. Owner ruling 2026-09-05. | OR-6 |
+| **OR-110** | **Weight and CG are case identity, so blocks 4 and 5 state them by lookup, not by calculation.** `CaseRef.cg` names the case; `cg_cases` resolves it to `weight_lb` and `xcg`. This is OR-54's projection-of-case-identity argument one section over, and it is exact: `CG4 → 73.09 in` and `CG3 → 72.64 in` reproduce p198's printed `XCG` values to the digit. The case ID is stated alongside, so a reader who wants the rest of the case finds it in the SELECT output rather than having it re-tabulated. Owner ruling 2026-09-05: *"the weight and cg are part of the case … these could be repeated here or just the cases stated."* Both — repeated for the reader, with the case named. | OR-54 (extends) |
+| **OR-111** | **The unbalanced moment about the CG is published from SELECT, with its equation recovered from the source and cited.** It was the one field of p198 with no owner and no derivation this project could state, and it is **not** reconstructible from the printed page by inspection — the arm closes against neither the 25 % nor the 50 % MAC until the balanced elevator load is subtracted. Recovered from Appendix C (`reference/code.txt` line 5210): `PITCHMOMH5CASE = -(LT50UPTEUNCK - LT50) * (XT50 - XXCG(H5CASE))`, and for the checked cases `PITCHMOMH7CASE = L5T * (XT50 - XXCG(I))`. **The increment is measured from the balanced 50 %-chord load, and the arm runs from the CG to the 50 % tail MAC.** Verified against the printed page on both: unchecked `-(-1346.496 - (-113.6319)) × (270.357 - 73.09) = +243,203.9` against a printed `243203.5`; checked `-218.3436 × (270.357 - 72.64) = -43,169.9` against a printed `-43170.23`. The **sign asymmetry is the original's** — the unchecked expression negates and the checked one does not — and is ported as found, not tidied. Cited in `theory_sources.md` with the line number. Second **OR-15 admission**, over `sloads/modules/select.py`. | `theory_sources.md` |
+| **OR-112** | **`FS 50 PERCENT HORIZ TAIL` prints the real station, and the deviation is registered.** The manual prints `0` in both fuselage blocks while its own tail-loads input echo states `270.357`, and `tail_loads.xt50` holds `270.357`. OR-111's arithmetic settles it independently: the moment closes **only** with 270.357, so the original computed with the real station and printed zero — a defect in its print, not a modelling choice. sloads prints the real value and records the difference in `02_approved_corrections.md`, so an analyst comparing against the page finds it explained rather than discovering it. Owner ruling 2026-09-05. | `02_approved_corrections.md` |
+| **OR-113a** | **The summary's loads are LIMIT, and each block states the factor it does not apply.** *(Added 2026-09-05, note 49 OR-116.)* p198's blocks are load quantities, so they follow the project basis. This also removes a trap the ULTIMATE basis would have created here: the manual's own p198 figures are **limit** loads, so a reader comparing our summary against the printed page would have been comparing 1.5x against 1x — exactly the defect note 49 E-c found in section 3's tables. | note 49 OR-116 |
+| **OR-113** | **Block 7's pitching-acceleration advisory is carried, because it names a limitation this project still has.** The manual warns that *"pitching acceleration will add algebraically to vertical inertia at all fus stations"*. sloads models the linear half of p103's "linear and pitching load factors" and **not** the pitching half — that is **M4-21**, open, with `theta_ddot = 0` on the balanced trim cases these conditions come from. Reproducing the manual's advisory therefore states a true limitation of the delivered numbers rather than decorating them, which is the one good reason to carry advisory prose at all. Block 6's landing advisory is carried on the same footing, referring to Landing Gear Loads. | M4-21 |
+
+### Gates added by this ruling
+
+- **G-OR-64** — `body_loads.run()` publishes one condition per block 1/2/3/7, each
+  carrying its FAR reference and its V-n case number, on both report fixtures.
+- **G-OR-65** — the oracle GUI's Fuselage Loads page renders those conditions:
+  the string *"produced no conditions"* never appears for `body_loads` on a
+  project that has an envelope. The regression this closes, asserted by its
+  symptom.
+- **G-OR-66** — blocks 4 and 5 read their tail-load values from SELECT's htail
+  conditions: the fuselage page and the tail page print the same number for the
+  same quantity, asserted by comparison rather than by both matching a literal.
+- **G-OR-67** — the unbalanced moment reproduces the printed page within the
+  oracle tolerance on both the unchecked and the checked case (OR-111's two
+  reconstructions are the test's cited numbers), and the 50 % tail MAC station it
+  uses is the entered one, never zero.
+- **G-OR-68** — every repeated quantity on the fuselage page carries its
+  reference to the section that derives it (OR-109), and every stated advisory
+  names the open item or the section behind it (OR-113).
+
+---
+
+## 16. Special factors are stress's, not loads' (OR-114 … OR-115)
+
+**Status: AGREED 2026-09-05 (owner, in session).** Owner directive, verbatim:
+*"the external loads report should NOT add fitting factors. this is applied by
+stress. NO load in sloads should have the 23.625 fitting factor, or any of the
+other special factors 23.619 such as bearing factor 23.623 and casting factor
+23.621."* Raised settling §13's OR-102; ruled wider than the section that raised
+it. Milestone **0.8.2**; closure tier **M**.
+
+**This is not a change — it is a boundary being made structural before something
+drifts across it.** Measured 2026-09-05: no path in `sloads/`, `app/`,
+`oracle_app/` or `cli.py` mentions or applies a fitting, casting, bearing or
+other special factor, and the governing table `sloads/safety_factors.py` carries
+no Subpart D row. The 2026-09-04 review's R-11 says the same from the other side.
+What is missing is not the behaviour but the **statement plus its guard**, which
+is what `CLAUDE.md` practice 3 requires of any cross-cutting convention.
+
+| # | Decision | Amends |
+|---|---|---|
+| **OR-114** | **sloads delivers external loads; the special factors of 14 CFR 23 Subpart D are applied by stress and by no part of this project.** Named and excluded: **23.619** special factors, **23.621** casting factor, **23.623** bearing factor, **23.625** fitting factors — and the class, not only the list, so a hinge or a seat-track factor arriving later is excluded by the same rule rather than needing a new one. The reason is a division of responsibility, not a tolerance: a special factor is a property of a *part* — its material, its process, its joint — and none of those is an input to a loads analysis. A loads program that applied one would be sizing, and would be doing it with information it does not have. The `-ULT` contract is unchanged: a delivered load is limit × the governing safety factor, and **nothing else**. | `CONVENTIONS.md` §3 |
+| **OR-115** | **One owner, one statement, one guard.** The rule lives with the governing safety-factor table (`sloads/safety_factors.py`, the M4-8/G-11 owner), because that is the single source for what multiplies a load and this is a statement about what does not. `CONVENTIONS.md` §3 states the boundary; the shipped **methods statement** states it to the reader, which is where an analyst meets it — so it rides with **#174** (the methods-statement catch-up, already a 0.8.2 row) rather than being a second edit to the same sentence. Registered in `02_approved_corrections.md` **§Withdrawn from scope**, following the 23.629 flutter precedent exactly (#79, C210-19). | `safety_factors.py`, #174 |
+
+### Gates added by this ruling
+
+- **G-OR-69** — no shipped module, report or export path applies a Subpart D
+  special factor, asserted as the flutter withdrawal is asserted
+  (`test_no_shipped_module_computes_a_flutter_clearance_speed` is the pattern):
+  a scan over the safety-factor owner's rows plus every applied factor,
+  failing on any value that is not the governing table's own.
+- **G-OR-70** — the shipped methods statement says so, checked against
+  `02_approved_corrections.md` §Withdrawn from scope rather than against its own
+  source tuple — the circularity #174 exists to fix, so the new clause is not
+  added behind the same blind guard.

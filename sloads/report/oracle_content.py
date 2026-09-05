@@ -606,10 +606,13 @@ _INTRODUCTION = [
     "(reference/FAR23Loads_UserGuide.pdf, Table 2.2). The certification basis "
     "is 14 CFR Part 23 Subpart C.",
 
-    "All delivered loads in this report are ULTIMATE. Every load-bearing "
-    "quantity states its units with the -ULT marker, and every load case states "
-    "the safety factor applied to it together with the basis of that factor. "
-    "Quantities that are not loads are neither scaled nor marked.",
+    "All delivered loads in this report are LIMIT. Every load case states the "
+    "safety factor 14 CFR 23.303 prescribes for it and the basis of that "
+    "factor; sloads applies it nowhere, here or in the exported deck, so it is "
+    "the sizing analysis that applies it. The -ULT marker appears only on the "
+    "two families the regulation prescribes already ultimate — 23.367(a)(2) "
+    "engine torque and 23.561(b) emergency-landing inertia — which ask for "
+    "nothing further. Quantities that are not loads take no factor at all.",
 
 ]
 

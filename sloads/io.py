@@ -1665,7 +1665,7 @@ def load_cases_csv(
     header_comment: str = "",
     *,
     system: UnitSystem = UnitSystem.IMPERIAL,
-    channel: LoadChannel = LoadChannel.ULTIMATE,
+    channel: LoadChannel = LoadChannel.LIMIT,
 ) -> str:
     """Render module results to a CSV string.
 
@@ -1724,7 +1724,7 @@ def write_load_cases_csv(
     header_comment: str = "",
     *,
     system: UnitSystem = UnitSystem.IMPERIAL,
-    channel: LoadChannel = LoadChannel.ULTIMATE,
+    channel: LoadChannel = LoadChannel.LIMIT,
 ) -> None:
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write(load_cases_csv(results, header_comment=header_comment,

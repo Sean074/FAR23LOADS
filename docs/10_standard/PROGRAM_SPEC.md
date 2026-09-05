@@ -79,42 +79,46 @@ Each module has a fixed template:
 `Project`" means those fields were produced by an upstream module or entered
 directly; a module never recomputes another module's owned quantity.
 
-**Limit vs. ultimate (ALL output is ULTIMATE).** The calc emits **LIMIT** loads (the
-oracle figures the manual prints), but **every load that leaves the calc is
-ULTIMATE** — no rendered table, text report, load-case CSV, or sbeam card may show a
-bare limit load. Ultimate = limit × the per-case factor of safety
-(`ConditionResult.safety_factor`, default **1.5 per 14 CFR 23.303**; the Part 25
-equivalent is 25.303; see `reference/14CFR_factor_of_safety.md`). Scaling is applied
-only at the render/export boundary, to force/moment/pressure quantities — never to
-geometry, weights, inertias, or (dimensionless) load factors.
+**Limit vs. ultimate (ALL output is LIMIT).** The calc emits **LIMIT** loads (the
+oracle figures the manual prints) and **every surface reports them unchanged** —
+the rendered tables, the text report, the load-case CSV, both reports and the
+sbeam card. The per-case factor of safety (`ConditionResult.safety_factor`,
+default **1.5 per 14 CFR 23.303**; the Part 25 equivalent is 25.303; see
+`reference/14CFR_factor_of_safety.md`) is **stated and applied nowhere**; the
+sizing analysis applies it. This inverts the rule as it stood until 2026-09-05 —
+design note 49 **OR-116**, which overrules note 48's OR-87 and OR-93 — and it is
+structural, not prose: **G-OR-71** scans `sloads/` for any surviving multiply.
 
-The `ULT` marker is **part of the load's units string** — force `lbs-ULT` (SI
+Load quantities carry **plain units**. The `ULT` marker — force `lbs-ULT` (SI
 `N-ULT`), moment `ft-lb-ULT` / `lb-in-ULT` (SI `Nm-ULT`), pressure `lb/in^2-ULT`
-(`psi-ULT`) — and the load-case CSV carries the factor in an `SF` column. **Every
-load case states its SF.** The factor is per-case so a future 14 CFR 23.302/25.302 /
-Appendix K refinement can give a failure case a probability-interpolated value
-(1.0–1.5); sudden engine stoppage is held at 1.5. A value already at ultimate (or an
-inherently-limit value reported as-ultimate with no amplification) is **`ULT
-SF=1.0`** — still ultimate output, not a limit load. **Scope (design note 48, OR-76):** ULTIMATE is the channel of
-case selection, the sbeam export, the case index and the oracle technical
-report. **Every per-module analysis surface is LIMIT** — the CLI's text and CSV
-output, the app's per-module tables and download buttons, the export bundle's
-`_report.txt` and per-module CSVs, and the results zip built from `app/` — where
-the factor is *stated and not applied*: plain units, no `-ULT`, `SF` filled, and
-a header line naming the ultimate deliverables. `report.LoadChannel` is the
-parameter and it **defaults to ULTIMATE**, so the frozen `oracle_app` renders
-exactly as before without passing one. A condition that is not a load case
+(`psi-ULT`) — survives only on a load the regulation prescribes **already
+ultimate**: 23.367(a)(2) sudden engine stoppage and 23.561(b) emergency-landing
+inertia, which are **`ULT SF=1.0`** and ask for nothing further (**OR-118**). A
+shared column header is marked only when *every* case in its table is one of
+those (**OR-118a**). **Every load case states its SF** in an `SF` column or an
+`SF=` marker, as the factor that was *not* applied; the factor is per-case so a
+future 14 CFR 23.302/25.302 / Appendix K refinement can give a failure case a
+probability-interpolated value (1.0–1.5). A condition that is not a load case
 prescribes no factor at all and its `SF` reads `N/A`
-(`safety_factors.prescribes_factor`, #154). **A LIMIT *download* carries the
-basis in-band (M4-15):** filename `*_LIMIT.csv` plus a `Basis` column (or
-LIMIT-marked column headers) — the canonical station-row shapes
-(`net_loads.wing_load_rows`, `body_loads.body_load_rows`) append `Basis = LIMIT`
-to every row, and the Wing/Fuselage Loads pages pair the LIMIT file with the
-sbeam bridge's ULTIMATE twins (`*_ULT.csv`, `SF` column) — for the wing, the
-cumulative span loads and the applied load set.
+(`safety_factors.prescribes_factor`, #154).
+
+`report.LoadChannel` now has a **single member**, `LIMIT`. Note 48 built it as a
+switch and defaulted it to ULTIMATE so the frozen `oracle_app` needed no edit
+(OR-77); the default inverted underneath that file and the `ULTIMATE` member was
+removed, so a stale caller fails at import rather than silently receiving limit
+loads. The parameter itself goes at #29.
+
+**M4-15 — a download carries its basis in-band:** filename `*_LIMIT.csv` plus a
+`Basis` column (or LIMIT-marked column headers) — the canonical station-row
+shapes (`net_loads.wing_load_rows`, `body_loads.body_load_rows`) append
+`Basis = LIMIT` to every row. There is no ULTIMATE twin to pair it with any more;
 `tests/test_ultimate_contract.py` scans the app's CSV downloads and enforces
-this. M4-15 stands while both channels exist; note 48's OR-81 retires it in
-0.8.3, when the last multiply goes and LIMIT becomes the unmarked default.
+this. One basis for the project does not make the statement redundant — it makes
+it uniform, and since the numbers no longer carry the answer the statement is the
+only thing that does. The **deck** carries the same obligation per subcase
+(**OR-117**, `sbeam_bridge.basis_sentence`), gated by **G-OR-73**; every rendered
+document carries it too, gated by **G-OR-74**. OR-81's retirement of the
+per-artifact marker vocabulary stays in 0.8.3.
 
 ---
 
@@ -216,7 +220,7 @@ distribution it drives, cross-linked from both pages) writes it (`flight_envelop
 - **Writes:** the full balanced V-n matrix (one `VnPoint` per condition × CG × altitude: V, NZ, α, G, CL, M(W+F), LZW, **LT**, DX) and the balancing tail load per point → **`Project.envelope`** (`EnvelopeResult.vn` + `.tail_balance`), consumed by SELECT. The pure entry point is `flight_envelope.build_envelope(project) → EnvelopeResult`; `run(project)` returns the per-point `ModuleResult`.
 - **Validation:** Appendix A "V-n Data" p179-180 — the cruise balanced matrix per CG case. The AoA balance converges NZ only to ±0.005 (FLTLOADS.BAS line 4130), so low-load-factor quantities carry ~0.5% noise; LT and the corner speeds/load factors match tightly.
 - **Convergence (#33, 2026-08-22):** each balance states how it ended. The angle-of-attack iteration has one acceptable end and **refuses** otherwise (`SolverFailure`, `sloads/convergence.py`) — before this it returned the angle it gave up at, so a CG the airplane cannot trim at produced a point labelled 1 g that was not (measured: NZ 0.658, on into SELECT and the decks). The dynamic-pressure iteration has a second acceptable end, **clamped**: the Mach cap pins the true airspeed, `q` reaches a fixed point off the stall line and no further trip can move it. That is stall-limited flight, which **23.333(b)** excludes from the manoeuvring envelope (decision **D-30**), so the point is reported with its state rather than refused; `EnvelopeResult.clamped_cases`/`is_clamped` carry it, derived and never persisted. On the shipped fixtures the clamped set is exactly `atr42_100`'s nine Mach-capped corners at 25,000 ft, the same rows the Aerodynamic Data page's stall-clamp margin flags — pinned to agree, so #32's marker reads one owner. Bit-identical to the pre-#33 spin-out (all pins and the frozen digest unmoved) and 4.3× faster on that fixture.
-- **Notes:** Graphics: the V-n diagram, plus (Step G5) a **Trim & Stability** tab — `flight_envelope.trim_sweep()` re-runs the balance at ~15 interpolated CG stations for the BAL A/C/D 1-g trim loads (balancing tail load vs CG), and a static-margin sweep (`SM = NP − CG`, %MAC) from the Configuration tail-volume neutral point. It adds no load equations (a swept station coinciding with a CG case reproduces `build_envelope`'s BAL load exactly), and its tail loads are shown **LIMIT** (marked; the ULTIMATE deliverables are the SELECT/Results-Review/export loads). Faithful port of FLTLOADS.BAS subroutine **3900** (iterate AoA to the required load factor, then dynamic pressure to the Mach-adjusted stall line; Glauert compressibility `G/Gmn`; CLmax-vs-Mach curve) and **4864** (gust load factor, FAR 23.341). Balancing tail load `LT = [M(W+F) + LZ·(Xcg−Xw) − DX·(Zcg−Zw)]/(XT−Xcg)` with *approximate* tail CP (`XTC`≈5% tail MAC flaps-up, `XTF`≈25% flaps-down; Ch 8 "Assumption"). Covers the **cruise** maneuver+gust corner set (20 conditions, lines 1000-1594) plus the flapped LANDING/ENROUTE corner set (subr 3000; added with SELECT, C6); both share the balance engine. In the flapped set the `BAL 1.4VSF` point balances at **1.4× the 1-g flaps-down stall (`STALL 1GL`) speed** — FLTLOADS.BAS p300–302 saves the STALL 1GL speed — reproducing Appendix A p181 LANDING CG5 case 89 (V 83.6 kt / LT −430 lb; M1-2). Earlier code balanced at 1.4× `STALL 2G`, ~2.2× too large a tail load (review T2). SELECT refines the CP rationally; `BALLOADS.BAS` independently verifies it. Produces the candidate conditions SELECT then prunes; feeds SELECT and WINGINER (UG Table 2.2). FLTLOADS.BAS carried its own speed-of-sound constants (518.688 °R / 575 kt vs the shared `standard_atmosphere`'s 518.4 / 574.94); measured 2026-08-17 to pin no printed oracle, so `_speed_of_sound` now reads the shared atmosphere (issue #26 C-7, `CONVENTIONS.md` §7).
+- **Notes:** Graphics: the V-n diagram, plus (Step G5) a **Trim & Stability** tab — `flight_envelope.trim_sweep()` re-runs the balance at ~15 interpolated CG stations for the BAL A/C/D 1-g trim loads (balancing tail load vs CG), and a static-margin sweep (`SM = NP − CG`, %MAC) from the Configuration tail-volume neutral point. It adds no load equations (a swept station coinciding with a CG case reproduces `build_envelope`'s BAL load exactly), and its tail loads are shown **LIMIT**, like every other load in the suite (note 49 OR-116). Faithful port of FLTLOADS.BAS subroutine **3900** (iterate AoA to the required load factor, then dynamic pressure to the Mach-adjusted stall line; Glauert compressibility `G/Gmn`; CLmax-vs-Mach curve) and **4864** (gust load factor, FAR 23.341). Balancing tail load `LT = [M(W+F) + LZ·(Xcg−Xw) − DX·(Zcg−Zw)]/(XT−Xcg)` with *approximate* tail CP (`XTC`≈5% tail MAC flaps-up, `XTF`≈25% flaps-down; Ch 8 "Assumption"). Covers the **cruise** maneuver+gust corner set (20 conditions, lines 1000-1594) plus the flapped LANDING/ENROUTE corner set (subr 3000; added with SELECT, C6); both share the balance engine. In the flapped set the `BAL 1.4VSF` point balances at **1.4× the 1-g flaps-down stall (`STALL 1GL`) speed** — FLTLOADS.BAS p300–302 saves the STALL 1GL speed — reproducing Appendix A p181 LANDING CG5 case 89 (V 83.6 kt / LT −430 lb; M1-2). Earlier code balanced at 1.4× `STALL 2G`, ~2.2× too large a tail load (review T2). SELECT refines the CP rationally; `BALLOADS.BAS` independently verifies it. Produces the candidate conditions SELECT then prunes; feeds SELECT and WINGINER (UG Table 2.2). FLTLOADS.BAS carried its own speed-of-sound constants (518.688 °R / 575 kt vs the shared `standard_atmosphere`'s 518.4 / 574.94); measured 2026-08-17 to pin no printed oracle, so `_speed_of_sound` now reads the shared atmosphere (issue #26 C-7, `CONVENTIONS.md` §7).
 
 - **Stall CL: one fill, two writers, and a refusal (#81, C210-23, 2026-08-24).**
   The M1-1b fill that keeps `clmax_clean`/`clmax_clean_neg`/`clmax_flap` and the
@@ -304,7 +308,7 @@ approved-corrections register [`../20_theory/02_approved_corrections.md`](../20_
 - **Validation:** Appendix A/B — the selected critical points (`SELWGLDS/SELHTLDS/SELVTLDS/SELFSLDS`).
 - **Publishes (L-7, 2026-08-17):** every vertical-tail condition carries its sideslip `beta_deg` in the SC-1 sense (`SUDDEN RUDDER` 0, `YAW TO SIDESLIP` +19.5, `YAW 15 NEUTRAL` +15, `SIDE GUST` the load's own `−Kgt·Ude/V`) and the fin's `cy_beta_fin` / `cn_beta_fin` per degree about `xw`, built from the same `AVT`, `S_v` and arm as the load (`select.fin_sideslip_derivatives`, `_vt_side_gust_terms`) — the balance reads them and re-derives nothing (note 19 decisions L-7.6 / L-7.11). No load or oracle changes.
 - **Stale-envelope refusal (CR-B-4, 2026-08-22):** `default_envelope` checks a **persisted** `Project.envelope` against the CG cases the project still carries and **refuses** (`ValueError`) when the matrix names one that is gone — every V-n row was balanced at one weight and CG, so a name with nothing behind it means the matrix belongs to data the project no longer has. It used to be read as a case with no weight: the wing search wrote `nx = 0.0` into a WINGINER load case and the 23.421 h-tail search dropped the candidate with a `continue`, so renaming a CG case after running FLTLOADS quietly changed the loads. Both reads now go through `_cg_weight`/`_cg_case`, which refuse for a caller that threads its own envelope. The check is one-way: an **extra** flight case the matrix does not mention is an ordinary edit, not yet balanced.
-- **Notes:** Central junction. Reads V-n data from FLTLOADS + geometry (WINGGEOM) + inertia (WTONECG). Per UG Table 2.2 it feeds **AIRLOADS, AIRLOAD4 (iterative — see AIRLOADS), WINGINER, TAILDIST**. NETLOADS/component modules consume `critical` indirectly via those. **Step D5:** `CriticalLoadSet.selected_case_ids` is an **opt-out GUI selection** — the Critical Loads page persists which computed conditions the engineer keeps for the deliverable (empty = no filter, every condition kept, the default and the whole behavior for older projects); `CriticalLoadSet.selected()` applies it. Only the **Results Review** page's display reads `.selected()` — every structural calc module (WINGINER/NETLOADS, `body_loads`, the sbeam export bridge) deliberately keeps reading `.conditions` unfiltered, so the selection can never silently drop load cases from a deliverable's structural sizing, only from the GUI summary. (D8.3 is expected to wire the export bundle to this same selection — not yet done.) **M2-4:** the governing-loads tables on **both** the **Results Review** headline and the Flight Envelope **Critical Loads** tab render through one shared `report.governing_loads_table(conditions, system, sf)` — load columns are ULTIMATE (scaled by SF, `-ULT` marker + `SF` column), dimensionless/speed columns (n, CL, V) unscaled and unmarked, absent cells `"—"`. **Review F-R1 (M4-8 Layer-1 report-side slice):** the factor is **per case** — each row scales by its own `CriticalCondition.safety_factor` (14 CFR 23.303 → 1.5 by default, 1.0 for a case already at ultimate) and its `SF` cell states that row's factor, matching the export side (`sbeam_bridge._sf`); the helper takes no caller-supplied `sf` override, so a report figure and its bulk-data card cannot state different factors for one case. **M4-8 / G-11 (2026-08-14):** that per-case factor is now itself a derived view — `sloads/safety_factors.py`'s governing table classifies each case by its FAR reference and writes the carrier at `registry.run_all_modules`, `report.content.component_loads` and `balanced_run`, so a project-level override reaches the report column and the bulk-data cards together or not at all.
+- **Notes:** Central junction. Reads V-n data from FLTLOADS + geometry (WINGGEOM) + inertia (WTONECG). Per UG Table 2.2 it feeds **AIRLOADS, AIRLOAD4 (iterative — see AIRLOADS), WINGINER, TAILDIST**. NETLOADS/component modules consume `critical` indirectly via those. **Step D5:** `CriticalLoadSet.selected_case_ids` is an **opt-out GUI selection** — the Critical Loads page persists which computed conditions the engineer keeps for the deliverable (empty = no filter, every condition kept, the default and the whole behavior for older projects); `CriticalLoadSet.selected()` applies it. Only the **Results Review** page's display reads `.selected()` — every structural calc module (WINGINER/NETLOADS, `body_loads`, the sbeam export bridge) deliberately keeps reading `.conditions` unfiltered, so the selection can never silently drop load cases from a deliverable's structural sizing, only from the GUI summary. (D8.3 is expected to wire the export bundle to this same selection — not yet done.) **M2-4:** the governing-loads tables on **both** the **Results Review** headline and the Flight Envelope **Critical Loads** tab render through one shared `report.governing_loads_table(conditions, system, sf)` — load columns are LIMIT (plain units + the `SF` column stating the factor that was not applied), dimensionless/speed columns (n, CL, V) likewise unscaled and unmarked, absent cells `"—"`. **Review F-R1 (M4-8 Layer-1 report-side slice):** the factor is **per case** — each row scales by its own `CriticalCondition.safety_factor` (14 CFR 23.303 → 1.5 by default, 1.0 for a case already at ultimate) and its `SF` cell states that row's factor, matching the export side (`sbeam_bridge._sf`); the helper takes no caller-supplied `sf` override, so a report figure and its bulk-data card cannot state different factors for one case. **M4-8 / G-11 (2026-08-14):** that per-case factor is now itself a derived view — `sloads/safety_factors.py`'s governing table classifies each case by its FAR reference and writes the carrier at `registry.run_all_modules`, `report.content.component_loads` and `balanced_run`, so a project-level override reaches the report column and the bulk-data cards together or not at all.
 - **Derive-by-default (note 36 OV-1/OV-2/OV-5, #97):** `select.effective_tail_inputs` resolves a blank `aspect_ratio_wing` from the consolidated planform AR (`derived_geometry.wing_aspect_ratio`) and a blank `wing_lift_slope_per_rad` from the cruise set's C1 × 57.3 (`select.wing_lift_slope_per_rad`) onto a local copy — an ARW that resolves to 0 is refused by name rather than reaching the downwash divide (C210-36's bare `ZeroDivisionError`). `select.resolved_full_down_aileron_deg` derives a blank SELECT DN from `aileron_loads.down_deflection_deg` (C210-38; a typed disagreement warns, `aileron_deflection_mismatch`). Typed values pass through verbatim, so every Appendix A pin is untouched. **Extended at #95 (C210-3/5):** a blank elevator area SE derives as SEFWDHL + SEAFTHL (`select.derived_elevator_area`) and a blank rudder area SR as SRFWDHL + SRAFTHL (`derived_rudder_area`) — one owner per control-surface area triple; a typed total that disagrees with its halves past 1 % (Appendix A's own manual rounding sits at 0.2–0.7 %) warns, `elevator_area_mismatch` / `rudder_area_mismatch`. `select.effective_vtail_inputs` also derives a blank `wing_span_in` from the WINGGEOM planform's own span (`derived_geometry.wing_span_in`); ONENGOUT and `tail_span`'s control-load split read through the same effective inputs (rule 4). A blank `izz_slugft2` keeps its SELECT.BAS rod default, now **disclosed**: `select.default_side_gust_izz` is the registry resolver shown beside the field, and the oracle SELECT block captions both rod inertias against WTONECG's database values (`oracle_app.results.select_inertia_advisory`, C210-25 — the rod IZZ measured +49 % on the C210).
 - **The summary table (#95, C210-26/27 — owner directive, "one line per case"):** SELECT's on-screen table and its module CSV render through `report.summary_rows` → `report.critical_rows` — one row per condition with ID / LOAD / Component / Condition / FAR / the per-quantity column union (`"—"` where absent) / the per-case `SF`, sharing `governing_loads_table`'s one-line core (`_union_rows`) so the M2-4 tables and this one cannot diverge. The oracle page groups the same rows per component (`SUMMARY_GROUP_BY`); the CSV keeps them flat. This replaced the stacked one-row-per-quantity shape (~150 rows for 27 conditions, SF invisible on wing cases) — an accepted deliverable-format change, the `csv/*` digests re-frozen with it.
 
@@ -939,8 +943,8 @@ result that lacks what a deck needs is a stated error, never an empty column.
   station of every case of `ga6_normal` and of `baron_58` with its four
   concentrated masses
   (`test_the_applied_set_reproduces_the_whole_vmt_at_every_station`, G-OR-35).
-  ULTIMATE, solver unit channel, offered on the Wing Loads page and in the
-  Export bundle. The exported deck is built from this same set (see nodal loads
+  LIMIT with the factor stated per case, solver unit channel, offered on the
+  Wing Loads page and in the Export bundle. The exported deck is built from this same set (see nodal loads
   below).
 - **Deck `$` comment width.** Every generated `$` sentence in the wing, body,
   tail and control decks is emitted through `sbeam_bridge._comment`, which wraps
@@ -1297,15 +1301,16 @@ result that lacks what a deck needs is a stated error, never an empty column.
 - **Coordinates:** `sloads/export/coordinates.py` — SLOADS station-X /
   butt-Y / waterline-Z inches → sbeam global CID 0, **identity** (single
   edit-point for any future sign/axis/unit change).
-- **Limit → ultimate (defect M4-7):** every exported force/moment/pressure is the
-  calc's LIMIT value × **that case's** `safety_factor` (default
-  `constants.ULTIMATE_FACTOR` = 1.5 per 14 CFR 23.303; `1.0` for a case already at
-  ultimate), resolved per result by `sbeam_bridge._sf()` — never a flat suite-wide
-  constant. Geometry (coordinates, chord fractions) is not scaled. The factor is
-  uniform *within* a case, which is what the closure guarantee requires. Every CSV
-  carries it in the last column (`SF`) and every card block states it in its `$`
-  header. The same applies to the fuselage, tail-chordwise and control-surface
-  exports below.
+- **The per-case factor, stated not applied (defect M4-7, then note 49 OR-116):**
+  every exported force/moment/pressure is the calc's **LIMIT** value, unscaled.
+  **That case's** `safety_factor` (default `constants.ULTIMATE_FACTOR` = 1.5 per
+  14 CFR 23.303; `1.0` for a case already at ultimate) is resolved per result by
+  `sbeam_bridge._sf()` — never a flat suite-wide constant — and is **stated**:
+  every CSV carries it in the last column (`SF`), and every card block states it
+  through `sbeam_bridge.basis_sentence`, the single owner of that wording, per
+  subcase (**OR-117**, gated by **G-OR-73**). Because nothing is scaled, closure
+  is exact rather than uniform-within-a-case: `sum(dFz) == root`. The same applies
+  to the fuselage, tail-chordwise and control-surface exports below.
 - **Factor mint sites (defect M4-13):** every distributed-load result carries a
   factor minted **once** by its producer: `taildist`/`body_loads` copy the
   governing `CriticalCondition.safety_factor`; `net_loads` (whose wing cases have
@@ -1322,8 +1327,9 @@ result that lacks what a deck needs is a stated error, never an empty column.
   readers coerce it through one helper (`io._safety_factor`): anything
   non-numeric (null, string, bool, NaN/inf) **or outside the legal
   `[1.0, ULTIMATE_FACTOR]` band** falls back to the conservative default
-  `ULTIMATE_FACTOR` — a low value would silently under-scale cards still
-  labelled ULTIMATE, including on the headless CLI export path. The band is
+  `ULTIMATE_FACTOR` — a low value would state a factor too small to reach
+  ultimate, so a sizing analysis trusting it under-designs, including on the
+  headless CLI export path. The band is
   owned by the load-case definition (14 CFR 23.303; a case already at ultimate
   is 1.0, an agreed 23.302/25.302 failure-case factor lies between). The shared
   predicate is the public `validation.safety_factor_valid`; the advisory
@@ -1456,7 +1462,7 @@ result that lacks what a deck needs is a stated error, never an empty column.
   The wing chains **start at the side-of-body** (R-3); the deck is free-free
   on one clamped fuselage node whose recovered reaction is the case residual.
 - **Loads:** the assembled balanced cases' sets — same `SUBCASE`/`SID` minting,
-  same ULTIMATE boundary scaling — each load transferred to the nearest node of
+  same LIMIT basis and per-subcase factor statement — each load transferred to the nearest node of
   the member its `source` names with the exact lever-arm couple `(p − n) × F`
   (**single owner `export/coordinates.transfer_couple`**, note 24 R-11 /
   LM-1). Wing strips inboard of the SOB land on the SOB node (the R-3
@@ -1491,7 +1497,7 @@ result that lacks what a deck needs is a stated error, never an empty column.
   `--lra-import MODEL.bdf` the loads land on the imported model instead
   (`<prefix>.lra_loads.bdf`). The Export page bundles `lra_model.bdf` when it
   builds, and Appendix A of the summary report names it there with its basis
-  (solver units, ULTIMATE, torsion about each surface's LRA).
+  (solver units, LIMIT, torsion about each surface's LRA).
   `lra_loads.bdf` is a **CLI-only** artifact on the same basis: it never rides
   the bundle, so it is named here and not in the bundle manifest — a manifest
   row for a file the zip does not contain is the same conformance defect
@@ -1564,7 +1570,7 @@ result that lacks what a deck needs is a stated error, never an empty column.
   "§5 Tails" named none) and a document-wide sweep for out-of-range references.
 - **Writes:** `.tex` (always) and, when a TeX engine is available, `.pdf`. Both
   ship in the Export page's `.zip` beside the CSV/BDF files they describe.
-  All loads ULTIMATE with a per-case `SF`; the whole document renders in the
+  All loads LIMIT with a per-case `SF` stating what was not applied; the whole document renders in the
   selected unit system (`deliverable_units(system, Channel.HUMAN)`), and its
   manifest names the sbeam decks' consistent solver set beside it (D-19).
 - **Used by** the Export page's **Summary report** section and

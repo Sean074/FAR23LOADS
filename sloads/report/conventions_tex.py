@@ -100,9 +100,9 @@ CONVENTION_ROWS: List[List[str]] = [
 #: The note under the table.
 CONVENTION_TABLE_NOTE = (
     "Authority: docs/10_standard/CONVENTIONS.md (the conventions charter), "
-    "cited per row. Deliverable loads are ULTIMATE with the safety factor "
-    "stated per case; per-figure torsion axes and per-moment signs are also "
-    "repeated at point of use."
+    "cited per row. Deliverable loads are LIMIT with the safety factor stated "
+    "per case and applied nowhere; per-figure torsion axes and per-moment signs "
+    "are also repeated at point of use."
 )
 
 

@@ -2,7 +2,7 @@
 
 A short, task-oriented guide to driving the loads suite through its Streamlit
 GUI: the workflow phases, what you enter on each page, how one page *seeds* the
-next, how to read the results (especially **LIMIT vs. ULTIMATE**), and one
+next, how to read the results (especially **what basis the loads are on**), and one
 end-to-end walkthrough of the bundled `ga6_normal` example with hand-checkable
 numbers.
 
@@ -37,34 +37,45 @@ You build up **one project** (`project.json`) page by page. Each page owns a
 slice of the input, runs its calculation, and stores results back into the same
 project — so the whole airplane travels as a single reloadable file.
 
-### The one rule to internalize first: LIMIT vs. ULTIMATE
+### The one rule to internalize first: sloads gives you LIMIT loads
 
-- **LIMIT load** — the highest load expected in service. The suite's *internal
-  math* runs in limit loads (that is what the manual's oracle figures are).
+- **LIMIT load** — the highest load expected in service. This is what sloads
+  computes and what it gives you (it is also what the manual's oracle figures
+  are, which is why you can check the numbers against them directly).
 - **ULTIMATE load** — limit × a **factor of safety** (default **1.5**, per
   14 CFR 23.303). This is what structure is actually sized to.
 
-**Every deliverable is ULTIMATE.** The load-case CSV, the exported sizing cards,
-and the Review/Export consolidation pages all report ultimate loads. You can
-tell at a glance because **the unit string carries the marker**:
+**Every load sloads delivers is LIMIT, and it is your sizing analysis that
+applies the factor.** The load-case CSV, the exported sizing cards, the reports
+and the Review/Export pages all report limit loads with the factor **stated** —
+in an `SF` column, or an `SF=` line on a deck's subcase — and applied nowhere.
+Multiply by the stated `SF` to size.
+
+Units are therefore plain (`lbs`, `ft-lb`, `N`, `Nm`). The `-ULT` marker means
+one specific thing: **this load is already ultimate — apply nothing further.** It
+appears on only two conditions, which 14 CFR prescribes as ultimate outright:
 
 | You see | It means |
 |---|---|
-| `lbs-ULT`, `N-ULT` | an **ultimate** force |
-| `ft-lb-ULT`, `Nm-ULT`, `lb-in-ULT` | an **ultimate** moment / torque |
-| `psi-ULT`, `lb/in^2-ULT` | an **ultimate** design pressure |
+| `lbs-ULT`, `N-ULT` | a force that is **already ultimate** |
+| `ft-lb-ULT`, `Nm-ULT`, `lb-in-ULT` | a moment / torque that is **already ultimate** |
+| `psi-ULT`, `lb/in^2-ULT` | a design pressure that is **already ultimate** |
 | plain `lbs`, `ft-lb`, `in`, `deg`, `kt` | a **limit** load, *or* a non-load quantity (geometry, weight, speed, load factor) |
-| `SF=1.5` (or `SF=1.0`) | the factor of safety applied to that case |
+| `SF=1.5` | the factor **you** apply to that case to reach ultimate |
+| `SF=1.0` | nothing to apply — the case is already ultimate |
+| `SF=N/A` | not a load case at all, so no factor is prescribed |
 
-**Exception — per-module analysis pages may show LIMIT.** A single module's own
-analysis page (e.g. Flap Loads, Tab Loads, One Engine Out) may show the
-oracle-traceable **LIMIT** numbers so you can cross-check them against the
-manual. Those pages are explicitly captioned `LIMIT` and point you to the
-ultimate deliverables. Everything that is exported or consolidated is ultimate.
+**Every page shows LIMIT, and so does every export.** There is no longer a
+LIMIT-vs-ULTIMATE distinction between the analysis pages and the deliverables:
+the per-module pages, the downloads, the reports and the sbeam decks are all on
+one basis, which is what lets you check any number against the manual's figures.
+A deck states, on each subcase, the factor it did not apply, so a solver operator
+cannot mistake what they have been handed.
 
-> Non-load quantities are **never** amplified: weights, inertias, areas, speeds,
-> angles, and the dimensionless load factors *n* stay as-is. Only forces,
-> moments, and pressures get the ×1.5.
+> The factor is prescribed for **loads only** — forces, moments and pressures.
+> Weights, inertias, areas, speeds, angles and the dimensionless load factors *n*
+> take no factor at all. A load factor is a limit quantity; multiplying one by
+> 1.5 is an error, not a conservatism.
 
 ---
 

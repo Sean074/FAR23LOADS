@@ -87,9 +87,10 @@ def _units_sentence(system: UnitSystem) -> str:
     name = "SI" if system is UnitSystem.SI else "Imperial"
     return (
         f"Every file in this package is written in {name} units. All delivered "
-        "loads are ULTIMATE and carry the -ULT marker with their units; each "
-        "load case states the safety factor applied to it and the basis of that "
-        "factor. Quantities that are not loads are neither scaled nor marked. "
+        "loads are LIMIT: each load case states the safety factor prescribed "
+        "for it and the basis of that factor, and sloads applies it nowhere. "
+        "The -ULT marker appears only on a load the regulation prescribes "
+        "already ultimate. Quantities that are not loads take no factor. "
         "Airspeed is KEAS and altitude is ft in both unit systems (aviation "
         "standard, never converted)."
     )

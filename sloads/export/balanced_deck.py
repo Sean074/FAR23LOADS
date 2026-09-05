@@ -95,7 +95,7 @@ from ..rigid_body import radians_per_s2
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .bands import band
 from .coordinates import SBEAM_CID, to_force, to_grid, to_moment
-from .sbeam_bridge import _fmt3, _sf_str, _stamped
+from .sbeam_bridge import _fmt3, _stamped, basis_sentence
 
 #: Node runs, from the band registry (:mod:`sloads.export.bands`) -- the single
 #: owner of every GID/EID/SID band in the suite. These three were 4001/4201/4401
@@ -290,7 +290,7 @@ def _header(case: BalancedCaseResult, u: DeliverableUnits) -> List[str]:
         f"Balanced case {case.label}{hand} -- {case_source_name(case)}, "
         f"loading {case.cg}, Nz = {case.nz:g}",
         f"Case ID: {case.case_ref.case_id if case.case_ref else '(none)'}",
-        f"Loads are ULTIMATE (limit x SF={_sf_str(case.safety_factor)}).",
+        basis_sentence(case.safety_factor),
         "FULL SPAN, free-free: aero and inertia together, both wings.",
         f"Residual BEFORE closure: Fz {res_fz:.2f} {u.force.label} "
         f"({case.force_residual_fraction * 100:.3f} % of n*W); "
@@ -329,7 +329,8 @@ def _header(case: BalancedCaseResult, u: DeliverableUnits) -> List[str]:
         _, _, res_mz = to_moment(0.0, 0.0, case.residual_mz, u)
         sentences.append(
             f"LATERAL case: applied fin side load {fin_fy:.1f} {u.force.label} "
-            f"LIMIT (like the residuals above; the cards below are ULTIMATE), "
+            f"LIMIT -- like the residuals above and the cards below, which "
+            f"are LIMIT too (note 49 OR-116) -- "
             f"distributed over the fin span from its root waterline. The "
             f"pre-closure Fy and Mz ({res_mz:.0f} {u.moment.label}) are that "
             "load in full, and are NOT a balance error: nothing in an airplane "
@@ -343,12 +344,13 @@ def _header(case: BalancedCaseResult, u: DeliverableUnits) -> List[str]:
         _, _, ht_lh = to_force(0.0, 0.0, lh, u)
         # The *statement* of what this family is travels on the case's own notes
         # (balance.assemble), which reach the UI and the report as well; what
-        # the deck adds here is the split in the deck's own units, and the
-        # LIMIT/ULTIMATE reading of it.
+        # the deck adds here is the split in the deck's own units. It used to
+        # add the LIMIT/ULTIMATE reading as well, back when this number and the
+        # cards below it were on different bases; under OR-116 they are not.
         sentences.append(
             f"UNSYMMETRICAL h-tail case (FAR 23.427(a)): applied tail load "
-            f"{ht_total:.1f} {u.force.label} LIMIT (like the residuals above; "
-            f"the cards below are ULTIMATE), split {ht_rh:.1f} starboard / "
+            f"{ht_total:.1f} {u.force.label} LIMIT -- like the residuals "
+            f"above and the cards below -- split {ht_rh:.1f} starboard / "
             f"{ht_lh:.1f} port and distributed over the full-span tail rather "
             "than lumped on the centreline. See the NOTE below for what that "
             "does to the residuals.")
@@ -378,15 +380,16 @@ def _header(case: BalancedCaseResult, u: DeliverableUnits) -> List[str]:
 def _load_lines(case: BalancedCaseResult, sid: int, nodes, u: DeliverableUnits,
                 tol: float = 1e-9) -> List[str]:
     lines: List[str] = []
+    # LIMIT, per note 49 OR-116: the safety factor is stated in the case header
+    # (OR-117) and applied nowhere. The cards carry the calc's own values.
     for load in case.loads:
         gid = nodes[_node_key(load)]
-        sf = case.safety_factor
-        fx, fy, fz = to_force(load.fx * sf, load.fy * sf, load.fz * sf, u)
-        if max(abs(load.fx), abs(load.fy), abs(load.fz)) * sf > tol:
+        fx, fy, fz = to_force(load.fx, load.fy, load.fz, u)
+        if max(abs(load.fx), abs(load.fy), abs(load.fz)) > tol:
             lines.append(f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, "
                          f"{_fmt3(fx, fy, fz)}")
-        mx, my, mz = to_moment(load.mx * sf, load.my * sf, load.mz * sf, u)
-        if max(abs(load.mx), abs(load.my), abs(load.mz)) * sf > tol:
+        mx, my, mz = to_moment(load.mx, load.my, load.mz, u)
+        if max(abs(load.mx), abs(load.my), abs(load.mz)) > tol:
             lines.append(f"MOMENT, {sid}, {gid}, {SBEAM_CID}, 1.0, "
                          f"{_fmt3(mx, my, mz)}")
     return lines

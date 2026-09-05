@@ -1658,7 +1658,10 @@ def test_a_planform_states_no_load_and_no_safety_factor():
                         + [figure.data.x_label, figure.data.y_label])
         assert "-ULT" not in text
         assert "SF=" not in text
-        for unit in ("lbs", "lb-in", "ft-lb", "N-ULT", "Nm"):
+        # Parenthesised: a bare "N" matches "Nothing" in the caption, and the
+        # markers these used to spell (``lbs-ULT`` ...) no longer exist since
+        # note 49 OR-116 -- the check is that no *load unit* appears at all.
+        for unit in ("(lb)", "(lbs)", "(lb-in)", "(ft-lb)", "(N)", "(N·m)"):
             assert unit not in text
 
 
@@ -1889,35 +1892,37 @@ def test_the_reserved_appendix_states_its_state_and_is_not_pointed_at():
     assert "Appendix A" not in "\n".join(oc.group_prose("loads_configuration"))
 
 
-def test_every_load_the_wing_section_prints_is_marked_ultimate():
-    """G-OR-20/G-OR-21 -- section 3 is where G-OR-4 stops being vacuous.
+def test_no_load_the_wing_section_prints_is_marked_ultimate():
+    """G-OR-20/G-OR-21, inverted by note 49 OR-89/OR-116/OR-94a.
 
-    Section 2 held the no-unmarked-load rule by carrying no force or moment at
-    all (OR-44). Section 3 carries nothing else, so it holds it only by marking
-    every one of them -- in the column header, where the unit is.
+    Section 3 delivers LIMIT: the value is the analysis's own and the case's
+    factor is stated in the ``SF`` column. So the assertion is the mirror of
+    what it was -- **no** load column carries ``-ULT`` -- which is what makes
+    the section readable against Appendix A, itself a limit oracle. The marker
+    survives only on a case computed already ultimate (OR-118), and no wing case
+    is one, which ``test_sbeam_bridge`` asserts from the export side.
     """
     doc = _doc()
-    loads = ("lb", "lbs", "lb-in", "N", "N*m", "kg")
     for table in _wing_tables(doc):
         for column in table.columns:
-            if "(" not in column:
-                continue
-            units = column.rsplit("(", 1)[1].rstrip(")")
-            if units.split("-ULT")[0] in loads and units not in ("lb", "kg"):
-                assert units.endswith("-ULT"), (table.title, column)
+            assert "-ULT" not in column, (table.title, column)
 
 
-def test_the_wing_root_loads_are_the_limit_result_times_the_case_factor():
-    """G-OR-21 -- the printed value is the analysis's own, scaled once."""
+def test_the_wing_root_loads_are_the_limit_result_with_the_factor_stated():
+    """G-OR-21 -- the printed value is the analysis's own, unscaled.
+
+    Renamed and inverted with note 49 OR-116: the report prints the calc's
+    number and states the factor beside it, rather than multiplying once.
+    """
     project = reduce_to_oracle_inputs(io.load_project(_GA))
     result = registry.get("net_loads")(project)
     table = next(t for t in _wing_tables(_doc())
                  if t.title.startswith("Wing root loads"))
-    column = table.columns.index("Root shear Sz (lbs-ULT)")
+    column = table.columns.index("Root shear Sz (lb)")
     for row, condition in zip(table.rows, result.conditions):
         limit = next(v.value for v in condition.values
                      if v.key == "root_shear_sz")
-        assert row[column] == format_value(limit * condition.safety_factor)
+        assert row[column] == format_value(limit)
         assert row[table.columns.index("SF")] == format_value(
             condition.safety_factor)
 
@@ -2034,20 +2039,20 @@ def test_the_appendix_separates_the_applied_loads_from_the_carried_ones():
     net = loads_ref_axis_results(project, build_net_loads(project).wing_net)
     applied, carried = _appendix_tables(_doc())
 
-    for column in ("Fx (lbs-ULT)", "Fy (lbs-ULT)", "Fz (lbs-ULT)",
-                   "Mx (lb-in-ULT)", "My (lb-in-ULT)", "Mz (lb-in-ULT)"):
+    for column in ("Fx (lb)", "Fy (lb)", "Fz (lb)",
+                   "Mx (lb-in)", "My (lb-in)", "Mz (lb-in)"):
         assert column in applied.columns
         assert column not in carried.columns
-    for column in ("Sz (lbs-ULT)", "Mxx (lb-in-ULT)", "Myy (lb-in-ULT)"):
+    for column in ("Sz (lb)", "Mxx (lb-in)", "Myy (lb-in)"):
         assert column in carried.columns
         assert column not in applied.columns
 
     station, result = net[0].stations[0], net[0]
     row = applied.rows[0]
-    assert row[applied.columns.index("Fz (lbs-ULT)")] == format_value(
-        station.fz * result.safety_factor)
-    assert carried.rows[0][carried.columns.index("Sz (lbs-ULT)")] == format_value(
-        station.sz * result.safety_factor)
+    assert row[applied.columns.index("Fz (lb)")] == format_value(
+        station.fz)
+    assert carried.rows[0][carried.columns.index("Sz (lb)")] == format_value(
+        station.sz)
 
 
 def test_the_cumulative_table_carries_the_chord_bending():
@@ -2063,13 +2068,13 @@ def test_the_cumulative_table_carries_the_chord_bending():
     net = loads_ref_axis_results(project, build_net_loads(project).wing_net)
     _applied, carried = _appendix_tables(_doc())
 
-    assert "Mzz (lb-in-ULT)" in carried.columns
-    column = carried.columns.index("Mzz (lb-in-ULT)")
+    assert "Mzz (lb-in)" in carried.columns
+    column = carried.columns.index("Mzz (lb-in)")
     row = 0
     for result in net:
         for station in result.stations:
             assert carried.rows[row][column] == format_value(
-                station.mzz * result.safety_factor)
+                station.mzz)
             row += 1
     assert row == len(carried.rows)
 
@@ -2146,8 +2151,8 @@ def test_the_appendix_table_and_the_exported_csv_are_one_load_set():
     ci = {c: applied.columns.index(c) for c in applied.columns}
     for table_row, csv_row in zip(applied.rows, rows):
         assert table_row[ci["Station"]] == csv_row["Station"]
-        for col in ("X (in)", "Fx (lbs-ULT)", "Fy (lbs-ULT)", "Fz (lbs-ULT)",
-                    "Mx (lb-in-ULT)", "My (lb-in-ULT)", "Mz (lb-in-ULT)"):
+        for col in ("X (in)", "Fx (lb)", "Fy (lb)", "Fz (lb)",
+                    "Mx (lb-in)", "My (lb-in)", "Mz (lb-in)"):
             key = col
             assert math.isclose(float(table_row[ci[col]].replace(",", "")),
                                 float(csv_row[key]), abs_tol=1.0), (
@@ -2176,7 +2181,7 @@ def test_every_concentrated_wing_mass_is_a_row_of_the_applied_table():
 
     # A point mass carries no free moment -- its every moment is its force
     # through an arm the coordinates state.
-    free = applied.columns.index("My (lb-in-ULT)")
+    free = applied.columns.index("My (lb-in)")
     for row in applied.rows:
         if row[station_column] in {pl.name for pl in points}:
             assert float(row[free].replace(",", "")) == 0.0

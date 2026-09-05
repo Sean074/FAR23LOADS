@@ -15,11 +15,13 @@ Three rules govern everything below (``docs/10_standard/SUMMARY_REPORT.md``):
   ``loading_envelope_points``, ``mach_limit_lines``, ``governing_loads_table``.
   A report that computed its own values would eventually disagree with the
   exports it accompanies (SUMMARY_REPORT.md §5).
-* **Every load is ULTIMATE, marked, and located.** Loads are scaled by their own
-  case's ``safety_factor``, carry the ``-ULT`` marker of the selected unit system
-  in the column header, state that factor, and name the station/case they occur
-  at. Envelopes are two-sided. Non-load quantities (weights, geometry, speeds,
-  load factors) are never scaled and never marked.
+* **Every load is LIMIT, stated, and located.** Loads are the calc's own values
+  (note 49 OR-116): nothing here is scaled, each row states the
+  ``safety_factor`` a sizing analysis must apply, and each names the
+  station/case it occurs at. The ``-ULT`` marker survives only on the two
+  families the regulation prescribes already ultimate (OR-118). Envelopes are
+  two-sided. Non-load quantities (weights, geometry, speeds, load factors) take
+  no factor at all.
 * **Absence is content.** A section whose inputs are missing carries an
   ``absent_reason`` and is still rendered, with that reason. It is never silently
   dropped and never rendered as an empty table (SUMMARY_REPORT.md §3.4).
@@ -103,8 +105,9 @@ def section_ref(key: str, suffix: str = "") -> str:
 
 #: The one-line load-basis statement, on the title page and in §5 (§3.1).
 BASIS_STATEMENT = (
-    "All loads are ULTIMATE (= limit x SF); safety factor is stated per case; "
-    "load factors are limit."
+    "All loads are LIMIT; the safety factor of 14 CFR 23.303 is stated per case "
+    "and applied nowhere in sloads, including the exported deck — apply it in "
+    "the sizing analysis. Load factors are limit."
 )
 
 #: Non-converted, non-scaled aviation-standard units (§3.5).
@@ -352,12 +355,19 @@ class Units:
             return imperial if self.system == UnitSystem.IMPERIAL else si
         return getattr(self.d, dim).label
 
-    def ult_label(self, dim: str) -> str:
-        """The ULTIMATE-marked unit label for a load dimension (``lbs-ULT``/``N-ULT``)."""
-        return ultimate_units(getattr(self.d, dim).label)
+    def ult_label(self, dim: str, sf: float = 0.0) -> str:
+        """The unit label for a load dimension.
+
+        LIMIT is the project's only basis (note 49 OR-116), so a load's label is
+        plain and its factor is stated in the row's ``SF`` cell. A load computed
+        **already ultimate** (``sf == 1.0``) keeps the ``-ULT`` marker, which is
+        now rare enough to be conspicuous (OR-118).
+        """
+        label = getattr(self.d, dim).label
+        return ultimate_units(label) if sf == 1.0 else label
 
     def load(self, value: Any, dim: str, sf: float) -> str:
-        """A LIMIT load, converted and scaled to ULTIMATE by its own case's ``sf``.
+        """A LIMIT load, converted only -- ``sf`` is stated, not applied (OR-116).
 
         Same loose typing as :meth:`plain`, for the same reason.
         """
@@ -371,8 +381,13 @@ class Units:
     # the figure and the table beside it are then the same number drawn two
     # ways, and neither can be the one that forgot to scale.
     def load_value(self, value: float, dim: str, sf: float) -> float:
-        """A LIMIT load as an ULTIMATE number in the document's units."""
-        return value * sf * getattr(self.d, dim).factor
+        """A LIMIT load in the document's units.
+
+        ``sf`` is retained in the signature because every caller has it and the
+        row states it; it is **not** applied (note 49 OR-116).
+        """
+        del sf  # stated by the caller's SF cell, never applied
+        return value * getattr(self.d, dim).factor
 
     def plain_value(self, value: float, dim: str) -> float:
         """A non-load quantity as a number in the document's units."""
@@ -855,16 +870,17 @@ def _section_conventions() -> Section:
 # §3 Governing safety factors
 # --------------------------------------------------------------------------- #
 _FACTORS_PROSE = (
-    "Every ULTIMATE load in this report and in the exported decks is its LIMIT "
-    "value multiplied by the factor of the row below that governs its condition. "
+    "Every load in this report and in the exported decks is a LIMIT value. The "
+    "row below that governs its condition gives the factor a sizing analysis "
+    "must apply to it; sloads states that factor and never applies it. "
     "This table is the authority: the per-case SF stated in the case index "
     "(§CASEREF), in the load-case CSVs and on each deck's SUBCASE header is a "
     "derived view of it, so a report figure and its bulk-data card cannot state "
     "different factors for the same case.",
     "Rows are condition families, not cases, and the family boundaries are 14 CFR "
     "Subpart C's own section groupings — so a case cannot be missed by omitting a "
-    "row. The factor is applied to load quantities only: load factors, speeds, "
-    "weights and geometry are never scaled and never carry the -ULT marker.",
+    "row. The factor is prescribed for load quantities only: load factors, "
+    "speeds, weights and geometry take none, and nothing here is scaled by it.",
 )
 
 _FACTORS_TABLE_NOTE = (
@@ -901,14 +917,15 @@ def _factors_section(project: Project, module_results, comps: ComponentLoads,
             ", ".join(f"'{r.label}' to SF = {format_value(r.factor)} "
                       f"(regulation: {format_value(r.derived_factor)})"
                       for r in table.overrides) +
-            ". An override cannot move a calculated LIMIT value — the factor is "
-            "applied at the render/export boundary only — but it does change every "
-            "ULTIMATE number delivered under that row.")
+            ". An override cannot move a number in this report or on a deck — "
+            "sloads applies no factor anywhere — but it does change the factor "
+            "stated under that row, and so the ultimate load a sizing analysis "
+            "will derive from it.")
     if table.defaulted:
         body.append(
             "DEFAULTED: " + ", ".join(repr(r) for r in table.defaulted) +
-            " — condition(s) no row classified. They are factored at "
-            f"{format_value(ULTIMATE_FACTOR)} and flagged here; treat this as a "
+            " — condition(s) no row classified. They state "
+            f"{format_value(ULTIMATE_FACTOR)} and are flagged here; treat this as a "
             "defect in the governing table, not a property of the airplane.")
     return Section(
         section_heading("factors"),
@@ -1467,7 +1484,7 @@ def _section_conditions(project: Project, module_results, comps: ComponentLoads,
 
 
 # --------------------------------------------------------------------------- #
-# §5 Results summary (all ULTIMATE, SF per case)
+# §5 Results summary (all LIMIT, SF stated per case)
 # --------------------------------------------------------------------------- #
 def _governing_table(title: str, conditions, u: Units) -> Optional[Table]:
     """One component's governing conditions, straight from ``governing_loads_table``.
@@ -1487,9 +1504,9 @@ def _governing_table(title: str, conditions, u: Units) -> Optional[Table]:
         columns=columns,
         rows=[[str(r.get(c, "—")) for c in columns] for r in rows],
         small=len(columns) > 7,
-        note="Loads are ULTIMATE; the SF column states the factor applied to each "
-             "row's load cells. Dimensionless quantities (n, CL) and speeds are "
-             "limit values and are not scaled.",
+        note="Loads are LIMIT; the SF column states the factor that was NOT "
+             "applied to each row's load cells. Dimensionless quantities (n, CL) "
+             "and speeds are limit values and take no factor.",
     )
 
 
@@ -1536,7 +1553,6 @@ def _station_extremes_table(title: str, results, u: Units, *, station_attr: str,
         key: _Extreme(label, u.ult_label(dim)) for key, label, dim in quantities
     }
     for res in results:
-        sf = getattr(res, "safety_factor", ULTIMATE_FACTOR)
         case = getattr(res, "case_ref", None)
         case_id = case.case_id if case is not None else getattr(res, "case", "")
         for station in res.stations:
@@ -1544,7 +1560,7 @@ def _station_extremes_table(title: str, results, u: Units, *, station_attr: str,
                      f"{format_value(getattr(station, station_attr) * u.d.length.factor)} "
                      f"{u.label('length')}")
             for key, _label, dim in quantities:
-                value = getattr(station, key) * sf * getattr(u.d, dim).factor
+                value = getattr(station, key) * getattr(u.d, dim).factor
                 extremes[key].add(value, where)
     return Table(
         title=title,
@@ -1586,8 +1602,9 @@ def _wing_section(project: Project, comps: ComponentLoads, u: Units,
     # side-of-body cut, stated separately from the half-span extremes above --
     # which include the centre-box strip loads inboard of the joint and
     # overstate root bending by ~23 % on the reference GA wing (plan 10 §1.1).
-    # ``sob_internal_loads`` returns ULTIMATE, so the sf passed to the
-    # formatter is 1.0 -- the case's factor is already in the number.
+    # ``sob_internal_loads`` returns LIMIT like everything else (OR-116), so the
+    # 1.0 passed to the formatter is inert -- ``Units.load_value`` applies no
+    # factor at all. The case's own factor is stated in the SF column beside it.
     from ..derived_geometry import sob_station
 
     sob = sob_station(project)
@@ -1804,9 +1821,9 @@ def _module_extremes_section(title: str, module_results, module_name: str,
                 continue
             key = v.key or v.label
             if key not in extremes:
-                extremes[key] = _Extreme(v.label, u.ult_label(dim))
+                extremes[key] = _Extreme(v.label, u.ult_label(dim, c.safety_factor))
                 order.append(key)
-            extremes[key].add(v.value * c.safety_factor * getattr(u.d, dim).factor,
+            extremes[key].add(v.value * getattr(u.d, dim).factor,
                               f"{case_id} (SF {format_value(c.safety_factor)})")
     if not order:
         section.absent_reason = (f"the {module_name} module produced no "
@@ -1862,9 +1879,10 @@ def _section_results(project: Project, module_results, comps: ComponentLoads,
     critical = _critical_by_component(comps, deselected)
     return Section(
         section_heading("results"),
-        body=["Every load below is ULTIMATE, with the safety factor applied to it "
-              "stated per case. Full station-by-station distributions stay in the "
-              "companion data files named in the bundle manifest."],
+        body=["Every load below is LIMIT, with the safety factor that was not "
+              "applied to it stated per case. Full station-by-station "
+              "distributions stay in the companion data files named in the "
+              "bundle manifest."],
         subsections=[
             _wing_section(project, comps, u, critical),
             _fuselage_section(comps, u, critical),
@@ -2025,7 +2043,7 @@ def _balanced_cases_table(cases: Sequence[Any]) -> Table:
             "residual is the applied gear reaction IN FULL, and the gate it does "
             "carry is that the solved field rotated back to the ground line "
             "reproduces LANDLOAD's NVP/NDP/NS. Residual percentages and load "
-            "factors are LIMIT quantities; the exported cards are ULTIMATE."
+            "factors are LIMIT quantities, and so are the exported cards."
         ),
     )
 
@@ -2307,14 +2325,14 @@ def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
          section_ref("inputs")],
         ["load_cases/<project>_<module>.csv",
          "One row per structural load case, per module.", human,
-         "ULTIMATE loads, SF column per case", section_ref("results")],
+         "LIMIT loads, SF column per case", section_ref("results")],
     ]
     if comps.wing:
         axis = comps.wing[0].torsion_axis
         rows += [
             ["sbeam/<project>_wing_span_loads.csv",
              "Station-by-station net wing shear, bending and torsion.", deck,
-             f"torsion Myy about the {axis}; ULTIMATE",
+             f"torsion Myy about the {axis}; LIMIT",
              section_ref("results", "Wing")],
             ["sbeam/<project>_wing_applied_loads.csv",
              "The applied wing load set: one row per strip and one per "
@@ -2322,11 +2340,11 @@ def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
              "body-axis components. Nothing in it is a running total; Fy, Mx "
              "and Mz are zero throughout and are printed so a zero cannot be "
              "read as an omission.", deck,
-             f"free torsion about the {axis}; ULTIMATE",
+             f"free torsion about the {axis}; LIMIT",
              section_ref("results", "Wing")],
             ["sbeam/<project>_wing_loads.bdf",
              "FORCE/MOMENT bulk data for the wing.", deck,
-             f"torsion about the {axis}; ULTIMATE", section_ref("results", "Wing")],
+             f"torsion about the {axis}; LIMIT", section_ref("results", "Wing")],
             ["sbeam/<project>_wing_stick.bdf", "CBAR stick model of the wing beam.",
              deck, "geometry only", section_ref("results", "Wing")],
         ]
@@ -2334,10 +2352,10 @@ def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
         rows += [
             ["sbeam/<project>_fuselage_span_loads.csv",
              "Station-by-station fuselage net shear, bending and torsion.", deck,
-             "torsion Mxx about the body X axis; ULTIMATE",
+             "torsion Mxx about the body X axis; LIMIT",
              section_ref("results", "Fuselage")],
             ["sbeam/<project>_fuselage_loads.bdf",
-             "FORCE/MOMENT bulk data for the fuselage.", deck, "ULTIMATE",
+             "FORCE/MOMENT bulk data for the fuselage.", deck, "LIMIT",
              section_ref("results", "Fuselage")],
             ["sbeam/<project>_fuselage_fitting_loads.csv",
              "Wing-attach front/rear spar fitting loads.", deck,
@@ -2349,19 +2367,19 @@ def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
             ["sbeam/<project>_tail_chordwise.csv",
              "Chordwise tail load intensities per critical condition.", deck,
              "leading-edge-first stations; Fn is normal to the surface (Axis "
-             "column: h-tail Fz, fin Fy); ULTIMATE", _TAILS_REF],
+             "column: h-tail Fz, fin Fy); LIMIT", _TAILS_REF],
             ["sbeam/<project>_tail_loads.bdf", "FORCE/MOMENT bulk data for the tails.",
-             deck, "loads normal to each surface — h-tail Fz, fin Fy; ULTIMATE",
+             deck, "loads normal to each surface — h-tail Fz, fin Fy; LIMIT",
              _TAILS_REF],
         ]
     if comps.control:
         rows += [
             ["sbeam/<project>_control_surface_loads.csv",
              "Simplified chordwise control-surface distributions.", deck,
-             "standard simplified distributions; ULTIMATE",
+             "standard simplified distributions; LIMIT",
              section_ref("results", "Control surfaces")],
             ["sbeam/<project>_control_surface_loads.bdf",
-             "FORCE/MOMENT bulk data for the control surfaces.", deck, "ULTIMATE",
+             "FORCE/MOMENT bulk data for the control surfaces.", deck, "LIMIT",
              section_ref("results", "Control surfaces")],
         ]
     # The assembled deliverable and its mass model. Listed here for the reason
@@ -2373,7 +2391,7 @@ def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
             "sbeam/<project>_balanced_airframe.bdf",
             "The assembled full-span free-free deck: one SUBCASE per balanced "
             "case, both wings, aero and inertia together.", deck,
-            "ULTIMATE; determinate support, its reaction is the residual",
+            "LIMIT; determinate support, its reaction is the residual",
             section_ref("balanced")])
     # The LRA beam model (step 12, note 24 R-1) -- the third deliverable, and
     # the one the F-D2 class re-opened on (CR-C-1): it shipped in the bundle from
@@ -2390,7 +2408,7 @@ def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
             "sbeam/<project>_lra_model.bdf",
             "The loads-reference-axis beam model: CBAR wing/body/tail beams, "
             "RBE2 attachments, and the balanced-case loads applied to them.",
-            deck, "ULTIMATE; torsion about each surface's LRA",
+            deck, "LIMIT; torsion about each surface's LRA",
             section_ref("balanced")])
     if project.weight is not None and project.weight.items:
         rows.append([
@@ -2405,7 +2423,7 @@ def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
             "The gear interface load definition: per case and per leg, the "
             "reaction at the tyre contact patch with its strut state and ground "
             "angle, and the same reaction at the gear reference point.", deck,
-            "ULTIMATE; contact patch ground-line, reference point airplane-datum",
+            "LIMIT; contact patch ground-line, reference point airplane-datum",
             section_ref("gear")])
     if any(r["exported"] for r in mass_rows):
         rows += [
@@ -2416,18 +2434,21 @@ def _manifest_rows(comps: ComponentLoads, module_results, u: Units,
             ["sbeam/<project>_inertia_only.bdf",
              "sloads' own nodal inertia set, for comparison against what the "
              "solver recovers.", deck,
-             # CR-C-3: the cell said ULTIMATE and the file says LIMIT, in band,
-             # by design -- ``inertia_only_cards``' own docstring: factoring one
-             # side of a comparison and not the other is how you make a check
-             # pass while meaning nothing. The manifest was out by 1.5x on the
-             # one artifact whose whole purpose is to be compared.
+             # CR-C-3: the cell said ULTIMATE and the file said LIMIT, in
+             # band, by design -- factoring one side of a comparison and not the
+             # other is how you make a check pass while meaning nothing, and the
+             # manifest was out by 1.5x on the one artifact whose whole purpose
+             # is to be compared. Under note 49 OR-116 the whole bundle is LIMIT
+             # and this row is no longer the exception; the parenthetical stays
+             # because "no SF" here means the factor is not even *prescribed*,
+             # which is still narrower than the rest of the deck column.
              "LIMIT (no SF) — comparison only, never applied",
              section_ref("balanced")],
         ]
     if module_results:
         rows.append(["<project>_report.txt",
                      "Plain-text per-module report of every condition.", human,
-                     "ULTIMATE", section_ref("results")])
+                     "LIMIT", section_ref("results")])
     return rows
 
 

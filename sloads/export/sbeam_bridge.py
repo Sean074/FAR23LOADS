@@ -28,14 +28,19 @@ The bridge is a pure renderer (like :mod:`sloads.io`): the building functions
 return strings, the ``write_*`` wrappers do the only file I/O. It is **not** a
 registered calc module -- the physics already lives in ``modules/net_loads.py``.
 
-All exported force / moment / pressure magnitudes are **ULTIMATE** loads, since sbeam
-sizes structure to ultimate: the calc's LIMIT values x that case's
-``safety_factor`` (14 CFR 23.303 -> 1.5 by default; a case already at ultimate
-carries 1.0). Coordinates and chord fractions are geometry and are not scaled. The
-factor is per *case* and therefore uniform within one exported load set, which keeps
-the force/moment-closure guarantees intact (the exported set sums to that case's
-factor x the root/total). Every producer mints the field on its result (M4-13), so
-``_sf`` reads it directly; ``_SF`` survives only as the default constant tests read.
+All exported force / moment / pressure magnitudes are **LIMIT** loads (note 49
+OR-116): the calc's own values, unscaled, with each case's ``safety_factor``
+**stated** on the card block and in the CSV's ``SF`` column and applied nowhere.
+sbeam sizes structure to ultimate, so applying it is the sizing step's job and
+the deck says so per subcase (OR-117, gate G-OR-73). The two families the
+regulation prescribes already ultimate (23.367(a)(2), 23.561(b)) carry
+``SF = 1.0`` and ask for nothing further. Coordinates and chord fractions are
+geometry and were never scaled. The
+factor is per *case*, so the statement is per case too -- one deck can carry a
+1.5 subcase beside a 1.0 one, and each says which it is. The closure guarantees
+are now exact rather than scaled: an exported set sums to the root/total itself.
+Every producer mints the field on its result (M4-13), so ``_sf`` reads it
+directly; ``_SF`` survives only as the default constant tests read.
 
 Nodal loads: the applied set, on the deck's nodes
 ------------------------------------------------
@@ -139,7 +144,6 @@ from ..modules import tail_span
 from ..modules.body_loads import CLOSURE_ARTIFACT_CAVEAT as _BODY_ARTIFACT_CAVEAT
 from ..modules.net_loads import loads_ref_axis_results
 from ..picks import extreme
-from ..report import ultimate_units
 from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
 from .bands import band
 from .coordinates import (
@@ -176,8 +180,8 @@ def _stamped(header_comment: str, deck: str) -> str:
     """Prepend a ``$``-comment block to a bulk-data deck (M4-20 step 5).
 
     Every BDF writer takes a ``header_comment`` for the same reason the CSV
-    writers do: a deck forwarded on its own must still state that its loads are
-    ULTIMATE and which unit set it is in. Until step 5 the Export page built a
+    writers do: a deck forwarded on its own must still state which basis its
+    loads are on and which unit set it is in. Until step 5 the Export page built a
     ``bdf_comment_block`` and then never applied it, so the four decks were the
     one channel in the bundle carrying no statement at all.
 
@@ -190,13 +194,22 @@ def _stamped(header_comment: str, deck: str) -> str:
     return header_comment.rstrip("\n") + "\n" + deck
 
 
-def _ult(label: str) -> str:
-    """``lb`` -> ``lbs-ULT``, ``N`` -> ``N-ULT`` -- the renderer's own vocabulary.
+def _load_label(label: str) -> str:
+    """The unit label for a load column in an export CSV: plain.
 
-    Shared with ``report/render.py`` so the sbeam CSVs and the human-readable
-    tables mark ultimate loads identically; a second dialect in the export
-    channel would be a thing to keep in sync forever."""
-    return ultimate_units(label)
+    LIMIT is the project's only basis (note 49 OR-116) and every export file
+    states it in the comment stamp, so a load column carries its plain unit and
+    the row's ``SF`` cell states the factor that was not applied.
+
+    **The already-ultimate exception is guarded, not assumed.** OR-118 keeps the
+    ``-ULT`` marker on ``engine_ultimate`` (23.367(a)(2)) and ``emergency``
+    (23.561(b)); neither family reaches these per-component CSVs today, and
+    ``test_sbeam_bridge.py`` asserts that it does not. If one ever does, that
+    guard fails rather than this label quietly under-stating the basis --
+    OR-118a's per-table rule then has to be threaded through the
+    ``_*_fields(u)`` helpers, which is why it is a gate and not a comment.
+    """
+    return label
 
 # --------------------------------------------------------------------------- #
 # Case-index export (Step D1): ID -> full definition, across every result slice
@@ -205,10 +218,10 @@ def _ult(label: str) -> str:
 # wing_inertia and wing_net -- but the index lists it once).
 # --------------------------------------------------------------------------- #
 
-# sbeam sizes structure to ULTIMATE loads, so every exported force / moment /
-# pressure magnitude is the calc's LIMIT value x the *case's* limit->ultimate factor
-# (``result.safety_factor``; 14 CFR 23.303 -> 1.5 by default, 1.0 for a case whose
-# values are already ultimate). Geometry (coordinates, chord fractions) is not scaled.
+# Every exported force / moment / pressure magnitude is the calc's LIMIT value,
+# unscaled (note 49 OR-116). The *case's* factor (``result.safety_factor``;
+# 14 CFR 23.303 -> 1.5 by default, 1.0 for a case whose values are already
+# ultimate) is stated beside the cards, never multiplied into them.
 # ``_SF`` is the suite default constant (kept for the closure tests, which read it
 # as ``sb._SF``); ``_sf`` reads each result's own field directly (M4-13/M4-16).
 _SF = ULTIMATE_FACTOR
@@ -224,6 +237,21 @@ def _sf(result: Union[WingLoadResult, BodyLoadResult, TailChordResult,
     (M4-13), so the attribute is read directly — no ``getattr`` fallback that
     would mask an attribute rename (M4-16)."""
     return result.safety_factor
+
+
+def basis_sentence(sf: float) -> str:
+    """The per-subcase basis line every deck carries (note 49 OR-117).
+
+    The deck is read by a program, so the factor it does not apply is stated
+    where a person opening the file cannot miss it. A case computed already
+    ultimate says so instead, and asks for nothing further (OR-118).
+    """
+    if sf == 1.0:
+        return ("Loads are ALREADY ULTIMATE (SF=1.0) -- apply no further "
+                "factor.")
+    return (f"Loads are LIMIT. The 14 CFR 23.303 safety factor "
+            f"SF={_sf_str(sf)} is NOT applied here -- apply it in the sizing "
+            f"analysis.")
 
 
 def _sf_str(sf: float) -> str:
@@ -374,19 +402,20 @@ def wing_nodal_loads(result: WingLoadResult) -> List[NodalLoad]:
     **every** station under rigid-body transfer, not merely at the root
     (note 46 G-OR-37).
 
-    Forces/moments are returned as ULTIMATE loads (LIMIT x the case's
-    ``safety_factor``); the scale is uniform within the case, which preserves the
-    force/moment-closure guarantee (``sum(dFz) == safety_factor x root``).
+    Forces/moments are returned as LIMIT loads -- the calc's own values, with
+    the case's ``safety_factor`` stated and applied nowhere (OR-116). Closure is
+    therefore exact rather than scaled: ``sum(dFz) == root``.
     """
     s: List[WingStationLoad] = result.stations
-    sf = _sf(result)
+    # LIMIT, per note 49 OR-116: nodal loads carry the calc's own values and the
+    # 23.303 factor is stated by the deck header that writes them, never here.
     _require_applied_set_matches_cumulative(result)
     out: List[NodalLoad] = [
         NodalLoad(
             gid=station_gid(i), x=st.x, y=st.y, z=st.z,
-            fx=st.fx * sf, fz=st.fz * sf, my=st.myy_free * sf,
-            sz=st.sz * sf, sx=st.sx * sf,
-            mxx=st.mxx * sf, myy=st.myy * sf, mzz=st.mzz * sf,
+            fx=st.fx, fz=st.fz, my=st.myy_free,
+            sz=st.sz, sx=st.sx,
+            mxx=st.mxx, myy=st.myy, mzz=st.mzz,
             mx=0.0, mz=0.0,
         )
         for i, st in enumerate(s)
@@ -394,15 +423,15 @@ def wing_nodal_loads(result: WingLoadResult) -> List[NodalLoad]:
     for mass in result.point_loads:
         node = out[_node_inboard_of(s, mass.y)]
         dx, dy, dz = mass.x - node.x, mass.y - node.y, mass.z - node.z
-        node.fx += mass.fx * sf
-        node.fz += mass.fz * sf
+        node.fx += mass.fx
+        node.fz += mass.fz
         # Bending members in the calc's positive-magnitude convention, so they
         # add to the cumulative columns as written; the CID-0 map is
         # ``coordinates.bending_moment_vector`` at the card writer.
-        node.mx += dy * mass.fz * sf
-        node.mz += dy * mass.fx * sf
+        node.mx += dy * mass.fz
+        node.mz += dy * mass.fx
         # Torsion is already body-axis: (r x F)_y.
-        node.my += (dz * mass.fx - dx * mass.fz) * sf
+        node.my += (dz * mass.fx - dx * mass.fz)
     return out
 
 
@@ -562,7 +591,7 @@ def _csv_fields(u: DeliverableUnits) -> List[str]:
     the alternative (units in SI only) would leave the Imperial deck the one
     file in the suite you can misread.
     """
-    ln, fo, mo = u.length.label, _ult(u.force.label), _ult(u.moment.label)
+    ln, fo, mo = u.length.label, _load_label(u.force.label), _load_label(u.moment.label)
     return [
         "Case", "GID", f"X ({ln})", f"Y ({ln})", f"Z ({ln})",
         # applied nodal load (== the FORCE/MOMENT cards)
@@ -611,7 +640,7 @@ def span_load_csv(arg: ResultsArg, header_comment: str = "", *,
 
     Columns ``Fx/Fz/My`` are the applied nodal loads exported as FORCE/MOMENT
     cards; ``Sx/Sz/Mxx/Myy/Mzz`` are the cumulative NETLOADS distributions. All are
-    ULTIMATE; ``SF`` is the case's limit->ultimate factor they were scaled by.
+    LIMIT; ``SF`` states the factor that was **not** applied to them.
     ``MyyAxis`` states the chordwise axis ``My``/``Myy`` (and station ``X``) are
     about -- the axis travels in-band with the file, like ``SF``.
 
@@ -789,7 +818,7 @@ def applied_body_moments(load: AppliedLoad) -> Vec3:
 
 def _applied_csv_fields(u: DeliverableUnits) -> List[str]:
     """Applied-load CSV header row for unit set ``u`` (D-21: units in-band)."""
-    ln, fo, mo = u.length.label, _ult(u.force.label), _ult(u.moment.label)
+    ln, fo, mo = u.length.label, _load_label(u.force.label), _load_label(u.moment.label)
     return [
         "Case", "Station", "GID", f"X ({ln})", f"Y ({ln})", f"Z ({ln})",
         # The whole applied vector, in body axes and in vector order, so a
@@ -806,8 +835,8 @@ def applied_load_csv(arg: ResultsArg, header_comment: str = "", *,
                      system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """The applied wing load set as a CSV -- the oracle report's Appendix B.1.
 
-    One row per strip and one per concentrated wing mass, root to tip, ULTIMATE
-    (LIMIT x the case's ``SF``, stated in the last column). This is the file a
+    One row per strip and one per concentrated wing mass, root to tip, LIMIT
+    (the case's ``SF`` is stated in the last column and applied nowhere). This is the file a
     structures model is built from: every row is a load to apply at the point
     the row states, and nothing in it is a running total.
 
@@ -824,11 +853,11 @@ def applied_load_csv(arg: ResultsArg, header_comment: str = "", *,
     for load in applied_load_rows(arg):
         sf = load.safety_factor
         gx, gy, gz = to_grid(load.x, load.y, load.z, u)
-        fx, fy, fz = to_force(load.fx * sf, load.fy * sf, load.fz * sf, u)
+        fx, fy, fz = to_force(load.fx, load.fy, load.fz, u)
         # The record is in the calc's moment convention; the body-axis map has
         # one owner and this is it.
         bmx, bmy, bmz = applied_body_moments(load)
-        mx, my, mz = to_moment(bmx * sf, bmy * sf, bmz * sf, u)
+        mx, my, mz = to_moment(bmx, bmy, bmz, u)
         writer.writerow({
             "Case": load.case, "Station": load.label,
             # Blank, not a placeholder id: a concentrated mass has no grid in
@@ -955,7 +984,7 @@ def _case_card_block(r: WingLoadResult, sid: int, u: DeliverableUnits) -> List[s
     """One case's commented FORCE/MOMENT block (header + cards)."""
     loads = wing_nodal_loads(r)
     sf = _sf(r)
-    # loads carry the ULTIMATE (x sf) cumulative totals, so the comment matches the cards.
+    # loads carry the LIMIT cumulative totals, so the comment matches the cards.
     _, _, root_sz = to_force(0.0, 0.0, loads[0].sz if loads else 0.0, u)
     _, root_myy, _ = to_moment(0.0, loads[0].myy if loads else 0.0, 0.0, u)
     lines = (
@@ -968,7 +997,7 @@ def _case_card_block(r: WingLoadResult, sid: int, u: DeliverableUnits) -> List[s
         # and the unit statement is the one part of this block a consumer (and
         # the SI CLI test) greps for.
         + _comment(f"Lengths in {u.length.label}.")
-        + _comment(f"Loads are ULTIMATE (limit x SF={_sf_str(sf)}).")
+        + _comment(basis_sentence(sf))
         + _comment(f"Torsion My/Myy about the {r.torsion_axis} "
                    "(station X = that axis).")
         + _comment(f"FORCE set sums to root Sz = {root_sz:.1f} {u.force.label}. "
@@ -1052,7 +1081,7 @@ class SobInternalLoads:
     joint and overstate root bending by ~23 % on the reference GA wing (plan 10
     §1.1). Columns and signs are the span CSV's cumulative set (``Sz``/``Sx``/
     ``Mxx``/``Myy``/``Mzz``), torsion about the case's stated axis; magnitudes
-    are ULTIMATE like every deliverable load."""
+    are LIMIT like every load sloads delivers (OR-116)."""
     y: float
     sz: float
     sx: float
@@ -1212,7 +1241,7 @@ def _sob_case_lines(r: WingLoadResult, sob_y: float,
     sx, _, sz = to_force(si.sx, 0.0, si.sz, u)
     mxx, myy, mzz = to_moment(si.mxx, si.myy, si.mzz, u)
     return _comment(
-        f"SOB internal loads, case {r.case} (closed-form, ULTIMATE): "
+        f"SOB internal loads, case {r.case} (closed-form, LIMIT): "
         f"Sz={sz:.1f}, Sx={sx:.1f} {u.force.label}; Mxx={mxx:.0f}, "
         f"Myy={myy:.0f}, Mzz={mzz:.0f} {u.moment.label}.")
 
@@ -1464,13 +1493,13 @@ def _body_results(arg: "Union[Project, BodyLoadResult, Sequence[BodyLoadResult]]
 def body_span_load_csv(arg, header_comment: str = "", *,
                        system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """Span-load CSV for the fuselage net distribution: one row per station per
-    case (X, applied Fz, cumulative Sz/Myy). Loads are ULTIMATE; ``SF`` is the case's
-    limit->ultimate factor they were scaled by."""
+    case (X, applied Fz, cumulative Sz/Myy). Loads are LIMIT; ``SF`` states the
+    case's factor, which was not applied to them."""
     results = _body_results(arg)
     u = _units(system)
     x_h = f"X ({u.length.label})"
-    fz_h, sz_h = f"Fz ({_ult(u.force.label)})", f"Sz ({_ult(u.force.label)})"
-    myy_h = f"Myy ({_ult(u.moment.label)})"
+    fz_h, sz_h = f"Fz ({_load_label(u.force.label)})", f"Sz ({_load_label(u.force.label)})"
+    myy_h = f"Myy ({_load_label(u.moment.label)})"
     buf = _io.StringIO()
     writer = csv.DictWriter(
         buf, fieldnames=["Case", "GID", x_h, fz_h, sz_h, myy_h, "SF"])
@@ -1480,13 +1509,13 @@ def body_span_load_csv(arg, header_comment: str = "", *,
         # The cumulative columns close to zero at the aft end (the same
         # equilibrium the deck states), so the terminal cells carry cancellation
         # dust whose sign is platform-dependent -- see :func:`_closed`.
-        sz_scale = max((abs(s.sz) for s in r.stations), default=0.0) * sf
-        myy_scale = max((abs(s.myy) for s in r.stations), default=0.0) * sf
+        sz_scale = max((abs(s.sz) for s in r.stations), default=0.0)
+        myy_scale = max((abs(s.myy) for s in r.stations), default=0.0)
         for gid, s in zip(body_station_gids(r), r.stations):
             x, _, _ = to_grid(s.x, 0.0, 0.0, u)
-            _, _, fz = to_force(0.0, 0.0, s.fz * sf, u)
-            _, _, sz = to_force(0.0, 0.0, s.sz * sf, u)
-            _, myy, _ = to_moment(0.0, s.myy * sf, 0.0, u)
+            _, _, fz = to_force(0.0, 0.0, s.fz, u)
+            _, _, sz = to_force(0.0, 0.0, s.sz, u)
+            _, myy, _ = to_moment(0.0, s.myy, 0.0, u)
             sz, myy = _closed(sz, sz_scale), _closed(myy, myy_scale)
             writer.writerow({
                 "Case": r.case, "GID": gid, x_h: f"{x:.3f}",
@@ -1524,17 +1553,17 @@ def body_force_moment_cards(arg, sid_base: int = 1, *,
     for idx, r in enumerate(results):
         sid = _sid(sid_base, idx, r)
         sf = _sf(r)
-        _, _, total_fz = to_force(0.0, 0.0, math.fsum(s.fz for s in r.stations) * sf, u)
-        _, terminal_myy, _ = to_moment(0.0, r.stations[-1].myy * sf, 0.0, u)
+        _, _, total_fz = to_force(0.0, 0.0, math.fsum(s.fz for s in r.stations), u)
+        _, terminal_myy, _ = to_moment(0.0, r.stations[-1].myy, 0.0, u)
         # Both are zero by construction -- see :func:`_closed` for why the sign of
         # what floating point actually leaves behind must not reach the file.
-        total_fz = _closed(total_fz, max((abs(s.fz) for s in r.stations), default=0.0) * sf)
+        total_fz = _closed(total_fz, max((abs(s.fz) for s in r.stations), default=0.0))
         terminal_myy = _closed(terminal_myy,
-                               max((abs(s.myy) for s in r.stations), default=0.0) * sf)
+                               max((abs(s.myy) for s in r.stations), default=0.0))
         lines = [
             f"$ SLOADS net fuselage load -- case {r.case}, SID {sid}",
             f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
-            f"$ Loads are ULTIMATE (limit x SF={_sf_str(sf)}).",
+            *_comment(basis_sentence(sf)),
             f"$ Applied Fz set sums to {total_fz:.2f} {u.force.label} "
             "(vertical equilibrium).",
             f"$ Terminal Myy {terminal_myy:.2f} {u.moment.label} "
@@ -1548,8 +1577,8 @@ def body_force_moment_cards(arg, sid_base: int = 1, *,
             lines += [f"$ {ln}" for ln in
                       textwrap.wrap("CAVEAT: " + _BODY_ARTIFACT_CAVEAT, width=70)]
         for gid, s in zip(body_station_gids(r), r.stations):
-            fx, fy, fz = to_force(0.0, 0.0, s.fz * sf, u)
-            if abs(s.fz * sf) > _TOL:
+            fx, fy, fz = to_force(0.0, 0.0, s.fz, u)
+            if abs(s.fz) > _TOL:
                 lines.append(
                     f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, "
                     f"{_fmt3(fx, fy, fz)}"
@@ -1565,7 +1594,7 @@ def _body_fitting_fields(u: DeliverableUnits) -> List[str]:
     from the unit set rather than being written out Imperial, and that the force
     marker is the renderer's ``lbs-ULT`` rather than this file's own ``lb-ULT``
     -- one vocabulary across every deliverable."""
-    ln, fo, mo = u.length.label, _ult(u.force.label), _ult(u.moment.label)
+    ln, fo, mo = u.length.label, _load_label(u.force.label), _load_label(u.moment.label)
     return [
         "Case", "Case ID", f"X front ({ln})", f"R front ({fo})",
         f"X rear ({ln})", f"R rear ({fo})", f"M unbalanced ({mo})", "Spars", "SF",
@@ -1580,8 +1609,8 @@ def body_fitting_load_csv(arg, header_comment: str = "", *,
     sizing loads for the wing-attach fittings, reported here rather than in the
     FORCE set because the exported body distribution *already carries* them (as
     the carry-through line load); adding the point reactions on top would double
-    them. Loads are ULTIMATE (``SF`` is the limit->ultimate factor applied);
-    stations and the spar provenance are unscaled.
+    them. Loads are LIMIT (``SF`` states the factor that was not applied);
+    stations and the spar provenance are geometry.
 
     A ``closure_artifact`` case has no spar stations and contributes no row, so
     the file is empty (header only) when every case fell back."""
@@ -1597,9 +1626,9 @@ def body_fitting_load_csv(arg, header_comment: str = "", *,
             continue
         sf = _sf(r)
         x_front, x_rear, _ = to_grid(r.x_front, r.x_rear, 0.0, u)
-        _, _, r_front = to_force(0.0, 0.0, r.r_front * sf, u)
-        _, _, r_rear = to_force(0.0, 0.0, r.r_rear * sf, u)
-        _, m_unbalanced, _ = to_moment(0.0, r.m_unbalanced * sf, 0.0, u)
+        _, _, r_front = to_force(0.0, 0.0, r.r_front, u)
+        _, _, r_rear = to_force(0.0, 0.0, r.r_rear, u)
+        _, m_unbalanced, _ = to_moment(0.0, r.m_unbalanced, 0.0, u)
         writer.writerow({
             "Case": r.case,
             "Case ID": r.case_ref.case_id if r.case_ref else "",
@@ -1711,8 +1740,8 @@ def _trapezoid_tributary_forces(stations, total: float, what: str) -> List[float
     A zero ``total`` with a degenerate profile is not contradictory and keeps
     the zero set.
 
-    ``stations`` must be sorted by ``x``; the caller owns the safety factor, so
-    ``total`` arrives ULTIMATE. ``what`` names the case/component in the error.
+    ``stations`` must be sorted by ``x``; ``total`` arrives LIMIT, like every
+    load in the tree (OR-116). ``what`` names the case/component in the error.
     """
     xs = [s.x for s in stations]
     n = len(xs)
@@ -1753,7 +1782,7 @@ def _tail_nodal_forces(r: TailChordResult) -> List[float]:
     here (the CSV states it in its own ``Axis`` column)."""
     stations = sorted(r.stations, key=lambda s: s.x)
     return _trapezoid_tributary_forces(
-        stations, (r.lt25 + r.lt50) * _sf(r),
+        stations, (r.lt25 + r.lt50),
         f"tail chordwise export: {r.component} case {r.case}")
 
 
@@ -1763,13 +1792,13 @@ def tail_chordwise_csv(arg, header_comment: str = "", *,
     condition (component, chord station X, net pressure PSI, scaled nodal normal
     force ``Fn``). ``Axis`` names the airplane component that force is, which is the
     surface's own -- ``Fz`` on the h-tail, ``Fy`` on the fin -- so the CSV and the
-    ``FORCE`` cards beside it state one axis, not two (D-R4). Loads are ULTIMATE;
-    ``SF`` is the case's limit->ultimate factor they were scaled by."""
+    ``FORCE`` cards beside it state one axis, not two (D-R4). Loads are LIMIT;
+    ``SF`` states the case's factor, which was not applied to them."""
     results = _tail_results(arg)
     u = _units(system)
     x_h = f"X ({u.length.label})"
-    psi_h = f"PSI ({_ult(u.pressure.label)})"
-    fo = _ult(u.force.label)
+    psi_h = f"PSI ({_load_label(u.pressure.label)})"
+    fo = _load_label(u.force.label)
     fn_h, lt25_h, lt50_h = f"Fn ({fo})", f"LT25 ({fo})", f"LT50 ({fo})"
     buf = _io.StringIO()
     writer = csv.DictWriter(
@@ -1780,8 +1809,8 @@ def tail_chordwise_csv(arg, header_comment: str = "", *,
         sf = _sf(r)
         forces = _tail_nodal_forces(r)
         stations = sorted(r.stations, key=lambda s: s.x)
-        _, _, lt25 = to_force(0.0, 0.0, r.lt25 * sf, u)
-        _, _, lt50 = to_force(0.0, 0.0, r.lt50 * sf, u)
+        _, _, lt25 = to_force(0.0, 0.0, r.lt25, u)
+        _, _, lt50 = to_force(0.0, 0.0, r.lt50, u)
         axis = _tail_force_axis(r.component)
         for i, (s, fn) in enumerate(zip(stations, forces)):
             x, _, _ = to_grid(s.x, 0.0, 0.0, u)
@@ -1789,7 +1818,7 @@ def tail_chordwise_csv(arg, header_comment: str = "", *,
             writer.writerow({
                 "Case": r.case, "Component": r.component,
                 "GID": tail_station_gid(r.component, i),
-                x_h: f"{x:.3f}", psi_h: f"{to_pressure(s.psi * sf, u):.4f}",
+                x_h: f"{x:.3f}", psi_h: f"{to_pressure(s.psi, u):.4f}",
                 fn_h: f"{fn_out:.1f}",
                 lt25_h: f"{lt25:.2f}", lt50_h: f"{lt50:.2f}",
                 "Axis": axis, "SF": f"{_sf_str(sf)}",
@@ -1832,16 +1861,16 @@ def tail_force_moment_cards(arg, sid_base: int = 1, *,
         forces = _tail_nodal_forces(r)
         axis = _tail_force_axis(r.component)
         _, _, total = to_force(0.0, 0.0, math.fsum(forces), u)
-        _, _, lt_total = to_force(0.0, 0.0, (r.lt25 + r.lt50) * sf, u)
+        _, _, lt_total = to_force(0.0, 0.0, (r.lt25 + r.lt50), u)
         lines = [
             f"$ SLOADS chordwise {r.component} load -- case {r.case}, SID {sid}",
             f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
-            f"$ Loads are ULTIMATE (limit x SF={_sf_str(sf)}).",
+            *_comment(basis_sentence(sf)),
             f"$ Load is normal to the surface = {axis} in airplane axes.",
             # Split across two lines: a single line overran the 72-col
             # free-field card width once the load reached five figures.
             f"$ Applied {axis} set sums to {total:.1f} {u.force.label}",
-            f"$   = {_sf_str(sf)} x (LT25 + LT50) = {lt_total:.1f} {u.force.label}.",
+            f"$   = LT25 + LT50 = {lt_total:.1f} {u.force.label}.",
         ]
         for i, fn in enumerate(forces):
             fx2, fy2, fz2 = to_force(*tail_force_to_airplane(fn, r.component), u)
@@ -2003,19 +2032,19 @@ def _tail_span_case_block(r, component: str, sid: int,
                           u: DeliverableUnits) -> List[str]:
     """One case's commented FORCE/MOMENT block for a spanwise tail deck."""
     sf = _sf(r)
-    _, _, air = to_force(0.0, 0.0, r.air_total * sf, u)
+    _, _, air = to_force(0.0, 0.0, r.air_total, u)
     lines = [
         f"$ SLOADS spanwise {component} load -- case {r.case}, SID {sid}",
         f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
-        f"$ Loads are ULTIMATE (limit x SF={_sf_str(sf)}).",
+        *_comment(basis_sentence(sf)),
         f"$ Torsion about the {r.torsion_axis}.",
         f"$ Air load {air:.1f} {u.force.label}; strip loads are applied directly",
         "$   (not differenced from a cumulative column).",
         f"$ Control-surface load: {r.control_load_mode.upper()} into this surface.",
     ]
     if r.control_load_mode == "discrete":
-        _, _, cs = to_force(0.0, 0.0, r.control_surface_load_lb * sf, u)
-        hm, _, _ = to_moment(r.hinge_moment_lbin * sf, 0.0, 0.0, u)
+        _, _, cs = to_force(0.0, 0.0, r.control_surface_load_lb, u)
+        hm, _, _ = to_moment(r.hinge_moment_lbin, 0.0, 0.0, u)
         for line in (
             f"Control-surface load {cs:.1f} {u.force.label} is NOT in the strip "
             f"loads: it is applied at the hinge nodes above, {r.control_load_basis}.",
@@ -2027,8 +2056,8 @@ def _tail_span_case_block(r, component: str, sid: int,
             lines += [f"$ {ln}" for ln in textwrap.wrap(line, width=70)]
     if r.tip_transfer is not None:
         t = r.tip_transfer
-        _, _, tfz = to_force(0.0, 0.0, t.fz * sf, u)
-        tmy, _, _ = to_moment(t.myy * sf, 0.0, 0.0, u)
+        _, _, tfz = to_force(0.0, 0.0, t.fz, u)
+        tmy, _, _ = to_moment(t.myy, 0.0, 0.0, u)
         for line in (
             f"T-TAIL TRANSFER at the tip node: Fz {tfz:.1f} {u.force.label}, Myy "
             f"{tmy:.1f} {u.moment.label} -- the horizontal tail's concurrent load "
@@ -2042,12 +2071,12 @@ def _tail_span_case_block(r, component: str, sid: int,
     # width), so the inertia basis is wrapped rather than appended.
     basis: List[str] = []
     if r.inertia_modelled:
-        _, _, iner = to_force(0.0, 0.0, tail_span.inertia_total(r) * sf, u)
+        _, _, iner = to_force(0.0, 0.0, tail_span.inertia_total(r), u)
         basis.append(f"Surface mass {r.surface_weight_lb:.1f} lb: inertia "
                      f"{iner:.1f} {u.force.label} is IN the loads above.")
         axial = tail_span.axial_total(r)
         if abs(axial) > _TOL:
-            _, _, ax_u = to_force(0.0, 0.0, axial * sf, u)
+            _, _, ax_u = to_force(0.0, 0.0, axial, u)
             basis.append(f"Plus {ax_u:.1f} {u.force.label} AXIAL along the fin's "
                          "own span axis, carried in the same FORCE cards.")
     else:
@@ -2070,13 +2099,13 @@ def _tail_span_case_block(r, component: str, sid: int,
         # one applied force, so they go on one card: emitting a second FORCE at
         # the same GID would be equally valid to a solver but would double the
         # card count and invite a consumer to apply only one of them.
-        nx, ny, nz = tail_force_to_airplane(st.fz * sf, component)
-        ax, ay, az = tail_axial_to_airplane(st.f_span * sf, component)
+        nx, ny, nz = tail_force_to_airplane(st.fz, component)
+        ax, ay, az = tail_axial_to_airplane(st.f_span, component)
         fx, fy, fz = to_force(nx + ax, ny + ay, nz + az, u)
         if abs(st.fz) > _TOL or abs(st.f_span) > _TOL:
             lines.append(f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, "
                          f"{_fmt3(fx, fy, fz)}")
-        mx, my, mz = to_moment(*tail_torsion_to_airplane(st.myy_free * sf, component), u)
+        mx, my, mz = to_moment(*tail_torsion_to_airplane(st.myy_free, component), u)
         if abs(st.myy_free) > _TOL:
             lines.append(f"MOMENT, {sid}, {gid}, {SBEAM_CID}, 1.0, "
                          f"{_fmt3(mx, my, mz)}")
@@ -2089,12 +2118,12 @@ def _tail_span_case_block(r, component: str, sid: int,
         gid = tail_control_gid(component, i)
         if abs(cp.f_normal) > _TOL:
             fx, fy, fz = to_force(
-                *tail_force_to_airplane(cp.f_normal * sf, component), u)
+                *tail_force_to_airplane(cp.f_normal, component), u)
             lines.append(f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, "
                          f"{_fmt3(fx, fy, fz)}")
         if abs(cp.m_torsion) > _TOL:
             mx, my, mz = to_moment(
-                *tail_torsion_to_airplane(cp.m_torsion * sf, component), u)
+                *tail_torsion_to_airplane(cp.m_torsion, component), u)
             lines.append(f"MOMENT, {sid}, {gid}, {SBEAM_CID}, 1.0, "
                          f"{_fmt3(mx, my, mz)}")
 
@@ -2103,7 +2132,7 @@ def _tail_span_case_block(r, component: str, sid: int,
     transfer = r.tip_transfer
     if transfer is not None and r.stations:
         gid = tail_span_gid(component, len(r.stations) - 1)
-        fvec, mvec = ttail_transfer_to_airplane(transfer.fz * sf, transfer.myy * sf)
+        fvec, mvec = ttail_transfer_to_airplane(transfer.fz, transfer.myy)
         if abs(transfer.fz) > _TOL:
             fx, fy, fz = to_force(*fvec, u)
             lines.append(f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, "
@@ -2141,10 +2170,10 @@ def write_tail_span_force_moment_cards(arg, path: str, component: str = "htail",
 
 def tail_span_csv(arg, component: str = "htail", header_comment: str = "", *,
                   system: UnitSystem = UnitSystem.IMPERIAL) -> str:
-    """Spanwise tail-load CSV: one row per station per case, ULTIMATE."""
+    """Spanwise tail-load CSV: one row per station per case, LIMIT."""
     results = _tail_span_results(arg, component)
     u = _units(system)
-    fo, mo = _ult(u.force.label), _ult(u.moment.label)
+    fo, mo = _load_label(u.force.label), _load_label(u.moment.label)
     span_h = f"Span ({u.length.label})"
     x_h = f"X on LRA ({u.length.label})"
     f_h, s_h = f"Fn ({fo})", f"Sn ({fo})"
@@ -2159,13 +2188,13 @@ def tail_span_csv(arg, component: str = "htail", header_comment: str = "", *,
     for r in results:
         sf = _sf(r)
         for i, st in enumerate(r.stations):
-            _, _, fn = to_force(0.0, 0.0, st.fz * sf, u)
-            _, _, sn = to_force(0.0, 0.0, st.sz * sf, u)
-            bend, tor, _ = to_moment(st.mxx * sf, st.myy * sf, 0.0, u)
+            _, _, fn = to_force(0.0, 0.0, st.fz, u)
+            _, _, sn = to_force(0.0, 0.0, st.sz, u)
+            bend, tor, _ = to_moment(st.mxx, st.myy, 0.0, u)
             # The h-tail's axial column is ``-0.0`` by construction (a negated
             # zero), and would print its sign; snapped like every card component.
-            fax = _closed(to_force(0.0, 0.0, st.f_span * sf, u)[2], abs(fn))
-            sax = _closed(to_force(0.0, 0.0, st.s_span * sf, u)[2], abs(sn))
+            fax = _closed(to_force(0.0, 0.0, st.f_span, u)[2], abs(fn))
+            sax = _closed(to_force(0.0, 0.0, st.s_span, u)[2], abs(sn))
             writer.writerow({
                 "Case": r.case, "GID": tail_span_gid(component, i),
                 span_h: f"{to_grid(st.y, 0.0, 0.0, u)[0]:.3f}",
@@ -2222,7 +2251,7 @@ def _control_nodal_forces(r: ControlSurfaceLoadResult) -> List[float]:
     to the critical surface load (trapezoidal chord tributaries)."""
     stations = sorted(r.stations, key=lambda s: s.x)
     return _trapezoid_tributary_forces(
-        stations, r.load_lb * _sf(r),
+        stations, r.load_lb,
         f"control-surface export: {r.surface} case {r.case}")
 
 
@@ -2230,15 +2259,15 @@ def control_surface_csv(arg, header_comment: str = "", *,
                         system: UnitSystem = UnitSystem.IMPERIAL) -> str:
     """Control-surface load CSV: one row per chord station per critical condition
     (surface, case, chord fraction X, pressure PSI, scaled nodal Fz, total load). Loads
-    are ULTIMATE; ``SF`` is the case's limit->ultimate factor they were scaled by.
+    are LIMIT; ``SF`` states the case's factor, which was not applied to them.
 
     ``X`` is a **fraction of chord** (0 = LE, 1 = TE), not a station: it is
     dimensionless and is the one column here that is identical in both unit
     systems."""
     results = _control_results(arg)
     u = _units(system)
-    psi_h = f"PSI ({_ult(u.pressure.label)})"
-    fo = _ult(u.force.label)
+    psi_h = f"PSI ({_load_label(u.pressure.label)})"
+    fo = _load_label(u.force.label)
     fz_h, load_h = f"Fz ({fo})", f"Load ({fo})"
     buf = _io.StringIO()
     writer = csv.DictWriter(
@@ -2249,13 +2278,13 @@ def control_surface_csv(arg, header_comment: str = "", *,
         sf = _sf(r)
         forces = _control_nodal_forces(r)
         stations = sorted(r.stations, key=lambda s: s.x)
-        _, _, load = to_force(0.0, 0.0, r.load_lb * sf, u)
+        _, _, load = to_force(0.0, 0.0, r.load_lb, u)
         for i, (s, fz) in enumerate(zip(stations, forces)):
             _, _, fz_out = to_force(0.0, 0.0, fz, u)
             writer.writerow({
                 "Surface": r.surface, "Case": r.case, "GID": control_station_gid(i),
                 "X (chord frac)": f"{s.x:.3f}",
-                psi_h: f"{to_pressure(s.psi * sf, u):.4f}", fz_h: f"{fz_out:.1f}",
+                psi_h: f"{to_pressure(s.psi, u):.4f}", fz_h: f"{fz_out:.1f}",
                 load_h: f"{load:.2f}", "SF": f"{_sf_str(sf)}",
             })
     return header_comment + buf.getvalue()
@@ -2292,13 +2321,13 @@ def control_surface_force_moment_cards(arg, sid_base: int = 1, *,
         sf = _sf(r)
         forces = _control_nodal_forces(r)
         _, _, total = to_force(0.0, 0.0, math.fsum(forces), u)
-        _, _, critical = to_force(0.0, 0.0, r.load_lb * sf, u)
+        _, _, critical = to_force(0.0, 0.0, r.load_lb, u)
         lines = [
             f"$ SLOADS control-surface load -- {r.surface} {r.case}, SID {sid}",
             f"$ Case ID: {r.case_ref.case_id}" if r.case_ref else "$ Case ID: (none)",
-            f"$ Loads are ULTIMATE (limit x SF={_sf_str(sf)}).",
+            *_comment(basis_sentence(sf)),
             f"$ Applied Fz set sums to {total:.1f} {u.force.label} "
-            f"(= {_sf_str(sf)} x critical load {critical:.1f} {u.force.label}).",
+            f"(= critical load {critical:.1f} {u.force.label}).",
         ]
         for i, fz in enumerate(forces):
             fx2, fy2, fz2 = to_force(0.0, 0.0, fz, u)
@@ -2552,7 +2581,7 @@ def _gear_report_headers(u: DeliverableUnits) -> List[str]:
     sibling channel.
     """
     ln, fo = u.length.label, u.force.label
-    fu, mu = _ult(fo), _ult(u.moment.label)
+    fu, mu = _load_label(fo), _load_label(u.moment.label)
     labels = {
         "Design weight": f"Design weight ({fo})",
         "Stroke": f"Stroke ({ln})",
@@ -2618,15 +2647,15 @@ def gear_report_rows(project: Project, units: Optional[DeliverableUnits] = None,
                 continue          # this leg carries nothing in this case
             px, py, pz = to_grid(*leg.patch, u)
             nx, ny, nz = to_grid(*leg.node, u)
-            gv, gd, gs = to_force(leg.ground_line[0] * sf, leg.ground_line[1] * sf,
-                                  leg.ground_line[2] * sf, u)
-            fx, fy, fz = to_force(leg.airplane[0] * sf, leg.airplane[1] * sf,
-                                  leg.airplane[2] * sf, u)
-            mx, my, mz = to_moment(leg.couple[0] * sf, leg.couple[1] * sf,
-                                   leg.couple[2] * sf, u)
+            gv, gd, gs = to_force(leg.ground_line[0], leg.ground_line[1],
+                                  leg.ground_line[2], u)
+            fx, fy, fz = to_force(leg.airplane[0], leg.airplane[1],
+                                  leg.airplane[2], u)
+            mx, my, mz = to_moment(leg.couple[0], leg.couple[1],
+                                   leg.couple[2], u)
             net = leg.net_of_inertia
             inertia = ("" if leg.inertia_fz is None else
-                       _fmt(to_force(0.0, 0.0, leg.inertia_fz * sf, u)[2]))
+                       _fmt(to_force(0.0, 0.0, leg.inertia_fz, u)[2]))
             rows.append({
                 "ID": case.case_ref.case_id if case.case_ref else "",
                 "Case": str(case.case),
@@ -2656,7 +2685,7 @@ def gear_report_rows(project: Project, units: Optional[DeliverableUnits] = None,
                                _fmt(leg.leg_weight_lb * u.force.factor)),
                 "Leg inertia Fz": inertia,
                 "Net Fz above trunnion": ("" if net is None else
-                                          _fmt(to_force(0.0, 0.0, net[2] * sf, u)[2])),
+                                          _fmt(to_force(0.0, 0.0, net[2], u)[2])),
                 "SF": _sf_str(sf),
             })
     return rows
@@ -2668,9 +2697,10 @@ def gear_report_csv(project: Project, header_comment: str = "",
 
     Travels in the Export bundle and the manifest, stamped like every other
     channel, so the boundary condition a gear analysis starts from is legible
-    without the report beside it. Loads are **ULTIMATE**, per the standing
-    load-output contract, at the factor the governing table gives the case
-    (``LIMIT (14 CFR 23.471 -- ground loads are limit loads) x 1.5``).
+    without the report beside it. Loads are **LIMIT**, per the standing
+    load-output contract, with the factor the governing table gives the case
+    stated and not applied (``LIMIT (14 CFR 23.471 -- ground loads are limit
+    loads); SF 1.5 not applied``).
     """
     u = deliverable_units(system, Channel.SOLVER)
     rows = gear_report_rows(project, u)

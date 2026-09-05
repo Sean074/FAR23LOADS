@@ -942,7 +942,7 @@ def test_run_emits_full_case_matrix():
 
 
 def test_landing_csv_is_ultimate_and_carries_moments_and_factors():
-    """The CSV reports every case ULTIMATE: forces lbs-ULT and moments lb-in-ULT at
+    """The CSV reports every case ULTIMATE: forces lb and moments lb-in at
     SF 1.5, while the dimensionless inertia factors pass through **unscaled** with
     blank units and a blank SF (they are load factors -- CLAUDE.md ultimate rules)."""
     import csv as _csv
@@ -965,14 +965,14 @@ def test_landing_csv_is_ultimate_and_carries_moments_and_factors():
     legs = delivered_gear_legs(gear_case_loads(p))[16]
     right = next(leg for leg in legs if leg.name == MAIN_RIGHT)
     force = quantities["Main right Fz"]
-    assert force["Units"] == "lbs-ULT" and force["SF"] == "1.5"
-    assert math.isclose(float(force["Value"]), right.force[2] * 1.5, rel_tol=1e-3)
+    assert force["Units"] == "lb" and force["SF"] == "1.5"
+    assert math.isclose(float(force["Value"]), right.force[2], rel_tol=1e-3)
     where = quantities["Main right z"]
     assert where["Units"] == "in" and where["SF"] == "", where
     assert math.isclose(float(where["Value"]), right.point[2], rel_tol=1e-3)
     moment = quantities["Unbalanced pitching moment (datum)"]
-    assert moment["Units"] == "lb-in-ULT" and moment["SF"] == "1.5"
-    assert math.isclose(float(moment["Value"]), by_case[16].pitch * 1.5, rel_tol=1e-3)
+    assert moment["Units"] == "lb-in" and moment["SF"] == "1.5"
+    assert math.isclose(float(moment["Value"]), by_case[16].pitch, rel_tol=1e-3)
     factor = quantities["Vertical load factor NV"]
     assert factor["Units"] == "" and factor["SF"] == "", factor
     assert math.isclose(float(factor["Value"]), by_case[16].nv, rel_tol=1e-3)

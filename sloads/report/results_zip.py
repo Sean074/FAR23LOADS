@@ -91,7 +91,7 @@ def results_zip_members(
     system: UnitSystem = UnitSystem.IMPERIAL,
     tool_version: str = "",
     generated: Optional[str] = None,
-    channel: LoadChannel = LoadChannel.ULTIMATE,
+    channel: LoadChannel = LoadChannel.LIMIT,
 ) -> Tuple[List[BundleMember], List[str]]:
     """``(zip members, manifest lines)`` for the whole-project results zip.
 
@@ -141,7 +141,7 @@ def results_zip_bytes(
     system: UnitSystem = UnitSystem.IMPERIAL,
     tool_version: str = "",
     generated: Optional[str] = None,
-    channel: LoadChannel = LoadChannel.ULTIMATE,
+    channel: LoadChannel = LoadChannel.LIMIT,
 ) -> Tuple[bytes, List[str]]:
     """``(zip bytes, manifest lines)`` -- what the download button serves."""
     members, manifest = results_zip_members(

@@ -53,7 +53,7 @@ from .lra_model import (
     build_lra_model,
     nearest_node,
 )
-from .sbeam_bridge import _comment, _fmt3, _sf_str, _stamped
+from .sbeam_bridge import _comment, _fmt3, _stamped, basis_sentence
 
 Vec3 = Tuple[float, float, float]
 
@@ -245,11 +245,10 @@ def lra_loads_on_imported_model(project: Project, imported: ImportedModel, *,
         lines += [f"$ {ln}" for ln in textwrap.wrap(entry, width=70,
                                                     subsequent_indent="    ")]
     for sid, case in zip(sids, cases):
-        sf = case.safety_factor
         lines.append("$")
         lines += _comment(
             f"Case {case.case_ref.case_id if case.case_ref else case.label} "
-            f"-- SID {sid}, ULTIMATE (limit x SF={_sf_str(sf)}).")
+            f"-- SID {sid}. {basis_sentence(case.safety_factor)}")
         acc: Dict[int, Tuple[List[float], List[float]]] = {}
         for load in case.loads:
             member = members.get(_member_key(load, members), members["all"])
@@ -266,14 +265,12 @@ def lra_loads_on_imported_model(project: Project, imported: ImportedModel, *,
             moment[2] += load.mz + cz
         for gid in sorted(acc):
             force, moment = acc[gid]
-            fx, fy, fz = to_force(force[0] * sf, force[1] * sf,
-                                  force[2] * sf, u)
-            if max(abs(v) for v in force) * sf > _TOL:
+            fx, fy, fz = to_force(force[0], force[1], force[2], u)
+            if max(abs(v) for v in force) > _TOL:
                 lines.append(f"FORCE, {sid}, {gid}, {SBEAM_CID}, 1.0, "
                              f"{_fmt3(fx, fy, fz)}")
-            mx, my, mz = to_moment(moment[0] * sf, moment[1] * sf,
-                                   moment[2] * sf, u)
-            if max(abs(v) for v in moment) * sf > _TOL:
+            mx, my, mz = to_moment(moment[0], moment[1], moment[2], u)
+            if max(abs(v) for v in moment) > _TOL:
                 lines.append(f"MOMENT, {sid}, {gid}, {SBEAM_CID}, 1.0, "
                              f"{_fmt3(mx, my, mz)}")
     return _stamped(header_comment, "\n".join(lines) + "\n")

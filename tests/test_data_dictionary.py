@@ -70,5 +70,5 @@ if __name__ == "__main__":
     test_committed_doc_matches_generator()
     test_every_input_slice_is_documented()
     test_schema_version_recorded()
-    test_gui_design_schema_line_current()
+    test_gui_design_schema_paragraph_points_at_the_owner()
     print("ok")

@@ -1120,8 +1120,11 @@ def test_the_aviation_units_agree_with_the_shell():
 # ``results.page_artifacts``: the bytes a user actually downloads. Completeness
 # comes from the call-site test below -- one ``download_button`` in the package,
 # fed from the same function this gate reads.
-_STAMP = "# BASIS: All loads reported here are ULTIMATE"
-_TEXT_HEADER = "Loads are ULTIMATE (= limit x SF); load factors are limit."
+_STAMP = "# BASIS: All loads reported here are LIMIT"
+_TEXT_HEADER = ("Loads are LIMIT: the safety factor of 14 CFR 23.303 is stated "
+                "per case and applied nowhere in sloads, including the exported "
+                "deck. Apply it in the sizing analysis. Load factors are limit. "
+                "A load marked -ULT is already ultimate; apply nothing further.")
 
 
 #: G7's fixtures. One airplane in one unit system was not a gate over the GUI's
@@ -1222,19 +1225,31 @@ def test_the_gui_has_exactly_one_download_call_site():
 @pytest.mark.parametrize("example,system", _G7_FIXTURES, ids=_G7_IDS)
 @pytest.mark.parametrize("key", sorted(wf.oracle_step_keys()))
 def test_every_csv_the_oracle_gui_offers_states_its_basis(key, example, system):
-    """Gate G7, the CSV half: ULTIMATE by the stamp and an ``SF`` column, or
-    LIMIT in-band *and* in a ``*_LIMIT.csv`` filename. A load CSV with a neutral
-    name and no basis is the M4-15 defect class."""
+    """Gate G7, the CSV half: **every** load CSV states the LIMIT basis in its
+    comment block, and an ``SF`` column wherever a factor is stated.
+
+    Inverted by note 49 OR-116: LIMIT is the project's only basis, so the rule
+    is no longer "ULTIMATE-by-stamp or LIMIT-by-filename" -- there is one basis
+    and every file states it. The ``*_LIMIT.csv`` stem is now redundant rather
+    than a distinguisher (OR-90 retires it); a file carrying it must still
+    state the basis in-band like every other. A load CSV with no basis in its
+    comment block is the M4-15 defect class, unchanged."""
     for art in _artifacts(key, example, system):
         if not art.file_name.endswith(".csv"):
             continue
         body = [ln for ln in art.payload.splitlines() if not ln.startswith("#")]
         header = body[0] if body else ""
-        if art.file_name.endswith("_LIMIT.csv"):
-            assert "LIMIT" in art.payload, (
-                f"{art.file_name} is named LIMIT but never says so in-band")
-            assert _STAMP not in art.payload, (
-                f"{art.file_name} claims ULTIMATE and LIMIT at once")
+        # A file states its basis in one of three places, all acceptable: the
+        # comment block, a per-row ``Basis`` column, or the column headers
+        # themselves (``LT25 (lbf, LIMIT)``). The last two are stronger than the
+        # first -- they travel with every value rather than with the head of the
+        # file -- so the rule is "state it somewhere a consumer cannot miss",
+        # not "state it in one particular place".
+        if "Basis" in header.split(","):
+            assert all("LIMIT" in ln or "ULT" in ln for ln in body[1:] if ln), (
+                f"{art.file_name} has a Basis column that does not state a basis")
+        elif "LIMIT" in header or "-ULT" in header:
+            pass        # stated per column, on every value in the file
         else:
             # In the **comment block**, not merely somewhere in the payload
             # (review CR-A-8): a stamp that only has to appear anywhere is
@@ -1275,7 +1290,11 @@ def test_every_text_report_says_what_the_cli_says(key, example, system):
         if not art.file_name.endswith(".txt"):
             continue
         assert _TEXT_HEADER in art.payload, f"{art.file_name} drops the ULT statement"
-        assert "[ULTIMATE, SF=" in art.payload, f"{art.file_name} states no per-case SF"
+        # The per-case basis marker. Note 49 OR-116/OR-118: a case is LIMIT with
+        # its factor stated, or -- for the two families computed already
+        # ultimate -- says so and asks for nothing further.
+        assert ("[LIMIT" in art.payload or "[already ultimate" in art.payload), (
+            f"{art.file_name} states no per-case basis marker")
         module = art.file_name[: -len(".txt")]
         result = registry.get(module)(project)
         converted = convert_results(result.conditions, system)

@@ -589,8 +589,9 @@ def _check_safety_factors(project: Project) -> List[ConsistencyWarning]:
     lies between). ``io._safety_factor`` already coerces a corrupt *persisted*
     value to ``ULTIMATE_FACTOR`` on load, so this check mainly catches a value
     mutated in-session (or set programmatically) before it reaches a deliverable:
-    below 1.0 the export would be **unconservative while still labelled
-    ULTIMATE**; above 1.5 is conservative but non-standard.
+    below 1.0 the exported load would **state a factor too small to reach
+    ultimate**, so a sizing analysis trusting it under-designs; above 1.5 is
+    conservative but non-standard.
     """
     cases = []
     if project.envelope is not None and project.envelope.critical is not None:
@@ -608,8 +609,9 @@ def _check_safety_factors(project: Project) -> List[ConsistencyWarning]:
                 "safety_factor_out_of_range",
                 f"Load case '{name}' has safety_factor = {sf!r}, outside the legal "
                 f"[1.0, {ULTIMATE_FACTOR:g}] band (14 CFR 23.303; the factor is set "
-                "by the load-case definition). Below 1.0 the exported loads would "
-                "be unconservative while still labelled ULTIMATE. A corrupt value "
+                "by the load-case definition). Below 1.0 the factor stated "
+                "against the exported loads is too small to reach ultimate, so a "
+                "sizing analysis that applies it under-designs. A corrupt value "
                 f"in a saved project.json is reset to {ULTIMATE_FACTOR:g} on load; "
                 "re-run the producing module to restore the case's own factor.",
                 PAGE_EXPORT))
@@ -667,8 +669,9 @@ def _check_safety_factor_overrides(project: Project) -> List[ConsistencyWarning]
                 "safety_factor_below_regulation",
                 f"CERTIFICATION RISK: '{row.label}' ({row.far_reference}) is "
                 f"overridden to SF = {row.factor:g}, below the {row.derived_factor:g} "
-                "the regulation derives for it. Loads exported under this row are "
-                "labelled ULTIMATE but are not ultimate by 14 CFR 23.303/25.303. "
+                "the regulation derives for it. A sizing analysis applying the "
+                "stated factor to loads exported under this row will not reach "
+                "ultimate by 14 CFR 23.303/25.303. "
                 f"Declared basis: {row.basis or '(none)'}.", PAGE_EXPORT))
     return out
 

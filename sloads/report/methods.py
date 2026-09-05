@@ -246,8 +246,9 @@ def _safety_factor_block(project: Project) -> List[str]:
         return []
     out = ["SAFETY FACTOR OVERRIDES: the governing safety-factor table has been "
            "edited for this project. The factors below are NOT the values 14 CFR "
-           "23.303/25.303 derives, and every ULTIMATE load delivered under them "
-           "reflects the override, not the regulation."]
+           "23.303/25.303 derives, so the factor stated against every case "
+           "under them — and the ultimate load a sizing analysis will derive "
+           "from it — reflects the override, not the regulation."]
     for row in table.overrides:
         risk = (" *** BELOW THE REGULATION — CERTIFICATION RISK ***"
                 if row.below_regulation else "")
@@ -389,14 +390,14 @@ def methods_statement(
     scope: str = "",
     deselected_case_ids: Optional[List[str]] = None,
     system: UnitSystem = UnitSystem.IMPERIAL,
-    channel: LoadChannel = LoadChannel.ULTIMATE,
+    channel: LoadChannel = LoadChannel.LIMIT,
 ) -> str:
     """The full methods & limitations statement for ``project``.
 
     ``channel`` states the basis of the file this stamp is going into (design
-    note 48). It defaults to ULTIMATE, so a deck, the case index and the gear
-    report are stamped exactly as before; the per-module CSVs and the bundle's
-    text report pass ``LoadChannel.LIMIT`` and say so. A stamped file that
+    note 48). Since note 49 OR-116 there is one basis and the default is it, so
+    every stamped file -- deck, case index, gear report, per-module CSV, text
+    report -- says LIMIT. A stamped file that
     travels on its own must state **its own** basis -- a bundle-wide sentence
     that was true of the deck and false of the CSV beside it is the F-R1 defect
     class, one level up (G8.3).
@@ -425,29 +426,25 @@ def methods_statement(
     L.append("")
 
     # 1. Basis --------------------------------------------------------------- #
-    if channel is LoadChannel.LIMIT:
-        L.append(
-            f"BASIS: All loads reported here are LIMIT -- the safety factor is "
-            f"stated but NOT applied. Every case states its factor in an 'SF' "
-            f"column or an 'SF=' marker; the default is {ULTIMATE_FACTOR} per "
-            f"14 CFR 23.303 (25.303 for Part 25), and 'N/A' means no factor "
-            f"applies to that condition because it states no load. Load "
-            f"quantities carry plain units, with no '-ULT' marker. The ULTIMATE "
-            f"deliverables are the exported sbeam deck, the case index and the "
-            f"technical report. Load factors (n, Nz) are limit and "
-            f"dimensionless, and geometry, weights, inertias, areas, speeds and "
-            f"angles are never scaled."
-        )
-    else:
-        L.append(
-            f"BASIS: All loads reported here are ULTIMATE (ultimate = limit x safety "
-            f"factor). Every case states its own safety factor in an 'SF' column or an "
-            f"'SF=' marker; the default is {ULTIMATE_FACTOR} per 14 CFR 23.303 "
-            f"(25.303 for Part 25). Load quantities carry a '-ULT' unit marker "
-            f"({_ult_markers(system)}). Load factors (n, Nz) are limit and "
-            f"dimensionless, and geometry, weights, inertias, areas, speeds and angles "
-            f"are never scaled."
-        )
+    del channel                                 # one basis (OR-116)
+    L.append(
+        f"BASIS: All loads reported here are LIMIT -- the safety factor is "
+        f"stated but NOT applied, anywhere in sloads, including the "
+        f"exported sbeam deck. APPLY IT IN THE SIZING ANALYSIS. Every case "
+        f"states its factor in an 'SF' column or an 'SF=' marker; the "
+        f"default is {ULTIMATE_FACTOR} per 14 CFR 23.303 (25.303 for Part "
+        f"25), and 'N/A' means no factor applies to that condition because "
+        f"it states no load. Load quantities carry plain units. The one "
+        f"exception is a load computed ALREADY ULTIMATE -- 14 CFR "
+        f"23.367(a)(2) engine torque and 23.561(b) emergency-landing "
+        f"inertia, which state SF=1.0 and carry a '-ULT' marker "
+        f"({_ult_markers(system)}); apply nothing further to those. The "
+        f"special factors of Subpart D (23.619 special, 23.621 casting, "
+        f"23.623 bearing, 23.625 fitting) are the sizing analysis's and are "
+        f"applied by no part of sloads. Load factors (n, Nz) are limit and "
+        f"dimensionless, and geometry, weights, inertias, areas, speeds and "
+        f"angles are never scaled."
+    )
     L.append("")
 
     # 1a. Safety-factor overrides -------------------------------------------- #

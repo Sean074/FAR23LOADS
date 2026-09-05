@@ -67,13 +67,15 @@ def _unit_notes(system: UnitSystem) -> Dict[str, str]:
     human = units_statement(deliverable_units(system, Channel.HUMAN))
     solver = units_statement(deliverable_units(system, Channel.SOLVER))
     return {
-        "human": f"Units: {human}. Loads are ULTIMATE; {_AVIATION}.",
+        "human": (f"Units: {human}. Loads are LIMIT — the SF column states the "
+                  f"factor, which is applied nowhere; {_AVIATION}."),
         # The consistent set the decks need spelled out beside the sheet, because
         # N·m against mm coordinates is a silent 1000x (SUMMARY_REPORT.md 3.5,
         # solver-deck exception M4-20 D-19).
         "solver": (f"Units: {solver} — the sbeam solver channel (a consistent set: "
                    f"moments are force x length in the same base units). Loads are "
-                   f"ULTIMATE; {_AVIATION}."),
+                   f"LIMIT — apply the stated SF in the sizing analysis; "
+                   f"{_AVIATION}."),
         # The case index carries no load quantity at all -- only identity, speed
         # and altitude -- so claiming either channel's set would be false.
         "index": f"Units: no load quantities on this sheet; {_AVIATION}.",

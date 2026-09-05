@@ -22,8 +22,8 @@ structure from it. The report SHALL be sufficient, on its own, for that reader t
 
 1. confirm the airplane analysed is the airplane they were expecting (§4.2);
 2. see the flight envelope and the design conditions the loads come from (§4.3, §4.4);
-3. read every governing ULTIMATE load, with its safety factor, and know **where**
-   on the structure it acts (§4.5);
+3. read every governing LIMIT load, with the safety factor to apply to it, and
+   know **where** on the structure it acts (§4.5);
 4. know exactly what the analysis does **not** cover, and how much to trust it (§4.6);
 5. locate and correctly interpret the companion data files that carry the full
    distributions (§4.7).
@@ -73,21 +73,25 @@ These are the rules a reviewer checks on **every** page.
 
 ### 3.1 Load basis and marking
 
-- Every load figure in the report SHALL be **ULTIMATE**. The report SHALL NOT
-  contain a bare limit load anywhere, including in figures, captions and examples.
-  (The per-module *analysis* pages in the GUI may show LIMIT; the report is a
-  deliverable and MAY NOT.)
-- Every load quantity SHALL carry the `-ULT` marker in its units string
-  (`lbs-ULT`, `ft-lb-ULT`, `lb-in-ULT`, `lb/in^2-ULT`).
+- Every load figure in the report SHALL be **LIMIT** (note 49 OR-116, which
+  inverts this rule). The report SHALL NOT apply the safety factor to any figure,
+  and SHALL NOT contain a load whose basis is unstated.
+- Every load quantity SHALL carry **plain units**. The `-ULT` marker SHALL appear
+  only on a load the regulation prescribes already ultimate — 23.367(a)(2) and
+  23.561(b) — and a shared column header SHALL be marked only when *every* case in
+  its table is one of those (OR-118a).
 - Every load case SHALL state its **safety factor** in an `SF` column or an `SF=`
-  marker. A case already at ultimate is marked `ULT SF=1.0` — never "limit".
+  marker, as the factor that was **not** applied. A case already at ultimate is
+  marked `ULT SF=1.0` — apply nothing further.
 - Non-load quantities (weights, lengths, areas, inertias, speeds, angles, and the
   dimensionless load factors) SHALL carry plain units and no `-ULT` marker, and
   SHALL NOT be scaled. A load factor is limit and dimensionless; saying otherwise
   is an error.
-- The title page and §4.6 SHALL both state the basis in words: *"All loads are
-  ULTIMATE (= limit × SF); safety factor is stated per case; load factors are
-  limit."*
+- The title page and §4.6 SHALL both state the basis in words, **and say whose
+  job the factor is** — "LIMIT" alone leaves the reader to guess whether sizing
+  has happened: *"All loads are LIMIT; the safety factor of 14 CFR 23.303 is
+  stated per case and applied nowhere in sloads, including the exported deck —
+  apply it in the sizing analysis. Load factors are limit."*
 
 ### 3.2 Traceability
 
@@ -293,7 +297,7 @@ rather than as a fault.
 
 ### 4.5 Results summary (required)
 
-Per component, the governing conditions with their ULTIMATE loads and safety
+Per component, the governing conditions with their LIMIT loads and safety
 factors, plus a maxima block naming the station of each maximum (§3.3). The
 following components SHALL each have a subsection, present or explicitly marked
 "not analysed":
@@ -433,6 +437,13 @@ through two reviews because the conformance test read row names and stopped
 (CR-C-3). `MANIFEST_BASIS` in `tests/test_report_content.py` is that pin, and it
 is exhaustive both ways.
 
+That pin detects **drift** between the manifest and the map, not **falsehood** in
+the pair — both are hand-maintained. It stayed green for a whole release while the
+`load_cases/<project>_<module>.csv` row said ULTIMATE and the file had been LIMIT
+since design note 48. The basis cell SHALL therefore *also* be held against what
+the artifact is: **G-OR-74** (`tests/test_basis_statements.py`) reads the rendered
+document, and both gates are required.
+
 ### 4.8 Optional content
 
 The report **MAY** additionally contain: a revision-history table, a fleet /
@@ -473,9 +484,11 @@ A report conforms when all of the following hold. Each is held by a named test
       with a reason — `test_report_content.py::test_every_required_section_is_present`,
       `::test_every_component_subsection_is_present`,
       `::test_sections_degrade_rather_than_raise_on_an_empty_project`.
-- [x] No bare limit load; every load carries `-ULT` and a stated `SF` —
-      `test_report_content.py::test_every_load_column_is_ultimate_marked`,
-      `test_report_latex.py::test_ultimate_markers_and_sf_columns_are_present`.
+- [x] Every load is LIMIT with a stated `SF`, and no data cell carries `-ULT`
+      unless its case is already ultimate (§3.1, as inverted by note 49 OR-116) —
+      `test_report_content.py::test_no_load_column_is_ultimate_marked`,
+      `test_report_latex.py::test_the_sf_column_is_present_and_the_ult_marker_is_not_on_data`,
+      `test_basis_statements.py::test_the_summary_report_states_limit`.
 - [x] Every load traces to a case ID that exists in the companion case index —
       `test_report_content.py::test_case_index_states_a_safety_factor_for_every_case`
       (the report's index is built from the same `case_index_rows_from` the CSV is).
@@ -546,8 +559,8 @@ Three readings this standard left open, resolved while building against it:
 ## 7. Related documents
 
 - [`../40_history/13_step_g8_summary_report_plan.md`](../40_history/13_step_g8_summary_report_plan.md) — the implementation plan for this standard.
-- [`../../CLAUDE.md`](../../CLAUDE.md) — the ultimate-load output rules this standard applies.
+- [`../../CLAUDE.md`](../../CLAUDE.md) — the load-output rules this standard applies.
 - [`PROGRAM_SPEC.md`](PROGRAM_SPEC.md) — per-module inputs/outputs and FAR conditions feeding §4.4 and §4.5.
 - [`../20_theory/00_theory_sources.md`](../20_theory/00_theory_sources.md) — oracle status wording quoted by §4.6.
 - [`../20_theory/02_approved_corrections.md`](../20_theory/02_approved_corrections.md) — the corrections listed by §4.4 and §4.6.
-- [`GUI_design.md`](GUI_design.md) — the LIMIT-vs-ULTIMATE display rules for analysis pages (the exception this standard does not inherit).
+- [`GUI_design.md`](GUI_design.md) — the display rules for analysis pages (once an exception to this standard's basis; since note 49 OR-116 the same basis, stated the same way).

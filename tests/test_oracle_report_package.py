@@ -153,7 +153,9 @@ def test_the_manifest_states_the_package_unit_system_once_up_front():
         with open(os.path.join(out, op.PACKAGE_MANIFEST), encoding="utf-8") as fh:
             text = fh.read()
     assert "SI units" in text
-    assert "ULTIMATE" in text and "-ULT" in text
+    # Note 49 OR-116: the package states LIMIT, names who applies the factor, and
+    # keeps the -ULT marker's explanation for the two already-ultimate families.
+    assert "LIMIT" in text and "-ULT" in text
     assert "safety factor" in text and "basis" in text
 
 

@@ -21,11 +21,15 @@ Ground Loads, ...), so the table's granularity is the regulation's granularity.
 Parts 23 and 25 number Subpart C in parallel, so one range table serves both; the
 part is carried in the row's basis text, not in the range.
 
-**Why an override cannot move an oracle.** The factor is applied only at the
-render/export boundary — the calc stays LIMIT — so no row of this table, however
-edited, can shift an Appendix-A figure. What it *can* move is the deliverable, and
-that is why an override is never silent: see :class:`GoverningTable` and the four
-mitigations recorded with G-11.
+**Why an override cannot move an oracle — or, since note 49, any number at
+all.** The factor was applied at the render/export boundary and nowhere else, so
+no row of this table could shift an Appendix-A figure; what it could move was the
+deliverable. Under **OR-116** the factor is applied *nowhere* — every load sloads
+delivers is LIMIT, on every surface including the exported deck — so what a row
+now decides is the number **stated** beside a load, not the load. It is still
+never silent: a stated factor a recipient applies is a factor applied, one step
+downstream. See :class:`GoverningTable` and the four mitigations recorded with
+G-11.
 
 Sources: ``reference/14CFR_factor_of_safety.md`` (§ 25.303 / historically § 23.303
 — "a factor of safety of 1.5 must be applied to the prescribed limit load");
@@ -64,9 +68,11 @@ __all__ = [
 class LoadClass:
     """How the governing regulation *classifies* the prescribed load.
 
-    This — not the speed, not the module — decides the factor: a LIMIT load is
-    multiplied by 1.5 to reach ultimate; a load the regulation already prescribes
-    as ULTIMATE is delivered as computed (14 CFR 23.303 / 25.303).
+    This — not the speed, not the module — decides the factor: a LIMIT load
+    reaches ultimate when 1.5 is applied to it; a load the regulation already
+    prescribes as ULTIMATE is ultimate as computed (14 CFR 23.303 / 25.303).
+    sloads does neither multiplication — it states which of the two a case is,
+    and the sizing analysis applies what the first one needs (note 49 OR-116).
     """
 
     LIMIT = "LIMIT"
@@ -75,7 +81,7 @@ class LoadClass:
 
 #: Layer 1 of M4-8: class -> factor. Subsumes :data:`constants.ULTIMATE_FACTOR`,
 #: which stays as the carrier's dataclass default so a result built outside the
-#: table is still conservative rather than unfactored.
+#: table still *states* the conservative factor rather than none at all.
 DERIVED_FACTOR = {
     LoadClass.LIMIT: ULTIMATE_FACTOR,
     LoadClass.ULTIMATE: 1.0,
@@ -90,7 +96,7 @@ class RowStatus:
     regulation-fixed ones, on the precedent of ``APPROVED_CORRECTIONS``: a
     deviation that is not declared is invisible to the analyst, which is the whole
     point of declaring it). ``DEFAULTED`` means a case reached the boundary that
-    this table could not classify — it is factored at 1.5 and **flagged**, never
+    this table could not classify — it states 1.5 and is **flagged**, never
     silently accepted, and a test asserts zero defaulted rows on every shipped
     fixture so the flag cannot normalise into background noise.
     """
@@ -115,8 +121,9 @@ class Family:
         return DERIVED_FACTOR[self.load_class]
 
 
-_LIMIT_BASIS = ("14 CFR 23.303 / 25.303 — a factor of safety of 1.5 applied to "
-                "the prescribed limit load")
+_LIMIT_BASIS = ("14 CFR 23.303 / 25.303 — a factor of safety of 1.5 must be "
+                "applied to the prescribed limit load, by the sizing analysis "
+                "and not by sloads (note 49 OR-116)")
 
 #: The governing table's rows, in regulation order. **Adding a produced FAR
 #: reference without a family here is a red build, not a footnote** — the
@@ -134,7 +141,8 @@ FAMILIES: Tuple[Family, ...] = (
     Family("engine_ultimate", "Sudden engine stoppage — prescribed ultimate",
            "23.367(a)(2)", LoadClass.ULTIMATE,
            "23.367(a)(2) prescribes the sudden-stoppage torque case as an "
-           "ULTIMATE load, so no further factor is applied (SF = 1.0)."),
+           "ULTIMATE load: it is already ultimate as computed, so apply "
+           "nothing (SF = 1.0)."),
     Family("control_system", "Control surface and system loads", "23.391–23.459",
            LoadClass.LIMIT,
            "The control surface loads of 23.391–23.459, including the "
@@ -149,7 +157,8 @@ FAMILIES: Tuple[Family, ...] = (
     Family("emergency", "Emergency landing conditions — prescribed ultimate",
            "23.561–23.562", LoadClass.ULTIMATE,
            "23.561(b) prescribes ULTIMATE inertia load factors for the emergency "
-           "landing conditions, so no further factor is applied (SF = 1.0)."),
+           "landing conditions: they are already ultimate as computed, so apply "
+           "nothing (SF = 1.0)."),
     Family("reference_data",
            "Weight, CG and configuration reference conditions", "23.21–23.29",
            LoadClass.LIMIT,
@@ -278,8 +287,8 @@ def prescribes_factor(item: Any) -> bool:
     The second clause protects the group a content-only test gets wrong.
     SELECT's six *Critical wing load* conditions publish only CL, V, Nz, Nx and
     altitude — their loads live on ``WingLoadResult`` — but they are load cases,
-    they carry a ``CaseRef``, and their bulk-data cards are factored. Blanking
-    them would print ``N/A`` in the case index against a factored case, which is
+    they carry a ``CaseRef``, and their bulk-data cards state a factor. Blanking
+    them would print ``N/A`` in the case index against a case that has one, which is
     worse than the banner #154 was filed for. Measured over both shipped
     airframes: 38 conditions prescribe no factor on GA6 and 38 on the Baron 58,
     with those 6 protected in each.
@@ -411,7 +420,7 @@ class GoverningTable:
     def factor_for(self, item: Any) -> Resolution:
         """The factor for one case-carrying result — the per-case derived view.
 
-        An unclassifiable case does not raise (G-11, user decision): it takes the
+        An unclassifiable case does not raise (G-11, user decision): it states the
         conservative ``ULTIMATE_FACTOR`` and is returned as
         :data:`RowStatus.DEFAULTED`, and its reference is recorded in
         :attr:`defaulted` so the report and the methods stamp can name it.
@@ -435,7 +444,7 @@ class GoverningTable:
                 self.defaulted.append(ref)
             return Resolution(ULTIMATE_FACTOR,
                               "Unclassified condition — no row of the governing "
-                              "table matched this FAR reference; factored at the "
+                              "table matched this FAR reference; stated at the "
                               "conservative default and flagged.",
                               RowStatus.DEFAULTED, DEFAULT_FAMILY, ref)
         return self.resolve(key, ref)
@@ -443,10 +452,10 @@ class GoverningTable:
     def required_factor_for(self, item: Any) -> float:
         """The factor for an item the caller knows to be a load case.
 
-        The ULTIMATE channels — the case index and the solver decks — only ever
-        see load cases, so a ``None`` there is not a value to render but a defect
-        upstream: a factored bulk-data card would be written from a condition
-        that prescribes no factor. Raises rather than substituting 1.0, which is
+        The case index and the solver decks only ever see load cases, so a
+        ``None`` there is not a value to render but a defect upstream: a
+        bulk-data card would state a factor for a condition that prescribes
+        none. Raises rather than substituting 1.0, which is
         the loud failure note 48 OR-82 asks for (a silent 1.0 is how the F-R1
         defect class returns).
         """

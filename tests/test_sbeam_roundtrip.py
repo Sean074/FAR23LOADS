@@ -235,7 +235,7 @@ def test_wing_stick_deck_solves_and_recovers_the_root_loads(sbeam, example, syst
 
     for idx, r in enumerate(wing):
         sid = sb._sid(1, idx, r)
-        sol, st, sf = sols[sid], r.stations[0], r.safety_factor
+        sol, st = sols[sid], r.stations[0]
         where = f"{example} {system.value} wing {r.case}"
         applied = resultant(forces, moments, grids, sid, root)
         reaction = sol.reactions[sb._ROOT_GID]
@@ -250,7 +250,7 @@ def test_wing_stick_deck_solves_and_recovers_the_root_loads(sbeam, example, syst
                 f"{where} W-b axis {axis}"
 
         # W-c: the vertical reaction is the NETLOADS root shear.
-        want_fx, _, want_fz = to_force(st.sx * sf, 0.0, st.sz * sf, u)
+        want_fx, _, want_fz = to_force(st.sx, 0.0, st.sz, u)
         assert closes(reaction[2], -want_fz, scale=abs(want_fz)), f"{where} W-c Sz"
         assert closes(reaction[0], -want_fx, scale=abs(want_fx)), f"{where} W-c Sx"
 
@@ -259,8 +259,8 @@ def test_wing_stick_deck_solves_and_recovers_the_root_loads(sbeam, example, syst
         # its local frame is a fixed permutation of the airplane axes: local y is
         # airplane z (shear1 == Sz) and local "bending 2" is airplane Mxx.
         bar = sol.bar_forces[1]
-        want_mxx, _, _ = to_moment(st.mxx * sf, 0.0, 0.0, u)
-        _, _, want_mzz = to_moment(0.0, 0.0, st.mzz * sf, u)
+        want_mxx, _, _ = to_moment(st.mxx, 0.0, 0.0, u)
+        _, _, want_mzz = to_moment(0.0, 0.0, st.mzz, u)
         assert closes(bar.shear1, want_fz, scale=abs(want_fz)), f"{where} W-d shear"
         assert closes(bar.bm2_b, want_mxx, scale=abs(want_mxx)), f"{where} W-d Mxx"
         assert closes(bar.bm1_b, -want_mzz, scale=abs(want_mzz)), f"{where} W-d Mzz"
@@ -442,14 +442,14 @@ def test_body_deck_recovers_the_cumulative_beam(sbeam, example, system):
 
     for idx, r in enumerate(body):
         sid = sb._sid(1, idx, r)
-        sol, sf = sols[sid], r.safety_factor
+        sol = sols[sid]
         where = f"{example} {system.value} body {r.case}"
         # Table order, so a coincident pair leaves the outboard-most cumulative
         # value -- the one the cut just outboard of that station carries.
-        sz = {_deck_x(s.x): s.sz * sf for s in r.stations}
-        myy = {_deck_x(s.x): s.myy * sf for s in r.stations}
-        scale = max(abs(to_force(0.0, 0.0, s.sz * sf, u)[2]) for s in r.stations)
-        m_scale = max(abs(to_moment(0.0, s.myy * sf, 0.0, u)[1]) for s in r.stations)
+        sz = {_deck_x(s.x): s.sz for s in r.stations}
+        myy = {_deck_x(s.x): s.myy for s in r.stations}
+        scale = max(abs(to_force(0.0, 0.0, s.sz, u)[2]) for s in r.stations)
+        m_scale = max(abs(to_moment(0.0, s.myy, 0.0, u)[1]) for s in r.stations)
         assert len(sol.bar_forces) == len(positions) - 1
 
         for eid, bar in sorted(sol.bar_forces.items()):
@@ -500,7 +500,7 @@ def test_tail_deck_solves_and_recovers_the_total_load(sbeam, example, system):
         applied = resultant(forces, moments, grids, sid, ref)
         got = total_reaction(sols[sid].reactions, grids, ref=ref)
 
-        total = (r.lt25 + r.lt50) * r.safety_factor
+        total = (r.lt25 + r.lt50)
         want_f = to_force(*tail_force_to_airplane(total, r.component), u)
         scale = max(abs(v) for v in want_f)
         for axis in range(3):
@@ -630,7 +630,7 @@ def test_assembled_deck_reacts_to_zero(sbeam, example, system):
             # the side load flowing through them, or "reaction ~ 0" would be the
             # trivial statement that nothing lateral was applied at all.
             side = sum(abs(scale * n[1]) for _, scale, n in forces[sid])
-            floor = 0.1 * abs(fin_load(case)) * case.safety_factor
+            floor = 0.1 * abs(fin_load(case))
             _, floor, _ = to_force(0.0, floor, 0.0, _units(system))
             assert side > abs(floor), (
                 f"{where}: only {side} of side load reached the solver")
@@ -701,7 +701,7 @@ def test_the_gear_node_carries_the_reports_reaction(sbeam, example, system):
             leg = legs[load.source.split("-", 1)[1]]
             # The report is LIMIT; the deck is ULTIMATE. Both halves of that
             # contract are asserted by comparing across it rather than around it.
-            want = to_force(*(v * case.safety_factor for v in leg.airplane), u)
+            want = to_force(*(v for v in leg.airplane), u)
             # **Vertical and drag are per leg and identical on both wheels**, so
             # they are the direct comparison G-13 asks for -- and they are also
             # where a transfer error, a frame error or a dropped couple would
@@ -721,7 +721,7 @@ def test_the_gear_node_carries_the_reports_reaction(sbeam, example, system):
         # a single ``SMP`` per case (decision G-8's implementation note). What is
         # well defined is their **sum**, which is what ``NS`` states -- so that is
         # what is checked, and it closes the same loop.
-        ns_w = case.delta_ny * case.weight_lb * case.safety_factor
+        ns_w = case.delta_ny * case.weight_lb
         _, want_side, _ = to_force(0.0, ns_w, 0.0, u)
         assert math.isclose(side_total, want_side, rel_tol=1e-6,
                             abs_tol=1e-6 * max(1.0, abs(want_side))), (
@@ -769,7 +769,7 @@ def test_a_flipped_fin_load_breaks_the_assembled_solve(sbeam, system):
     # carries -2*L_v and the support reacts +2*L_v. Asserting the number and not
     # merely "non-zero" is what makes this a calibration of the gate rather than
     # a smoke test -- it says how much of a sign error it would take to hide.
-    _, want, _ = to_force(0.0, 2.0 * fin_load(case) * case.safety_factor, 0.0,
+    _, want, _ = to_force(0.0, 2.0 * fin_load(case), 0.0,
                           _units(system))
     assert closes(got.force[1], want, scale=applied.force_scale), got.force[1]
 
@@ -1032,7 +1032,7 @@ def test_wing_deck_solves_through_the_sbeam_command_line(sbeam, tmp_path):
 
     # The root reaction printed in the .f06 is the span CSV's root shear (W-c).
     first = wing[0]
-    _, _, want = to_force(0.0, 0.0, first.stations[0].sz * first.safety_factor, u)
+    _, _, want = to_force(0.0, 0.0, first.stations[0].sz, u)
     block = f06.split(f"SUBCASE {sb._sid(1, 0, first)}")[1]
     spc = block.split("S I N G L E - P O I N T   C O N S T R A I N T")[1].splitlines()
     row = [ln for ln in spc if ln.split()[:2] == [str(sb._ROOT_GID), "G"]][0]
@@ -1074,8 +1074,8 @@ def test_a_scaled_wing_force_card_breaks_the_wing_assertions(sbeam):
     _, _, _, forces, moments = parse_cards(broken)
     applied = resultant(forces, moments, grids, sid, grids[sb._ROOT_GID])
     reaction = sols[sid].reactions[sb._ROOT_GID]
-    st, sf = wing[0].stations[0], wing[0].safety_factor
-    _, _, want_fz = to_force(0.0, 0.0, st.sz * sf, u)
+    st = wing[0].stations[0]
+    _, _, want_fz = to_force(0.0, 0.0, st.sz, u)
 
     # W-a still holds -- the solver faithfully reacts whatever it was given...
     assert closes(reaction[2], -applied.fz, scale=applied.force_scale)
@@ -1102,8 +1102,8 @@ def test_swapped_subcase_load_ids_break_the_per_case_assertions(sbeam):
     assert swapped != text
 
     sols, _ = _solved(swapped)
-    st, sf = wing[0].stations[0], wing[0].safety_factor
-    _, _, want_fz = to_force(0.0, 0.0, st.sz * sf, u)
+    st = wing[0].stations[0]
+    _, _, want_fz = to_force(0.0, 0.0, st.sz, u)
     assert not closes(sols[a].reactions[sb._ROOT_GID][2], -want_fz,
                       scale=abs(want_fz))
 

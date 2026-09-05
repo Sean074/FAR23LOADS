@@ -80,7 +80,7 @@ def _headers(doc: ReportDocument) -> str:
         r"\fancyhf{}",
         f"\\fancyhead[L]{{\\small {left}}}",
         f"\\fancyhead[R]{{\\small {right}}}",
-        r"\fancyfoot[L]{\small ULTIMATE loads --- SF stated per case}",
+        r"\fancyfoot[L]{\small LIMIT loads --- SF stated per case, applied nowhere}",
         r"\fancyfoot[R]{\small Page \thepage\ of \pageref{LastPage}}",
         r"\renewcommand{\headrulewidth}{0.4pt}",
         r"\renewcommand{\footrulewidth}{0.4pt}",

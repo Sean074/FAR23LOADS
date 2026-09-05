@@ -185,18 +185,27 @@ def test_load_case_owns_sf_and_speed_range():
     assert vc.v_lo_kt <= vc.v_hi_kt and vd.v_lo_kt <= vd.v_hi_kt  # VMC floor <= ceiling
 
 
-def test_rendered_loads_are_ultimate_with_correct_sf():
-    """The rendered deliverable carries the -ULT marker and each case's SF: the VC
-    ultimate case at SF 1.0, the VD/VS limit cases at SF 1.5 (M1-5)."""
+def test_rendered_loads_are_limit_and_each_case_states_its_sf():
+    """Each case's SF: the VC ultimate case at 1.0, the VD/VS limit cases at 1.5
+    (M1-5).
+
+    **This is note 49 OR-118a's worked example.** One-engine-out is a *mixed*
+    table -- VC is computed already ultimate (23.367(a)(2), SF = 1.0) while VD
+    and VS are limit at 1.5 -- so its shared column headers cannot state a
+    single basis and are plain. The distinction is carried per row by the ``SF``
+    cell, which is the job OR-116 gives that column: ``SF = 1.0`` reads "already
+    ultimate, apply nothing further", anything else "limit, apply this in
+    sizing". A header marked ``-ULT`` here would have claimed the VD and VS rows
+    were ultimate too.
+    """
     from sloads import report
     p = _twin()
     rows = {r["Condition"]: r for r in report.load_cases_to_rows(oeo.run(p).conditions)}
     vc = rows["one engine out — VC (ultimate)"]
     vd = rows["one engine out — VD (limit)"]
     assert vc["SF"] == "1" and vd["SF"] == "1.5"
-    # Load columns carry the ULTIMATE marker in their units string, not a bare limit load.
     load_cols = [k for k in vc if "load" in k.lower() or "moment" in k.lower() or "Thrust" in k]
-    assert load_cols and all("-ULT" in k for k in load_cols)
+    assert load_cols and not any("-ULT" in k for k in load_cols)
 
 
 def test_time_history_matches_case():

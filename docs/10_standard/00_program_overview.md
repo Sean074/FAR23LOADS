@@ -214,17 +214,22 @@ in the calc's internal Imperial units:
 The standard for the summary report's application of this rule is
 [`SUMMARY_REPORT.md`](SUMMARY_REPORT.md) §3.5.
 
-### Loads are ULTIMATE (mandatory)
+### Loads are LIMIT, and every artifact says so (mandatory)
 
-**All deliverable load output is ULTIMATE** — every force/moment/pressure in a
-deliverable (the `report.py` tables/text, the load-case CSV, the sbeam export, the
-Review/Export pages) is `ultimate = limit × SF`, never a bare limit load. The calc
-layer itself stays LIMIT (oracle-lock); the factor is applied once at the
-render/export boundary. **Exception:** a per-module *analysis* page may show the
-calc's LIMIT values (the oracle-traceable numbers) **only when explicitly marked
-`LIMIT`** — a caption plus a `LIMIT` marker on each load column/metric — and it
-points to the ultimate deliverables. Today that covers `flap_loads`, `tab_loads`,
-`one_engine_out` and the `balanced_tail_verification` check tool.
+**Every load sloads delivers is LIMIT** — every force/moment/pressure in every
+deliverable (the `report.py` tables/text, the load-case CSV, both reports, the
+sbeam export, the Review/Export pages) is the calc's own value. The 14 CFR 23.303
+safety factor is **stated per case and applied nowhere**, including in the
+exported deck; the sizing analysis applies it (design note 49 OR-116/OR-117).
+**No path in `sloads/` may multiply a load by a safety factor** — G-OR-71 scans
+the tree, and G-OR-73/G-OR-74 hold every deck and every rendered document to
+stating the factor they did not apply. The `-ULT` marker survives only on a load
+the regulation prescribes already ultimate (23.367(a)(2), 23.561(b)).
+
+Load quantities carry **plain units** (`lbs`, `ft-lb`, `lb-in`, `lb/in²`; `N`,
+`Nm`, `Nmm`, `kPa`). The `-ULT`-marked forms below are reserved for the two
+already-ultimate families, and are rare enough to be conspicuous — which is the
+whole purpose of a marker:
 
 | Load quantity | Imperial (canonical) | SI (presentation) |
 |---------------|----------------------|-------------------|
@@ -239,10 +244,11 @@ decided at the case: it is read from the **governing safety-factor table**
 (`sloads/safety_factors.py`, M4-8 / G-11), one row per condition family, which the
 report states as a numbered section and the bundle ships as
 `<project>_safety_factors.csv`. A quantity already
-at ultimate — or an inherently-limit value reported as-ultimate with no
-amplification — is `ULT SF=1.0`. Non-load quantities (weights, lengths, inertias,
-areas, speeds, angles, dimensionless load factors) are **not** scaled and carry
-plain units with no `-ULT` suffix.
+at ultimate — 23.367(a)(2) sudden engine stoppage and 23.561(b) emergency-landing
+inertia, the only ultimate loads left in the project — is `ULT SF=1.0` and asks for
+nothing further. Non-load quantities (weights, lengths, inertias, areas, speeds,
+angles, dimensionless load factors) take no factor at all and carry plain units
+with no `-ULT` suffix.
 
 ---
 

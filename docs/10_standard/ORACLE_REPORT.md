@@ -230,9 +230,10 @@ Properties, 2.3 Structural Design Speeds, 2.4 Flight Envelope.
 - **Section 2 states no load in force or moment units.** Its load factors *are*
   loads — n is a limit load factor — but they are dimensionless and LIMIT, so no
   value in section 2 **SHALL** be scaled to ultimate or carry the `-ULT` marker,
-  and no table **SHALL** state a safety factor. Values still pass through
-  `report.render.to_ultimate` / `ultimate_units` rather than being formatted by
-  hand, so the section never decides what a load is.
+  and no table **SHALL** state a safety factor. Values still pass through the
+  shared render owners rather than being formatted by hand, so the section never
+  decides what a load is. (`to_ultimate` was one of those owners and was deleted
+  by OR-116; `ultimate_units` survives for the two already-ultimate families.)
 - **No table note SHALL claim that load factors are not loads** (owner,
   2026-08-30). An earlier draft carried exactly that under every table; it is
   wrong, and it was removed rather than reworded. Where a load factor is
@@ -411,10 +412,14 @@ and one appendix, built from the `wing_loads` step
   summed from the tip inboard.
 - **The cases 3.2, 3.3, 3.4 and the appendix state SHALL be one set**, in one
   order: four projections of the same analysis.
-- **Every load in section 3 and its appendix is ULTIMATE and marked**; every
-  input distribution is LIMIT and says so. This is where G-OR-4 stops being
-  vacuous — section 2 held it by carrying no force or moment at all (OR-44),
-  and section 3 holds it only by marking every one of them.
+- **Every load in section 3 and its appendix is LIMIT, with the safety factor
+  stated per case and applied nowhere** (OR-89, then OR-116 for the whole
+  project). It is not marked `-ULT`: under OR-118 that marker is reserved for the
+  two families the regulation prescribes already ultimate. This is what makes the
+  section readable against Appendix A at all — the printed oracle is a *limit*
+  oracle, and while §3 rendered ultimate it printed 1.5× the manual's figures
+  with nothing to catch it, because the oracle tests compare at calc level and
+  never cross the render boundary.
 - **3.2 owns the notation and the derivation.** It **SHALL** carry a symbol
   table giving, for every symbol section 3 or its appendix prints, the quantity,
   its units, and **whether it is an applied increment or a cumulative load** —
@@ -626,8 +631,8 @@ without a guard is prose, not a gate).
 | 3.1 Loads reference axis and wing inputs | 2026-09-01 | `test_oracle_report.py::test_every_wing_torsion_names_the_axis_it_is_stated_about`, `::test_the_reference_axis_is_drawn_open_on_a_closed_planform`, `::test_the_span_load_is_drawn_at_zero_unit_and_the_airplanes_own_clmax`, `::test_the_span_load_curves_are_airloads_own_distribution`, `::test_a_project_with_no_flaps_down_set_says_so_and_draws_nothing` |
 | 3.2 Load-factor sign and envelope coverage (OR-58) | 2026-09-03 | `test_oracle_report.py::test_the_register_states_what_the_sign_of_a_load_factor_means`, `::test_a_case_set_with_no_negative_load_factor_says_it_does_not_envelop` |
 | 3.2 Case-list provenance (OR-57) | 2026-09-03 | `test_oracle_report.py::test_the_register_states_the_matrix_the_selection_actually_searched`, `::test_an_entered_wing_case_list_is_not_reported_as_the_selections_result`, `::test_a_project_that_enters_no_wing_cases_reports_the_selections_own_result` |
-| 3.2-3.4 Cases, root loads and distributions | 2026-09-01 | `test_oracle_report.py::test_the_wing_cases_are_one_set_seen_four_ways`, `::test_the_wing_root_loads_are_the_limit_result_times_the_case_factor`, `::test_a_project_with_no_wing_loads_states_the_absence_and_still_builds` |
-| Section 3 delivers ULTIMATE; inputs stated LIMIT | 2026-09-01 | `test_oracle_report.py::test_every_load_the_wing_section_prints_is_marked_ultimate` |
+| 3.2-3.4 Cases, root loads and distributions | 2026-09-01 | `test_oracle_report.py::test_the_wing_cases_are_one_set_seen_four_ways`, `::test_the_wing_root_loads_are_the_limit_result_with_the_factor_stated`, `::test_a_project_with_no_wing_loads_states_the_absence_and_still_builds` |
+| Section 3 delivers LIMIT with the factor stated (OR-89/OR-116; was ULTIMATE) | 2026-09-05 | `test_oracle_report.py::test_no_load_the_wing_section_prints_is_marked_ultimate` |
 | 3.2 Notation and the cumulative-load derivation (OR-62) | 2026-09-03 | `test_oracle_report.py::test_section_three_defines_every_symbol_its_tables_use`, `::test_section_three_states_how_the_cumulative_loads_are_built`, `::test_the_point_mass_rule_is_stated_only_where_there_is_one` |
 | Appendix B: applied set and carried set (OR-59, OR-60) | 2026-09-03 | `test_oracle_report.py::test_the_appendix_separates_the_applied_loads_from_the_carried_ones`, `::test_the_applied_table_carries_the_point_every_load_acts_at`, `::test_the_appendix_subsections_are_lettered_from_their_parent` |
 | Appendix B: concentrated masses and closure (OR-59, G-OR-29) | 2026-09-03 | `test_oracle_report.py::test_every_concentrated_wing_mass_is_a_row_of_the_applied_table`, `test_net_loads.py::test_the_applied_strip_set_reproduces_the_cumulative_loads`, `::test_a_concentrated_wing_mass_is_published_as_its_own_applied_load`, `::test_the_axis_transfer_moves_the_free_moment_on_its_own_force` |

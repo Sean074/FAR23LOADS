@@ -1280,7 +1280,7 @@ def test_the_deck_balances_from_its_own_cards(example, system):
         cg = _ref_of(case)
         ref = (cg.xcg * u.length.factor, 0.0, cg.zcg * u.length.factor)
         got = resultant(forces, moments, grids, sid, ref)
-        n_w = case.n_w * case.safety_factor * u.force.factor
+        n_w = case.n_w * u.force.factor
         n_w_mac = n_w * case.mac * u.length.factor
         n_w_span = n_w * case.semi_span * u.length.factor
         assert n_w_span > 0.0, f"{example}: no semi-span to judge roll/yaw by"
@@ -1336,7 +1336,7 @@ def test_the_lateral_half_of_the_deck_gate_has_teeth():
     cg = _ref_of(case)
     grids, _, _, forces, moments = parse_cards("\n".join(lines) + "\n")
     got = resultant(forces, moments, grids, sid, (cg.xcg, 0.0, cg.zcg))
-    n_w = case.n_w * case.safety_factor
+    n_w = case.n_w
 
     # The three the gate always had: blind to it.
     assert abs(got.fx) < 1e-5 * n_w

@@ -261,6 +261,80 @@ def test_a_design_note_does_not_claim_unbuilt_work_it_has_shipped(note):
     )
 
 
+# --------------------------------------------------------------------------- #
+# A standard doc's conformance table must name tests that exist
+# --------------------------------------------------------------------------- #
+#: How a standard doc cites a test: ``file.py::test_name`` for the first of a
+#: group and a bare ``::test_name`` for each one after it, which is the shorthand
+#: the conformance tables actually use.
+_TEST_CITE = re.compile(r"`(?:tests/)?(test_[a-z0-9_]+\.py)::(test_[a-z0-9_]+)`")
+_TEST_CITE_SHORT = re.compile(r"`::(test_[a-z0-9_]+)`")
+
+
+def _defined_tests():
+    """``{file: {test names}}`` across ``tests/``, plus the flat union."""
+    by_file, every = {}, set()
+    tests_dir = os.path.join(_ROOT, "tests")
+    for name in sorted(os.listdir(tests_dir)):
+        if not (name.startswith("test_") and name.endswith(".py")):
+            continue
+        with open(os.path.join(tests_dir, name), encoding="utf-8") as fh:
+            found = set(re.findall(r"^def (test_\w+)", fh.read(), re.M))
+        by_file[name] = found
+        every |= found
+    return by_file, every
+
+
+@pytest.mark.parametrize("rel", _STANDARD_DOCS)
+def test_every_test_a_standard_doc_cites_exists(rel):
+    """A conformance row that names a deleted test asserts nothing.
+
+    Found by hand on 2026-09-05: `ORACLE_REPORT.md`'s conformance table still
+    named ``test_every_load_the_wing_section_prints_is_marked_ultimate`` and
+    ``test_the_wing_root_loads_are_the_limit_result_times_the_case_factor`` after
+    note 49 OR-116 renamed both -- so two rows claiming the report's load basis
+    was gated pointed at nothing at all. A conformance table is a promise that
+    something checks the row; a dead name is that promise silently withdrawn,
+    and renaming a test is exactly when it happens.
+
+    Only the two citation forms the tables use are matched, and a name that is
+    not a test is not a citation -- so this cannot be satisfied or broken by
+    prose that merely mentions a function.
+    """
+    by_file, every = _defined_tests()
+    path = os.path.join(_ROOT, rel)
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    dead = []
+    for file_name, test in _TEST_CITE.findall(text):
+        if file_name not in by_file:
+            dead.append(f"{file_name}::{test} (no such test file)")
+        elif test not in by_file[file_name]:
+            dead.append(f"{file_name}::{test}")
+    for test in _TEST_CITE_SHORT.findall(text):
+        # The short form names no file, so it is satisfied by any test file --
+        # which is the right strictness: it is shorthand for "another test in the
+        # group above", and pinning it to a file would break on a legitimate move.
+        if test not in every:
+            dead.append(f"::{test}")
+    assert not dead, (
+        f"{rel} cites test(s) that no longer exist: {dead}. A conformance row "
+        f"naming a deleted test claims a gate that is not there.")
+
+
+def test_the_citation_guard_would_catch_a_renamed_test():
+    """The guard's teeth: the exact pair it was written for, and the two forms."""
+    _by_file, every = _defined_tests()
+    assert "test_no_load_the_wing_section_prints_is_marked_ultimate" in every
+    assert "test_every_load_the_wing_section_prints_is_marked_ultimate" not in every
+    assert _TEST_CITE.findall("see `test_oracle_report.py::test_a_thing`") == [
+        ("test_oracle_report.py", "test_a_thing")]
+    assert _TEST_CITE_SHORT.findall("and `::test_another_thing`") == [
+        "test_another_thing"]
+    # prose naming a non-test function is not a citation
+    assert not _TEST_CITE_SHORT.findall("`::build_report`")
+
+
 def test_the_unbuilt_guard_would_catch_the_two_it_was_written_for():
     """A guard whose pattern no longer matches its own founding instances is a
     guard that passes because it sees nothing. These are the exact sentences

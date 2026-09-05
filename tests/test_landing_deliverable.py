@@ -490,7 +490,9 @@ def test_the_delivered_csv_states_its_frame_and_its_application_point():
         result = _landing_result(_project(name))
         rows = list(_csv.DictReader(_io.StringIO(io.load_cases_csv(result))))
         assert "Frame" in rows[0] and "Applied at" in rows[0], sorted(rows[0])
-        forces = [r for r in rows if r["Units"].startswith("lbs-")
+        # Plain "lb" since note 49 OR-116; the ``lbs-ULT`` spelling this used
+        # to match belonged to the retired ultimate vocabulary.
+        forces = [r for r in rows if r["Units"].startswith("lb")
                   and " F" in r["Quantity"]]
         assert len(forces) >= 33 * 3 * 3, (name, len(forces))
         for row in forces:
