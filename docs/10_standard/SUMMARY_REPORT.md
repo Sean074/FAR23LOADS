@@ -294,6 +294,16 @@ rather than as a fault.
 - **Approved corrections** — every deliberate deviation from the source manual in
   force for this run, with its citation, per
   [`../20_theory/02_approved_corrections.md`](../20_theory/02_approved_corrections.md).
+  **Every entry of that register's `## Register` section, and only those** —
+  `report.methods.APPROVED_CORRECTIONS` is its one-line-per-entry export form and
+  `tests/test_methods_stamp.py::test_statement_lists_every_approved_correction`
+  reads the register itself to hold the two in step, so an approved correction
+  cannot reach an analyst undeclared and a withdrawn or declined one cannot reach
+  them declared. Each entry's **reference is the governing FAR paragraph where a
+  single paragraph governs, and the source program otherwise** — three entries
+  deviate from the manual's own arithmetic rather than from a regulation, and two
+  span several paragraphs, so a FAR-shaped reference on those would state a scope
+  narrower than the correction; the range is stated in the correction's own text.
 
 ### 4.5 Results summary (required)
 

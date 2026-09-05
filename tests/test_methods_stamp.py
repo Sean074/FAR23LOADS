@@ -107,12 +107,89 @@ def test_statement_states_ultimate_and_the_default_factor():
     assert "1.5" in text and "23.303" in text
 
 
+#: The register of record. The guard below reads it rather than trusting the
+#: tuple, so this path is part of the contract.
+_REGISTER = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "docs", "20_theory", "02_approved_corrections.md",
+)
+
+
+def _register_headings(state):
+    """``### `` headings under one ``## `` section of the register, suffix stripped.
+
+    ``state`` is the section heading to read ("Register", "Considered and
+    declined"). Parsing stops at the next ``## `` so that a *withdrawn* or
+    *declined* entry can never be mistaken for an approved one -- which is the
+    whole reason the register keeps them in separate sections.
+    """
+    out, inside = [], False
+    with open(_REGISTER, encoding="utf-8") as fh:
+        for line in fh:
+            if line.startswith("## "):
+                inside = line[3:].strip() == state
+                continue
+            if inside and line.startswith("### "):
+                title = line[4:].strip()
+                # Drop the trailing "*(approved 2026-08-17, issue #26)*" suffix:
+                # the approval date is register metadata, not part of the entry's
+                # identity, and pinning it here would make every re-approval a
+                # code edit.
+                out.append(title.split(" *(")[0].strip())
+    return out
+
+
 def test_statement_lists_every_approved_correction():
     """A deviation from the source manual that is not declared is invisible to the
-    analyst — which defeats the point of approving it in the open."""
+    analyst — which defeats the point of approving it in the open.
+
+    Checked against **the register**, not against the tuple the statement is
+    rendered from. The previous form of this test looped over
+    ``APPROVED_CORRECTIONS`` and asserted each key appeared in the text built out
+    of it — circular, and blind to the four entries that were missing from the
+    tuple for up to three weeks (2026-09-04 review R-3, issue #174). The register
+    is the authority ``CLAUDE.md`` names, so the register is what the guard reads.
+    """
+    declared = [heading for heading, _, _ in APPROVED_CORRECTIONS]
+    approved = _register_headings("Register")
+
+    assert approved, "no ### entries parsed from the register's Register section"
+    missing = [h for h in approved if h not in declared]
+    assert not missing, (
+        "approved correction(s) in the register but NOT declared in "
+        "report/methods.APPROVED_CORRECTIONS, so they are invisible to every "
+        f"analyst reading a stamped CSV, deck or report: {missing}"
+    )
+    extra = [h for h in declared if h not in approved]
+    assert not extra, (
+        "APPROVED_CORRECTIONS declares entries the register does not approve "
+        f"under '## Register': {extra}"
+    )
+    assert declared == approved, (
+        "the statement lists the approved corrections in a different order from "
+        "the register; keep both in the register's own (chronological) order"
+    )
+
+    # ...and every declared entry actually reaches the deliverable.
     text = methods_statement(_project(_GA))
-    for far, _ in APPROVED_CORRECTIONS:
-        assert far in text, far
+    for _, label, body in APPROVED_CORRECTIONS:
+        assert f"  {label}: " in text, label
+        assert body in text, label
+
+
+def test_the_statement_declares_no_correction_the_register_declined():
+    """The inverse drift, which the equality above cannot catch on its own.
+
+    The register keeps *Withdrawn from scope* and *Considered and declined* as
+    separate sections precisely because those are things sloads does **not** do.
+    A heading that migrates from one of them into the statement would advertise a
+    deviation the owner refused — worse than an undeclared one, because it is a
+    false claim rather than a silent omission.
+    """
+    declared = {heading for heading, _, _ in APPROVED_CORRECTIONS}
+    for state in ("Withdrawn from scope", "Considered and declined"):
+        for heading in _register_headings(state):
+            assert heading not in declared, (heading, state)
 
 
 # --------------------------------------------------------------------------- #

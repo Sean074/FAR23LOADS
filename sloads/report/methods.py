@@ -69,19 +69,72 @@ STANDING_DISCLAIMER = (
     "judgement."
 )
 
-#: The three approved deviations from McMaster's manual, with their citations.
+#: The approved deviations from McMaster's manual, with their citations.
 #: The authoritative register is ``docs/20_theory/02_approved_corrections.md``;
 #: this is its one-line-per-entry export form. Keep the two in step -- a
 #: correction that is not declared here is invisible to the analyst reading the
-#: deliverable, which is the whole point of declaring it.
+#: deliverable, which is the whole point of declaring it. Kept in the register's
+#: own order, which is chronological by approval.
+#:
+#: ``(register_heading, label, text)``. The first field is the register entry's
+#: ``###`` heading, verbatim and up to the ``*(approved ...)*`` suffix; it never
+#: prints. It exists so ``tests/test_methods_stamp.py`` can check this tuple
+#: against the register **itself** rather than against the statement rendered
+#: from it -- the guard was previously circular and could not see four missing
+#: entries (2026-09-04 review R-3, issue #174).
+#:
+#: ``label`` opens the printed line. It is the **FAR reference where a single
+#: regulation governs the deviation, and the source program otherwise** (owner
+#: ruling 2026-09-05): three of the seven entries deviate from the manual's own
+#: arithmetic rather than from a regulation, and the LANDLOAD pair each span
+#: several, so a FAR-shaped label there would assert a scope narrower than the
+#: correction. The FAR range is stated inside the text, where it can be a range.
 APPROVED_CORRECTIONS = (
-    ("23.361(a)(1)", "Takeoff-torque factor: the mean-torque factor is applied to the "
-                     "takeoff case too, per AC 23-19A / Amdt 23-45; the manual prints "
-                     "the pre-amendment unfactored value."),
-    ("23.361(a)(3)", "Turboprop-malfunction case uses the mean-torque factor rather "
-                     "than the manual's unfactored torque."),
-    ("23.427(a)", "Unsymmetrical-tail search restores the full SELECT.BAS candidate "
-                  "set, including the two conditions the printed listing omits."),
+    ("23.361(a)(1) takeoff-torque factor",
+     "23.361(a)(1)",
+     "Takeoff-torque factor: the mean-torque factor is applied to the "
+     "takeoff case too, per AC 23-19A / Amdt 23-45; the manual prints "
+     "the pre-amendment unfactored value."),
+    ("23.361(a)(3) turboprop-malfunction mean-torque factor",
+     "23.361(a)(3)",
+     "Turboprop-malfunction case uses the mean-torque factor rather "
+     "than the manual's unfactored torque."),
+    ("23.427(a) unsymmetrical-tail candidate set",
+     "23.427(a)",
+     "Unsymmetrical-tail search restores the full SELECT.BAS candidate "
+     "set, including the two conditions the printed listing omits."),
+    ("Truncated `.BAS` constants go exact; the surviving `*_SUITE` twin",
+     "CONSTANTS",
+     "Shared constants the source truncated -- 57.3 deg/rad, 32.2 for g, "
+     "the V^2/295 dynamic-pressure divisor, 1.15*88/60 for kt->ft/s and "
+     "FLTLOADS' private speed of sound -- read their exact owners. No "
+     "page-cited oracle moves; q falls 0.08% uniformly. One survivor: "
+     "the suite kt->ft/s factor is kept for VSF alone, because the "
+     "ENGLOADS gyro-thrust oracle prints its truncated form."),
+    ("LANDLOAD's `BETA` carries the wrong sign on attitudes 2 and 3",
+     "LANDLOAD",
+     "The landing-gear resultant angle BETA is (GAMMA - ground angle) on "
+     "every attitude, per the manual's own construction figures; the "
+     "source writes +ground angle on attitudes 2 and 3, which moves the "
+     "lever arms and the reaction directions of the level-landing and "
+     "braked-roll cases (23.479(a), 23.493)."),
+    ("LANDLOAD's airplane-datum lift term and moment transform carry the same "
+     "wrong sign",
+     "LANDLOAD",
+     "The airplane-datum wing-lift term and the roll/yaw moment transform "
+     "are rotated through the case's own measured ground angle rather "
+     "than the source's longhand +ground angle, which put the lift's body "
+     "drag component aft and rotated moments opposite to the forces they "
+     "act with (23.479-23.483)."),
+    ("WINGGEOM's strip sum goes closed-form",
+     "WINGGEOM",
+     "Surface area, MAC and the two first moments are integrated in "
+     "closed form from the entered leading- and trailing-edge polylines, "
+     "not summed over a strip count the manual never prints. Every "
+     "Appendix A surface lands within 0.084%; the printed wing figures "
+     "are matched less closely than by the manual's own 20-strip sum, "
+     "because the entered planform is the input and the printed derived "
+     "values carry WINGGEOM's own discretisation error."),
 )
 
 #: Limitations that hold for every run, regardless of project content, as
@@ -485,7 +538,7 @@ def methods_statement(
 
     # 5. Approved corrections ------------------------------------------------ #
     L.append("APPROVED CORRECTIONS (deliberate, documented deviations from the source manual):")
-    L.extend(f"  {far}: {text}" for far, text in APPROVED_CORRECTIONS)
+    L.extend(f"  {label}: {text}" for _, label, text in APPROVED_CORRECTIONS)
     L.append("")
 
     # 6. Known limitations --------------------------------------------------- #

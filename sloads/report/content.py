@@ -1473,11 +1473,17 @@ def _section_conditions(project: Project, module_results, comps: ComponentLoads,
             _balanced_skips_table(run),
             Table(
                 title="Approved corrections to the source manual",
-                columns=["FAR", "Correction"],
-                rows=[[far, text] for far, text in APPROVED_CORRECTIONS],
+                # "Reference", not "FAR": three of the register's entries deviate
+                # from the manual's own arithmetic rather than from a regulation,
+                # and two span several, so the column carries the source program
+                # where no single FAR governs (issue #174).
+                columns=["Reference", "Correction"],
+                rows=[[label, text] for _, label, text in APPROVED_CORRECTIONS],
                 note="Deliberate, documented deviations from McMaster's printed "
                      "manual, each approved and cited in the project's register of "
-                     "approved corrections.",
+                     "approved corrections. The reference is the governing FAR "
+                     "paragraph where one governs, and the source program "
+                     "otherwise.",
             ),
         ],
     )
