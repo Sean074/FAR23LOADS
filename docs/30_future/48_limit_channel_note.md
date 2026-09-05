@@ -457,7 +457,7 @@ shaped to fit it.
 - **Mean takeoff torque is factored** (§1.2), 554.4 → 831.6 ft-lb, because
   `_is_load_unit` tests the unit alone. With OR-76 in place the exposure shrinks
   to case selection and the export, where it may not arise at all. Filed with a
-  body; scoped to those two surfaces. Not folded in here: it is a question about
+  body as **#170**; scoped to those two surfaces. Not folded in here: it is a question about
   what a load *is*, and answering it inside a channel change would hide it.
 - **The report's §3 load tables print 1.5× the printed oracle.** Appendix A is a
   LIMIT oracle; the oracle tests compare at calc level and never cross the render
@@ -468,7 +468,7 @@ shaped to fit it.
 - **`examples/ga6_normal.project.json` and `examples/concept_regional_jet.project.json`
   are stored at 1-space JSON indent** while `io.save_project` writes `indent=2`,
   so any programmatic re-stamp reformats them wholesale. Tier-S sweep, carried
-  over from #169.
+  over from #169; filed as **#171**.
 
 ---
 
