@@ -392,7 +392,8 @@ def _units_caption() -> str:
     return (
         f"Every file below is written in **{name}** — {sets}. Airspeed stays KEAS "
         "and altitude stays ft in both systems. Change it with the Imperial/SI "
-        "toggle in the sidebar; loads are ULTIMATE in every export."
+        "toggle in the sidebar. Loads are **LIMIT** in every export, each "
+        "stating the 14 CFR 23.303 factor it does not apply."
     )
 
 
@@ -473,8 +474,9 @@ c3.download_button(
 st.header("Summary report")
 st.caption(
     "The controlling document of this deliverable: the airplane, its envelope, "
-    "the FAR conditions analysed and every governing **ULTIMATE** load with its "
-    "safety factor, plus the methods & limitations statement and a manifest of "
+    "the FAR conditions analysed and every governing **LIMIT** load with the "
+    "safety factor it states and does not apply, plus the methods & limitations "
+    "statement and a manifest of "
     "the files above. The LaTeX source is the primary artifact and always "
     "downloads; the PDF is compiled here when a TeX engine is available."
 )

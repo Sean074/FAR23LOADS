@@ -222,8 +222,8 @@ sbeam export, the Review/Export pages) is the calc's own value. The 14 CFR 23.30
 safety factor is **stated per case and applied nowhere**, including in the
 exported deck; the sizing analysis applies it (design note 49 OR-116/OR-117).
 **No path in `sloads/` may multiply a load by a safety factor** — G-OR-71 scans
-the tree, and G-OR-73/G-OR-74 hold every deck and every rendered document to
-stating the factor they did not apply. The `-ULT` marker survives only on a load
+the tree, and G-OR-73/G-OR-74 hold every deck, every rendered document and
+every on-screen GUI string to stating the factor they did not apply. The `-ULT` marker survives only on a load
 the regulation prescribes already ultimate (23.367(a)(2), 23.561(b)).
 
 Load quantities carry **plain units** (`lbs`, `ft-lb`, `lb-in`, `lb/in²`; `N`,

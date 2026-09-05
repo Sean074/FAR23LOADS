@@ -117,8 +117,10 @@ except (ValueError, ZeroDivisionError) as exc:
 
 st.subheader("Maximum tail loads by speed")
 st.caption(
-    "On-screen loads are **LIMIT** (oracle values, traceable to the manual). The "
-    "**Review/Export** pages report **ULTIMATE** = limit × 1.5 (14 CFR 23.303)."
+    "On-screen loads are **LIMIT** (oracle values, traceable to the manual). "
+    "So is every load on the **Review/Export** pages: they state the 14 CFR "
+    "23.303 factor per case and apply it nowhere — apply it in the sizing "
+    "analysis."
 )
 force_u = "N" if system == UnitSystem.SI else "lb"
 display_conditions = convert_results(mod.conditions, system)

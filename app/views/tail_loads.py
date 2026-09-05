@@ -116,8 +116,9 @@ else:
 
     st.subheader("Chordwise distribution table")
     st.caption(
-        "Pressures shown are **LIMIT** (oracle-traceable). ULTIMATE deliverables "
-        "come from the **Review/Export** pages."
+        "Pressures shown are **LIMIT** (oracle-traceable), and so is everything "
+        "the **Review/Export** pages deliver: each states the 14 CFR 23.303 "
+        "factor and applies it nowhere."
     )
     # The table and the LIMIT download are the same converted, unit-suffixed
     # rows (L-8i -- ``limit_csv`` owns both); ``results`` themselves stay
@@ -149,8 +150,9 @@ else:
     else:
         st.caption(
             "Balance-check tool: the loads shown are **LIMIT** (oracle values, "
-            "traceable to the manual). The deliverable **ULTIMATE** loads "
-            "(= limit × 1.5, 14 CFR 23.303) come from the **Review/Export** pages."
+            "traceable to the manual), and so are the deliverables on the "
+            "**Review/Export** pages — each states the 14 CFR 23.303 factor and "
+            "applies it nowhere."
         )
         up = max(bal_rows, key=lambda r: r["LT"])
         dn = min(bal_rows, key=lambda r: r["LT"])

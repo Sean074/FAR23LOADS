@@ -9,7 +9,7 @@ axis: the per-station shear, bending and torsion a beam model is sized from, and
 the table the empennage deck is written from.
 
 Displayed **LIMIT**, per the CLAUDE.md analysis-page carve-out, and marked as
-such; the ULTIMATE deliverable is the deck on the Export page.
+such; the deck on the Export page is the deliverable, and is LIMIT too.
 """
 
 from __future__ import annotations
@@ -195,7 +195,8 @@ st.caption(
     f"Torsion is stated about **{results[0].torsion_axis}** — every torsion names "
     "its axis. `RH×`/`LH×` are the per-side shares: equal except under FAR "
     "23.427(a), the unsymmetrical condition, where they are SELECT's own split. "
-    "Values are **LIMIT**; the exported deck is ULTIMATE."
+    "Values are **LIMIT** — as is the exported deck, which states the 14 CFR "
+    "23.303 factor per subcase and applies it nowhere."
 )
 
 # --------------------------------------------------------------------------- #
@@ -319,7 +320,7 @@ st.download_button("Download spanwise tail loads (CSV)", _buf.getvalue(),
                    key="dl_tail_span")
 st.caption(
     "Converted to the selected unit system with unit-suffixed headers, and marked "
-    "**LIMIT** — the ULTIMATE `FORCE`/`MOMENT` deck is on the **Export** page."
+    "**LIMIT** — as is the `FORCE`/`MOMENT` deck on the **Export** page."
 )
 if planform is not None and planform.assumed:
     st.caption("Planform: **derived rectangle** — see the note above.")

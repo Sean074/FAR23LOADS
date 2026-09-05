@@ -515,8 +515,10 @@ m3.metric("Torque factor", f"{calc.torque_factor(inp):g}")
 
 st.caption(
     "Load-case values below are **LIMIT** (oracle values, traceable to the "
-    "manual). The **Review/Export** pages report **ULTIMATE** = limit × 1.5 "
-    "(14 CFR 23.303)."
+    "manual). So is every load on the **Review/Export** pages: they state the "
+    "14 CFR 23.303 factor per case and apply it nowhere — apply it in the "
+    "sizing analysis. The 23.367(a)(2) sudden-stoppage torque is the one "
+    "family the regulation prescribes ALREADY ULTIMATE (`SF=1.0`)."
 )
 for r in conditions:
     with st.expander(f"FAR {r.far_reference} — {r.title}", expanded=True):

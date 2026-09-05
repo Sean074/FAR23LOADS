@@ -368,7 +368,10 @@ conventions"** section (`SUMMARY_REPORT.md` §4.2.1), single-sourced in
   That statement is the obligation which *replaces* the multiply, and it is
   gated: **G-OR-73** (`tests/test_deck_basis.py`) holds every deck and its
   companion document to it, and **G-OR-74** (`tests/test_basis_statements.py`)
-  holds every rendered document to the same claim.
+  holds every rendered document **and every string the GUI puts on screen** to
+  the same claim — captions, headers and download-button labels alike, swept
+  from the `app/` and `app_shell/` sources rather than driven through
+  Streamlit, so no page can escape by having an unvisited branch (#192).
 - **No path in `sloads/` multiplies a load by a safety factor** — **G-OR-71**,
   a scan over the whole tree (`tests/test_limit_channel.py`). The structural form
   of the rule, because prose could not hold it: the multiply came out of 81 sites

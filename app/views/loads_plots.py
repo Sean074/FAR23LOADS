@@ -67,9 +67,9 @@ _WING_TORSION_AXIS = torsion_axis_label(_LRA)
 
 st.caption(
     "Consolidated multi-case overlays over the distributed loads already computed "
-    "on the Analysis pages. Values shown are **LIMIT** (oracle-traceable); the "
-    "deliverable **ULTIMATE** loads (= limit × safety factor, 14 CFR 23.303) come "
-    "from the **Review/Export** pages. Wing torsion Myy is stated about the "
+    "on the Analysis pages. Values shown are **LIMIT** (oracle-traceable), and "
+    "so is every load this tool delivers: the **Review/Export** pages state the "
+    "14 CFR 23.303 factor per case and apply it nowhere. Wing torsion Myy is stated about the "
     f"**{_WING_TORSION_AXIS}** (the wing's loads reference axis, set on the "
     "Geometry page); the envelope traces are the two-sided pointwise max/min "
     "across the selected cases."

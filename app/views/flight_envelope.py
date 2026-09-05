@@ -382,9 +382,10 @@ def _tab_select() -> None:
     st.caption(
         "SELECT searches the balanced V-n matrix for the governing wing, horizontal-"
         "tail, vertical-tail and fuselage loads (FAR 23.301/23.331/23.333/23.421/"
-        "23.423/23.425/23.427/23.441/23.443). Load columns are **ULTIMATE** (limit × SF), "
-        "marked `-ULT`; the `SF` column states the factor. Dimensionless/speed columns "
-        "(n, CL, V) are unscaled and unmarked."
+        "23.423/23.425/23.427/23.441/23.443). Load columns are **LIMIT**; the `SF` "
+        "column states the 14 CFR 23.303 factor this tool applies nowhere. The "
+        "`-ULT` marker appears only on a load the regulation already prescribes "
+        "ultimate. Dimensionless/speed columns (n, CL, V) carry no factor."
     )
     if project.is_concept:
         st.warning("Concept category (C): critical loads are an **unverified "
@@ -515,8 +516,9 @@ def _tab_trim() -> None:
         "Balancing horizontal-tail load at 1-g trim (FLTLOADS **BAL A/C/D**) swept "
         "across the CG range, and the tail-volume static margin. Tail loads on this "
         "tab are **LIMIT** — the oracle-traceable balance values an engineer checks "
-        "against the manual. The **ULTIMATE** tail loads used for sizing are on the "
-        "**Critical Loads** tab, the Results Review page and the exports. Values are "
+        "against the manual. The tail loads used for sizing are on the "
+        "**Critical Loads** tab, the Results Review page and the exports — LIMIT "
+        "as well, each stating the 14 CFR 23.303 factor it does not apply. Values are "
         "Imperial (in, lb), matching the balanced-conditions table."
     )
 

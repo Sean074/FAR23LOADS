@@ -40,9 +40,11 @@ system: UnitSystem = active_system()
 # --------------------------------------------------------------------------- #
 st.header("Governing loads (SELECT)")
 st.caption(
-    "Load columns are **ULTIMATE** (limit × SF), marked `-ULT` in the header; the "
-    "`SF` column states the factor. Dimensionless/speed columns (n, CL, V) are "
-    "unscaled and unmarked."
+    "Load columns are **LIMIT**; the `SF` column states the 14 CFR 23.303 factor "
+    "this tool applies nowhere — apply it in the sizing analysis. The `-ULT` "
+    "marker appears only on a load the regulation already prescribes ultimate "
+    "(23.367(a)(2), 23.561(b), `SF=1.0`). Dimensionless/speed columns (n, CL, V) "
+    "carry no factor and are unmarked."
 )
 
 _COMPONENTS = [

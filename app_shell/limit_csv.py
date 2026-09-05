@@ -2,7 +2,8 @@
 
 The Wing/Fuselage/Tail Loads pages show a **LIMIT** station table (the
 oracle-traceable numbers, the CLAUDE.md analysis-page carve-out) and offer it as
-a CSV download beside the ULTIMATE sbeam-bridge file. Before L-8i each page built
+a CSV download beside the sbeam-bridge file. Both are LIMIT since note 49
+OR-116; the buttons name the channel, not the basis (#192). Before L-8i each page built
 that CSV inline from the raw Imperial row dicts, so an SI session downloaded
 Imperial numbers under unit-less headers while the table above was converted --
 the units-defect class M4-20 already paid for. These builders are the single

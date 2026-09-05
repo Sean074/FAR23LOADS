@@ -506,6 +506,29 @@ mission sentence changes.
   *deck's* sentence; nothing read prose, so nothing could see any of it. The
   gate blanks the sanctioned already-ultimate sentences and scans the residue,
   so an exemption cannot widen to cover a false claim written beside a true one.
+
+  **Widened 2026-09-05 (#192) — the sweep was a pass, not a gate.** The scope
+  sentence above said *"rendered output only: what a recipient actually reads"*,
+  and a Streamlit caption is exactly that; but the checker only ever read the
+  documents this file enumerated, so the AST sweep stayed a one-off discovery
+  pass and the **GUI went ungated entirely**. It kept **21 live false claims in
+  15 `app/` files**, among them a *"Download net wing loads — ULTIMATE (CSV)"*
+  button whose bytes are identical to the module's LIMIT values, and a
+  `tests/test_deliverable_units.py` assertion *requiring* the Export page to say
+  ULTIMATE — the false claim pinned by a green test. The sweep is now the gate
+  (`test_no_gui_string_claims_ultimate`), walking `app/` and `app_shell/`
+  sources rather than driving Streamlit, so an unvisited page branch cannot hide
+  a claim.
+
+  Two blind spots in the *checker* surfaced with it, and both are fixed here:
+  `_CLAIMS` was a substring list, so **markdown emphasis split the phrase**
+  (`**ULTIMATE** = limit`) and **U+00D7 `×` did not match ASCII `limit x SF`** —
+  the gate could be defeated by typography alone. It now normalises emphasis,
+  dashes and the multiplication sign before scanning, and matches patterns with
+  a boundary that excludes a trailing hyphen, so the Structural Speeds page's
+  true sentence *"All speeds are ULTIMATE-independent design limit speeds"* is
+  no longer a hit needing a hand-written exemption. `oracle_app/` stays out of
+  scope: it is frozen (OR-13) and its three claims are filed, not fixed (OR-14).
 - **G-OR-51** — unchanged, and now the single basis guard: `-ULT` appears on
   `engine_ultimate` and `emergency` and on nothing else, in both directions,
   across every fixture.

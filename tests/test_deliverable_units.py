@@ -416,7 +416,9 @@ def test_the_export_page_states_the_system_it_will_write():
             u = deliverable_units(system, channel)
             for dim in (u.force, u.length, u.moment, u.pressure):
                 assert dim.label in caption, (system, channel, dim.label, caption)
-        assert "KEAS" in caption and "ULTIMATE" in caption
+        # LIMIT, not ULTIMATE: note 49 OR-116 inverted the basis and this
+        # assertion outlived it, pinning the false claim in place (#192).
+        assert "KEAS" in caption and "**LIMIT**" in caption
 
     si = next(c for c in _export_page_captions(UnitSystem.SI) if "written in" in c)
     assert "**SI**" in si and "N·mm" in si

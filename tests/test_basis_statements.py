@@ -35,7 +35,9 @@ sanctioned sentences first and then scans what is left, so an exemption cannot
 quietly widen to cover a neighbouring false claim.
 """
 
+import ast
 import os
+import re
 import sys
 
 import pytest
@@ -87,24 +89,54 @@ _SANCTIONED = (
     "-ULT marker appears only on a load the regulation prescribes",
 )
 
-#: How a document has actually claimed its own numbers are ultimate. Spellings,
+#: Presentation that must not hide a claim from the scan. The GUI sweep (#192)
+#: found the first version of this gate blind to its own subject matter twice
+#: over: ``**ULTIMATE** = limit`` split the phrase with markdown emphasis, and
+#: ``limit \u00d7 SF`` spelled the multiplication sign U+00D7 where ``_CLAIMS``
+#: spelled it ASCII ``x``. Both are the *same sentence* a document elsewhere
+#: wrote plainly, so normalising is not leniency -- it is what stops the gate
+#: passing on typography.
+def _normalise(text: str) -> str:
+    """``text`` reduced to the form the claim patterns are written against."""
+    for dash in ("\u2014", "\u2013"):
+        text = text.replace(dash, "-")
+    text = text.replace("\u00d7", "x")
+    text = re.sub(r"[*`_]+", "", text)      # markdown emphasis and code spans
+    return re.sub(r"\s+", " ", text)
+
+
+#: How a document has actually claimed its own numbers are ultimate. Patterns,
 #: not one phrase: the first version of the deck-side scan matched only "Loads
 #: are ULTIMATE" and missed two live sites that said the same thing in other
-#: words.
+#: words, and the GUI sweep then found five further shapes -- a download
+#: *button label* that names no verb at all, and the "= limit x SF" gloss that
+#: asserts the multiply without using the word in a claim position.
+#:
+#: ``(?![-\w])`` is load-bearing. A bare ``\b`` after ULTIMATE is satisfied by a
+#: following hyphen, so ``"All speeds are ULTIMATE-independent design *limit*
+#: speeds"`` -- a true sentence on the Structural Speeds page -- matched
+#: ``"are ULTIMATE"`` and would have had to be exempted by hand.
 _CLAIMS = (
-    "loads are ULTIMATE",
-    "load is ULTIMATE",
-    "are ULTIMATE",
-    "is ULTIMATE",
-    "ULTIMATE loads",
-    "limit x SF",
+    r"loads? (?:are|is) ULTIMATE(?![-\w])",
+    r"\bare ULTIMATE(?![-\w])",
+    r"\bis ULTIMATE(?![-\w])",
+    r"\bULTIMATE loads?\b",
+    r"\bULTIMATE \(CSV\)",
+    r"\bULTIMATE \(limit x",
+    r"\bULTIMATE = limit\b",
+    r"\bULTIMATE files? (?:is|are) limit\b",
+    r"\ball ULTIMATE\b",
+    r",\s*ULTIMATE(?![-\w])",
+    r"\breport(?:s|ed)? ULTIMATE(?![-\w])",
+    r"limit x (?:1\.5|SF|the per-case SF|safety factor)",
 )
 
 
 def _residue(text: str) -> str:
-    """``text`` with every sanctioned sentence blanked, ready to scan."""
+    """``text``, normalised, with every sanctioned sentence blanked."""
+    text = _normalise(text)
     for allowed in _SANCTIONED:
-        text = text.replace(allowed, "<sanctioned>")
+        text = text.replace(_normalise(allowed), "<sanctioned>")
     return text
 
 
@@ -121,8 +153,8 @@ def assert_states_limit(label: str, text: str, *, min_chars: int = 0) -> None:
         f"this gate cannot pass by rendering nothing")
     residue = _residue(text)
     for claim in _CLAIMS:
-        assert claim not in residue, (
-            f"{label}: says {claim!r} of its own loads. Under note 49 OR-116 "
+        assert not re.search(claim, residue), (
+            f"{label}: matches {claim!r} of its own loads. Under note 49 OR-116 "
             f"every load sloads delivers is LIMIT and the safety factor is "
             f"stated, never applied — including in the exported deck.")
 
@@ -206,6 +238,83 @@ def test_the_report_basis_statement_says_who_applies_the_factor():
     assert "sizing analysis" in rc.BASIS_STATEMENT
 
 
+#: One real sentence per ``_CLAIMS`` pattern, quoted from the artifact that
+#: shipped it. Kept as data so the meta-test below can prove both directions:
+#: each witness fails the gate, and each pattern catches some witness.
+_WITNESSES = (
+    "All exported loads are ULTIMATE.",
+    "Load columns are **ULTIMATE** (limit \u00d7 SF), marked `-ULT`.",
+    "The deliverable load is ULTIMATE.",
+    "The deliverable **ULTIMATE** loads come from the Export page.",
+    "Download net wing loads \u2014 ULTIMATE (CSV)",
+    "Loads shown are ULTIMATE = limit \u00d7 1.5 (14 CFR 23.303).",
+    "The two ULTIMATE files are limit \u00d7 the per-case `SF`.",
+    "critical-reaction summaries, all ULTIMATE.",
+    "All **33 cases** \u00d7 each loaded leg, ULTIMATE.",
+    "The **Review/Export** pages report **ULTIMATE** loads.",
+    "The ULTIMATE file is limit \u00d7 the per-case `SF` (14 CFR 23.303).",
+)
+
+#: The GUI trees this gate reads. ``oracle_app/`` is **excluded**: it is frozen
+#: under note 44 OR-13, and its three surviving claims are filed, not fixed
+#: (OR-14). Adding it here is the first step of that later ticket.
+_GUI_TREES = ("app", "app_shell")
+
+
+def _live_literals(path):
+    """Every string literal in ``path`` that is not a docstring, with its line.
+
+    Docstrings are excluded on G-OR-74's own scope rule -- they carry no claim
+    to anyone outside the repository. Everything else in a Streamlit page is a
+    candidate for the screen: ``st.caption``, ``st.markdown``, a
+    ``download_button`` label, a ``help=`` tooltip.
+    """
+    tree = ast.parse(open(path, encoding="utf-8").read())
+    docs = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef,
+                             ast.ClassDef)):
+            first = node.body[0] if node.body else None
+            if (isinstance(first, ast.Expr)
+                    and isinstance(first.value, ast.Constant)
+                    and isinstance(first.value.value, str)):
+                docs.add(id(first.value))
+    return [(node.lineno, node.value) for node in ast.walk(tree)
+            if isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and id(node) not in docs]
+
+
+def test_no_gui_string_claims_ultimate():
+    """G-OR-74 on its third surface: the screen (#192).
+
+    Note 49's sweep was a one-off discovery pass, so the two rendered-document
+    gates above stood while the GUI went on offering a *"Download net wing loads
+    -- ULTIMATE (CSV)"* button over bytes identical to the module's LIMIT
+    values. A reader who trusted that label under-sized by 1.5.
+
+    This walks the source rather than driving Streamlit because the claims are
+    static text: no session state, no example project and no widget interaction
+    can change what the literal says, and an AST sweep cannot miss a page whose
+    branch a journey test failed to enter.
+    """
+    seen = 0
+    for tree in _GUI_TREES:
+        assert os.path.isdir(os.path.join(_ROOT, tree)), tree
+        for dirpath, _, filenames in os.walk(os.path.join(_ROOT, tree)):
+            for filename in sorted(filenames):
+                if not filename.endswith(".py"):
+                    continue
+                path = os.path.join(dirpath, filename)
+                rel = os.path.relpath(path, _ROOT)
+                for lineno, text in _live_literals(path):
+                    seen += 1
+                    assert_states_limit(f"{rel}:{lineno}", text)
+    assert seen > 1000, (
+        f"swept only {seen} literals -- this gate cannot pass by finding no "
+        f"GUI source to read")
+
+
 def test_the_gate_would_catch_each_spelling():
     """The checker's teeth, and the sanctioned-sentence carve-out's limits.
 
@@ -213,9 +322,14 @@ def test_the_gate_would_catch_each_spelling():
     assertions are the ones that matter: a sanctioned sentence must not license a
     false claim sitting beside it.
     """
-    for claim in _CLAIMS:
+    for witness in _WITNESSES:
         with pytest.raises(AssertionError):
-            assert_states_limit("witness", f"prose {claim} more prose")
+            assert_states_limit("witness", witness)
+    # every pattern is exercised by at least one witness -- otherwise a pattern
+    # could rot into one that matches nothing and this test would not notice
+    for claim in _CLAIMS:
+        assert any(re.search(claim, _residue(w)) for w in _WITNESSES), (
+            f"no witness exercises {claim!r}")
     # the true sentences pass
     assert_states_limit("ok", "Loads are ALREADY ULTIMATE (SF=1.0) -- apply "
                               "no further factor.")

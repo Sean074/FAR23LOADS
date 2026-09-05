@@ -336,9 +336,9 @@ if project.is_concept:
                "above the FAR 23 calibration band.")
 
 st.caption(
-    "Loads shown are **LIMIT** (oracle-traceable). The deliverable **ULTIMATE** "
-    "loads (= limit × safety factor, 14 CFR 23.303) come from the **Review/Export** "
-    "pages. Torsion Myy on this page is about the **25% chord** (the axis the "
+    "Loads shown are **LIMIT** (oracle-traceable), and so is every load this "
+    "tool delivers: the **Review/Export** pages state the 14 CFR 23.303 factor "
+    "per case and apply it nowhere. Torsion Myy on this page is about the **25% chord** (the axis the "
     "original suite computes about, so these numbers cross-check against the "
     "manual); the Loads-Plots/Export deliverables state it about the wing's "
     "**loads reference axis** (LRA, set on the Geometry page)."
@@ -376,27 +376,32 @@ st.subheader("Net load station table (LIMIT)")
 st.dataframe(pd.DataFrame(wing_limit_rows(wing_load_rows([net]), system)),
              hide_index=True, width="stretch")
 
-# Three basis-marked downloads (defect M4-15): the LIMIT file is the on-page
-# table's converted, unit-suffixed rows (L-8i -- ``limit_csv`` owns both); the
-# two ULTIMATE files are the sbeam bridge's, the same content family the Export
-# page ships. The applied set is the structures deliverable and is stated about
+# Three downloads, named by *channel* (#192). Before note 49 the split was by
+# basis -- LIMIT table vs ULTIMATE bridge -- but OR-116 made every one of them
+# LIMIT, so a basis marker no longer tells them apart and the labels name what
+# does differ: the analysis table (this page's converted, unit-suffixed rows,
+# L-8i -- ``limit_csv`` owns both) vs the sbeam bridge, the same content family
+# the Export page ships. The ``*_ULT.csv`` file names are stale and stay so
+# until OR-81 renames them in 0.8.3; a truthful label over a stale name beats
+# the reverse. The applied set is the structures deliverable and is stated about
 # the wing's loads reference axis, so it goes through ``loads_ref_axis_results``
 # -- the transfer the Export page's Project argument does for itself.
 _lra_net = loads_ref_axis_results(project, loads.wing_net)
 _dl = st.columns(3)
-_dl[0].download_button("Download net wing loads — LIMIT (CSV)",
+_dl[0].download_button("Download net wing loads — analysis table (CSV)",
                        wing_limit_csv(wing_load_rows(loads.wing_net), system),
                        file_name="net_wing_loads_LIMIT.csv", mime="text/csv")
-_dl[1].download_button("Download net wing loads — ULTIMATE (CSV)",
+_dl[1].download_button("Download net wing loads — sbeam bridge (CSV)",
                        sb.span_load_csv(loads.wing_net, system=system),
                        file_name="net_wing_loads_ULT.csv", mime="text/csv")
-_dl[2].download_button("Download applied load set — ULTIMATE (CSV)",
+_dl[2].download_button("Download applied load set — sbeam bridge (CSV)",
                        sb.applied_load_csv(_lra_net, system=system),
                        file_name="wing_applied_loads_ULT.csv", mime="text/csv")
 st.caption(
-    "The LIMIT file carries a `Basis` column and matches the table above; its "
-    "torsion is about the 25% chord and it carries no concentrated-mass row. "
-    "The two ULTIMATE files are limit × the per-case `SF` (14 CFR 23.303). "
+    "All three files are **LIMIT**; each row states the 14 CFR 23.303 factor "
+    "it does not apply. The analysis table carries a `Basis` column and matches "
+    "the table above; its torsion is about the 25% chord and it carries no "
+    "concentrated-mass row. The two sbeam files are the deck channel. "
     "**Applied load set** is the file a structures model is built from: one row "
     "per strip and one per concentrated wing mass, each at its own point, as "
     "all six body-axis components `Fx Fy Fz Mx My Mz` — nothing in it is a "

@@ -111,9 +111,10 @@ except (ValueError, ZeroDivisionError) as exc:
 
 st.subheader("Tab loads")
 st.caption(
-    "On-screen loads are **LIMIT** (oracle values, traceable to the manual). The "
-    "CSV / FORCE-card downloads below and the **Review/Export** pages report "
-    "**ULTIMATE** = limit × 1.5 (14 CFR 23.303)."
+    "On-screen loads are **LIMIT** (oracle values, traceable to the manual). "
+    "Every load below is **LIMIT** too: the downloads and the "
+    "**Review/Export** pages state the 14 CFR 23.303 factor per case and "
+    "apply it nowhere — apply it in the sizing analysis."
 )
 force_u = "N" if system == UnitSystem.SI else "lb"
 pressure_u = "kPa" if system == UnitSystem.SI else "psi"

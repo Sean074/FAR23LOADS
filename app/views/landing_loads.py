@@ -251,9 +251,10 @@ for _w in landing_reaction_warnings(reactions):
 st.subheader(f"Gear reaction loads ({caption(GROUND_LINE)})")
 st.caption(
     "On-screen reactions are **LIMIT** (oracle values, traceable to the manual). "
-    "The CSV download below and the **Review/Export** pages report **ULTIMATE** "
-    "= limit × 1.5 (14 CFR 23.303) for every one of these 33 cases; the dimensionless "
-    "inertia factors NVP/NDP/NS are load *factors* and are never scaled."
+    "So are the CSV download below and the **Review/Export** pages: for every "
+    "one of these 33 cases the 14 CFR 23.303 factor is stated and applied "
+    "nowhere — apply it in the sizing analysis. The dimensionless inertia "
+    "factors NVP/NDP/NS are load *factors* and carry no factor at all."
 )
 _lbf_lbl = si_scalar_label("lbf", system)
 _mom_lbl = si_scalar_label("lb-in", system)
@@ -325,7 +326,8 @@ st.caption(
     f"left main, right main, *all three on every case*, an unloaded gear at "
     f"zero) the force and the point it acts at, plus the datum load factors and "
     f"unbalanced moments — with the landing load factor and the six per-family "
-    f"critical-reaction summaries, all ULTIMATE. It is the deliverable, so it is "
+    f"critical-reaction summaries, all **LIMIT** with the 14 CFR 23.303 factor "
+    f"stated per case and applied nowhere. It is the deliverable, so it is "
     f"{caption(AIRPLANE_DATUM)} throughout; the primed set above is the manual's "
     f"analysis view and rides in the **text** report instead (design note 38 "
     f"GF-6).")
@@ -398,7 +400,8 @@ else:
         sb.gear_report_csv(project, system=system),
         file_name="gear_loads.csv", mime="text/csv")
     st.caption(
-        f"All **33 cases** × each loaded leg, ULTIMATE. Contact-patch components "
+        f"All **33 cases** × each loaded leg, **LIMIT** — each row states the "
+        f"14 CFR 23.303 factor and applies it nowhere. Contact-patch components "
         f"are {caption(GROUND_LINE)} (as the manual prints them); reference-point "
         f"components are {caption(AIRPLANE_DATUM)} (as a beam model applies "
         f"them). The assembled ground "
