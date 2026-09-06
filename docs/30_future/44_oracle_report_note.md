@@ -1068,7 +1068,15 @@ airplanes G-OR-1 builds — and are quoted where they carry a decision.*
 
 ## 14. The carry-through becomes an oracle input (OR-103 … OR-107)
 
-**Status: AGREED 2026-09-05 (owner, in session).** Raised by §13's OR-97 finding
+> **SUPERSEDED 2026-09-05 by [design note 50](50_fuselage_carry_through_note.md)**
+> (OR-121 … OR-127), which answers OR-97 by making the carry-through an entered
+> **fuselage station** rather than an entered chord fraction. OR-103 and OR-105
+> are superseded/withdrawn, OR-104 survives re-cast as the estimator for a blank
+> station, OR-106 survives restated, and **OR-107 stands** — the change touches
+> no frozen file. Kept unedited below as the record of what was ruled and why it
+> turned over.
+
+**Status: AGREED 2026-09-05 (owner, in session) — superseded the same day, see above.** Raised by §13's OR-97 finding
 and ruled the same day. Milestone **0.8.2**; closure tier **L** (schema hop, and
 the oracle input set is a stated contract — gate G5).
 

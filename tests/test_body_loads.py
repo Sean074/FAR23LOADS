@@ -59,7 +59,7 @@ def _no_spars_project():
 
     p = _project()
     p.geometry.surfaces = [
-        replace(s, front_spar_pct=0.60, rear_spar_pct=0.30) if s.name == "wing" else s
+        replace(s, front_spar_x_in=180.0, rear_spar_x_in=60.0) if s.name == "wing" else s
         for s in p.geometry.surfaces
     ]
     return p
@@ -229,7 +229,7 @@ def test_body_gids_are_stable_when_the_spar_stations_move():
     assert any(a > b for a, b in zip(gids, gids[1:]))
 
     wing = p.geometry.by_name("wing")
-    wing.front_spar_pct, wing.rear_spar_pct = 0.20, 0.70
+    wing.front_spar_x_in, wing.rear_spar_x_in = 65.0, 120.0
     r2 = body_loads.build_body_loads(p)[0]
     moved = {s.x: g for s, g in zip(r2.stations, sbeam_bridge.body_station_gids(r2))
              if s.source != "carry"}

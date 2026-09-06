@@ -816,6 +816,37 @@ def test_build_report_accepts_precomputed_results():
     assert doc.section("Wing").tables
 
 
+def test_only_an_entered_spar_station_is_echoed_as_input():
+    """Design note 50 OR-121/OR-126: the input echo states a station the user
+    typed and stays silent about one the estimator derived.
+
+    Printing the derived station here would report an assumed carry-through as
+    though it had been entered -- which is the exact confusion OR-97 found and
+    this note removes. The assumed case is stated where it belongs, beside the
+    fuselage loads it produced (``fitting_load_rows``' ``Spars`` column). No
+    shipped fixture enters a station, so without this the entered branch has no
+    coverage at all.
+    """
+    from sloads.report.content import Units, _geometry_section
+    from sloads.units import UnitSystem
+
+    project = io.load_project(_GA)
+    u = Units(UnitSystem.IMPERIAL)
+
+    def spar_rows(proj):
+        return [r for t in _geometry_section(proj, u).tables for r in t.rows
+                if "spar" in str(r[0]).lower()]
+
+    assert spar_rows(project) == [], "a derived station is not an input echo"
+
+    wing = project.geometry.by_name("wing")
+    wing.front_spar_x_in, wing.rear_spar_x_in = 70.0, 100.0
+    rows = spar_rows(project)
+    assert [r[0] for r in rows] == ["Front spar station", "Rear spar station"]
+    assert [r[1] for r in rows] == ["70", "100"]
+    assert all(r[2] == "in" for r in rows), "a station is a length, not a fraction"
+
+
 if __name__ == "__main__":  # zero-dependency self-runner (see PROGRAM_SPEC)
     import traceback
 

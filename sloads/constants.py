@@ -114,14 +114,20 @@ POLAR_TRUSTED_ALPHA_DEG = (-10.0, 15.0)
 # --------------------------------------------------------------------------- #
 # Wing carry-through (Ref 1 Ch 15 p103 fuselage moment closure, M4-1)
 # --------------------------------------------------------------------------- #
-# Assumed front/rear spar chord fractions when SurfaceInput.front_spar_pct /
-# .rear_spar_pct are unset -- a conventional light-aircraft two-spar wing box
-# (front spar just aft of the leading-edge radius, rear spar ahead of the
-# flap/aileron hinge line). They are an ASSUMPTION, not a derived value:
-# derived_geometry.carry_through marks a result that uses them ``assumed`` so
-# every deliverable states that the spar stations were not entered.
-DEFAULT_FRONT_SPAR_PCT = 0.15
-DEFAULT_REAR_SPAR_PCT = 0.65
+# The ESTIMATOR for an unentered carry-through: the fractions of the centreline
+# root chord that derive a default front/rear spar station when
+# SurfaceInput.front_spar_x_in / .rear_spar_x_in are unset -- a conventional
+# light-aircraft two-spar wing box (front spar just aft of the leading-edge
+# radius, rear spar ahead of the flap/aileron hinge line). Not a stored input's
+# fallback since v61: the spar is entered as a station and these only compute
+# the default it shows (note 50 OR-122). They are an ASSUMPTION, not a derived
+# value: derived_geometry.carry_through marks a result that uses them
+# ``assumed`` so every deliverable states that the spar stations were not
+# entered. 0.20/0.60 from 0.15/0.65 at note 50 OR-122 (was note 44 OR-104);
+# no printed oracle moves -- Ch 15 ships none -- so the acceptance is the
+# module's own equilibrium-closure gates, re-run.
+DEFAULT_FRONT_SPAR_PCT = 0.20
+DEFAULT_REAR_SPAR_PCT = 0.60
 
 # The effective loads-reference-axis chord fraction when SurfaceInput.
 # ref_axis_pct is unset (v52, note 24 R-7c) -- the original suite's quarter

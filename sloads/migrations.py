@@ -22,7 +22,10 @@ chain applied in ascending order, each hop turning a file of version *n* into
     v_file --hop--> v_file+1 --hop--> ... --> SCHEMA_VERSION --> one tolerant reader
 
 The chain holds one live hop today — the v55→v56 identity of note 36's additive
-fields (OV-10, #97) — so :data:`SUPPORTED_FLOOR` is 55. At production the floor
+fields (OV-10, #97) — so :data:`SUPPORTED_FLOOR` is 55. The hops since have been
+identities over additive fields; :func:`_hop_60` is the first that **converts a
+value**, because dropping a field whose replacement is computable from the same
+file would lose an entered carry-through (note 50 OR-127). At production the floor
 drops to whatever version ships and hops register from there forward — the
 shape of that work is unchanged.
 
@@ -136,6 +139,55 @@ def _hop_59(d: Dict[str, Any]) -> Dict[str, Any]:
     return d
 
 
+def _hop_60(d: Dict[str, Any]) -> Dict[str, Any]:
+    """v60 -> v61 (design note 50 OR-121/OR-127): **the spar pair becomes stations**.
+
+    ``SurfaceInput.front_spar_pct``/``.rear_spar_pct`` -- fractions of the
+    centreline root chord -- are replaced by ``front_spar_x_in``/
+    ``rear_spar_x_in``, the fuselage station itself. The first hop in the live
+    chain that is not an identity, because it must not lose an entered
+    carry-through: a v60 file that typed a fraction has its station computed
+    here from **its own polylines**, by the same expression ``carry_through``
+    used to apply::
+
+        x = x_LE(root) + pct * (x_TE(root) - x_LE(root))
+
+    so the airplane keeps the carry-through it was analysed with rather than
+    silently reverting to the (also changed, 15/65 -> 20/60) default. A ``null``
+    fraction hops to a ``null`` station, which is the same "not entered" it
+    already meant. A surface whose polylines cannot give a positive root chord
+    yields ``null`` too -- there is no station to compute, and ``carry_through``
+    already refuses that geometry from the other side.
+
+    No bundled example takes the converting branch: all seven write both keys
+    ``null``. It is guarded on a constructed dict
+    (``tests/test_schema_guards.py``), which is the only place it can be.
+    """
+    for surface in (d.get("geometry") or {}).get("surfaces") or []:
+        if not isinstance(surface, dict):
+            continue
+        le = surface.get("leading_edge") or []
+        te = surface.get("trailing_edge") or []
+        x_le = le[0][0] if le and len(le[0]) >= 1 else None
+        x_te = te[0][0] if te and len(te[0]) >= 1 else None
+        c_root = None if x_le is None or x_te is None else x_te - x_le
+        for pct_key, x_key in (("front_spar_pct", "front_spar_x_in"),
+                               ("rear_spar_pct", "rear_spar_x_in")):
+            pct = surface.pop(pct_key, None)
+            converted = (x_le + pct * c_root
+                         if pct is not None and c_root is not None and c_root > 0.0
+                         else None)
+            # Idempotent, and non-destructive in that order: an entered fraction
+            # converts and wins; otherwise the key is only *created*, never
+            # overwritten. Without the guard a second pass -- and there is one,
+            # because ``project_from_dict`` funnels every load through
+            # ``migrate`` -- would find no fraction left to convert and write the
+            # station it had just computed back to ``None``.
+            if converted is not None or x_key not in surface:
+                surface[x_key] = converted
+    return d
+
+
 #: ``{from_version: hop}`` -- applied in ascending order, each turning a file of
 #: version *n* into version *n+1* shape. A version that changes shape adds its
 #: hop here; :data:`SUPPORTED_FLOOR` names the oldest version the chain starts
@@ -146,6 +198,7 @@ MIGRATIONS: Dict[int, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     57: _hop_57,
     58: _hop_58,
     59: _hop_59,
+    60: _hop_60,
 }
 
 #: The oldest project version this build reads. It sat at ``SCHEMA_VERSION``

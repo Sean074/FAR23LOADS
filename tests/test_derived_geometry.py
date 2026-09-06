@@ -23,6 +23,7 @@ from sloads.derived_geometry import (
     SOB_ENTERED,
     SOB_HALF_WIDTH,
     carry_through,
+    default_spar_station,
     fuselage_summary,
     mac_reference,
     pct_mac_to_station,
@@ -140,35 +141,71 @@ def test_fuselage_summary_derives_from_outline():
 # Wing carry-through (Ref 1 Ch 15 p103 fuselage moment closure, M4-1)
 # --------------------------------------------------------------------------- #
 def _wing_project(front=None, rear=None, *, root_le=45.0, root_te=146.0):
-    """A minimal project whose wing root chord runs ``root_le`` -> ``root_te``."""
+    """A minimal project whose wing root chord runs ``root_le`` -> ``root_te``.
+
+    ``front``/``rear`` are **fuselage stations** since v61 (note 50 OR-121), not
+    chord fractions.
+    """
     wing = SurfaceInput(name="wing",
                         leading_edge=[(root_le, 0.0), (root_le + 20.0, 100.0)],
                         trailing_edge=[(root_te, 0.0), (root_te + 5.0, 100.0)],
-                        front_spar_pct=front, rear_spar_pct=rear)
+                        front_spar_x_in=front, rear_spar_x_in=rear)
     return Project(name="ct", geometry=GeometryInput(surfaces=[wing]))
 
 
-def test_carry_through_from_entered_spar_fractions():
-    """x = x_LE(root) + pct * c_root, off the inboard-most polyline points."""
-    ct = carry_through(_wing_project(0.20, 0.60))          # c_root = 101 in
+def test_carry_through_from_entered_spar_stations():
+    """An entered station is used as given -- it is the datum, not a derivation."""
+    ct = carry_through(_wing_project(63.5, 108.0))         # c_root = 101 in
     assert ct is not None and not ct.assumed
-    assert math.isclose(ct.x_f, 45.0 + 0.20 * 101.0)       # 65.2
-    assert math.isclose(ct.x_r, 45.0 + 0.60 * 101.0)       # 105.6
-    assert math.isclose(ct.d, ct.x_r - ct.x_f)
-    assert (ct.front_pct, ct.rear_pct) == (0.20, 0.60)
+    assert math.isclose(ct.x_f, 63.5) and math.isclose(ct.x_r, 108.0)
+    assert math.isclose(ct.d, 44.5)
+    # The fractions are reported back *from* the stations (note 50 OR-121).
+    assert math.isclose(ct.front_pct, (63.5 - 45.0) / 101.0)
+    assert math.isclose(ct.rear_pct, (108.0 - 45.0) / 101.0)
+
+
+def test_an_entered_station_off_the_root_chord_is_not_clamped():
+    """A real spar may sit forward of the root LE on a swept wing. The station is
+    honoured and the reported fraction goes negative, which is the honest
+    statement -- clamping would hide the geometry the station exists to carry."""
+    ct = carry_through(_wing_project(40.0, 108.0))
+    assert ct is not None and math.isclose(ct.x_f, 40.0) and ct.front_pct < 0.0
 
 
 def test_carry_through_defaults_are_flagged_assumed():
-    """Unset fractions take the module defaults and flag the result -- an assumed
-    spar location must never be reported as entered input (M4-1 decision 2)."""
+    """An unentered station is derived from the estimator and flags the result --
+    an assumed spar location must never be reported as entered input (M4-1
+    decision 2; note 50 OR-126)."""
     ct = carry_through(_wing_project())
     assert ct is not None and ct.assumed
-    assert (ct.front_pct, ct.rear_pct) == (DEFAULT_FRONT_SPAR_PCT, DEFAULT_REAR_SPAR_PCT)
-    assert math.isclose(ct.x_f, 45.0 + DEFAULT_FRONT_SPAR_PCT * 101.0)
+    assert math.isclose(ct.x_f, 45.0 + DEFAULT_FRONT_SPAR_PCT * 101.0)   # 65.2
+    assert math.isclose(ct.x_r, 45.0 + DEFAULT_REAR_SPAR_PCT * 101.0)    # 105.6
+    assert math.isclose(ct.front_pct, DEFAULT_FRONT_SPAR_PCT)
+    assert math.isclose(ct.rear_pct, DEFAULT_REAR_SPAR_PCT)
     # One entered, one absent is still 'assumed' -- the pair is only as good as
-    # its weaker half.
-    assert carry_through(_wing_project(front=0.18)).assumed
-    assert carry_through(_wing_project(rear=0.62)).assumed
+    # its weaker half -- and the entered half is still honoured.
+    half = carry_through(_wing_project(front=63.5))
+    assert half.assumed and math.isclose(half.x_f, 63.5)
+    assert math.isclose(half.x_r, 45.0 + DEFAULT_REAR_SPAR_PCT * 101.0)
+    assert carry_through(_wing_project(rear=108.0)).assumed
+
+
+def test_the_estimator_has_one_owner():
+    """``default_spar_station`` is what ``carry_through`` falls back to *and*
+    what the geometry page's caption shows (note 50 OR-123, G-OR-78's other
+    half). Asserting they agree is what stops the caption drifting from the
+    analysis: a second copy of ``x_LE + pct * c_root`` anywhere is a caption
+    that can quietly stop describing the number in use."""
+    p = _wing_project()
+    surf = p.geometry.by_name("wing")
+    ct = carry_through(p)
+    assert math.isclose(default_spar_station(surf), ct.x_f)
+    assert math.isclose(default_spar_station(surf, rear=True), ct.x_r)
+    # It answers None on the geometry carry_through refuses, so the caption says
+    # "cannot answer yet" instead of showing a number nothing will use.
+    assert default_spar_station(None) is None
+    assert default_spar_station(
+        SurfaceInput(name="wing", leading_edge=[], trailing_edge=[])) is None
 
 
 def test_carry_through_none_when_underivable():
@@ -178,7 +215,7 @@ def test_carry_through_none_when_underivable():
     assert carry_through(_wing_project(), "no_such_surface") is None
     assert carry_through(_wing_project(root_te=45.0)) is None        # c_root = 0
     assert carry_through(_wing_project(root_te=20.0)) is None        # c_root < 0
-    assert carry_through(_wing_project(0.60, 0.20)) is None          # x_r <= x_f
+    assert carry_through(_wing_project(108.0, 63.5)) is None         # x_r <= x_f
     empty = Project(name="e", geometry=GeometryInput(
         surfaces=[SurfaceInput(name="wing", leading_edge=[], trailing_edge=[])]))
     assert carry_through(empty) is None
@@ -190,19 +227,18 @@ def test_carry_through_on_ga6_example():
     assert ct is not None and ct.assumed and ct.d > 0.0
 
 
-def test_spar_fractions_round_trip_and_default_to_none():
-    """A saved project keeps 'not entered' distinct from an entered number, and an
-    older file (no keys) loads as None -- the lenient v34 -> v35 migration."""
-    p = _wing_project(0.18, 0.62)
+def test_spar_stations_round_trip_and_default_to_none():
+    """A saved project keeps 'not entered' distinct from an entered number, and a
+    file with the keys absent loads as None."""
+    p = _wing_project(63.5, 108.0)
     d = io.project_to_dict(p)
     surf = d["geometry"]["surfaces"][0]
-    assert (surf["front_spar_pct"], surf["rear_spar_pct"]) == (0.18, 0.62)
+    assert (surf["front_spar_x_in"], surf["rear_spar_x_in"]) == (63.5, 108.0)
     back = io.project_from_dict(d).geometry.by_name("wing")
-    assert (back.front_spar_pct, back.rear_spar_pct) == (0.18, 0.62)
-    # v34 file: the keys are absent entirely.
-    del surf["front_spar_pct"], surf["rear_spar_pct"]
+    assert (back.front_spar_x_in, back.rear_spar_x_in) == (63.5, 108.0)
+    del surf["front_spar_x_in"], surf["rear_spar_x_in"]
     legacy = io.project_from_dict(d).geometry.by_name("wing")
-    assert legacy.front_spar_pct is None and legacy.rear_spar_pct is None
+    assert legacy.front_spar_x_in is None and legacy.rear_spar_x_in is None
     assert carry_through(io.project_from_dict(d)).assumed
 
 

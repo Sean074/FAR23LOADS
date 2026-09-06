@@ -1,5 +1,5 @@
 {
-  "schema_version": 60,
+  "schema_version": 61,
   "name": "ATR 42-300 (\"ATR 42-100\" prototype designation never entered production; -300 is the closest PW120-powered production analog) \u2014 2x PW120 (concept, category C)",
   "engines": [
     {
@@ -527,8 +527,8 @@
         "elements": 20,
         "tip_cap_width_in": 0.0,
         "ref_axis_pct": 0.4,
-        "front_spar_pct": null,
-        "rear_spar_pct": null,
+        "front_spar_x_in": null,
+        "rear_spar_x_in": null,
         "sob_y_in": null
       },
       {
@@ -557,8 +557,8 @@
         "elements": 10,
         "tip_cap_width_in": 0.0,
         "ref_axis_pct": 0.4,
-        "front_spar_pct": null,
-        "rear_spar_pct": null,
+        "front_spar_x_in": null,
+        "rear_spar_x_in": null,
         "sob_y_in": null
       },
       {
@@ -587,8 +587,8 @@
         "elements": 10,
         "tip_cap_width_in": 0.0,
         "ref_axis_pct": 0.4,
-        "front_spar_pct": null,
-        "rear_spar_pct": null,
+        "front_spar_x_in": null,
+        "rear_spar_x_in": null,
         "sob_y_in": null
       }
     ],

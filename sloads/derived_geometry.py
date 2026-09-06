@@ -32,14 +32,18 @@ from .models import MissingInputError, Project, SurfaceInput, WeightEnvelopeInpu
 class CarryThrough(NamedTuple):
     """The wing carry-through the fuselage moment is reacted over (M4-1).
 
-    ``x_f``/``x_r`` are the front and rear spar fuselage stations (in) at the
-    surface root, ``d = x_r - x_f`` the carry-through length. ``front_pct``/
-    ``rear_pct`` are the chord fractions they came from and ``assumed`` is True
-    when either fraction was not entered and
+    ``x_f``/``x_r`` are the front and rear spar fuselage stations (in),
+    ``d = x_r - x_f`` the carry-through length. ``front_pct``/``rear_pct`` are
+    the fractions of the root chord those stations sit at -- derived from the
+    stations, not the other way round since v61 (note 50 OR-121), and read only
+    where a deliverable states an assumed carry-through in chord terms.
+
+    ``assumed`` is True when either station was not entered and the
     :data:`~sloads.constants.DEFAULT_FRONT_SPAR_PCT` /
-    :data:`~sloads.constants.DEFAULT_REAR_SPAR_PCT` were substituted -- the
+    :data:`~sloads.constants.DEFAULT_REAR_SPAR_PCT` estimator supplied it -- the
     provenance flag every deliverable states, so an assumed spar location is
-    never reported as input."""
+    never reported as input. Two states only: nobody entered a station, or
+    somebody did (note 50 OR-126)."""
     surface_name: str
     x_f: float
     x_r: float
@@ -49,24 +53,59 @@ class CarryThrough(NamedTuple):
     assumed: bool
 
 
+def default_spar_station(surf: Optional[SurfaceInput], *, rear: bool = False) -> Optional[float]:
+    """The estimator's spar station for ``surf``, or ``None`` when underivable.
+
+    ``x_LE(root) + pct * c_root`` off the inboard-most polyline point, with
+    ``pct`` from :data:`~sloads.constants.DEFAULT_FRONT_SPAR_PCT` /
+    :data:`~sloads.constants.DEFAULT_REAR_SPAR_PCT`.
+
+    **One owner for the estimator** (`CLAUDE.md` practice 3): this is the value
+    :func:`carry_through` falls back to *and* the number the geometry page's
+    collapsed-override caption shows, so the caption cannot drift from the
+    analysis (note 50 OR-123; ``field_registry.EXTERNAL_VALUES``). A second copy
+    of the expression is what the guard
+    ``tests/test_derived_geometry.py::test_the_estimator_has_one_owner``
+    exists to prevent.
+    """
+    if surf is None or not surf.leading_edge or not surf.trailing_edge:
+        return None
+    x_le = surf.leading_edge[0][0]
+    c_root = surf.trailing_edge[0][0] - x_le
+    if c_root <= 0.0:
+        return None
+    pct = DEFAULT_REAR_SPAR_PCT if rear else DEFAULT_FRONT_SPAR_PCT
+    return x_le + pct * c_root
+
+
 def carry_through(project: Project, surface_name: str = "wing") -> Optional[CarryThrough]:
     """The front/rear spar stations at the surface root, or ``None`` when absent.
 
-    The spar stations are the chord fractions ``SurfaceInput.front_spar_pct``/
-    ``.rear_spar_pct`` applied to the **root chord** -- the inboard-most point of
-    the surface's edge polylines, which is the chord the carry-through structure
-    actually spans::
+    The stations are ``SurfaceInput.front_spar_x_in``/``.rear_spar_x_in`` as
+    entered -- the fuselage station the analyst measures off a drawing. This is
+    the support region ``body_loads`` reacts the Ch 15 unbalanced moment over
+    (Ref 1 p103, backlog M4-1).
 
-        x_f = x_LE(root) + front_pct * c_root
-        x_r = x_LE(root) + rear_pct  * c_root
+    An unentered station is **derived** rather than refused, on note 36's OV-1
+    contract (blank derives, typed overrides): the
+    :data:`~sloads.constants.DEFAULT_FRONT_SPAR_PCT` /
+    :data:`~sloads.constants.DEFAULT_REAR_SPAR_PCT` estimator is applied to the
+    **root chord** -- the inboard-most point of the surface's edge polylines,
+    which is the chord the carry-through structure actually spans::
 
-    This is the support region ``body_loads`` reacts the Ch 15 unbalanced moment
-    over (Ref 1 p103, backlog M4-1). Returns ``None`` when there is no geometry
-    slice, no matching surface, or the root chord is degenerate (empty polylines
-    or ``c_root <= 0``) -- ``body_loads`` then falls back to its flagged
-    whole-body closure artifact. An unset fraction is filled from the module
-    defaults and flags the result ``assumed``; the fractions are used as given
-    otherwise (no clamping -- an out-of-order pair is caught by ``d <= 0``)."""
+        x_f = x_LE(root) + DEFAULT_FRONT_SPAR_PCT * c_root
+        x_r = x_LE(root) + DEFAULT_REAR_SPAR_PCT  * c_root
+
+    and the result is flagged ``assumed``. Each station derives independently,
+    so entering one and leaving the other blank is a valid half-entered state --
+    still ``assumed``, because one of the two was not stated.
+
+    Returns ``None`` when there is no geometry slice, no matching surface, or
+    the root chord is degenerate (empty polylines or ``c_root <= 0``) --
+    ``body_loads`` then falls back to its flagged whole-body closure artifact.
+    The root chord is required even when both stations are entered, because it
+    is what ``front_pct``/``rear_pct`` are stated against. Entered stations are
+    used as given (no clamping -- an out-of-order pair is caught by ``d <= 0``)."""
     geom = project.geometry
     if geom is None:
         return None
@@ -77,13 +116,20 @@ def carry_through(project: Project, surface_name: str = "wing") -> Optional[Carr
     c_root = surf.trailing_edge[0][0] - x_le
     if c_root <= 0.0:
         return None
-    assumed = surf.front_spar_pct is None or surf.rear_spar_pct is None
-    front = DEFAULT_FRONT_SPAR_PCT if surf.front_spar_pct is None else float(surf.front_spar_pct)
-    rear = DEFAULT_REAR_SPAR_PCT if surf.rear_spar_pct is None else float(surf.rear_spar_pct)
-    x_f = x_le + front * c_root
-    x_r = x_le + rear * c_root
+    assumed = surf.front_spar_x_in is None or surf.rear_spar_x_in is None
+    x_f = (default_spar_station(surf) if surf.front_spar_x_in is None
+           else float(surf.front_spar_x_in))
+    x_r = (default_spar_station(surf, rear=True) if surf.rear_spar_x_in is None
+           else float(surf.rear_spar_x_in))
+    if x_f is None or x_r is None:                # unreachable: c_root > 0 above
+        return None
     if x_r - x_f <= 0.0:
         return None
+    # Reported back as chord fractions, which is how an assumed carry-through is
+    # stated in chord terms; an entered station may legitimately fall outside
+    # [0, 1] of the root chord and is not clamped to hide that.
+    front = (x_f - x_le) / c_root
+    rear = (x_r - x_le) / c_root
     return CarryThrough(surface_name, x_f, x_r, x_r - x_f, front, rear, assumed)
 
 

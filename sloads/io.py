@@ -545,10 +545,11 @@ def _surface_from_dict(d: Dict[str, Any]) -> SurfaceInput:
         # default the day it was written, so nothing knowable is lost).
         ref_axis_pct=(lambda v: None if v == 0.25 else v)(
             _opt_float(d.get("ref_axis_pct"))),
-        # None is meaningful (= "not entered" -> assumed default, M4-1), so an
-        # absent/null key stays None rather than taking a numeric default here.
-        front_spar_pct=_opt_float(d.get("front_spar_pct")),
-        rear_spar_pct=_opt_float(d.get("rear_spar_pct")),
+        # None is meaningful (= "not entered" -> derived default, M4-1 / note 50
+        # OR-121), so an absent/null key stays None rather than taking a numeric
+        # default here.
+        front_spar_x_in=_opt_float(d.get("front_spar_x_in")),
+        rear_spar_x_in=_opt_float(d.get("rear_spar_x_in")),
         sob_y_in=_opt_float(d.get("sob_y_in")),
     )
 
@@ -649,9 +650,9 @@ def geometry_to_dict(inp: GeometryInput) -> Dict[str, Any]:
                 "tip_cap_width_in": s.tip_cap_width_in,
                 "ref_axis_pct": s.ref_axis_pct,
                 # Written even when None so "not entered" round-trips explicitly
-                # (the assumed-default provenance, M4-1).
-                "front_spar_pct": s.front_spar_pct,
-                "rear_spar_pct": s.rear_spar_pct,
+                # (the assumed-default provenance, M4-1 / note 50 OR-126).
+                "front_spar_x_in": s.front_spar_x_in,
+                "rear_spar_x_in": s.rear_spar_x_in,
                 "sob_y_in": s.sob_y_in,
             }
             for s in inp.surfaces

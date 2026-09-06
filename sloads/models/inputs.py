@@ -355,14 +355,20 @@ class SurfaceInput:
     an unstated axis is the silently-defaulted case — refuses ``None`` rather
     than assuming.
 
-    ``front_spar_pct``/``rear_spar_pct`` are the surface's front and rear spar
-    stations as fractions of the local chord. For the wing they locate the
+    ``front_spar_x_in``/``rear_spar_x_in`` are the surface's front and rear spar
+    **fuselage stations** (in, global X). For the wing they locate the
     **carry-through** the fuselage's unbalanced moment is reacted over (Ref 1
     Ch 15 p103; :func:`sloads.derived_geometry.carry_through`, backlog M4-1).
-    ``None`` means "not entered": the resolver then assumes
+    They are the station an analyst measures off a drawing, which is what the
+    chord fractions they replaced could not be: a fraction is taken on the
+    centreline root chord, the fittings are at the fuselage, and on a swept or
+    cranked wing no value of the fraction reconciles the two (v61, note 50
+    OR-121). ``None`` means "not entered" and carries note 36's OV-1 contract —
+    blank derives, typed overrides: the resolver computes the station from
     :data:`~sloads.constants.DEFAULT_FRONT_SPAR_PCT` /
-    :data:`~sloads.constants.DEFAULT_REAR_SPAR_PCT` and marks the result
-    ``assumed``, so an assumed spar location is never reported as input.
+    :data:`~sloads.constants.DEFAULT_REAR_SPAR_PCT` of the root chord and marks
+    the result ``assumed``, so an assumed spar location is never reported as
+    input.
 
     ``sob_y_in`` is the surface's **side-of-body butt line** (in) -- where the
     surface structurally attaches to the fuselage. One quantity, two consumers
@@ -387,8 +393,8 @@ class SurfaceInput:
     elements: int = 20
     tip_cap_width_in: float = 0.0            # rounded tip-cap width, in; 0 = square tip (OV-4)
     ref_axis_pct: Optional[float] = None     # fraction of chord; None -> not entered (R-7c)
-    front_spar_pct: Optional[float] = None   # fraction of chord; None -> assumed default
-    rear_spar_pct: Optional[float] = None    # fraction of chord; None -> assumed default
+    front_spar_x_in: Optional[float] = None  # fuselage station, in; None -> derived default (OR-121)
+    rear_spar_x_in: Optional[float] = None   # fuselage station, in; None -> derived default (OR-121)
     sob_y_in: Optional[float] = None         # side-of-body butt line, in; None -> assumed fallback (BM-1)
 
     @property

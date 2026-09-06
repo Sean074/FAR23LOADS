@@ -137,16 +137,16 @@ def test_the_refusal_names_the_record_and_the_field():
 def test_an_optional_field_keeps_its_null():
     """The refusal must not eat the states where ``None`` is the answer.
 
-    ``SurfaceInput.front_spar_pct`` is ``None = not entered`` (M4-1) and the gear
-    ``carrier`` is ``None = not stated`` (G-2) -- both meaningful, both written
-    as ``null`` by this app's own writer.
+    ``SurfaceInput.front_spar_x_in`` is ``None = not entered`` (M4-1; note 50
+    OR-126) and the gear ``carrier`` is ``None = not stated`` (G-2) -- both
+    meaningful, both written as ``null`` by this app's own writer.
     """
     with open(_GA6, encoding="utf-8") as fh:
         raw = json.load(fh)
-    raw["geometry"]["surfaces"][0]["front_spar_pct"] = None
+    raw["geometry"]["surfaces"][0]["front_spar_x_in"] = None
 
     project = io.project_from_dict(raw)
-    assert project.geometry.surfaces[0].front_spar_pct is None
+    assert project.geometry.surfaces[0].front_spar_x_in is None
 
 
 def _model_dataclasses():

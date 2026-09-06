@@ -163,6 +163,7 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # means "not entered" -- derived_geometry.carry_through then substitutes
 # constants.DEFAULT_FRONT_SPAR_PCT / _REAR_SPAR_PCT and marks the result
 # ``assumed`` so the deliverable states the spar stations were assumed.
+# (Superseded at v61: the pair became entered fuselage stations, note 50 OR-121.)
 # v36 (Step G8.2) adds the document-control fields Project.revision /
 # .checked_by / .approved_by / .description -- the controlling-document header of
 # the Step-G8 summary report (title page + signature block). All four are
@@ -288,7 +289,18 @@ from .results import EnvelopeResult, LoadsResult, MassResult
 # The third instance of the same move, after v58's ``frame`` and v59's ``point``,
 # and identical in standing: additive, ``""`` means exactly what v59 meant,
 # identity hop, and a shape change all the same for the same persistence reason.
-SCHEMA_VERSION = 60
+# v61 (design note 50 OR-121/OR-127): the wing carry-through is entered as a
+# fuselage station. ``SurfaceInput.front_spar_pct``/``.rear_spar_pct`` are
+# replaced by ``front_spar_x_in``/``rear_spar_x_in`` -- a fraction is taken on
+# the centreline root chord while the fittings are at the fuselage, so on a
+# swept or cranked wing the fraction could not express the station whatever its
+# value. ``None`` still means "not entered": ``carry_through`` derives the
+# station from constants.DEFAULT_FRONT_SPAR_PCT / _REAR_SPAR_PCT of the root
+# chord and marks the result ``assumed``. The hop is not an identity -- a v60
+# file that *entered* a fraction has its station computed from its own polylines,
+# so an entered carry-through survives as the same physical station instead of
+# reverting to a default.
+SCHEMA_VERSION = 61
 
 
 @dataclass

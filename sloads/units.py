@@ -438,6 +438,11 @@ _PROJECT_FIELD_KIND = {
     "actuator_span_in": "length_in", "hinges_span_in": "length_in",
     "inboard_y_in": "length_in", "outboard_y_in": "length_in",
     "sob_y_in": "length_in",
+    # The wing carry-through, entered as a fuselage station (note 50 OR-121).
+    # A *length*, unlike the chord fractions it replaced, which were
+    # dimensionless and matched the ``_pct$`` rule -- so the pair joins the
+    # converted set and the two GUIs show it in the display system's units.
+    "front_spar_x_in": "length_in", "rear_spar_x_in": "length_in",
     "tip_cap_width_in": "length_in",
     # Bare ``[x, y, z]`` inch arrays rather than keyed dicts (io.py's
     # ``engine_to_dict``/``engine_from_dict``) -- ordinary rows since the

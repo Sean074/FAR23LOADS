@@ -595,6 +595,22 @@ def _rudder_area(project: Project, _record: object = None) -> Optional[float]:
     return total or None
 
 
+def _spar_station(rear: bool) -> "typing.Callable[..., Optional[float]]":
+    """Resolver factory for the two carry-through stations (note 50 OR-123).
+
+    ``record`` is the ``SurfaceInput`` row the widget is rendering, which is what
+    the estimator needs -- the station is that surface's own root chord, not the
+    wing's. Delegates to ``derived_geometry.default_spar_station``, the one owner
+    of the expression, so the caption shows the number the analysis will use.
+    """
+    def resolve(_project: Project, record: object = None) -> Optional[float]:
+        from sloads.derived_geometry import default_spar_station
+
+        return default_spar_station(record, rear=rear)  # type: ignore[arg-type]
+
+    return resolve
+
+
 def _wing_span(project: Project, _record: object = None) -> Optional[float]:
     from sloads.derived_geometry import wing_span_in
 
@@ -665,6 +681,10 @@ EXTERNAL_VALUES: Dict[str, "typing.Callable[..., object]"] = {
     "geometry.empennage.vtail.wing_span_in": _wing_span,
     "geometry.empennage.vtail.izz_slugft2": _side_gust_izz,
     "select_input.wing_weight_lb": _select_wing_weight,
+    # note 50 OR-123: blank derives the station from the root chord, typed
+    # overrides it. The resolver takes the surface row as ``record``.
+    "geometry.surfaces[].front_spar_x_in": _spar_station(rear=False),
+    "geometry.surfaces[].rear_spar_x_in": _spar_station(rear=True),
 }
 
 #: The paths whose calc contract is note 36's **falsy-means-derive /
@@ -854,8 +874,22 @@ REGISTRY: Tuple[FieldEntry, ...] = (
        "mirrored vs single-side surface; the original kept one *GEOM.INP per surface, so the "
        "surface's identity carried this. Load-bearing (G5): omitting it doubles the ga6 aileron",
        supplied=True),
-    _E("geometry.surfaces[].front_spar_pct", _GEO, _SLDS, "spar fractions, sbeam box model (Step C4)"),
-    _E("geometry.surfaces[].rear_spar_pct", _GEO, _SLDS, "spar fractions, sbeam box model (Step C4)"),
+    # The wing carry-through, entered as a fuselage station (note 50 OR-121).
+    # ``supplied`` is OR-103's mark, moved here from the chord fractions these
+    # replaced: without it the oracle GUI cannot offer the field and
+    # ``reduce_to_oracle_inputs`` strips it, so every fitting load the oracle
+    # report can print comes from the estimator whatever the project holds --
+    # which is OR-97's finding. Demonstrated load-bearing by G-OR-76.
+    _E("geometry.surfaces[].front_spar_x_in", _GEO, _SLDS,
+       "wing carry-through front spar station, Ref 1 Ch 15 p103 (M4-1; note 50 OR-121). "
+       "Load-bearing (G5): entering it moves the fuselage fitting loads",
+       derived_from=EXTERNAL + "20 % of the centreline root chord "
+       "(constants.DEFAULT_FRONT_SPAR_PCT, note 50 OR-122)", governs=True, supplied=True),
+    _E("geometry.surfaces[].rear_spar_x_in", _GEO, _SLDS,
+       "wing carry-through rear spar station, Ref 1 Ch 15 p103 (M4-1; note 50 OR-121). "
+       "Load-bearing (G5): entering it moves the fuselage fitting loads",
+       derived_from=EXTERNAL + "60 % of the centreline root chord "
+       "(constants.DEFAULT_REAR_SPAR_PCT, note 50 OR-122)", governs=True, supplied=True),
     _E("geometry.surfaces[].ref_axis_pct", _GEO, _SLDS, "loads reference axis, R-7c"),
     _E("geometry.surfaces[].sob_y_in", _GEO, _SLDS, "side-of-body station, BM-1"),
     _E("geometry.surfaces[].tip_cap_width_in", _GEO, _SLDS,

@@ -854,7 +854,8 @@ v32 M2R-2 `LandingInput.n` write-back removed; v33 M4-7 per-case
 v34 M4-18 `SurfaceInput.ref_axis_pct` (the loads reference axis, LRA) +
 `WingLoadResult.torsion_axis`; v35 M4-1 `SurfaceInput.front_spar_pct`/
 `.rear_spar_pct` (the wing carry-through the Ch 15 fuselage moment closure
-reacts over; `None` = not entered → assumed default); v36 G8.2
+reacts over; `None` = not entered → assumed default — **superseded at v61** by
+the entered `front_spar_x_in`/`rear_spar_x_in`, note 50 OR-121); v36 G8.2
 `Project.revision`/`.checked_by`/`.approved_by`/`.description` — the summary
 report's document-control header, all free text defaulting to `""`; v37 M4-9
 `LoadValue.key`, the stable machine identity that replaced the display label as

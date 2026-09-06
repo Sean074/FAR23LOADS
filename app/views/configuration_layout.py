@@ -50,7 +50,7 @@ from sloads import (
 from sloads import io as sloads_io
 from sloads.applicability import effective_occupants
 from sloads.constants import DEFAULT_FRONT_SPAR_PCT, DEFAULT_REAR_SPAR_PCT
-from sloads.derived_geometry import fuselage_summary
+from sloads.derived_geometry import default_spar_station, fuselage_summary
 from sloads.modules.configuration import (
     cg_estimate,
     component_stations,
@@ -323,6 +323,34 @@ np_station = derived.get("Neutral point station")
 # --------------------------------------------------------------------------- #
 # Three-view
 # --------------------------------------------------------------------------- #
+def _spar_caption(where, which: str, entered, derived, pct: float, system, u) -> None:
+    """The note 50 OR-123 caption: blank derives, typed overrides.
+
+    The same sentence the oracle form's ``_collapsed_note`` writes for a
+    collapsed override, said here because this page builds its widgets by hand
+    rather than from the registry. It shows the number the analysis will
+    actually use, so accepting the estimate is a decision the user can see
+    instead of a blank they have to know about.
+    """
+    pct_txt = f"{pct * 100.0:g} % of the root chord"
+    if entered is None:
+        if derived is None:
+            where.caption(f"Blank — derives from {pct_txt}, which the planform "
+                          "cannot answer yet.")
+        else:
+            shown = to_display(float(derived), "length", system)
+            where.caption(f"Blank — derives from {pct_txt} "
+                          f"(currently {shown:.2f} {u['length']}). "
+                          "Enter a value only to override.")
+        return
+    if derived is None:
+        where.caption(f"{which} spar station entered.")
+        return
+    shown = to_display(float(derived), "length", system)
+    where.caption(f"Entered — overrides the {pct_txt} estimate "
+                  f"({shown:.2f} {u['length']}).")
+
+
 def _three_view() -> go.Figure:
     le, te = wing_polylines(layout)
     semi = le[-1][1]
@@ -778,29 +806,38 @@ else:
                          "**Leave blank** for the original 25% reporting; the LRA "
                          "beam-model export requires an entered axis (a beam on an "
                          "unstated axis is refused, note 24 R-7c).")
-                # Spar fractions are optional: left blank they stay None, and
-                # body_loads flags the carry-through stations it assumes (M4-1).
+                # Spar stations are optional: left blank they stay None and the
+                # estimator derives them, which body_loads flags ``assumed``
+                # (M4-1; note 50 OR-121/OR-126). Blank derives, typed overrides
+                # -- the caption states the derived station so the number the
+                # analysis will use is on the page either way (OR-123).
                 _sc = st.columns(3)
                 _spar_help = (
-                    "Chordwise position of the wing-attach spar, as a %% of the root "
-                    "chord. Used to place the front/rear carry-through reactions that "
-                    "react the fuselage unbalanced moment (Ref 1 Ch 15 p103) and to "
-                    "report the wing-attach fitting loads. **Leave blank** to accept "
-                    "the module default (%g%%), which is reported as an assumed "
-                    "station on every fuselage deliverable."
+                    "Fuselage station (global X) of the wing-attach spar. Used to place "
+                    "the front/rear carry-through reactions that react the fuselage "
+                    "unbalanced moment (Ref 1 Ch 15 p103) and to report the wing-attach "
+                    "fitting loads. **Leave blank** to derive it from %g %% of the root "
+                    "chord, which is reported as an assumed station on every fuselage "
+                    "deliverable."
                 )
-                _fs_pct = _sc[0].number_input(
-                    "Front spar (% chord, optional)", min_value=0.0, max_value=100.0,
-                    value=None if _surf.front_spar_pct is None
-                    else float(_surf.front_spar_pct * 100.0), step=1.0,
-                    key=widget_key(f"fs_{_surf.name}"),
+                _fs_default = default_spar_station(_surf)
+                _rs_default = default_spar_station(_surf, rear=True)
+                _fs_x = _sc[0].number_input(
+                    f"Front spar station ({U['length']}, optional)",
+                    value=None if _surf.front_spar_x_in is None
+                    else to_display(float(_surf.front_spar_x_in), "length", system),
+                    step=1.0, key=widget_key(f"fs_{_surf.name}_{system.value}"),
                     help=_spar_help % (DEFAULT_FRONT_SPAR_PCT * 100.0))
-                _rs_pct = _sc[1].number_input(
-                    "Rear spar (% chord, optional)", min_value=0.0, max_value=100.0,
-                    value=None if _surf.rear_spar_pct is None
-                    else float(_surf.rear_spar_pct * 100.0), step=1.0,
-                    key=widget_key(f"rs_{_surf.name}"),
+                _rs_x = _sc[1].number_input(
+                    f"Rear spar station ({U['length']}, optional)",
+                    value=None if _surf.rear_spar_x_in is None
+                    else to_display(float(_surf.rear_spar_x_in), "length", system),
+                    step=1.0, key=widget_key(f"rs_{_surf.name}_{system.value}"),
                     help=_spar_help % (DEFAULT_REAR_SPAR_PCT * 100.0))
+                _spar_caption(_sc[0], "Front", _surf.front_spar_x_in, _fs_default,
+                              DEFAULT_FRONT_SPAR_PCT, system, U)
+                _spar_caption(_sc[1], "Rear", _surf.rear_spar_x_in, _rs_default,
+                              DEFAULT_REAR_SPAR_PCT, system, U)
                 _sob = _sc[2].number_input(
                     f"Side of body ({U['length']}, optional)", min_value=0.0,
                     value=None if _surf.sob_y_in is None
@@ -830,7 +867,7 @@ else:
                                         num_rows="dynamic", column_config=_te_cols,
                                         key=widget_key(f"te_{_surf.name}_{system.value}"))
                 _surface_inputs.append((_surf.name, _sym, _elems, _lra_pct,
-                                        _fs_pct, _rs_pct, _sob, _le_df, _te_df))
+                                        _fs_x, _rs_x, _sob, _le_df, _te_df))
         if st.form_submit_button("Apply surface geometry", type="primary"):
             def _imp_pt(row):
                 return tuple(to_imperial_scalar(v, "length", system) for v in row)
@@ -839,14 +876,16 @@ else:
                 SurfaceInput(
                     name=name, symmetric=sym, elements=int(elems),
                     ref_axis_pct=None if lra_pct is None else float(lra_pct) / 100.0,
-                    front_spar_pct=None if fs_pct is None else float(fs_pct) / 100.0,
-                    rear_spar_pct=None if rs_pct is None else float(rs_pct) / 100.0,
+                    front_spar_x_in=None if fs_x is None
+                    else to_imperial_scalar(float(fs_x), "length", system),
+                    rear_spar_x_in=None if rs_x is None
+                    else to_imperial_scalar(float(rs_x), "length", system),
                     sob_y_in=None if sob is None
                     else to_imperial_scalar(float(sob), "length", system),
                     leading_edge=[_imp_pt(r) for r in le_df.dropna().to_numpy().tolist()],
                     trailing_edge=[_imp_pt(r) for r in te_df.dropna().to_numpy().tolist()],
                 )
-                for name, sym, elems, lra_pct, fs_pct, rs_pct, sob, le_df, te_df in _surface_inputs
+                for name, sym, elems, lra_pct, fs_x, rs_x, sob, le_df, te_df in _surface_inputs
             ]
             _set_geometry(project, surfaces=_edited)
             st.success(f"Applied {len(_edited)} surface(s).")
@@ -948,8 +987,8 @@ with right:
         # side-of-body butt line over.
         if _prev_wing is not None:
             _seeded.ref_axis_pct = _prev_wing.ref_axis_pct
-            _seeded.front_spar_pct = _prev_wing.front_spar_pct
-            _seeded.rear_spar_pct = _prev_wing.rear_spar_pct
+            _seeded.front_spar_x_in = _prev_wing.front_spar_x_in
+            _seeded.rear_spar_x_in = _prev_wing.rear_spar_x_in
             _seeded.sob_y_in = _prev_wing.sob_y_in
         surfaces.insert(0, _seeded)
         _set_geometry(project, surfaces=surfaces)

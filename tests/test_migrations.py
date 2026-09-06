@@ -40,7 +40,7 @@ from sloads.models import SCHEMA_VERSION
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _FIXTURES = os.path.join(_HERE, "fixtures_schema")
 _EXAMPLES = os.path.join(os.path.dirname(_HERE), "examples")
-_CURRENT = "v60_current.json"
+_CURRENT = "v61_current.json"
 
 
 def _load(name=_CURRENT):
@@ -145,7 +145,7 @@ def test_a_v55_file_loads_through_the_identity_hop_unchanged():
     assert v55["schema_version"] == 55
     hopped = MIGRATIONS[55](copy.deepcopy(v55))
     assert hopped == v55, "the 55->56 identity hop moved something"
-    assert applied_hops(55) == [55, 56, 57, 58, 59]
+    assert applied_hops(55) == [55, 56, 57, 58, 59, 60]
     assert io.project_to_dict(io.project_from_dict(v55)) == \
            io.project_to_dict(io.project_from_dict(_load()))
 
@@ -162,7 +162,7 @@ def test_the_v56_hop_inverts_the_landing_override():
     assert out["schema_version"] == SCHEMA_VERSION
     assert "gear_load_factor" not in out["landing"]
     assert out["landing"]["airplane_load_factor"] == 3.167
-    assert applied_hops(56) == [56, 57, 58, 59]
+    assert applied_hops(56) == [56, 57, 58, 59, 60]
     # The 0.0 sentinel meant "unset": it loads to an unfilled Optional.
     sentinel = copy.deepcopy(v56)
     sentinel["landing"]["gear_load_factor"] = 0.0
@@ -192,7 +192,7 @@ def test_a_v57_file_loads_through_the_identity_hop_unchanged():
     assert v57["schema_version"] == 57
     hopped = MIGRATIONS[57](copy.deepcopy(v57))
     assert hopped == v57, "the 57->58 identity hop moved something"
-    assert applied_hops(57) == [57, 58, 59]
+    assert applied_hops(57) == [57, 58, 59, 60]
     assert io.project_to_dict(io.project_from_dict(v57)) == \
            io.project_to_dict(io.project_from_dict(_load()))
 
@@ -210,7 +210,7 @@ def test_a_v58_file_loads_through_the_identity_hop_unchanged():
     assert v58["schema_version"] == 58
     hopped = MIGRATIONS[58](copy.deepcopy(v58))
     assert hopped == v58, "the 58->59 identity hop moved something"
-    assert applied_hops(58) == [58, 59]
+    assert applied_hops(58) == [58, 59, 60]
     assert io.project_to_dict(io.project_from_dict(v58)) == \
            io.project_to_dict(io.project_from_dict(_load()))
 
@@ -228,9 +228,81 @@ def test_a_v59_file_loads_through_the_identity_hop_unchanged():
     assert v59["schema_version"] == 59
     hopped = MIGRATIONS[59](copy.deepcopy(v59))
     assert hopped == v59, "the 59->60 identity hop moved something"
-    assert applied_hops(59) == [59]
+    assert applied_hops(59) == [59, 60]
     assert io.project_to_dict(io.project_from_dict(v59)) == \
            io.project_to_dict(io.project_from_dict(_load()))
+
+
+def test_the_v60_hop_converts_an_entered_carry_through(tmp_path):
+    """**G-OR-79** (design note 50 OR-127): the 60->61 hop is the first in the
+    live chain that is not an identity.
+
+    v61 replaces ``SurfaceInput.front_spar_pct``/``.rear_spar_pct`` -- fractions
+    of the centreline root chord -- with the fuselage station itself. A file that
+    *entered* a fraction must keep the carry-through it was analysed with, so the
+    hop computes the station from that surface's own polylines rather than
+    dropping the value and letting the (also changed) default take over. A
+    ``null`` fraction is "not entered" in both schemas and hops to ``null``.
+
+    No bundled example takes the converting branch -- all seven write both keys
+    ``null``, which ``test_the_v60_fixture_hops_its_nulls_through`` pins -- so
+    the branch is asserted on a constructed dict. That is not a weaker test: it
+    is the only place the branch exists.
+    """
+    v60 = _load("v60_current.json")
+    surfaces = v60["geometry"]["surfaces"]
+    wing = surfaces[0]
+    x_le, x_te = wing["leading_edge"][0][0], wing["trailing_edge"][0][0]
+    c_root = x_te - x_le
+    assert c_root > 0.0, "the fixture wing has no root chord to convert against"
+    wing["front_spar_pct"], wing["rear_spar_pct"] = 0.18, 0.62
+
+    out = MIGRATIONS[60](copy.deepcopy(v60))
+    hopped = out["geometry"]["surfaces"][0]
+    # The station the entered fraction described, on this airplane's own wing.
+    assert hopped["front_spar_x_in"] == pytest.approx(x_le + 0.18 * c_root)
+    assert hopped["rear_spar_x_in"] == pytest.approx(x_le + 0.62 * c_root)
+    # The old keys are gone, not left behind as a second copy of the quantity.
+    assert "front_spar_pct" not in hopped and "rear_spar_pct" not in hopped
+    # And it is a *representation* change: the carry-through the hopped file
+    # resolves is the one the pre-hop fractions described, to machine precision.
+    # Loading re-runs the hop (``project_from_dict`` funnels every load through
+    # ``migrate``), so this also pins that the hop is idempotent -- the first
+    # draft was not, and the second pass wrote the converted station back to
+    # ``None``.
+    from sloads.derived_geometry import carry_through
+
+    ct = carry_through(io.project_from_dict(out))
+    assert ct is not None and not ct.assumed
+    assert ct.x_f == pytest.approx(x_le + 0.18 * c_root)
+    assert ct.x_r == pytest.approx(x_le + 0.62 * c_root)
+
+
+def test_the_v60_fixture_hops_its_nulls_through():
+    """The branch every shipped file actually takes: not entered stays not
+    entered, and the result is the current fixture."""
+    v60 = _load("v60_current.json")
+    assert all(s.get("front_spar_pct") is None and s.get("rear_spar_pct") is None
+               for s in v60["geometry"]["surfaces"]), "the fixture stopped being blank"
+    assert applied_hops(60) == [60]
+    assert io.project_to_dict(io.project_from_dict(v60)) == \
+           io.project_to_dict(io.project_from_dict(_load()))
+
+
+def test_a_degenerate_planform_hops_to_not_entered():
+    """No positive root chord, no station to compute -- and ``carry_through``
+    already refuses that geometry from the other side, so ``null`` is the honest
+    answer rather than a station derived from a chord that does not exist."""
+    d = {"geometry": {"surfaces": [
+        {"leading_edge": [[45.0, 0.0]], "trailing_edge": [[45.0, 0.0]],
+         "front_spar_pct": 0.20, "rear_spar_pct": 0.60},
+        {"leading_edge": [], "trailing_edge": [], "front_spar_pct": 0.20,
+         "rear_spar_pct": 0.60},
+    ]}}
+    out = MIGRATIONS[60](d)
+    for surface in out["geometry"]["surfaces"]:
+        assert surface["front_spar_x_in"] is None
+        assert surface["rear_spar_x_in"] is None
 
 
 def test_migrate_does_not_mutate_the_callers_dict():
@@ -248,7 +320,7 @@ def test_migrate_is_idempotent():
 
 def test_applied_hops_matches_the_chain():
     assert applied_hops(SCHEMA_VERSION) == []            # nothing at/above current
-    assert applied_hops(SUPPORTED_FLOOR) == sorted(MIGRATIONS) == [55, 56, 57, 58, 59]
+    assert applied_hops(SUPPORTED_FLOOR) == sorted(MIGRATIONS) == [55, 56, 57, 58, 59, 60]
 
 
 # --------------------------------------------------------------------------- #

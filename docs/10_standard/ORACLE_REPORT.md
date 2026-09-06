@@ -639,6 +639,7 @@ without a guard is prose, not a gate).
 | B.1 and the exported CSV are one load set (OR-64) | 2026-09-03 | `test_oracle_report.py::test_the_appendix_table_and_the_exported_csv_are_one_load_set`, `test_sbeam_bridge.py::test_the_applied_moment_is_the_free_moment_not_the_increment` |
 | B.1 states all six components and prints its structural zeros (OR-65, OR-66) | 2026-09-03 | `test_sbeam_bridge.py::test_the_applied_set_states_all_six_components`, `::test_the_applied_set_reproduces_the_whole_vmt_at_every_station`; note 46 G-OR-35/36 |
 | Appendix page breaks and landscape (OR-63) | 2026-09-03 | `test_oracle_report.py::test_the_appendix_is_landscape_and_starts_a_fresh_page` |
+| Carry-through entered as a station (note 50 OR-121…OR-127) | 2026-09-05 | `test_oracle_inputs.py::test_an_entered_spar_station_reaches_the_fuselage_fitting_loads`, `::test_the_spar_station_survives_the_oracle_projection`, `test_derived_geometry.py::test_carry_through_from_entered_spar_stations`, `::test_the_estimator_has_one_owner`, `test_migrations.py::test_the_v60_hop_converts_an_entered_carry_through` |
 | Section 2 marks nothing ultimate; load factors identified as LIMIT | 2026-08-30 | `test_oracle_report.py::test_section_two_marks_nothing_ultimate_and_states_no_safety_factor`, `::test_no_table_claims_a_load_factor_is_not_a_load`, `::test_reported_load_factors_are_identified_as_limit` |
 
 ## 8. Conformance

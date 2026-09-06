@@ -306,10 +306,11 @@ def build_lra_model(project: Project) -> LraModel:
         notes.append(centreline.note)
     if ct.assumed:
         notes.append(
-            f"wing spar chord fractions ASSUMED ({ct.front_pct:.2f}/"
-            f"{ct.rear_pct:.2f} of root chord) -- the posts sit at fuselage "
-            f"stations {ct.x_f:.1f}/{ct.x_r:.1f} on them. Enter front/rear_"
-            "spar_pct to state the joint")
+            f"wing spar stations ASSUMED -- derived at "
+            f"{ct.front_pct * 100.0:.0f}/{ct.rear_pct * 100.0:.0f} % of the root "
+            f"chord, so the posts sit at fuselage stations "
+            f"{ct.x_f:.1f}/{ct.x_r:.1f}. Enter front/rear_spar_x_in to state "
+            "the joint")
 
     pending_body_ties: List[Tuple[float, List[int], str]] = []
 

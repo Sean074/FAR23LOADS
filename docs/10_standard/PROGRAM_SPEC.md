@@ -560,8 +560,10 @@ regression oracle**; Appendix A/B geometry is used only as a *sanity* fixture.
   station), `Project.fuselage_mass` (`FuselageMassInput` — the per-station
   lumped fuselage weight distribution, which should exclude wing mass per Ch 15)
   and the wing carry-through resolved from `Project.geometry` by
-  `derived_geometry.carry_through` (planform root chord × `SurfaceInput`
-  `front_spar_pct`/`rear_spar_pct`; **M4-1**).
+  `derived_geometry.carry_through` (the entered fuselage stations `SurfaceInput`
+  `front_spar_x_in`/`rear_spar_x_in`; blank derives from 20 %/60 % of the
+  planform root chord and flags the result `assumed`; **M4-1**, note 50
+  OR-121/OR-122).
 - **Writes:** the longitudinal net shear/bending-moment/torsion distribution
   along the fuselage stations → `ConditionResult`s / CSV; feeds the sbeam
   export bridge's body target. Per condition it also writes the moment-closure

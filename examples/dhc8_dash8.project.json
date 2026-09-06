@@ -1,5 +1,5 @@
 {
-  "schema_version": 60,
+  "schema_version": 61,
   "name": "de Havilland Canada DHC-8-100 Dash 8 \u2014 2x PW121 (concept, category C)",
   "engines": [
     {
@@ -541,8 +541,8 @@
         "elements": 20,
         "tip_cap_width_in": 0.0,
         "ref_axis_pct": 0.4,
-        "front_spar_pct": null,
-        "rear_spar_pct": null,
+        "front_spar_x_in": null,
+        "rear_spar_x_in": null,
         "sob_y_in": null
       },
       {
@@ -571,8 +571,8 @@
         "elements": 10,
         "tip_cap_width_in": 0.0,
         "ref_axis_pct": 0.4,
-        "front_spar_pct": null,
-        "rear_spar_pct": null,
+        "front_spar_x_in": null,
+        "rear_spar_x_in": null,
         "sob_y_in": null
       },
       {
@@ -601,8 +601,8 @@
         "elements": 10,
         "tip_cap_width_in": 0.0,
         "ref_axis_pct": 0.4,
-        "front_spar_pct": null,
-        "rear_spar_pct": null,
+        "front_spar_x_in": null,
+        "rear_spar_x_in": null,
         "sob_y_in": null
       }
     ],

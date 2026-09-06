@@ -454,6 +454,58 @@ def test_aero_surface_name_pairs_the_row_and_is_refused_unmatched():
         registry.get("airloads")(project)
 
 
+def test_an_entered_spar_station_reaches_the_fuselage_fitting_loads():
+    """**G-OR-76** (design note 50 OR-121): the G5 demonstration that earns the
+    ``supplied`` mark on the carry-through pair.
+
+    ``SUPPLIED_RULE`` route 2 is *demonstrably load-bearing* -- dropping the
+    entered value changes an oracle-page result on a shipped example -- and the
+    demonstration has to be here, or the mark is speculative. It is also OR-97's
+    finding run from the other side: before the mark, ``reduce_to_oracle_inputs``
+    stripped the field, so every fitting load the oracle report could print came
+    from the estimator whatever the project held.
+    """
+    from sloads.modules.body_loads import build_body_loads
+
+    project = _load("ga6_normal.project.json")
+    assumed = build_body_loads(project)[0]
+    assert assumed.spars_assumed
+
+    wing = project.geometry.by_name("wing")
+    wing.front_spar_x_in, wing.rear_spar_x_in = 70.0, 100.0
+    entered = build_body_loads(project)[0]
+    assert not entered.spars_assumed
+    assert (entered.x_front, entered.x_rear) == (70.0, 100.0)
+    assert abs(entered.r_front - assumed.r_front) > 1.0, "the mark would be speculative"
+
+
+def test_the_spar_station_survives_the_oracle_projection():
+    """**G-OR-75**: a project that enters a station reports *that* station after
+    ``reduce_to_oracle_inputs``, not the estimator's.
+
+    OR-97's finding was verified by entering 20 %/60 % on ``ga6_normal`` and
+    watching the projection revert the carry-through to the default. This is
+    that experiment, kept as a gate and run the other way round -- and asserted
+    **through the projection**, so no future reducer change can turn an entered
+    station back into an assumed one (**G-OR-77**).
+    """
+    from sloads.derived_geometry import carry_through
+
+    project = _load("ga6_normal.project.json")
+    wing = project.geometry.by_name("wing")
+    wing.front_spar_x_in, wing.rear_spar_x_in = 70.0, 100.0
+
+    reduced = reduce_to_oracle_inputs(project)
+    ct = carry_through(reduced)
+    assert ct is not None and not ct.assumed
+    assert (ct.x_f, ct.x_r) == (70.0, 100.0)
+
+    # And the two-state provenance holds through the projection in the other
+    # direction: not entered stays assumed, never quietly promoted.
+    blank = reduce_to_oracle_inputs(_load("ga6_normal.project.json"))
+    assert carry_through(blank).assumed
+
+
 def test_gear_carrier_default_is_a_sentinel_the_project_warns_about():
     """C210-49: ``carrier`` has no working default -- ``None`` means "not
     stated" and the consistency channel says ground cases cannot be exported

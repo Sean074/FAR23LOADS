@@ -586,12 +586,16 @@ def _geometry_section(project: Project, u: Units) -> Section:
     if surf is not None:
         rows.append(("Wing loads reference axis (LRA)",
                      format_value(surf.ref_axis * 100.0), "% chord", "Geometry"))
-        if surf.front_spar_pct is not None:
-            rows.append(("Front spar", format_value(surf.front_spar_pct * 100.0),
-                         "% chord", "Geometry"))
-        if surf.rear_spar_pct is not None:
-            rows.append(("Rear spar", format_value(surf.rear_spar_pct * 100.0),
-                         "% chord", "Geometry"))
+        # Only an *entered* station is echoed as input: a derived one is the
+        # estimator's, and stating it here would report an assumed carry-through
+        # as though it had been typed (note 50 OR-121/OR-126). The fuselage
+        # deliverables state the assumed case, beside the loads it produced.
+        if surf.front_spar_x_in is not None:
+            rows.append(("Front spar station", u.plain(surf.front_spar_x_in, "length"),
+                         L, "Geometry"))
+        if surf.rear_spar_x_in is not None:
+            rows.append(("Rear spar station", u.plain(surf.rear_spar_x_in, "length"),
+                         L, "Geometry"))
 
     ht, vt = project.tail_loads, project.vtail_loads
     if ht is not None:
