@@ -30,7 +30,7 @@ from ..load_keys import (
     parse_gyro_key,
 )
 from ..models import ConditionResult, CriticalCondition, EngineInput, LoadValue
-from ..units import UnitSystem, convert_results
+from ..units import UnitSystem, canonical, convert_results
 from ..units import is_load_unit as _is_load_unit
 
 
@@ -60,7 +60,7 @@ def format_value(value: float) -> str:
     """
     if isinstance(value, int):
         return str(value)
-    value = float(f"{value:.12g}")
+    value = canonical(value)
     if value == int(value):
         return str(int(value))
     return f"{value:.4g}"

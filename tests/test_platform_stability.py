@@ -205,6 +205,80 @@ def test_no_printed_deliverable_cell_hangs_on_the_last_ulp():
     assert checked > 100, checked  # the sweep must not quietly empty out
 
 
+def test_no_emitted_deck_value_hangs_on_the_last_ulp():
+    """``_fmt`` is continuous under last-ulp noise -- the solver-channel half of #147.
+
+    The report channel got this rule at #147; the deck channel did not, and the
+    class recurred in the same place it was found the first time: the frozen
+    Imperial digest passing on the developer's Mac and failing on the Linux CI
+    leg, this time on ``sbeam/balanced_deck``. ``_fmt`` prints **seven**
+    significant digits, which is finer than a computed load reproduces across
+    platforms, so a value sitting on the decimal rounding tie of its seventh
+    digit takes round-half-even off the last bit: ``-341426.25`` in the regional
+    jet's ``MOMENT`` cards printed ``-3.414262E+05`` here and ``-3.414263E+05``
+    there, for one load.
+
+    Asserted over the values the decks **actually emit**, every shipped example,
+    by spying on the formatter rather than by re-deriving a candidate set --
+    invented values would not have found this one. Before
+    :func:`sloads.units.canonical` reached ``_fmt``, 248 of the 159,407 emitted
+    values moved under this band; the sweep is the whole population, so the next
+    emitter that formats a solved scalar by hand fails here too.
+    """
+    from sloads.export import sbeam_bridge as sb
+
+    import imperial_baseline as baseline
+
+    seen: "list[float]" = []
+    original = sb._fmt
+
+    def spy(value):
+        seen.append(value)
+        return original(value)
+
+    checked = fragile = 0
+    sb._fmt = spy
+    try:
+        for example in baseline.EXAMPLES:
+            seen.clear()
+            baseline.artifacts(example)
+            for value in seen:
+                if (not isinstance(value, float) or not math.isfinite(value)
+                        or value == 0.0):
+                    continue  # a relative ulp band around zero is not a band
+                printed = original(value)
+                checked += 1
+                for neighbour in _ulp_neighbours(value, ulps=3):
+                    if original(neighbour) != printed:
+                        fragile += 1
+                        assert False, (
+                            example, value, printed, neighbour,
+                            original(neighbour))
+    finally:
+        sb._fmt = original
+    assert checked > 100_000, checked  # the sweep must not quietly empty out
+
+
+def test_the_deck_formatter_still_prints_what_it_used_to():
+    """Canonicalising is a fix for the tie, not a change of emitted precision.
+
+    A value nowhere near the seventh-digit boundary prints exactly as it always
+    did -- seven significant digits in NASTRAN scientific style. Only a value
+    already sitting on the tie can move, and there the seventh digit carried no
+    information to lose.
+    """
+    from sloads.export.sbeam_bridge import _fmt
+
+    for value, expected in (
+        (1234.5678, "1.234568E+03"),
+        (-7157.865, "-7.157865E+03"),
+        (0.0, "0.000000E+00"),
+        (1.0, "1.000000E+00"),
+        (-341426.25, "-3.414262E+05"),   # the tie itself, resolved one way only
+    ):
+        assert _fmt(value) == expected, (value, _fmt(value), expected)
+
+
 def test_the_formatter_still_says_what_it_used_to_where_nothing_was_at_stake():
     """The quantization is a fix for the cliff, not a change of precision.
 

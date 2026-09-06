@@ -144,7 +144,7 @@ from ..modules import tail_span
 from ..modules.body_loads import CLOSURE_ARTIFACT_CAVEAT as _BODY_ARTIFACT_CAVEAT
 from ..modules.net_loads import loads_ref_axis_results
 from ..picks import extreme
-from ..units import Channel, DeliverableUnits, UnitSystem, deliverable_units
+from ..units import Channel, DeliverableUnits, UnitSystem, canonical, deliverable_units
 from .bands import band
 from .coordinates import (
     SBEAM_CID,
@@ -265,6 +265,7 @@ def _sf_str(sf: float) -> str:
 # sbeam/results/load_export.py).
 _TOL = 1e-9
 
+
 # GRID id of the clamped wing-root node in the stick model; station nodes follow.
 # Both come out of the band registry (:mod:`sloads.export.bands`) -- see it for
 # the whole GID/EID/SID map and why one owner replaced the per-file constants.
@@ -284,8 +285,14 @@ def sob_gid() -> int:
 
 
 def _fmt(val: float) -> str:
-    """Format a load/coordinate component in NASTRAN 6-digit scientific style."""
-    return f"{val:.6E}"
+    """Format a load/coordinate component in NASTRAN 6-digit scientific style.
+
+    Canonicalised first: seven printed digits is finer than a computed load is
+    reproducible across platforms, and a value on the tie of its seventh digit
+    prints two ways for one load. :func:`sloads.units.canonical` is the owner of
+    that rule for every channel -- see it for the two cases that earned it.
+    """
+    return f"{canonical(val):.6E}"
 
 
 def _fmt3(x: float, y: float, z: float) -> str:

@@ -1059,3 +1059,46 @@ def units_statement(u: DeliverableUnits) -> str:
         f"{system_name(u.system)} ({u.force.label}, {u.length.label}, "
         f"{u.moment.label}, {u.pressure.label})"
     )
+
+
+#: Significant digits every deliverable value is canonicalised to before it is
+#: printed, in any channel. See :func:`canonical`.
+CANONICAL_SIG = 12
+
+
+def canonical(value: float) -> float:
+    """``value`` rounded to :data:`CANONICAL_SIG` digits, so a rounding tie cannot flip.
+
+    **The one owner of printed-value reproducibility** (``CLAUDE.md`` rule 3).
+    A computed load is not reproducible to the digits a deliverable prints: the
+    arithmetic reassociates across platforms (x86 vs ARM, different libm/FMA
+    builds) and the last bits differ. When a value lands on the decimal
+    **rounding tie** of its last printed digit, round-half-even turns on exactly
+    those bits, and the same load prints two different strings.
+
+    It has now bitten twice, in two channels, with one cause:
+
+    * the human channel -- ``-687258.0000000001`` against ``-687257.9999999999``,
+      the same load through one more cosine, printing ``-6.873e+05`` two ways
+      (``report.render._num``);
+    * the solver channel -- ``-341426.25`` in the regional jet's ``MOMENT``
+      cards, sitting 0.0 ulp from the tie of its seventh digit and printing
+      ``-3.414262E+05`` here and ``-3.414263E+05`` on the Linux CI leg
+      (``export.sbeam_bridge._fmt``).
+
+    Both were found the same way -- the frozen Imperial digest passing on the
+    developer's Mac and failing in CI -- and the second is why this became one
+    function instead of a second copy of the first.
+
+    Twelve digits is chosen to sit **between** the two scales: four orders above
+    a double's ulp, so any platform difference is absorbed, and well above the
+    4-7 digits a deliverable states, so no digit a reader relies on is disturbed.
+    Measured over the six baseline examples, 159,407 emitted solver values: 248
+    were tie-fragile under +-3 ulp before, none after, and 22 printed strings
+    moved -- every one a value already on a tie, where the last digit carried no
+    information to lose.
+
+    The residual knife edge is a value within an ulp of a *twelfth*-digit
+    boundary, which no quantization removes and no deliverable distinguishes.
+    """
+    return float(f"{value:.{CANONICAL_SIG}g}")
